@@ -93,11 +93,14 @@
 
 | 环境变量 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `DOLPHIN_DOMAIN` | 是 | — | 公网域名，如 `bank.example.edu.cn`；Caddy 据此申请证书 |
-| `ACME_EMAIL` | 是 | — | 证书到期通知邮箱 |
+| `DOLPHIN_DOMAIN` | 是 | — | 用户访问的域名，不含端口，如 `bank.example.edu.cn`；本地测试用 `localhost` |
+| `ACME_EMAIL` | 由 Let's Encrypt 签发时必填 | — | 证书到期通知邮箱 |
+| `DOLPHIN_PORT` | 否 | `443` | 容器内 HTTPS 监听端口；放在端口转发或隧道后面时使用 |
 | `TZ` | 否 | `Asia/Shanghai` | 容器时区；数据库内时间统一存 `timestamptz` |
 | `BACKUP_TIME` | 否 | `02:00` | 每日备份时间 |
 | `BACKUP_RETENTION_DAYS` | 否 | `30` | 备份保留天数 |
+
+证书三种来源：挂载了 `/certs/fullchain.pem` 与 `/certs/privkey.pem` 时使用这两个文件（如 Certd 推送的证书），文件变化后 10 秒内自动重载；`DOLPHIN_DOMAIN=localhost` 时使用 Caddy 本地 CA；其余情况由 Caddy 向 Let's Encrypt 自动申请和续期。
 
 数据库密码、`JWT_SECRET`、anon key、service_role key 在首次启动时自动生成，保存在 `/data/secrets/`（权限 600）。service_role key 只在容器内部供 Storage 和运维脚本使用，不写入 `/config.js`。
 
