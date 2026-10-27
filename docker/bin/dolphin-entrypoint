@@ -3,11 +3,18 @@
 set -euo pipefail
 
 : "${DOLPHIN_DOMAIN:?Set DOLPHIN_DOMAIN to the public domain, without port (use localhost for a local test)}"
-# localhost gets a certificate from Caddy's local CA, so no ACME account is involved.
-case "$DOLPHIN_DOMAIN" in localhost|localhost:*) : "${ACME_EMAIL:=admin@localhost}" ;; esac
-: "${ACME_EMAIL:?Set ACME_EMAIL to the address that receives certificate expiry notices}"
-export ACME_EMAIL
 mkdir -p /data/secrets /data/storage /data/backups /data/run /data/caddy
+# Certificates: files mounted at /certs, Caddy's local CA for localhost, otherwise Let's Encrypt (needs ACME_EMAIL).
+if [ -f /certs/fullchain.pem ] && [ -f /certs/privkey.pem ]; then
+  echo "tls /certs/fullchain.pem /certs/privkey.pem" > /data/run/tls.caddy
+else
+  : > /data/run/tls.caddy
+fi
+if grep -q '^tls ' /data/run/tls.caddy || [ "$DOLPHIN_DOMAIN" = localhost ]; then
+  : "${ACME_EMAIL:=admin@localhost}"
+fi
+: "${ACME_EMAIL:?Set ACME_EMAIL to the address that receives certificate expiry notices, or mount certificates at /certs}"
+export ACME_EMAIL
 chmod 700 /data/secrets
 
 jwt() { # jwt <role>: long-lived HS256 API key signed with JWT_SECRET
@@ -37,11 +44,6 @@ set -a; . /data/secrets/env; set +a
 
 export SITE_URL="https://$DOLPHIN_DOMAIN"
 export DOLPHIN_PORT="${DOLPHIN_PORT:-443}"
-if [ -f /certs/fullchain.pem ] && [ -f /certs/privkey.pem ]; then
-  echo "tls /certs/fullchain.pem /certs/privkey.pem" > /data/run/tls.caddy
-else
-  : > /data/run/tls.caddy
-fi
 printf 'window.__DOLPHIN_CONFIG__ = %s;\n' "{\"supabaseUrl\":\"$SITE_URL\",\"anonKey\":\"$ANON_KEY\"}" > /data/run/config.js
 
 exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
