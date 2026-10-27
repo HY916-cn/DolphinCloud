@@ -18,8 +18,7 @@
       "name": "Logos",
       "tile": "l",
       "order": [
-        "dolphin-cloud-logo.png",
-        "dolphin-cloud-logo.svg"
+        "dolphin-cloud-logo.png"
       ],
       "files": {
         "dolphin-cloud-logo.png": {
@@ -27,12 +26,6 @@
           "blob": "3db5cb4e2901c4767590e8c2cffe7d7e",
           "size": 132998,
           "type": "image/png"
-        },
-        "dolphin-cloud-logo.svg": {
-          "name": "dolphin-cloud-logo.svg",
-          "blob": "ebbae120bce5c3e55e67ff6ab393b2c7",
-          "size": 1837,
-          "type": "image/svg+xml"
         }
       }
     },
@@ -65,128 +58,128 @@
       "files": {
         "home.svg": {
           "name": "home.svg",
-          "blob": "fd499d5a64c694783530f45488ad7cf2",
-          "size": 514,
+          "blob": "2778c80d6c84c07950ceeb8ce41a0c82",
+          "size": 361,
           "type": "image/svg+xml"
         },
         "coin.svg": {
           "name": "coin.svg",
-          "blob": "768e97982359179445dcca33541042c1",
-          "size": 879,
+          "blob": "7416b8f1ed71fdfbd25a44ae8409aff0",
+          "size": 345,
           "type": "image/svg+xml"
         },
         "query.svg": {
           "name": "query.svg",
-          "blob": "6bbba5d82d42bf2336e67b9b9e6f07ba",
-          "size": 346,
+          "blob": "2d488ab3bc871fd30153949f921134b5",
+          "size": 255,
           "type": "image/svg+xml"
         },
         "deposit.svg": {
           "name": "deposit.svg",
-          "blob": "41b1c41604e7acc2fa07ff0861dab490",
-          "size": 773,
+          "blob": "e5fe46f92f412c0151ad52e51d98ced9",
+          "size": 409,
           "type": "image/svg+xml"
         },
         "withdraw.svg": {
           "name": "withdraw.svg",
-          "blob": "0c2d143588749516ad62ba0f785459ec",
-          "size": 798,
+          "blob": "941ad749324888385c6aac1321f6b1dc",
+          "size": 410,
           "type": "image/svg+xml"
         },
         "savings.svg": {
           "name": "savings.svg",
-          "blob": "89546cdb3710506510d5d378bd704ffa",
-          "size": 1189,
+          "blob": "065ce0b30bb687d66d4f5165b804d435",
+          "size": 473,
           "type": "image/svg+xml"
         },
         "exchange.svg": {
           "name": "exchange.svg",
-          "blob": "f910e3175232b0f53f852cad9f9f8ddc",
-          "size": 1011,
+          "blob": "b8e8081ff402ff93d919d7918886ab3a",
+          "size": 408,
           "type": "image/svg+xml"
         },
         "invest.svg": {
           "name": "invest.svg",
-          "blob": "d17330bcf55fc688e48cc2190991a876",
-          "size": 1180,
+          "blob": "eeee0928aaa9da75173040f3fdfbbe0a",
+          "size": 249,
           "type": "image/svg+xml"
         },
         "loan.svg": {
           "name": "loan.svg",
-          "blob": "2a4a51268822e178b26e9614f6b44ec3",
-          "size": 958,
+          "blob": "8d5e0a222324e6745bf995086cfa0579",
+          "size": 461,
           "type": "image/svg+xml"
         },
         "transfer.svg": {
           "name": "transfer.svg",
-          "blob": "71b27cebaa08e2e4e570b4c6d4f4922f",
-          "size": 445,
+          "blob": "1e30bd3321665444e4094f8865bf726d",
+          "size": 295,
           "type": "image/svg+xml"
         },
         "passbook.svg": {
           "name": "passbook.svg",
-          "blob": "a601a67773d0a10498da5a7c8d40208d",
-          "size": 440,
+          "blob": "7a978f228eb4d7f1761295a0da49d4c3",
+          "size": 365,
           "type": "image/svg+xml"
         },
         "calendar.svg": {
           "name": "calendar.svg",
-          "blob": "21193f871897d75eb875f835f04fa10a",
-          "size": 568,
+          "blob": "7da1b92206f197f47dbd9c0ef1da3db5",
+          "size": 342,
           "type": "image/svg+xml"
         },
         "star.svg": {
           "name": "star.svg",
-          "blob": "27455e9652193cfe251b81858c299738",
-          "size": 1118,
+          "blob": "c2638daa90accf31be6ac27d747ac9f9",
+          "size": 564,
           "type": "image/svg+xml"
         },
         "me.svg": {
           "name": "me.svg",
-          "blob": "4dcd4d29d56a72e3755c1ce90d2706f5",
-          "size": 441,
+          "blob": "f895e89265d83b657a4cd0830d8a60fb",
+          "size": 279,
           "type": "image/svg+xml"
         },
         "parent.svg": {
           "name": "parent.svg",
-          "blob": "5b96cb247794d66b2907a93acef99f56",
-          "size": 609,
+          "blob": "2f85f44dbeddb083084c35011e482a43",
+          "size": 367,
           "type": "image/svg+xml"
         },
         "teacher.svg": {
           "name": "teacher.svg",
-          "blob": "0011059414edf700a5ab37bb34ef000a",
-          "size": 606,
+          "blob": "7fee2af2388bb2ba59d0c8496b20f175",
+          "size": 392,
           "type": "image/svg+xml"
         },
         "lock.svg": {
           "name": "lock.svg",
-          "blob": "0271f134ff3719f709cad8c00b7b425d",
-          "size": 458,
+          "blob": "0f547cc9051acdbcc5a1aa5ca02cb3fb",
+          "size": 287,
           "type": "image/svg+xml"
         },
         "bell.svg": {
           "name": "bell.svg",
-          "blob": "c8cafa08c2f2dbfd132d799447eab8e1",
-          "size": 576,
+          "blob": "3c3a4ab5c144075963c1648703adf688",
+          "size": 371,
           "type": "image/svg+xml"
         },
         "help.svg": {
           "name": "help.svg",
-          "blob": "c4bf6ff29fed7ceac0362b0b1bbd5665",
-          "size": 545,
+          "blob": "94b8ba4766403f2d7825dc8387b14271",
+          "size": 304,
           "type": "image/svg+xml"
         },
         "success.svg": {
           "name": "success.svg",
-          "blob": "b51a2ac307de2231ce87be484ff0a0ad",
-          "size": 442,
+          "blob": "0d472a9357e863edb8763b6472753776",
+          "size": 258,
           "type": "image/svg+xml"
         },
         "warning.svg": {
           "name": "warning.svg",
-          "blob": "4ca5ac75981a9d9517f326f8da037e81",
-          "size": 733,
+          "blob": "a16e733babcdb91e352a474415e2f483",
+          "size": 325,
           "type": "image/svg+xml"
         }
       }
@@ -198,8 +191,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-10-27T12:16:25Z",
+    "at": "2026-10-27T12:24:19Z",
     "via": "Claude Code",
-    "note": "海豚云设计系统：明亮海豚蓝色板、Nunito Sans + 思源黑体、21 个 Duotone 业务图标、11 个儿童友好组件与封面"
+    "note": "图标改用 morphicons 默认图标集 Lucide（21 个业务图标）；Logo 只保留 PNG 版"
   }
 }

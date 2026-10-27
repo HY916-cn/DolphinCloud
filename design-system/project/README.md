@@ -58,10 +58,11 @@
 
 ## 图标
 
-- Icons 组共 21 个业务图标，采用 Phosphor Icons 的 Duotone 风格（MIT 许可）：256 网格，线条为实色，内部填充同色 20% 透明度，圆润而不幼稚。文件里画成 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
-- 在组件里把图标写成内联 `<svg class="dc-icon" fill="currentColor" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
+- 图标使用 [morphicons](https://www.morphicons.com/) 的默认图标集 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 21 个业务图标，文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
+- 图标在两种状态之间切换时（底部导航选中、展开 / 收起、办理完成打勾），用 morphicons（`npm install morphicons`）做形变过渡，时长不超过 200ms。
 - 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、导航 30px、提示条和余额卡 36px、宫格 52px。
-- 需要新图标时，从 Phosphor 的 Duotone 款里选，保持同一网格和粗细，不混用其他图标库。
+- 需要新图标时，从 Lucide 里选，保持 2px 描边，不混用其他图标库。
 
 ## 组件
 
