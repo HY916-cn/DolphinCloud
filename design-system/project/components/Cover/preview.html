@@ -1,0 +1,48 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>海豚云</title>
+<style>
+  html, body { margin:0; height:100%; }
+  body { background:var(--surface); color:var(--ink); font-family:var(--font-sans); overflow:hidden; }
+  .cover { position:relative; height:288px; overflow:hidden; }
+  .art { position:absolute; top:0; left:480px; width:480px; height:288px; overflow:hidden; }
+  .art svg { display:block; }
+  .brand { fill:var(--dolphin); }
+  .c2 { fill:var(--cloud-200); }
+  .c3 { fill:var(--cloud-300); }
+  .coin { fill:var(--coin); }
+  .blk { rx:var(--radius-lg); }
+  .words { position:absolute; left:var(--space-6); bottom:var(--space-6); max-width:440px; }
+  .name { margin:0; font-family:var(--font-display); font-weight:400; font-size:120px; line-height:.95; color:var(--ink); }
+  .tag { margin:var(--space-2) 0 0 6px; font-size:14px; line-height:20px; font-weight:600; color:var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      dolphin 176x228 slab bled off the top (the brand's one hue, largest) · cloud-300 136x240 bleeding off the right · cloud-200 144x112 tint · coin disc r40 (the HTB coin) — about 40% of 960x288
+  arrangement one tall dolphin slab with satellites, all standing in the sea: blocks bottoms dip into the waves
+  pattern     waves, from "云朵、海浪（连续缓曲线）": three continuous gentle wave bands (period 120, swell 12) in cloud-200, cloud-300, dolphin rising from the bottom like the logo's layered sea
+  scales      gutters space-4/space-5; corners radius-lg (28px); coin rx = radius-pill; wave bands space-5 apart
+-->
+<rect class="brand blk" x="24" y="-28" width="176" height="228"/>
+<rect class="c3 blk" x="368" y="24" width="140" height="240"/>
+<rect class="c2 blk" x="216" y="120" width="136" height="112"/>
+<circle class="coin" cx="284" cy="64" r="40"/>
+<path class="c2" d="M0 216C20 204 40 204 60 216S100 228 120 216S160 204 180 216S220 228 240 216S280 204 300 216S340 228 360 216S400 204 420 216S460 228 480 216V288H-60Z"/>
+<path class="c3" d="M-40 240C-20 228 0 228 20 240S60 252 80 240S120 228 140 240S180 252 200 240S240 228 260 240S300 252 320 240S360 228 380 240S420 252 440 240S480 228 500 240V288H-60Z"/>
+<path class="brand" d="M-20 264C0 252 20 252 40 264S80 276 100 264S140 252 160 264S200 276 220 264S260 252 280 264S320 276 340 264S380 252 400 264S440 276 460 264S500 252 520 264V288H-60Z"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">海豚云</h1>
+<p class="tag">明德实验学校海豚银行 · 明亮、圆润、一看就会</p>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!-- @dsCard group="表单" height=330 -->
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Field</title><style>body{padding:24px}.demo{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-bottom:16px}.stack{display:flex;flex-direction:column;gap:12px;max-width:480px}.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}</style></head>
+<body>
+<div class="cols">
+  <label class="dc-field">
+    <span class="dc-field-label"><img class="dc-icon" src="/_blob/7e5c3717d93d0ffa68375f3bb6e441d3" alt="">存多少海豚币？</span>
+    <span class="dc-input-wrap"><input class="dc-input" inputmode="numeric" placeholder="输入数字" value="50"><span class="dc-input-unit">HTB</span></span>
+    <span class="dc-field-hint">一次最多存 500 HTB</span>
+  </label>
+  <label class="dc-field is-error">
+    <span class="dc-field-label"><img class="dc-icon" src="/_blob/fc1503681c0fb027eabf9a4e39e5e8db" alt="">取多少海豚币？</span>
+    <span class="dc-input-wrap"><input class="dc-input" inputmode="numeric" value="2000"><span class="dc-input-unit">HTB</span></span>
+    <span class="dc-field-hint"><img class="dc-icon" src="/_blob/45e37844e0788bfcfa6da3de277ea99a" alt="">余额只有 1,280 HTB，换个小一点的数字吧</span>
+  </label>
+</div>
+</body>
+</html>
