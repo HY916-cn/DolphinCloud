@@ -185,9 +185,8 @@ create table students (
   user_id    uuid unique references profiles(id),
   name       text not null,
   division   text not null check (division in ('primary','junior')),  -- 学部：小学部 / 初中部
-  grade      text not null,                    -- 年级，如「四年级」「初一」
-  class_name text not null,                    -- 班级，如「4班」
-  cohort     text,                             -- 入学届，可空
+  cohort     integer not null check (cohort between 2000 and 2100),  -- 学届：入学年份，如 2023
+  class_no   integer not null check (class_no between 1 and 99),     -- 班号，只有数字
   status     text not null default 'normal' check (status in ('normal','frozen','graduated')),
   opened_at  timestamptz not null default now()
 );
@@ -297,6 +296,13 @@ create table audit_log (
 );
 ```
 
+年级与班级：
+
+- 数据库只保存学届（入学年份）和班号，统计、筛选都按学届；年级由学届推算，不存储。
+- 学年从参数 `promotion_date`（默认 9 月 1 日）开始。小学部年级 = 当前学年 − 学届 + 1（一至六年级），初中部年级 = 当前学年 − 学届 + 7（七至九年级）。
+- 显示时以年级班级为主、学届为辅：主文字「四年级(1)班」，旁边弱化显示「2023 届」。学届超出本学部年级范围时（已升出或尚未入学）只显示学届。
+- `app_private.grade_of(学部, 学届[, 日期])`、`app_private.class_label(学部, 学届, 班号[, 日期])` 负责推算；表查询可直接取计算列 `students?select=*,grade,class_label`。
+
 ### 5.3 参数
 
 | key | 默认值 | 说明 |
@@ -306,6 +312,7 @@ create table audit_log (
 | `withdraw_daily_limit` | `{"primary":500,"junior":500}` | 单日累计取款上限（不含已冲正），小学部、初中部分别设置 |
 | `ranking_anonymous` | `true` | 排名是否隐藏姓名（显示为「张*明」） |
 | `ranking_size` | `10` | 排名显示前几名（每个学部） |
+| `promotion_date` | `"09-01"` | 每年升年级的日期（月-日），从这天起所有学生的年级加一 |
 
 ### 5.4 数据不变式
 
@@ -374,16 +381,16 @@ create table audit_log (
 
 模板（Excel，第一行为表头）：
 
-| 学号 | 姓名 | 学部 | 年级 | 班级 | 入学届 | 期初余额 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 必填，唯一 | 必填 | 必填，小学部 / 初中部 | 必填 | 必填 | 可空 | 可空，整数 ≥ 0 |
+| 学号 | 姓名 | 学部 | 学届 | 班号 | 期初余额 |
+| --- | --- | --- | --- | --- | --- |
+| 必填，唯一 | 必填 | 必填，小学部 / 初中部 | 必填，入学年份，如 2023；须使学生当前处在本学部的年级内 | 必填，1–99 的整数 | 可空，整数 ≥ 0 |
 
 流程：
 
 1. 前端用 SheetJS 读取文件，校验表头、必填项、学号重复、学部（「小学部」「初中部」，提交时转为 `primary` / `junior`）、余额格式，错误行标出行号，全部通过才允许导入。
 2. 每 100 行调用一次 `import_roster`，界面显示进度；每批一个事务。函数声明 `set statement_timeout = '60s'`。
 3. 新学号：创建 `auth.users` + `auth.identities`、`profiles`、`students`、`accounts`；期初余额 > 0 时写一笔 `opening` 流水；密码为默认密码。
-4. 已存在的学号：只更新姓名、学部、年级、班级、入学届，不改密码、不重复写期初流水。
+4. 已存在的学号：只更新姓名、学部、学届、班号，不改密码、不重复写期初流水。
 5. 导入结束显示「新开户 N 人、更新 M 人」，并提供「打印开户通知单」：按班分页，每张含姓名、班级、学号、默认密码、登录网址，并提示「首次登录后请立即设置新密码」。
 
 账号写入方式：Supabase Auth 不开放注册（`GOTRUE_DISABLE_SIGNUP=true`），账号由 `security definer` 函数直接写入 `auth` schema：
@@ -410,7 +417,7 @@ create table audit_log (
 | `currency_issues` | — | — | 全部 | — |
 | `audit_log` | — | — | 指导老师 | — |
 
-柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、年级、班级、余额，以及该生当天已取款合计。系统管理员可读 `profiles`、`user_roles`、`audit_log`。
+柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、学届、班号、年级、班级名称、余额，以及该生当天已取款合计。系统管理员可读 `profiles`、`user_roles`、`audit_log`。
 
 ### 6.7 图片存储
 
@@ -475,7 +482,7 @@ client/
 
 所有业务都是同一个步骤结构，用 `Steps` 显示进度：
 
-1. **输入学号**：大号数字键盘；输入完成后显示姓名、班级、余额，柜员核对后点「下一步」。
+1. **输入学号**：大号数字键盘；输入完成后显示姓名、年级班级（如「四年级(1)班」）、余额，柜员核对后点「下一步」。
 2. **办理**
    - 存款：每个面额一行「− 张数 +」，下方实时显示合计。
    - 取款：输入金额；显示配钞方案（如「10 元 × 2 张、5 元 × 1 张」）、可用余额、今日还可取金额。

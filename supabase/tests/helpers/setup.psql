@@ -1,5 +1,5 @@
 -- Included by every test file. Opens the transaction the file rolls back, installs pgTAP and the helpers:
---   tests.staff(login, roles) / tests.student(no, opening, roles, name, division) create logins as postgres and return the user id;
+--   tests.staff(login, roles) / tests.student(no, opening, roles, name, division, cohort) create logins as postgres and return the user id;
 --   tests.call(user, sql) runs sql as that authenticated user and returns its jsonb result, or {"error", "detail"}.
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -21,15 +21,17 @@ begin
 end $$;
 
 create function tests.student(p_no text, p_opening integer default 0, p_roles app_role[] default '{}', p_name text default null,
-  p_division text default 'primary')
+  p_division text default 'primary', p_cohort integer default null)
 returns uuid language plpgsql as $$
 declare v uuid := app_private.create_login(p_no || '@student.dolphin.internal', '123456');
 begin
   insert into profiles (id, login_kind, login_id, display_name, must_change_password)
   values (v, 'student', p_no, coalesce(p_name, '学生' || p_no), false);
   insert into user_roles (user_id, role) select v, unnest(p_roles);
-  insert into students (student_no, user_id, name, division, grade, class_name)
-  values (p_no, v, coalesce(p_name, '学生' || p_no), p_division, '四年级', '4班');
+  -- Default cohort: 四年级 for primary, 七年级 for junior, in class 4.
+  insert into students (student_no, user_id, name, division, cohort, class_no)
+  values (p_no, v, coalesce(p_name, '学生' || p_no), p_division,
+    coalesce(p_cohort, app_private.grade_of(p_division, 0) - case when p_division = 'junior' then 7 else 4 end), 4);
   insert into accounts (student_no, balance, total_in) values (p_no, p_opening, p_opening);
   if p_opening > 0 then
     insert into txns (id, type, student_no, amount, balance_delta, balance_after, operator_id)

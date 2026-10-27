@@ -27,20 +27,20 @@ create function tests.counts(p_user uuid) returns text language sql as $$
     (select count(*) from audit_log) > 0, (select count(*) from settings))$q$)::text
 $$;
 -- [profiles, students, accounts, txns, products, issues, audit visible, settings]
-select is(tests.counts(:'s1'), '[1, 1, 1, 2, 1, 0, false, 5]', 'student: own profile, account and transactions; listed products');
+select is(tests.counts(:'s1'), '[1, 1, 1, 2, 1, 0, false, 6]', 'student: own profile, account and transactions; listed products');
 select is(tests.call(:'s1', $$select jsonb_agg(distinct student_no) from txns$$), '["s1"]', 'student sees only their own transactions');
-select is(tests.counts(:'t1'), '[1, 2, 2, 1, 1, 0, false, 5]', 'teller: all students, only their own transactions of today');
-select is(tests.counts(:'acc'), '[1, 2, 2, 5, 2, 1, false, 5]', 'accountant: all transactions, products and issues');
-select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, 5]', 'storekeeper: products only');
-select is(tests.counts(:'teacher'), '[8, 2, 2, 5, 2, 1, true, 5]', 'teacher: everything');
-select is(tests.counts(:'admin'), '[8, 0, 0, 0, 1, 0, true, 5]', 'sysadmin: accounts and the audit log, no business data');
+select is(tests.counts(:'t1'), '[1, 2, 2, 1, 1, 0, false, 6]', 'teller: all students, only their own transactions of today');
+select is(tests.counts(:'acc'), '[1, 2, 2, 5, 2, 1, false, 6]', 'accountant: all transactions, products and issues');
+select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, 6]', 'storekeeper: products only');
+select is(tests.counts(:'teacher'), '[8, 2, 2, 5, 2, 1, true, 6]', 'teacher: everything');
+select is(tests.counts(:'admin'), '[8, 0, 0, 0, 1, 0, true, 6]', 'sysadmin: accounts and the audit log, no business data');
 select is(tests.call(:'s1', $$select count(*) from user_roles$$), '0', 'a student without roles sees no role rows');
 select is(tests.call(:'admin', $$select count(*) from user_roles$$), '6', 'sysadmin sees all roles');
 
 update profiles set disabled = true where id = :'t1';
-select is(tests.counts(:'t1'), '[1, 0, 0, 0, 1, 0, false, 5]', 'a disabled teller loses access at once');
+select is(tests.counts(:'t1'), '[1, 0, 0, 0, 1, 0, false, 6]', 'a disabled teller loses access at once');
 
-select is(tests.err(:'t2', $$insert into students (student_no, name, grade, class_name) values ('x', 'x', 'x', 'x')$$),
+select is(tests.err(:'t2', $$insert into students (student_no, name, division, cohort, class_no) values ('x', 'x', 'primary', 2024, 1)$$),
   'permission denied for table students', 'no direct inserts');
 select is(tests.err(:'teacher', $$update accounts set balance = 1000$$), 'permission denied for table accounts', 'no direct balance edits');
 

@@ -54,8 +54,8 @@ select is((select row(balance_delta, cash_delta)::text from txns where id = '000
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) ->> 'balance_after', '600', 'second withdrawal today');
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 150)$$) ->> 'detail', '{"limit": 500, "remaining": 100}',
   'over the daily limit shows what is left today');
-select is(tests.call(:'t1', $$select lookup_student('s4')$$) - 'name',
-  '{"grade":"四年级","division":"primary","status":"normal","balance":600,"class_name":"4班","student_no":"s4","withdrawn_today":400}',
+select is(tests.call(:'t1', $$select lookup_student('s4')$$) - 'name' - 'cohort',
+  '{"grade":4,"class_no":4,"division":"primary","status":"normal","balance":600,"class_label":"四年级(4)班","student_no":"s4","withdrawn_today":400}',
   'lookup shows balance and today''s withdrawals');
 select is(tests.call(:'t1', $$select reverse_txn(gen_random_uuid(), '00000000-0000-4000-8000-000000000004', '金额录错')$$) ->> 'balance_after', '800',
   'reverse one withdrawal');

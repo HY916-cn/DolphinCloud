@@ -8,10 +8,18 @@ select tests.staff('t1', '{teller}') as t1 \gset
 
 -- Roster import
 select is(tests.err(:'admin', $$select import_roster('[]')$$), 'FORBIDDEN', 'only a teacher imports the roster');
-select tests.call(:'teacher', $$select import_roster('[
-  {"student_no":"20260001","name":"张小明","division":"primary","grade":"四年级","class_name":"4班","cohort":"2023","opening_balance":30},
-  {"student_no":"20260002","name":"李四","division":"primary","grade":"四年级","class_name":"4班"},
-  {"student_no":"20260003","name":"王五","division":"junior","grade":"五年级","class_name":"1班","opening_balance":0}]')$$) as roster \gset
+-- Roster rows write "P4" / "J7" for the cohorts now in 四年级 / 七年级, so the tests hold whatever today's date is.
+select app_private.grade_of('primary', 0) - 4 as p4, app_private.grade_of('junior', 0) - 7 as j7 \gset
+create function tests.roster(p_user uuid, p_rows text) returns jsonb language sql as $$
+  select tests.call(p_user, format('select import_roster(%L)', replace(replace(p_rows,
+    '"P4"', (app_private.grade_of('primary', 0) - 4)::text), '"J7"', (app_private.grade_of('junior', 0) - 7)::text)))
+$$;
+select tests.roster(:'teacher', $$[
+  {"student_no":"20260001","name":"张小明","division":"primary","cohort":"P4","class_no":4,"opening_balance":30},
+  {"student_no":"20260002","name":"李四","division":"primary","cohort":"P4","class_no":4},
+  {"student_no":"20260003","name":"王五","division":"junior","cohort":"J7","class_no":1,"opening_balance":0}]$$) as roster \gset
+select is((:'roster'::jsonb -> 'accounts' -> 2) - 'password', jsonb_build_object('name', '王五', 'cohort', :j7, 'class_no', 1,
+  'division', 'junior', 'student_no', '20260003', 'class_label', '七年级(1)班'), 'the result shows grade and class from the cohort');
 select is((:'roster'::jsonb - 'accounts'), '{"created":3,"updated":0}', 'three new accounts');
 select ok((select bool_and(a ->> 'password' = 'a12345678') from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a),
   'new accounts get the default password');
@@ -24,22 +32,38 @@ select is((select array_agg(balance order by student_no) from accounts where stu
 select is((select count(*)::int from txns where type = 'opening' and student_no like '2026000_'), 1, 'one opening transaction for the non-zero balance');
 select ok((select bool_and(must_change_password) from profiles where login_id like '2026000_'), 'students must change the initial password');
 
-select is(tests.call(:'teacher', $$select import_roster('[
-  {"student_no":"20260001","name":"张晓明","division":"primary","grade":"五年级","class_name":"4班","opening_balance":99},
-  {"student_no":"20260004","name":"赵六","division":"primary","grade":"四年级","class_name":"4班"},
-  {"student_no":"20260004","name":"赵六","division":"primary","grade":"四年级","class_name":"4班"}]')$$) - 'accounts', '{"created":1,"updated":2}',
+select is(tests.roster(:'teacher', $$[
+  {"student_no":"20260001","name":"张晓明","division":"primary","cohort":"P4","class_no":2,"opening_balance":99},
+  {"student_no":"20260004","name":"赵六","division":"primary","cohort":"P4","class_no":4},
+  {"student_no":"20260004","name":"赵六","division":"primary","cohort":"P4","class_no":4}]$$) - 'accounts', '{"created":1,"updated":2}',
   'existing and repeated student numbers are updated, not opened again');
-select is((select row(s.name, s.grade, p.display_name, a.balance)::text from students s join profiles p on p.id = s.user_id
-  join accounts a using (student_no) where student_no = '20260001'), '(张晓明,五年级,张晓明,30)', 'name and class updated, balance kept');
+select is((select row(s.name, s.class_no, p.display_name, a.balance)::text from students s join profiles p on p.id = s.user_id
+  join accounts a using (student_no) where student_no = '20260001'), '(张晓明,2,张晓明,30)', 'name and class updated, balance kept');
 select is((select count(*)::int from txns where type = 'opening' and student_no = '20260001'), 1, 'no second opening transaction');
-select is(tests.call(:'teacher', $$select import_roster('[{"student_no":"20260009","name":"甲","division":"primary","grade":"四年级","class_name":"4班"},
-  {"student_no":"20260010","division":"primary","grade":"四年级","class_name":"4班"}]')$$) ->> 'detail', '{"row": 2}', 'a bad row is reported by number');
+select is(tests.roster(:'teacher', $$[{"student_no":"20260009","name":"甲","division":"primary","cohort":"P4","class_no":4},
+  {"student_no":"20260010","division":"primary","cohort":"P4","class_no":4}]$$) ->> 'detail', '{"row": 2}', 'a bad row is reported by number');
 select is((select count(*)::int from students where student_no = '20260009'), 0, 'and nothing of the batch is imported');
-select is(tests.err(:'teacher', $$select import_roster('[{"student_no":"20260012","name":"丙","division":"高中部","grade":"四年级","class_name":"4班"}]')$$),
+select is(tests.roster(:'teacher', $$[{"student_no":"20260012","name":"丙","division":"高中部","cohort":"P4","class_no":4}]$$) ->> 'error',
   'INVALID_INPUT', 'division is primary or junior');
-select is((select division from students where student_no = '20260003'), 'junior', 'division is stored');
-select is(tests.err(:'teacher', $$select import_roster('[{"student_no":"20260011","name":"乙","division":"primary","grade":"四年级","class_name":"4班","opening_balance":-1}]')$$),
+select is(tests.roster(:'teacher', $$[{"student_no":"20260012","name":"丙","division":"primary","cohort":"P4","class_no":"4班"}]$$) ->> 'error',
+  'INVALID_INPUT', 'the class is a number');
+select is(tests.roster(:'teacher', $$[{"student_no":"20260012","name":"丙","division":"junior","cohort":"P4","class_no":4}]$$) ->> 'detail',
+  '{"row": 1, "field": "cohort"}', 'the cohort must give a grade of the division (a junior cohort past 九年级 is refused)');
+select is(tests.roster(:'teacher', $$[{"student_no":"20260011","name":"乙","division":"primary","cohort":"P4","class_no":4,"opening_balance":-1}]$$) ->> 'error',
   'INVALID_INPUT', 'negative opening balance');
+
+-- Grade from the cohort
+select is(app_private.grade_of('primary', 2023, '2026-08-31'), 3, 'before promotion_date: still 三年级');
+select is(app_private.grade_of('primary', 2023, '2026-09-01'), 4, 'from promotion_date: 四年级');
+select is(app_private.class_label('junior', 2026, 3, '2026-10-01'), '七年级(3)班', 'junior grades are 七–九年级');
+select is(app_private.class_label('primary', 2020, 1, '2026-10-01'), null, 'a primary cohort past 六年级 has no grade');
+select is(tests.call(:'teacher', $$select set_setting('promotion_date', '"02-15"')$$) ->> 'error', null, 'promotion_date can be set');
+select is(app_private.grade_of('primary', 2023, '2026-02-15'), 4, 'and moves the change of grade');
+select is(tests.err(:'teacher', $$select set_setting('promotion_date', '"13-01"')$$), 'INVALID_INPUT', 'promotion_date is MM-DD');
+select tests.call(:'teacher', $$select set_setting('promotion_date', '"09-01"')$$);
+select is(tests.call(:'teacher', $$select jsonb_agg(jsonb_build_array(student_no, s.grade, s.class_label) order by student_no)
+  from students s where student_no in ('20260001', '20260003')$$),
+  '[["20260001", 4, "四年级(2)班"], ["20260003", 7, "七年级(1)班"]]', 'grade and class_label are computed fields of students');
 
 -- Staff logins and roles
 select tests.call(:'admin', $$select create_staff('Teller02', '柜员二', '{teller}')$$) as staff \gset
@@ -122,7 +146,7 @@ select is(tests.err(:'teacher', $$select set_setting('withdraw_daily_limit', '{"
 select is(tests.err(:'teacher', $$select set_setting('ranking_anonymous', '"yes"')$$), 'INVALID_INPUT', 'flags are booleans');
 select is(tests.err(:'teacher', $$select set_setting('colour', '1')$$), 'INVALID_INPUT', 'unknown key');
 select is(tests.err(:'t1', $$select set_setting('ranking_size', '3')$$), 'FORBIDDEN', 'only a teacher changes settings');
-select is((select count(*)::int from audit_log where action = 'settings.update' and actor_id = :'teacher'), 2, 'setting changes are audited');
+select is((select count(*)::int from audit_log where action = 'settings.update' and actor_id = :'teacher'), 4, 'setting changes are audited');
 
 -- Ranking
 select tests.student('r1', 900, p_name => '欧阳小明') as r1 \gset
@@ -130,8 +154,8 @@ select tests.student('r2', 800, p_name => '陈晨');
 select tests.student('r3', 1000, p_name => '初中生', p_division => 'junior');
 select tests.call(:'teacher', $$select set_setting('ranking_size', '2')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$),
-  '{"division":"primary","me":{"rank":1,"balance":900},"top":[{"me":true,"name":"欧**明","rank":1,"grade":"四年级","balance":900,"class_name":"4班"},
-    {"me":false,"name":"陈*","rank":2,"grade":"四年级","balance":800,"class_name":"4班"}]}', 'top N of the caller''s division, masked names, own place');
+  ('{"division":"primary","me":{"rank":1,"balance":900},"top":[{"me":true,"name":"欧**明","rank":1,"cohort":' || :p4 || ',"balance":900,"class_label":"四年级(4)班"},
+    {"me":false,"name":"陈*","rank":2,"cohort":' || :p4 || ',"balance":800,"class_label":"四年级(4)班"}]}')::jsonb, 'top N of the caller''s division, masked names, own place');
 select is(tests.call(:'teacher', $$select deposit_ranking('junior')$$) -> 'top' -> 0 ->> 'balance', '1000', 'junior students rank separately');
 select tests.call(:'teacher', $$select set_setting('ranking_anonymous', 'false')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$) -> 'top' -> 1 ->> 'name', '陈晨', 'full names when not anonymous');
