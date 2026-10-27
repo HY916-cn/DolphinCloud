@@ -1,0 +1,59 @@
+-- Included by every test file. Opens the transaction the file rolls back, installs pgTAP and the helpers:
+--   tests.staff(login, roles) / tests.student(no, opening, roles) create logins as postgres and return the user id;
+--   tests.call(user, sql) runs sql as that authenticated user and returns its jsonb result, or {"error", "detail"}.
+\set ON_ERROR_STOP 1
+\set QUIET 1
+\pset format unaligned
+\pset tuples_only on
+\pset pager off
+begin;
+create schema tests;
+create extension pgtap with schema tests;
+set search_path = public, tests;
+select no_plan();
+
+create function tests.staff(p_login text, p_roles app_role[] default '{}') returns uuid language plpgsql as $$
+declare v uuid := app_private.create_login(p_login || '@staff.dolphin.internal', 'test-password');
+begin
+  insert into profiles (id, login_kind, login_id, display_name, must_change_password) values (v, 'staff', p_login, p_login, false);
+  insert into user_roles (user_id, role) select v, unnest(p_roles);
+  return v;
+end $$;
+
+create function tests.student(p_no text, p_opening integer default 0, p_roles app_role[] default '{}', p_name text default null)
+returns uuid language plpgsql as $$
+declare v uuid := app_private.create_login(p_no || '@student.dolphin.internal', '123456');
+begin
+  insert into profiles (id, login_kind, login_id, display_name, must_change_password)
+  values (v, 'student', p_no, coalesce(p_name, '学生' || p_no), false);
+  insert into user_roles (user_id, role) select v, unnest(p_roles);
+  insert into students (student_no, user_id, name, grade, class_name) values (p_no, v, coalesce(p_name, '学生' || p_no), '四年级', '4班');
+  insert into accounts (student_no, balance, total_in) values (p_no, p_opening, p_opening);
+  if p_opening > 0 then
+    insert into txns (id, type, student_no, amount, balance_delta, balance_after, operator_id)
+    values (gen_random_uuid(), 'opening', p_no, p_opening, p_opening, p_opening, v);
+  end if;
+  return v;
+end $$;
+
+create function tests.call(p_user uuid, p_sql text) returns jsonb language plpgsql as $$
+declare
+  v_result jsonb;
+  v_detail text;
+begin
+  begin
+    perform set_config('request.jwt.claims', json_build_object('sub', p_user, 'role', 'authenticated')::text, true);
+    perform set_config('role', 'authenticated', true);
+    execute p_sql into v_result;
+    perform set_config('role', 'none', true);
+    return v_result;
+  exception when others then
+    get stacked diagnostics v_detail = pg_exception_detail;
+    return jsonb_build_object('error', sqlerrm, 'detail', v_detail);
+  end;
+end $$;
+
+-- Error code of a call, or null when it succeeded.
+create function tests.err(p_user uuid, p_sql text) returns text language sql as $$
+  select tests.call(p_user, p_sql) ->> 'error'
+$$;

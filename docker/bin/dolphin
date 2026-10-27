@@ -1,5 +1,5 @@
 #!/bin/bash
-# Operations CLI: dolphin backup | backups | restore <file> | status
+# Operations CLI: dolphin create-admin <login> | backup | backups | restore <file> | check | status
 set -euo pipefail
 BACKUPS=/data/backups
 psql_() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
@@ -33,10 +33,30 @@ restore() {
   echo "Restored $file"
 }
 
+create_admin() {
+  local login="${1:?usage: dolphin create-admin <login>}" pw pw2
+  read -rsp "Password for $login (at least 8 characters): " pw; echo
+  read -rsp "Repeat the password: " pw2; echo
+  [ "$pw" = "$pw2" ] || { echo "Passwords do not match" >&2; exit 1; }
+  psql_ -qAt -v login="$login" -v pw="$pw" <<'SQL'
+select 'Created ' || :'login' || ' (teacher, sysadmin): ' || app_private.create_admin(:'login', :'pw');
+SQL
+}
+
+# Lists ledger mismatches (and logs them to audit_log); exits 1 when there are any.
+check() {
+  local rows
+  rows=$(psql_ -qAt -F ' ' -c "select kind, key, 'recorded', recorded, 'expected', expected from app_private.check_balances()")
+  if [ -n "$rows" ]; then echo "$rows"; exit 1; fi
+  echo "Balances and stock match the ledger"
+}
+
 case "${1:-}" in
+  create-admin) create_admin "${2:-}" ;;
+  check)   check ;;
   backup)  backup ;;
   backups) ls -1t "$BACKUPS" | grep '^dolphin-.*\.tar\.gz$' || true ;;
   restore) restore "${2:-}" ;;
   status)  supervisorctl status || true; echo "version: $DOLPHIN_VERSION"; echo "latest backup: $(ls -1t "$BACKUPS" | head -1)" ;;
-  *) echo "usage: dolphin backup | backups | restore <file> | status" >&2; exit 2 ;;
+  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | status" >&2; exit 2 ;;
 esac

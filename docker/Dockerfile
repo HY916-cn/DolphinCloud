@@ -24,7 +24,7 @@ FROM node:${NODE_VERSION}-bookworm-slim AS node
 FROM postgres:${POSTGRES_MAJOR}-bookworm
 ARG DOLPHIN_VERSION=dev
 RUN apt-get update \
- && apt-get install -y --no-install-recommends supervisor curl ca-certificates \
+ && apt-get install -y --no-install-recommends supervisor curl ca-certificates "postgresql-$PG_MAJOR-pgtap" \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=auth /usr/local/bin/auth /usr/local/bin/auth

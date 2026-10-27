@@ -308,7 +308,7 @@ create table audit_log (
 
 ### 5.4 数据不变式
 
-1. `accounts.balance = sum(txns.balance_delta)`（按学生），由函数在同一事务内维护；`check_balances()` 每天复核一次。
+1. `accounts.balance = sum(txns.balance_delta)`（按学生），由函数在同一事务内维护；`app_private.check_balances()` 每天复核一次。
 2. `products.stock = sum(stock_movements.qty_delta)`（按商品），同样由函数维护并每日复核。
 3. `txns` 只能新增；唯一允许的更新是冲正时把原流水 `status` 改为 `reversed`。触发器拒绝其他 `update` 与所有 `delete`。
 4. 每笔冲正指向唯一一笔原流水（`reversal_of` 唯一），冲正流水本身不能再被冲正。
@@ -337,7 +337,7 @@ create table audit_log (
 | --- | --- | --- | --- |
 | `deposit` | teller | `p_id, p_student_no, p_denominations, p_offline, p_client_created_at` | 金额 = Σ面额 × 张数，> 0；`balance_delta = cash_delta = +金额` |
 | `withdraw` | teller | `p_id, p_student_no, p_amount` | 整数 > 0；≤ 单笔上限；当天累计 ≤ 单日上限；≤ 余额；`balance_delta = cash_delta = −金额` |
-| `purchase` | teller | `p_id, p_student_no, p_items [{product_id, qty}], p_payment, p_cash_received` | 商品须已上架且库存足够；账户扣款时金额 ≤ 余额，`balance_delta = −金额`，`cash_delta = 0`；现金支付时收到金额 ≥ 应付，`balance_delta = 0`，`cash_delta = +金额`，记录找零；扣库存并写 `stock_movements` |
+| `purchase` | teller | `p_id, p_student_no, p_items [{product_id, qty}], p_payment, p_cash_received`（收到的各面额张数） | 商品须已上架且库存足够；同一商品多行时合并；账户扣款时金额 ≤ 余额，`balance_delta = −金额`，`cash_delta = 0`；现金支付时收到金额 ≥ 应付，`balance_delta = 0`，`cash_delta = +金额`，记录找零；扣库存并写 `stock_movements` |
 | `reverse_txn` | teller / teacher | `p_id, p_original_id, p_reason` | 见 6.3 |
 
 公共校验：学生存在且 `status = 'normal'`；学生账户不属于当前操作人。
@@ -351,7 +351,7 @@ create table audit_log (
 - 冲正生成一笔 `reversal` 流水：`amount` 同原流水，`balance_delta`、`cash_delta` 取原值的相反数；兑换冲正同时把商品数量加回库存（`stock_movements.kind = 'reversal'`）。
 - 原流水 `status` 改为 `reversed`，两笔流水互相可查。
 - 冲正存款时，若当前余额小于原存款金额，拦截并返回 `REVERSAL_INSUFFICIENT_BALANCE`，由指导老师线下处理后再冲正。
-- 原因必选：金额录错、学号录错、业务选错、其他（「其他」须填写说明）。
+- 原因必选：金额录错、学号录错、业务选错、其他（「其他」须填写说明）。`p_reason` 传其中一项原文，「其他」写作 `其他：<说明>`。
 
 ### 6.4 管理函数
 
@@ -366,7 +366,8 @@ create table audit_log (
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
 | `deposit_ranking()` | 学生 | 返回前 N 名（按参数脱敏）与本人名次 |
-| `check_balances()` | 定时任务 | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log` |
+| `app_private.check_balances()` | 定时任务、`dolphin check` | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log`；不经 API 开放 |
+| `app_private.create_admin(p_login_id, p_password)` | `dolphin create-admin` | 创建带 `teacher`、`sysadmin` 角色的工作账号，不要求改密码；不经 API 开放 |
 
 ### 6.5 名册导入与账号创建
 
@@ -494,6 +495,13 @@ client/
 | `CASH_NOT_ENOUGH` | 收款不足 | 应付 {due} HTB，已收 {received} HTB。 |
 | `REVERSAL_NOT_ALLOWED` | 不能冲正这笔业务 | 只能冲正本人今天办理的业务，其他情况请联系指导老师。 |
 | `REVERSAL_INSUFFICIENT_BALANCE` | 暂不能冲正 | 当前余额 {balance} HTB，少于原存款金额，请联系指导老师。 |
+| `STUDENT_INACTIVE` | 账户不可办理 | 该账户已冻结或已毕业，请联系指导老师。 |
+| `INVALID_AMOUNT` | 金额有误 | 请输入正整数金额，并使用柜台列出的面额。 |
+| `TXN_NOT_FOUND` | 未找到该业务 | 请核对交易号。 |
+| `FORBIDDEN` | 没有权限 | 当前账号不能办理这项业务。 |
+| `INVALID_INPUT` | 填写有误 | 请检查 {field}（名册导入时为第 {row} 行）。 |
+| `ALREADY_EXISTS` | 已存在 | {field} 已被使用。 |
+| `USER_NOT_FOUND`、`PRODUCT_NOT_FOUND` | 未找到 | 请刷新后重试。 |
 | 网络中断（存款以外） | 网络已断开 | 联网后再办理这项业务；存款可以继续离线登记。 |
 
 ### 7.6 离线存款
@@ -526,11 +534,12 @@ client/                 Expo 前端
 supabase/
   config.toml           本地开发用 Supabase 配置
   migrations/           数据库迁移（开发与生产共用）
-  tests/                pgTAP 测试
+  tests/                pgTAP 测试（`helpers/setup.psql` 为公用辅助）
   seed.sql              开发种子数据（示例学生、商品、各角色账号）
 docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）
+  db-test.sh            在镜像上运行 supabase/tests 的 pgTAP 测试（M1）
   Caddyfile
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
@@ -611,13 +620,13 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
 | `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据 |
-| `dolphin check` | 运行 `check_balances()` 并输出结果 |
+| `dolphin check` | 运行 `app_private.check_balances()` 并输出结果；有不一致时退出码为 1 |
 | `dolphin status` | 各进程状态、版本、最近一次备份时间 |
 
 ### 9.4 备份
 
 - 每天 `BACKUP_TIME` 执行：`pg_dump -Fc` 全库 + `/data/storage` 打包为 `/data/backups/dolphin-YYYYMMDD-HHMM.tar.gz`，保留 `BACKUP_RETENTION_DAYS` 天。
-- 备份后运行 `check_balances()`；发现不一致时写入 `audit_log`，后台首页对指导老师显示提示。
+- 备份后运行 `dolphin check`；发现不一致时写入 `audit_log`，后台首页对指导老师显示提示。
 - 建议把 `/data/backups` 单独挂载到另一块磁盘或 NAS：`-v /mnt/nas/dolphin-backups:/data/backups`。
 - 每学期末把当期备份复制归档一次，并在测试机上演练一次 `dolphin restore`。
 
@@ -645,7 +654,7 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 
 | 层级 | 工具 | 覆盖内容 |
 | --- | --- | --- |
-| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；本人账户拦截；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户 |
+| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；本人账户拦截；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
 | 前端单元 | jest-expo | `cash.ts` 配钞与找零；离线队列的入队、按序上传、失败保留、换柜员不可上传；错误码映射 |
 | 端到端 | Playwright，对构建好的生产镜像运行 | 老师导入名册 → 学生首次登录改密码 → 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；备份后恢复，数据一致 |
 | 性能 | 简单脚本 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒 |
@@ -659,7 +668,7 @@ CI（GitHub Actions）：每次推送运行 lint、单元测试、`supabase test
 | 里程碑 | 内容 | 完成标准 |
 | --- | --- | --- |
 | M0 技术验证 | 单容器镜像：Postgres + Auth + PostgREST + Storage + Caddy；入口脚本与 `config.js`；SQL 创建账号 | `docker/smoke-test.sh` 全部通过：经 HTTPS 登录、调用 RPC、上传并公开读取图片；`dolphin backup` → 改动 → `restore` 恢复到备份时状态；容器重启后数据完整 |
-| M1 数据与账务核心 | 全部表、RLS、账务函数、冲正、审计、`check_balances()`；运维命令 `dolphin create-admin`、`dolphin check` | pgTAP 全部通过 |
+| M1 数据与账务核心 | 全部表、RLS、账务与管理函数、冲正、审计、`check_balances()`；运维命令 `dolphin create-admin`、`dolphin check` | `docker/db-test.sh` 全部通过 |
 | M2 前端基础 | 主题 token、组件库、登录与改密码、角色路由 | 设计系统组件与 `preview.html` 视觉对照一致 |
 | M3 柜台 | 存款、取款、兑换、查询、冲正、离线存款 | 柜台相关端到端测试通过；单笔办理 ≤ 1 分钟（由学生柜员试用计时） |
 | M4 后台与学生端 | 名册导入与开户通知单、账号角色、商品与入库、发行登记、流水查询、参数、日志；学生首页、明细、排名 | 全部端到端测试通过 |

@@ -1,0 +1,74 @@
+-- Deposit, withdraw and lookup: roles, amounts, limits, self-service, idempotency (PHASE-1.md §6.2).
+\ir helpers/setup.psql
+
+select tests.staff('t1', '{teller}') as t1 \gset
+select tests.staff('acc', '{accountant}') as acc \gset
+select tests.student('s1', 100) as s1 \gset
+select tests.student('s3', 50) as s3 \gset
+select tests.student('s4', 1000) as s4 \gset
+select tests.student('s9', 10, '{teller}') as s9 \gset
+select tests.student('frozen', 10);
+update students set status = 'frozen' where student_no = 'frozen';
+
+-- Roles
+select is(tests.err(:'s1', $$select deposit(gen_random_uuid(), 's3', '{"10":1}')$$), 'FORBIDDEN', 'a student cannot deposit');
+select is(tests.err(:'acc', $$select deposit(gen_random_uuid(), 's3', '{"10":1}')$$), 'FORBIDDEN', 'an accountant cannot deposit');
+select is(tests.err(:'s1', $$select lookup_student('s3')$$), 'FORBIDDEN', 'a student cannot look up others');
+
+-- Deposit
+select set_config('request.headers', '{"x-device-id":"pad-1"}', false);
+select is(tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000002', 's1', '{"10":2,"5":1}')$$) - 'id' - 'txn_no' - 'created_at',
+  '{"type":"deposit","amount":25,"balance_after":125,"change_given":null}', 'deposit sums the denominations');
+select is((select row(balance_delta, cash_delta, device_id, offline)::text from txns where id = '00000000-0000-4000-8000-000000000002'),
+  row(25, 25, 'pad-1', false)::text, 'deposit adds to balance and counter cash and records the device');
+select is(tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000002', 's1', '{"10":2,"5":1}')$$) ->> 'balance_after', '125',
+  'resubmitting the same id returns the first result');
+select is((select row(balance, total_in)::text from accounts where student_no = 's1'), '(125,125)', 'the resubmission is not booked twice');
+
+select is(tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000003', 's1', '{"1":3}', true, '2026-10-28 09:00+08')$$) ->> 'amount', '3',
+  'offline deposit');
+select is((select row(offline, client_created_at)::text from txns where id = '00000000-0000-4000-8000-000000000003'),
+  row(true, '2026-10-28 09:00+08'::timestamptz)::text, 'offline flag and device time are kept');
+
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"3":1}')$$), 'INVALID_AMOUNT', 'unknown denomination');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":-1}')$$), 'INVALID_AMOUNT', 'negative count');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":1.5}')$$), 'INVALID_AMOUNT', 'fractional count');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":0}')$$), 'INVALID_AMOUNT', 'zero amount');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '[10]')$$), 'INVALID_AMOUNT', 'not an object');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 'nobody', '{"10":1}')$$), 'STUDENT_NOT_FOUND', 'unknown student');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 'frozen', '{"10":1}')$$), 'STUDENT_INACTIVE', 'frozen account');
+select is(tests.err(:'s9', $$select deposit(gen_random_uuid(), 's9', '{"10":1}')$$), 'SELF_SERVICE_FORBIDDEN', 'a teller cannot serve their own account');
+select is(tests.err(:'s9', $$select lookup_student('s9')$$), 'SELF_SERVICE_FORBIDDEN', 'a teller cannot look up their own account');
+select is(tests.call(:'s9', $$select deposit(gen_random_uuid(), 's1', '{"1":1}')$$) ->> 'balance_after', '129',
+  'a student teller can serve other students');
+
+-- Withdraw
+select is(tests.err(:'t1', $$select withdraw(gen_random_uuid(), 's4', 201)$$), 'WITHDRAW_SINGLE_LIMIT', 'over the single limit');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 201)$$) ->> 'detail', '{"limit": 200}', 'single limit in the detail');
+select is(tests.err(:'t1', $$select withdraw(gen_random_uuid(), 's4', 0)$$), 'INVALID_AMOUNT', 'zero withdrawal');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's3', 60)$$) ->> 'detail', '{"short": 10, "balance": 50}',
+  'overdraft is refused with balance and shortfall');
+select is(tests.call(:'t1', $$select withdraw('00000000-0000-4000-8000-000000000004', 's4', 200)$$) ->> 'balance_after', '800', 'withdraw');
+select is((select row(balance_delta, cash_delta)::text from txns where id = '00000000-0000-4000-8000-000000000004'), '(-200,-200)',
+  'withdraw takes from balance and counter cash');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) ->> 'balance_after', '600', 'second withdrawal today');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 150)$$) ->> 'detail', '{"limit": 500, "remaining": 100}',
+  'over the daily limit shows what is left today');
+select is(tests.call(:'t1', $$select lookup_student('s4')$$) - 'name',
+  '{"grade":"四年级","status":"normal","balance":600,"class_name":"4班","student_no":"s4","withdrawn_today":400}',
+  'lookup shows balance and today''s withdrawals');
+select is(tests.call(:'t1', $$select reverse_txn(gen_random_uuid(), '00000000-0000-4000-8000-000000000004', '金额录错')$$) ->> 'balance_after', '800',
+  'reverse one withdrawal');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 300)$$) ->> 'error', 'WITHDRAW_SINGLE_LIMIT', 'the single limit still applies');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) ->> 'balance_after', '600',
+  'reversed withdrawals do not count toward the daily limit');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 101)$$) ->> 'error', 'WITHDRAW_DAILY_LIMIT', 'daily limit reached');
+
+-- A disabled teller loses the role at once
+update profiles set disabled = true where id = :'t1';
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":1}')$$), 'FORBIDDEN', 'a disabled teller cannot deposit');
+
+select is((select count(*)::int from app_private.check_balances()), 0, 'balances match the ledger');
+
+select * from finish();
+rollback;

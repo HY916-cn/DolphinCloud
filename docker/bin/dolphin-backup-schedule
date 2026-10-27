@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run `dolphin backup` every day at BACKUP_TIME (HH:MM, container time zone).
+# Run `dolphin backup` and then `dolphin check` every day at BACKUP_TIME (HH:MM, container time zone).
 set -euo pipefail
 while true; do
   now=$(date +%s)
@@ -7,4 +7,5 @@ while true; do
   [ "$next" -gt "$now" ] || next=$(date -d "tomorrow $BACKUP_TIME" +%s)
   sleep $((next - now))
   dolphin backup || echo "dolphin-backup-schedule: backup failed" >&2
+  dolphin check || echo "dolphin-backup-schedule: ledger mismatch, logged to audit_log" >&2
 done
