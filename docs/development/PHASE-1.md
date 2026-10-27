@@ -432,11 +432,11 @@ create table audit_log (
 
 | 用途 | 选型 |
 | --- | --- |
-| 框架 | Expo（开工时的最新稳定 SDK）、Expo Router、TypeScript；`web.output = "single"` |
+| 框架 | Expo SDK 58、Expo Router、React Native Web、TypeScript；`web.output = "single"` |
 | 数据 | `@supabase/supabase-js`、`@tanstack/react-query` |
-| 图标 | `lucide-react-native` + `react-native-svg` |
+| 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成路径数据，用 `react-native-svg` 绘制 |
 | 字体 | `@expo-google-fonts/nunito-sans`（随站点打包，不依赖外部字体服务）；中文使用系统字体（苹方 / 微软雅黑 / 思源黑体） |
-| 离线 | Workbox 生成 Service Worker（缓存应用外壳）；`idb-keyval` 存离线队列 |
+| 离线（M3） | Workbox 生成 Service Worker（缓存应用外壳）；`idb-keyval` 存离线队列 |
 | Excel | SheetJS（从官方 CDN 发布的 tarball 安装并锁定版本） |
 | 测试 | `jest-expo`（单元）、Playwright（端到端） |
 
@@ -444,38 +444,44 @@ create table audit_log (
 
 ```
 client/
-  app/
-    _layout.tsx               会话、主题、Service Worker 注册
+  src/app/                    路由（Expo Router）
+    _layout.tsx               字体、React Query、会话、键盘焦点环
+    index.tsx                 按账号去向跳转（见下）
     login.tsx                 学生登录 / 工作人员登录两个标签
     change-password.tsx       默认密码登录后设置新密码
-    (student)/                学生端（手机单列 + 底部 TabBar）
+    workspace.tsx             有多个去处的账号选择「柜台」「后台」「我的账户」
+    student/                  学生端（手机单列 + 底部 TabBar）
       index.tsx               余额卡 + 最近 10 笔
-      txns.tsx                全部明细
-      ranking.tsx             存款排名
-      me.tsx                  我的：退出
-    (counter)/                柜台（平板横屏）
+      me.tsx                  我的：年级班级、学届、退出
+      txns.tsx  ranking.tsx   全部明细、存款排名（M4）
+    counter/                  柜台（平板横屏，内容最宽 1080px）
       index.tsx               业务宫格：存款 取款 兑换 查询 冲正
-      deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx
-      offline.tsx             离线待上传
-    (admin)/                  后台（电脑浏览器，左侧导航）
-      students/  staff/  products/  issues/  txns/  settings/  audit/
-  src/
-    components/               按设计系统实现的 RN 组件
-    theme/tokens.ts           由 design-system/project/tokens.json 生成
-    lib/supabase.ts           客户端，读取 window.__DOLPHIN_CONFIG__
-    lib/cash.ts               面额合计、配钞、找零（纯函数）
-    lib/offline-queue.ts      离线存款队列
-    lib/errors.ts             错误码 → 界面文字
-  scripts/gen-tokens.ts       npm run tokens
+      deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx  offline.tsx（M3）
+    admin/                    后台（电脑浏览器）
+      index.tsx               按角色列出可用的管理功能
+      students/  staff/  products/  issues/  txns/  settings/  audit/（M4）
+    design.tsx                仅开发环境：全部组件与 preview.html 相同内容，用于对照
+  src/components/             按设计系统实现的 RN 组件，另有 Screen、DeskHeader
+  src/theme/                  tokens.ts、icons.ts（生成）与 font()、text 字体样式
+  src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
+  src/lib/session.tsx         会话、本人资料与角色、去向
+  src/lib/gate.tsx            页面准入：未登录去登录页，默认密码去设置新密码，无权限回首页
+  src/lib/format.ts           千分位、带符号金额、时间（当年不写年份）
+  src/lib/txns.ts             流水 → TxnList 的标题、图标与方向
+  src/lib/cash.ts  offline-queue.ts  errors.ts（M3）
+  public/index.html           页面模板，先加载 /config.js
+  scripts/gen-tokens.mjs      npm run tokens
+  metro.config.js             开发时把 API 路径转发到本地容器，前端与 API 同源
 ```
 
-登录后按角色进入：只有学生账户 → 学生端；有工作角色 → 选择「工作台」或「我的账户」，工作台按角色显示柜台或后台入口。
+登录后按去向进入：还在用默认密码 → 设置新密码；去处只有一个（柜员 → 柜台，会计 / 库管 / 老师 / 系统管理员 → 后台，只有学生账户 → 学生端）时直接进入；有多个时进入选择页。
 
 ### 7.3 设计系统落地
 
-- `npm run tokens` 把 `tokens.json` 的颜色、字号、间距、圆角、阴影生成为 `src/theme/tokens.ts`，组件只引用 token，不写死数值。
-- 设计系统的 `dc-` 组件（Button、ServiceTile、BalanceCard、TxnList、GuideBubble、Steps、Field、Tag、Notice、TabBar、WaveDivider）在 `src/components/` 中用 React Native 组件实现，结构与各组件 README 一致，以 `preview.html` 作为视觉对照。厚底阴影用底部实色块实现，按下时下移 3～4px。
-- 金额统一用 `Amount` 组件：Nunito Sans 800、等宽数字、千分位、单位 `HTB`；收入 `+50`、支出 `−20`。
+- `npm run tokens` 把 `tokens.json` 的颜色、字号、间距、圆角、阴影生成为 `src/theme/tokens.ts`，把 `assets/Icons/*.svg` 生成为 `src/theme/icons.ts`；组件只引用 token，不写死数值。设计系统改动后重新运行并提交生成的文件。
+- 设计系统的 `dc-` 组件（Button、ServiceTile、BalanceCard、TxnList、GuideBubble、Steps、Field、Tag、Notice、TabBar、WaveDivider）在 `src/components/` 中用 React Native 组件实现，结构与各组件 README 一致；开发服务器的 `/design` 页与 `preview.html` 内容相同，用于对照。厚底阴影用 `boxShadow` 的实色偏移实现，按下时下移 3～4px；键盘焦点环由全局 `:focus-visible` 样式提供，鼠标点击不显示。
+- 字体：Nunito Sans 按字重分别打包；中文按 tokens.json 的回退顺序使用系统字体，不从外部加载。
+- 金额统一经 `lib/format.ts` 格式化：千分位、单位 `HTB`；收入 `+50`、支出 `−20`（减号 −）；金额字用 Nunito Sans 800、等宽数字。
 - 界面文字遵循设计系统「文字与语气」：规范业务用语，结果直接写结果，说明里写清数字和下一步。
 
 ### 7.4 柜台交互
@@ -538,17 +544,16 @@ client/
 
 ### 8.1 前置
 
-- Node.js LTS、Docker Desktop、Supabase CLI。
+- Node.js LTS、Docker Desktop。
 
 ### 8.2 仓库结构
 
 ```
 client/                 Expo 前端
 supabase/
-  config.toml           本地开发用 Supabase 配置
   migrations/           数据库迁移（开发与生产共用）
   tests/                pgTAP 测试（`helpers/setup.psql` 为公用辅助）
-  seed.sql              开发种子数据（示例学生、商品、各角色账号）
+  seed.sql              开发种子数据（老师、柜员、三名学生、商品与几笔交易；密码均为默认密码）
 docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）
@@ -557,34 +562,39 @@ docker/
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
   bin/                  入口脚本、迁移执行、定时备份、运维命令 dolphin（见 9.3）
-  www/                  前端构建产物接入前的占位页
 docs/
 design-system/
 ```
 
 ### 8.3 常用命令
 
-```bash
-supabase start
-```
-
-```bash
-supabase db reset
-```
-
-```bash
-supabase test db
-```
-
-```bash
-cd client && npm run web
-```
+本地开发用正式镜像起一个后端容器，再用 Metro 开发服务器跑前端；Metro 把 `/auth`、`/rest`、`/storage`、`/config.js` 转发给容器，前端与 API 同源，与生产一致。
 
 ```bash
 docker build -f docker/Dockerfile -t dolphin-cloud:dev .
 ```
 
-本地开发使用 Supabase CLI 的标准环境（带 Studio，便于查看数据）。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto` 等），不依赖 Supabase 托管版独有扩展；CI 会在生产镜像上再跑一遍 pgTAP 和端到端测试。
+```bash
+docker run -d --name dolphin-dev -e DOLPHIN_DOMAIN=localhost -p 127.0.0.1:18444:443 -v dolphin-dev-data:/data dolphin-cloud:dev
+```
+
+```bash
+docker exec -i dolphin-dev psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/seed.sql
+```
+
+```bash
+npm --prefix client run web
+```
+
+```bash
+docker/db-test.sh
+```
+
+```bash
+docker/smoke-test.sh
+```
+
+前端检查：`npm --prefix client run typecheck`、`npm --prefix client test`。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto`、`dblink` 仅测试用），不依赖 Supabase 托管版独有扩展。
 
 ### 8.4 规范
 
@@ -601,7 +611,7 @@ docker build -f docker/Dockerfile -t dolphin-cloud:dev .
 
 `docker/Dockerfile` 多阶段构建：
 
-1. `client-build`：`node` 镜像中 `npm ci && npx expo export -p web`，再用 `workbox generateSW` 生成 Service Worker。
+1. `client`：`node` 镜像中 `npm ci && npx expo export -p web`，产物复制到最终镜像的 `/srv/www`（M3 起再用 `workbox generateSW` 生成 Service Worker）。
 2. `storage`：把官方 Storage 镜像（Alpine）中的 `/app` 复制到 `node:24-bookworm-slim`，为 glibc 重新编译其中唯一的原生模块 `fs-xattr`。
 3. 最终阶段基于 `postgres:17-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord。
 
@@ -672,7 +682,7 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 | 端到端 | Playwright，对构建好的生产镜像运行 | 老师导入名册 → 学生首次登录改密码 → 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；备份后恢复，数据一致 |
 | 性能 | 简单脚本 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒 |
 
-CI（GitHub Actions）：每次推送运行 lint、单元测试、`supabase test db`；合并到 `main` 时构建镜像并在镜像上跑 pgTAP 与端到端测试，全部通过后推送镜像。
+CI（GitHub Actions）：每次推送运行 lint、类型检查、单元测试、`docker/db-test.sh`；合并到 `main` 时构建镜像并在镜像上跑 pgTAP 与端到端测试，全部通过后推送镜像。
 
 ---
 
@@ -682,7 +692,7 @@ CI（GitHub Actions）：每次推送运行 lint、单元测试、`supabase test
 | --- | --- | --- |
 | M0 技术验证 | 单容器镜像：Postgres + Auth + PostgREST + Storage + Caddy；入口脚本与 `config.js`；SQL 创建账号 | `docker/smoke-test.sh` 全部通过：经 HTTPS 登录、调用 RPC、上传并公开读取图片；`dolphin backup` → 改动 → `restore` 恢复到备份时状态；容器重启后数据完整 |
 | M1 数据与账务核心 | 全部表、RLS、账务与管理函数、冲正、审计、`check_balances()`；运维命令 `dolphin create-admin`、`dolphin check` | `docker/db-test.sh` 全部通过 |
-| M2 前端基础 | 主题 token、组件库、登录与改密码、角色路由 | 设计系统组件与 `preview.html` 视觉对照一致 |
+| M2 前端基础 | 主题 token、组件库、登录与设置新密码、按角色进入 | 设计系统组件与 `preview.html` 视觉对照一致 |
 | M3 柜台 | 存款、取款、兑换、查询、冲正、离线存款 | 柜台相关端到端测试通过；单笔办理 ≤ 1 分钟（由学生柜员试用计时） |
 | M4 后台与学生端 | 名册导入与开户通知单、账号角色、商品与入库、发行登记、流水查询、参数、日志；学生首页、明细、排名 | 全部端到端测试通过 |
 | M5 上线 | 正式服务器部署、迁入现有账本、柜员培训、试运行 | 第 12 节验收全部通过 |

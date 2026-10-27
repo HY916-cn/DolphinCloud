@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "海豚云",
+    "slug": "dolphin-cloud",
+    "version": "1.0.0",
+    "scheme": "dolphincloud",
+    "userInterfaceStyle": "light",
+    "web": {
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "海豚云",
+      "themeColor": "#f4f7ff"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

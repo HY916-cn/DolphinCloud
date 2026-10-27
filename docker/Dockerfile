@@ -21,6 +21,14 @@ RUN cd /app && npm rebuild fs-xattr
 
 FROM node:${NODE_VERSION}-bookworm-slim AS node
 
+# The web app (client/), exported as a single-page app.
+FROM node:${NODE_VERSION}-bookworm-slim AS client
+WORKDIR /client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+COPY client/ ./
+RUN npx expo export -p web
+
 FROM postgres:${POSTGRES_MAJOR}-bookworm
 ARG DOLPHIN_VERSION=dev
 RUN apt-get update \
@@ -39,7 +47,7 @@ COPY supabase/migrations/ /opt/dolphin/migrations/
 COPY docker/bin/ /usr/local/bin/
 COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
 COPY docker/Caddyfile /etc/caddy/Caddyfile
-COPY docker/www/ /srv/www/
+COPY --from=client /client/dist/ /srv/www/
 
 ENV DOLPHIN_VERSION=${DOLPHIN_VERSION} \
     PGDATA=/data/postgres \
