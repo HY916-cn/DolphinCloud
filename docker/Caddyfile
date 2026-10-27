@@ -3,7 +3,9 @@
 	skip_install_trust
 }
 
-{$DOLPHIN_DOMAIN} {
+{$DOLPHIN_DOMAIN}:{$DOLPHIN_PORT} {
+	# Written by the entrypoint: certificate files from /certs when mounted, otherwise automatic HTTPS.
+	import /data/run/tls.caddy
 	encode gzip
 
 	header {

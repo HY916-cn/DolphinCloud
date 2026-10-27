@@ -2,7 +2,7 @@
 # Container entrypoint: create secrets on first boot, write runtime config, hand over to supervisord.
 set -euo pipefail
 
-: "${DOLPHIN_DOMAIN:?Set DOLPHIN_DOMAIN to the public domain (use localhost for a local test)}"
+: "${DOLPHIN_DOMAIN:?Set DOLPHIN_DOMAIN to the public domain, without port (use localhost for a local test)}"
 # localhost gets a certificate from Caddy's local CA, so no ACME account is involved.
 case "$DOLPHIN_DOMAIN" in localhost|localhost:*) : "${ACME_EMAIL:=admin@localhost}" ;; esac
 : "${ACME_EMAIL:?Set ACME_EMAIL to the address that receives certificate expiry notices}"
@@ -36,6 +36,12 @@ fi
 set -a; . /data/secrets/env; set +a
 
 export SITE_URL="https://$DOLPHIN_DOMAIN"
+export DOLPHIN_PORT="${DOLPHIN_PORT:-443}"
+if [ -f /certs/fullchain.pem ] && [ -f /certs/privkey.pem ]; then
+  echo "tls /certs/fullchain.pem /certs/privkey.pem" > /data/run/tls.caddy
+else
+  : > /data/run/tls.caddy
+fi
 printf 'window.__DOLPHIN_CONFIG__ = %s;\n' "{\"supabaseUrl\":\"$SITE_URL\",\"anonKey\":\"$ANON_KEY\"}" > /data/run/config.js
 
 exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Reload Caddy within 10 s when the mounted certificate files in /certs change (e.g. renewed by Certd).
+set -uo pipefail
+grep -q '^tls ' /data/run/tls.caddy || exec sleep infinity
+sum() { cat /certs/fullchain.pem /certs/privkey.pem 2>/dev/null | cksum; }
+last=$(sum)
+while sleep 10; do
+  now=$(sum)
+  [ "$now" = "$last" ] && continue
+  if caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --force; then
+    echo "dolphin-cert-watch: certificate changed, Caddy reloaded"
+    last=$now
+  fi
+done
