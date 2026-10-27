@@ -12,9 +12,9 @@
 
 | 模块 | 交付内容 |
 | --- | --- |
-| 登录 | 学生用学号 + 密码登录；工作人员用账号 + 密码登录；首次登录强制改密码 |
-| 开户 | 指导老师按模板导入名册，批量开户并迁入期初余额；生成随机初始密码，按班打印开户通知单 |
-| 学生端 | 余额、最近 10 笔交易、全部明细（分页）、存款排名（默认匿名）、修改密码 |
+| 登录 | 学生用学号 + 密码登录；工作人员用账号 + 密码登录；用默认密码登录后必须设置新密码 |
+| 开户 | 指导老师按模板导入名册，批量开户并迁入期初余额；新账号使用默认密码，按班打印开户通知单 |
+| 学生端 | 余额、最近 10 笔交易、全部明细（分页）、存款排名（默认匿名） |
 | 柜台 | 存款、取款、兑换文创、查询、冲正；输入学号后核对姓名与班级再办理 |
 | 离线登记 | 断网时只允许登记存款，本机暂存，恢复后补传；纸质凭条兜底 |
 | 文创商城 | 商品新增、编辑、图片、价格、上架 / 下架、入库（增加库存） |
@@ -46,7 +46,7 @@
 | 离线 | 只允许存款 | 存款不会透支，补传后服务端照常校验 |
 | 对账 | 本阶段不设班次、不做轧账 | 流水记录柜员、设备和时间，并预留 `cash_delta` 字段，便于以后按柜员汇总现金 |
 | 更正 | 冲正 | 柜员可冲正本人当天办理的业务；指导老师可冲正任意业务；原流水保留并标记「已冲正」 |
-| 初始密码 | 随机 6 位数字，开户通知单发放 | 密码只在导入完成时显示一次，系统不保存明文 |
+| 密码 | 新账号和重置后的密码均为默认密码 `a12345678` | 用默认密码登录后必须设置新密码，这是本人唯一一次改密码；之后只能由指导老师或系统管理员重置回默认密码 |
 | 规模 | 学生 500–2000 人，柜台窗口 3–5 个 | 2 核 4 GB、40 GB 磁盘的服务器即可 |
 
 ---
@@ -126,7 +126,7 @@
 | 操作 | 学生 | 柜员 | 会计 | 库管 | 指导老师 | 系统管理员 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 查看本人余额、明细、排名 | ✓ | ✓ | ✓ | ✓ | — | — |
-| 修改本人密码 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 首次登录设置新密码（仅此一次） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 存款、取款、兑换、查询学生 | | ✓ | | | | |
 | 冲正本人当天业务 | | ✓ | | | | |
 | 冲正任意业务 | | | | | ✓ | |
@@ -358,16 +358,16 @@ create table audit_log (
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `import_roster(p_rows)` | teacher | 见 6.5 |
-| `create_staff(p_login_id, p_name, p_roles)` | teacher / sysadmin | 创建工作账号，返回一次性初始密码（随机 8 位） |
+| `create_staff(p_login_id, p_name, p_roles)` | teacher / sysadmin | 创建工作账号，密码为默认密码 |
 | `set_roles(p_user_id, p_roles)` | teacher / sysadmin | 系统管理员不能授予或收回 `teacher` |
-| `reset_password(p_user_id)` | teacher / sysadmin | 生成新随机密码并返回一次，设置 `must_change_password = true` |
+| `reset_password(p_user_id)` | teacher / sysadmin | 把密码恢复为默认密码（`must_change_password` 随之为 `true`），并结束该账号的所有会话 |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`） |
 | `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 入库只增加库存；库存减少只来自兑换 |
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
 | `deposit_ranking()` | 学生 | 返回前 N 名（按参数脱敏）与本人名次 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log`；不经 API 开放 |
-| `app_private.create_admin(p_login_id, p_password)` | `dolphin create-admin` | 创建带 `teacher`、`sysadmin` 角色的工作账号，不要求改密码；不经 API 开放 |
+| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建带 `teacher`、`sysadmin` 角色的工作账号，密码为默认密码；不经 API 开放 |
 
 ### 6.5 名册导入与账号创建
 
@@ -381,18 +381,23 @@ create table audit_log (
 
 1. 前端用 SheetJS 读取文件，校验表头、必填项、学号重复、余额格式，错误行标出行号，全部通过才允许导入。
 2. 每 100 行调用一次 `import_roster`，界面显示进度；每批一个事务。函数声明 `set statement_timeout = '60s'`。
-3. 新学号：创建 `auth.users` + `auth.identities`、`profiles`、`students`、`accounts`；期初余额 > 0 时写一笔 `opening` 流水；生成随机 6 位数字密码（pgcrypto `gen_random_bytes`）。
+3. 新学号：创建 `auth.users` + `auth.identities`、`profiles`、`students`、`accounts`；期初余额 > 0 时写一笔 `opening` 流水；密码为默认密码。
 4. 已存在的学号：只更新姓名、年级、班级、入学届，不改密码、不重复写期初流水。
-5. 导入结束显示「新开户 N 人、更新 M 人」，并提供「打印开户通知单」：按班分页，每张含姓名、班级、学号、初始密码、登录网址。离开页面后初始密码不再可见，补发只能重置密码。
+5. 导入结束显示「新开户 N 人、更新 M 人」，并提供「打印开户通知单」：按班分页，每张含姓名、班级、学号、默认密码、登录网址，并提示「首次登录后请立即设置新密码」。
 
 账号写入方式：Supabase Auth 不开放注册（`GOTRUE_DISABLE_SIGNUP=true`），账号由 `security definer` 函数直接写入 `auth` schema：
 
 - 登录名映射为内部邮箱：学生 `<学号>@student.dolphin.internal`，工作人员 `<账号>@staff.dolphin.internal`；`email_confirmed_at = now()`。
 - 密码 `crypt(p, gen_salt('bf', 10))`；`aud`、`role` 为 `authenticated`；令牌类字段写空串。
 - 同时写入 `auth.identities`（`provider = 'email'`）。
-- 字段以锁定版本的 Auth 表结构为准，集成测试覆盖「导入 → 登录 → 改密码 → 重置 → 再登录」。
+- 字段以锁定版本的 Auth 表结构为准，集成测试覆盖「导入 → 默认密码登录 → 设置新密码 → 重置 → 默认密码再登录」。
 
-修改密码：前端调用 `supabase.auth.updateUser({ password })`；`auth.users` 上的触发器在密码变更时把 `must_change_password` 置为 `false`（`reset_password` 在写入新密码后再把它置回 `true`）。学生密码至少 6 位，工作账号至少 8 位。
+密码规则：
+
+- 默认密码为 `a12345678`（`app_private.default_password()`）。新账号、`dolphin create-admin` 建的账号、重置后的账号都使用它，`must_change_password` 为 `true`。
+- `must_change_password` 为 `true` 时，该账号不具备任何角色，也看不到本人的学生账户，只能读到自己的 `profiles`；前端据此直接进入「设置新密码」页。
+- 设置新密码：前端调用 `supabase.auth.updateUser({ password })`。`auth.users` 上的触发器只在 `must_change_password` 为 `true` 时允许修改，且新密码不能是默认密码；修改后 `must_change_password` 变为 `false`。此后本人无法再改密码（Auth 返回错误），忘记或需要更换时由指导老师或系统管理员 `reset_password` 恢复为默认密码。
+- 学生新密码至少 6 位，工作账号至少 8 位（前端校验）。
 
 ### 6.6 读取与 RLS
 
@@ -434,12 +439,12 @@ client/
   app/
     _layout.tsx               会话、主题、Service Worker 注册
     login.tsx                 学生登录 / 工作人员登录两个标签
-    change-password.tsx       首次登录强制改密码
+    change-password.tsx       默认密码登录后设置新密码
     (student)/                学生端（手机单列 + 底部 TabBar）
       index.tsx               余额卡 + 最近 10 笔
       txns.tsx                全部明细
       ranking.tsx             存款排名
-      me.tsx                  我的：修改密码、退出
+      me.tsx                  我的：退出
     (counter)/                柜台（平板横屏）
       index.tsx               业务宫格：存款 取款 兑换 查询 冲正
       deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx
@@ -606,7 +611,7 @@ docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 
 2. 每次启动：若数据库已有数据且镜像版本变化，先做一次升级前备份；Postgres 就绪后依次启动 Auth、Storage（各自执行内置迁移），执行 `supabase/migrations/` 中未应用的迁移（记录在 `app_migrations` 表），再启动 PostgREST 与 Caddy。
 3. 生成 `/config.js`，内容为站点地址与 anon key。
 
-首次启动后创建第一个指导老师账号：
+首次启动后创建第一个指导老师账号（默认密码登录后设置新密码）：
 
 ```bash
 docker exec -it dolphin-cloud dolphin create-admin teacher01
@@ -616,7 +621,7 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 
 | 命令 | 作用 |
 | --- | --- |
-| `dolphin create-admin <账号>` | 交互输入密码，创建带 `teacher` 和 `sysadmin` 角色的账号 |
+| `dolphin create-admin <账号>` | 创建带 `teacher` 和 `sysadmin` 角色的账号，密码为默认密码 |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
 | `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据 |
@@ -645,8 +650,8 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 - Caddy 设置 HSTS、`X-Content-Type-Options`、`Referrer-Policy`、CSP（只允许同源脚本）。
 - Auth 关闭注册与邮件发送；访问令牌有效期 1 小时，刷新令牌 7 天未使用即失效。
 - 学校出口 NAT 时所有校内设备共用一个公网 IP：Auth 的登录限速按 IP 计算，需将 `GOTRUE_RATE_LIMIT_TOKEN_REFRESH`、`GOTRUE_RATE_LIMIT_VERIFY` 等调到能容纳全校同时登录的水平，并让 Auth 信任 Caddy 传入的 `X-Forwarded-For`。
-- 学生密码为 6 位以上、服务在公网可访问：上线后关注 `audit_log` 与 Auth 日志中的连续登录失败，必要时在 Caddy 前加 IP 黑名单。
-- 不采集身份证号、家庭住址、家长信息；开户通知单含初始密码，发放后由班主任回收销毁。
+- 默认密码人人知道：开户或重置后，知道学号的人可能抢先登录并设置密码，因此通知学生尽快登录；本人发现无法登录时由老师重置。服务在公网可访问，上线后关注 `audit_log` 与 Auth 日志中的连续登录失败，必要时在 Caddy 前加 IP 黑名单。
+- 不采集身份证号、家庭住址、家长信息。
 
 ---
 
@@ -703,7 +708,7 @@ M0 是后续工作的前提，先完成并确认单容器方案可行，再进�
 - [ ] 柜员无法为本人的学生账户办理业务。
 - [ ] 断网时柜台可登记存款，其他业务禁用并说明原因；恢复网络后上传，系统流水与纸质凭条一致。
 - [ ] 学生登录后 2 秒内看到余额和最近 10 笔交易；只能看到本人数据。
-- [ ] 名册导入后每位学生可用开户通知单上的初始密码登录，首次登录必须修改密码。
+- [ ] 名册导入后每位学生可用默认密码登录，登录后必须设置新密码；之后本人无法再改，重置后恢复默认密码。
 - [ ] 现有 Excel 账本余额迁入后，与原账本逐人核对一致。
 - [ ] 任何角色都无法直接修改余额、库存或删除流水（通过 API 直接请求也被拒绝）。
 - [ ] 所有业务与管理操作在操作日志中可查到操作人、时间、设备。

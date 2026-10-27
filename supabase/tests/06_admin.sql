@@ -13,8 +13,8 @@ select tests.call(:'teacher', $$select import_roster('[
   {"student_no":"20260002","name":"李四","grade":"四年级","class_name":"4班"},
   {"student_no":"20260003","name":"王五","grade":"五年级","class_name":"1班","opening_balance":0}]')$$) as roster \gset
 select is((:'roster'::jsonb - 'accounts'), '{"created":3,"updated":0}', 'three new accounts');
-select ok((select bool_and(a ->> 'password' ~ '^[0-9]{6}$') from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a),
-  'initial passwords are 6 digits');
+select ok((select bool_and(a ->> 'password' = 'a12345678') from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a),
+  'new accounts get the default password');
 select ok((select bool_and(u.encrypted_password = crypt(a ->> 'password', u.encrypted_password))
   from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a
   join auth.users u on u.email = (a ->> 'student_no') || '@student.dolphin.internal'), 'each password is the login''s password');
@@ -40,7 +40,7 @@ select is(tests.err(:'teacher', $$select import_roster('[{"student_no":"20260011
 
 -- Staff logins and roles
 select tests.call(:'admin', $$select create_staff('Teller02', '柜员二', '{teller}')$$) as staff \gset
-select matches(:'staff'::jsonb ->> 'password', '^[a-z0-9]{8}$', 'staff password has 8 characters');
+select is(:'staff'::jsonb ->> 'password', 'a12345678', 'staff logins get the default password too');
 select is(:'staff'::jsonb ->> 'login_id', 'teller02', 'login ids are lower case');
 select is(tests.err(:'admin', $$select create_staff('teller02', '重复', '{teller}')$$), 'ALREADY_EXISTS', 'duplicate login');
 select is(tests.err(:'admin', $$select create_staff('a b', '空格', '{}')$$), 'INVALID_INPUT', 'invalid login id');
@@ -59,13 +59,29 @@ select is(tests.err(:'admin', format($$select set_roles(%L, '{}')$$, gen_random_
 select id as stu from profiles where login_id = '20260002' \gset
 insert into auth.sessions (id, user_id) values (gen_random_uuid(), :'stu');
 select tests.call(:'admin', format($$select reset_password(%L)$$, :'stu')) ->> 'password' as pw \gset
-select matches(:'pw'::text, '^[0-9]{6}$', 'a reset student password has 6 digits');
-select ok((select encrypted_password = crypt(:'pw', encrypted_password) from auth.users where id = :'stu'), 'the new password works');
-select ok((select must_change_password from profiles where id = :'stu'), 'and must be changed');
+select is(:'pw'::text, 'a12345678', 'reset returns the default password');
+select ok((select encrypted_password = crypt('a12345678', encrypted_password) from auth.users where id = :'stu'), 'the login now uses it');
+select ok((select must_change_password from profiles where id = :'stu'), 'and must change it at the next sign-in');
 select is((select count(*)::int from auth.sessions where user_id = :'stu'), 0, 'existing sessions are ended');
 select is(tests.err(:'admin', format($$select reset_password(%L)$$, :'teacher')), 'FORBIDDEN', 'a sysadmin cannot reset a teacher''s password');
+select throws_ok(format($$update auth.users set encrypted_password = crypt('a12345678', gen_salt('bf', 4)) where id = %L$$, :'stu'),
+  'P0001', 'PASSWORD_UNCHANGED', 'the new password cannot be the default');
 update auth.users set encrypted_password = crypt('my-own-pass', gen_salt('bf', 4)) where id = :'stu';
-select ok(not (select must_change_password from profiles where id = :'stu'), 'changing the password clears must_change_password');
+select ok(not (select must_change_password from profiles where id = :'stu'), 'replacing the default clears must_change_password');
+select throws_ok(format($$update auth.users set encrypted_password = crypt('another-pass', gen_salt('bf', 4)) where id = %L$$, :'stu'),
+  '42501', 'PASSWORD_CHANGE_FORBIDDEN', 'after that the user cannot change it again');
+select tests.call(:'admin', format($$select reset_password(%L)$$, :'stu'));
+select ok((select must_change_password from profiles where id = :'stu'), 'an admin reset brings back the default');
+update auth.users set encrypted_password = crypt('my-new-pass', gen_salt('bf', 4)) where id = :'stu';
+select ok(not (select must_change_password from profiles where id = :'stu'), 'which the user replaces once more');
+
+-- Until the default is replaced the login holds no role and sees no account data
+select tests.staff('fresh', '{teller}') as fresh \gset
+update profiles set must_change_password = true where id = :'fresh';
+select is(tests.err(:'fresh', $$select lookup_student('20260001')$$), 'FORBIDDEN', 'a teller still on the default password cannot work');
+select id as newstu from profiles where login_id = '20260003' \gset
+select is(tests.call(:'newstu', $$select jsonb_build_array((select count(*) from students), (select count(*) from accounts), (select count(*) from profiles))$$),
+  '[0, 0, 1]', 'a student still on the default password sees only their own profile');
 
 select is(tests.err(:'teacher', format($$select set_user_disabled(%L, true)$$, :'teacher')), 'INVALID_INPUT', 'nobody disables themselves');
 select tests.call(:'teacher', format($$select set_user_disabled(%L, true)$$, :'stu'));
@@ -114,11 +130,12 @@ select is(tests.call(:'r1', $$select deposit_ranking()$$) -> 'top' -> 1 ->> 'nam
 select is(tests.call(:'t1', $$select deposit_ranking()$$) -> 'me', 'null', 'staff without an account have no place');
 
 -- create-admin
-select ok(app_private.create_admin('Head', 'long-enough') is not null, 'create_admin');
+select ok(app_private.create_admin('Head') is not null, 'create_admin');
+select ok((select must_change_password from profiles where login_id = 'head'), 'the admin starts on the default password');
 select is((select array_agg(role order by role)::text from user_roles r join profiles p on p.id = r.user_id where p.login_id = 'head'),
   '{teacher,sysadmin}', 'with teacher and sysadmin');
-select throws_ok($$select app_private.create_admin('head', 'long-enough')$$, 'P0001', 'ALREADY_EXISTS', 'create_admin refuses an existing login');
-select throws_ok($$select app_private.create_admin('head2', 'short')$$, 'P0001', 'INVALID_INPUT', 'create_admin needs 8 characters');
+select throws_ok($$select app_private.create_admin('head')$$, 'P0001', 'ALREADY_EXISTS', 'create_admin refuses an existing login');
+select throws_ok($$select app_private.create_admin('a b')$$, 'P0001', 'INVALID_INPUT', 'create_admin checks the login id');
 
 select is((select count(*)::int from app_private.check_balances()), 0, 'balances and stock match the ledger');
 
