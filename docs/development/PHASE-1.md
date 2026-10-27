@@ -14,7 +14,7 @@
 | --- | --- |
 | 登录 | 学生用学号 + 密码登录；工作人员用账号 + 密码登录；用默认密码登录后必须设置新密码 |
 | 开户 | 指导老师按模板导入名册，批量开户并迁入期初余额；新账号使用默认密码，按班打印开户通知单 |
-| 学生端 | 余额、最近 10 笔交易、全部明细（分页）、存款排名（默认匿名） |
+| 学生端 | 余额、最近 10 笔交易、全部明细（分页）、存款排名（按学部分开排，默认匿名） |
 | 柜台 | 存款、取款、兑换文创、查询、冲正；输入学号后核对姓名与班级再办理 |
 | 离线登记 | 断网时只允许登记存款，本机暂存，恢复后补传；纸质凭条兜底 |
 | 文创商城 | 商品新增、编辑、图片、价格、上架 / 下架、入库（增加库存） |
@@ -184,7 +184,8 @@ create table students (
   student_no text primary key,
   user_id    uuid unique references profiles(id),
   name       text not null,
-  grade      text not null,                    -- 年级，如「四年级」
+  division   text not null check (division in ('primary','junior')),  -- 学部：小学部 / 初中部
+  grade      text not null,                    -- 年级，如「四年级」「初一」
   class_name text not null,                    -- 班级，如「4班」
   cohort     text,                             -- 入学届，可空
   status     text not null default 'normal' check (status in ('normal','frozen','graduated')),
@@ -301,10 +302,10 @@ create table audit_log (
 | key | 默认值 | 说明 |
 | --- | --- | --- |
 | `denominations` | `[1,2,5,10]` | 面额（元），柜台按此显示张数输入 |
-| `withdraw_single_limit` | `200` | 单笔取款上限 |
-| `withdraw_daily_limit` | `500` | 单日累计取款上限（不含已冲正） |
+| `withdraw_single_limit` | `{"primary":200,"junior":200}` | 单笔取款上限，小学部、初中部分别设置 |
+| `withdraw_daily_limit` | `{"primary":500,"junior":500}` | 单日累计取款上限（不含已冲正），小学部、初中部分别设置 |
 | `ranking_anonymous` | `true` | 排名是否隐藏姓名（显示为「张*明」） |
-| `ranking_size` | `10` | 排名显示前几名 |
+| `ranking_size` | `10` | 排名显示前几名（每个学部） |
 
 ### 5.4 数据不变式
 
@@ -336,7 +337,7 @@ create table audit_log (
 | 函数 | 角色 | 参数 | 规则 |
 | --- | --- | --- | --- |
 | `deposit` | teller | `p_id, p_student_no, p_denominations, p_offline, p_client_created_at` | 金额 = Σ面额 × 张数，> 0；`balance_delta = cash_delta = +金额` |
-| `withdraw` | teller | `p_id, p_student_no, p_amount` | 整数 > 0；≤ 单笔上限；当天累计 ≤ 单日上限；≤ 余额；`balance_delta = cash_delta = −金额` |
+| `withdraw` | teller | `p_id, p_student_no, p_amount` | 整数 > 0；≤ 单笔上限；当天累计 ≤ 单日上限（两项上限按学生所在学部取值）；≤ 余额；`balance_delta = cash_delta = −金额` |
 | `purchase` | teller | `p_id, p_student_no, p_items [{product_id, qty}], p_payment, p_cash_received`（收到的各面额张数） | 商品须已上架且库存足够；同一商品多行时合并；账户扣款时金额 ≤ 余额，`balance_delta = −金额`，`cash_delta = 0`；现金支付时收到金额 ≥ 应付，`balance_delta = 0`，`cash_delta = +金额`，记录找零；扣库存并写 `stock_movements` |
 | `reverse_txn` | teller / teacher | `p_id, p_original_id, p_reason` | 见 6.3 |
 
@@ -365,7 +366,7 @@ create table audit_log (
 | `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 入库只增加库存；库存减少只来自兑换 |
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
-| `deposit_ranking()` | 学生 | 返回前 N 名（按参数脱敏）与本人名次 |
+| `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log`；不经 API 开放 |
 | `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建带 `teacher`、`sysadmin` 角色的工作账号，密码为默认密码；不经 API 开放 |
 
@@ -373,16 +374,16 @@ create table audit_log (
 
 模板（Excel，第一行为表头）：
 
-| 学号 | 姓名 | 年级 | 班级 | 入学届 | 期初余额 |
-| --- | --- | --- | --- | --- | --- |
-| 必填，唯一 | 必填 | 必填 | 必填 | 可空 | 可空，整数 ≥ 0 |
+| 学号 | 姓名 | 学部 | 年级 | 班级 | 入学届 | 期初余额 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 必填，唯一 | 必填 | 必填，小学部 / 初中部 | 必填 | 必填 | 可空 | 可空，整数 ≥ 0 |
 
 流程：
 
-1. 前端用 SheetJS 读取文件，校验表头、必填项、学号重复、余额格式，错误行标出行号，全部通过才允许导入。
+1. 前端用 SheetJS 读取文件，校验表头、必填项、学号重复、学部（「小学部」「初中部」，提交时转为 `primary` / `junior`）、余额格式，错误行标出行号，全部通过才允许导入。
 2. 每 100 行调用一次 `import_roster`，界面显示进度；每批一个事务。函数声明 `set statement_timeout = '60s'`。
 3. 新学号：创建 `auth.users` + `auth.identities`、`profiles`、`students`、`accounts`；期初余额 > 0 时写一笔 `opening` 流水；密码为默认密码。
-4. 已存在的学号：只更新姓名、年级、班级、入学届，不改密码、不重复写期初流水。
+4. 已存在的学号：只更新姓名、学部、年级、班级、入学届，不改密码、不重复写期初流水。
 5. 导入结束显示「新开户 N 人、更新 M 人」，并提供「打印开户通知单」：按班分页，每张含姓名、班级、学号、默认密码、登录网址，并提示「首次登录后请立即设置新密码」。
 
 账号写入方式：Supabase Auth 不开放注册（`GOTRUE_DISABLE_SIGNUP=true`），账号由 `security definer` 函数直接写入 `auth` schema：
@@ -409,7 +410,7 @@ create table audit_log (
 | `currency_issues` | — | — | 全部 | — |
 | `audit_log` | — | — | 指导老师 | — |
 
-柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、年级、班级、余额，以及该生当天已取款合计。系统管理员可读 `profiles`、`user_roles`、`audit_log`。
+柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、年级、班级、余额，以及该生当天已取款合计。系统管理员可读 `profiles`、`user_roles`、`audit_log`。
 
 ### 6.7 图片存储
 

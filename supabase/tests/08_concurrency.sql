@@ -13,7 +13,7 @@ select dblink_exec('setup', $$
     insert into profiles (id, login_kind, login_id, display_name, must_change_password) values (v_teller, 'staff', 'race-teller', 'race', false);
     insert into user_roles values (v_teller, 'teller');
     foreach v_no in array array['race-1', 'race-2'] loop
-      insert into students (student_no, name, grade, class_name) values (v_no, v_no, '四年级', '4班');
+      insert into students (student_no, name, division, grade, class_name) values (v_no, v_no, 'primary', '四年级', '4班');
       insert into accounts (student_no, balance, total_in) values (v_no, 50, 50);
       insert into txns (id, type, student_no, amount, balance_delta, balance_after, operator_id)
       values (gen_random_uuid(), 'opening', v_no, 50, 50, 50, v_teller);

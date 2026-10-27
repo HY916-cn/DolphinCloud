@@ -55,7 +55,7 @@ select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) -
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 150)$$) ->> 'detail', '{"limit": 500, "remaining": 100}',
   'over the daily limit shows what is left today');
 select is(tests.call(:'t1', $$select lookup_student('s4')$$) - 'name',
-  '{"grade":"四年级","status":"normal","balance":600,"class_name":"4班","student_no":"s4","withdrawn_today":400}',
+  '{"grade":"四年级","division":"primary","status":"normal","balance":600,"class_name":"4班","student_no":"s4","withdrawn_today":400}',
   'lookup shows balance and today''s withdrawals');
 select is(tests.call(:'t1', $$select reverse_txn(gen_random_uuid(), '00000000-0000-4000-8000-000000000004', '金额录错')$$) ->> 'balance_after', '800',
   'reverse one withdrawal');
@@ -63,6 +63,12 @@ select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 300)$$) -
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) ->> 'balance_after', '600',
   'reversed withdrawals do not count toward the daily limit');
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 101)$$) ->> 'error', 'WITHDRAW_DAILY_LIMIT', 'daily limit reached');
+
+-- Limits are set per division
+update settings set value = '{"primary":200,"junior":300}' where key = 'withdraw_single_limit';
+select tests.student('j1', 1000, p_division => 'junior');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 'j1', 300)$$) ->> 'balance_after', '700', 'junior single limit');
+select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's1', 201)$$) ->> 'detail', '{"limit": 200}', 'primary keeps its own');
 
 -- A disabled teller loses the role at once
 update profiles set disabled = true where id = :'t1';

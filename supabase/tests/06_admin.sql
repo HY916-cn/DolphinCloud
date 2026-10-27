@@ -9,9 +9,9 @@ select tests.staff('t1', '{teller}') as t1 \gset
 -- Roster import
 select is(tests.err(:'admin', $$select import_roster('[]')$$), 'FORBIDDEN', 'only a teacher imports the roster');
 select tests.call(:'teacher', $$select import_roster('[
-  {"student_no":"20260001","name":"张小明","grade":"四年级","class_name":"4班","cohort":"2023","opening_balance":30},
-  {"student_no":"20260002","name":"李四","grade":"四年级","class_name":"4班"},
-  {"student_no":"20260003","name":"王五","grade":"五年级","class_name":"1班","opening_balance":0}]')$$) as roster \gset
+  {"student_no":"20260001","name":"张小明","division":"primary","grade":"四年级","class_name":"4班","cohort":"2023","opening_balance":30},
+  {"student_no":"20260002","name":"李四","division":"primary","grade":"四年级","class_name":"4班"},
+  {"student_no":"20260003","name":"王五","division":"junior","grade":"五年级","class_name":"1班","opening_balance":0}]')$$) as roster \gset
 select is((:'roster'::jsonb - 'accounts'), '{"created":3,"updated":0}', 'three new accounts');
 select ok((select bool_and(a ->> 'password' = 'a12345678') from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a),
   'new accounts get the default password');
@@ -25,17 +25,20 @@ select is((select count(*)::int from txns where type = 'opening' and student_no 
 select ok((select bool_and(must_change_password) from profiles where login_id like '2026000_'), 'students must change the initial password');
 
 select is(tests.call(:'teacher', $$select import_roster('[
-  {"student_no":"20260001","name":"张晓明","grade":"五年级","class_name":"4班","opening_balance":99},
-  {"student_no":"20260004","name":"赵六","grade":"四年级","class_name":"4班"},
-  {"student_no":"20260004","name":"赵六","grade":"四年级","class_name":"4班"}]')$$) - 'accounts', '{"created":1,"updated":2}',
+  {"student_no":"20260001","name":"张晓明","division":"primary","grade":"五年级","class_name":"4班","opening_balance":99},
+  {"student_no":"20260004","name":"赵六","division":"primary","grade":"四年级","class_name":"4班"},
+  {"student_no":"20260004","name":"赵六","division":"primary","grade":"四年级","class_name":"4班"}]')$$) - 'accounts', '{"created":1,"updated":2}',
   'existing and repeated student numbers are updated, not opened again');
 select is((select row(s.name, s.grade, p.display_name, a.balance)::text from students s join profiles p on p.id = s.user_id
   join accounts a using (student_no) where student_no = '20260001'), '(张晓明,五年级,张晓明,30)', 'name and class updated, balance kept');
 select is((select count(*)::int from txns where type = 'opening' and student_no = '20260001'), 1, 'no second opening transaction');
-select is(tests.call(:'teacher', $$select import_roster('[{"student_no":"20260009","name":"甲","grade":"四年级","class_name":"4班"},
-  {"student_no":"20260010","grade":"四年级","class_name":"4班"}]')$$) ->> 'detail', '{"row": 2}', 'a bad row is reported by number');
+select is(tests.call(:'teacher', $$select import_roster('[{"student_no":"20260009","name":"甲","division":"primary","grade":"四年级","class_name":"4班"},
+  {"student_no":"20260010","division":"primary","grade":"四年级","class_name":"4班"}]')$$) ->> 'detail', '{"row": 2}', 'a bad row is reported by number');
 select is((select count(*)::int from students where student_no = '20260009'), 0, 'and nothing of the batch is imported');
-select is(tests.err(:'teacher', $$select import_roster('[{"student_no":"20260011","name":"乙","grade":"四年级","class_name":"4班","opening_balance":-1}]')$$),
+select is(tests.err(:'teacher', $$select import_roster('[{"student_no":"20260012","name":"丙","division":"高中部","grade":"四年级","class_name":"4班"}]')$$),
+  'INVALID_INPUT', 'division is primary or junior');
+select is((select division from students where student_no = '20260003'), 'junior', 'division is stored');
+select is(tests.err(:'teacher', $$select import_roster('[{"student_no":"20260011","name":"乙","division":"primary","grade":"四年级","class_name":"4班","opening_balance":-1}]')$$),
   'INVALID_INPUT', 'negative opening balance');
 
 -- Staff logins and roles
@@ -111,8 +114,11 @@ select is(tests.err(:'keeper', $$select register_issue('2026-03', '2026-09-01', 
 select is(tests.call(:'teacher', $$select set_setting('denominations', '[10,5,1,2]')$$) -> 'value', '[1,2,5,10]', 'denominations are sorted');
 select is(tests.err(:'teacher', $$select set_setting('denominations', '[2,5]')$$), 'INVALID_INPUT', 'denominations include 1');
 select is(tests.err(:'teacher', $$select set_setting('denominations', '[1,1]')$$), 'INVALID_INPUT', 'no repeated denominations');
-select is(tests.call(:'teacher', $$select set_setting('withdraw_single_limit', '300')$$) -> 'value', '300', 'single limit');
-select is(tests.err(:'teacher', $$select set_setting('withdraw_daily_limit', '-1')$$), 'INVALID_INPUT', 'limits are positive');
+select is(tests.call(:'teacher', $$select set_setting('withdraw_single_limit', '{"primary":200,"junior":300}')$$) -> 'value',
+  '{"primary":200,"junior":300}', 'single limit per division');
+select is(tests.err(:'teacher', $$select set_setting('withdraw_single_limit', '300')$$), 'INVALID_INPUT', 'limits are set per division');
+select is(tests.err(:'teacher', $$select set_setting('withdraw_daily_limit', '{"primary":500}')$$), 'INVALID_INPUT', 'both divisions are required');
+select is(tests.err(:'teacher', $$select set_setting('withdraw_daily_limit', '{"primary":500,"junior":-1}')$$), 'INVALID_INPUT', 'limits are positive');
 select is(tests.err(:'teacher', $$select set_setting('ranking_anonymous', '"yes"')$$), 'INVALID_INPUT', 'flags are booleans');
 select is(tests.err(:'teacher', $$select set_setting('colour', '1')$$), 'INVALID_INPUT', 'unknown key');
 select is(tests.err(:'t1', $$select set_setting('ranking_size', '3')$$), 'FORBIDDEN', 'only a teacher changes settings');
@@ -121,10 +127,12 @@ select is((select count(*)::int from audit_log where action = 'settings.update' 
 -- Ranking
 select tests.student('r1', 900, p_name => '欧阳小明') as r1 \gset
 select tests.student('r2', 800, p_name => '陈晨');
+select tests.student('r3', 1000, p_name => '初中生', p_division => 'junior');
 select tests.call(:'teacher', $$select set_setting('ranking_size', '2')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$),
-  '{"me":{"rank":1,"balance":900},"top":[{"me":true,"name":"欧**明","rank":1,"grade":"四年级","balance":900,"class_name":"4班"},
-    {"me":false,"name":"陈*","rank":2,"grade":"四年级","balance":800,"class_name":"4班"}]}', 'top N with masked names and own place');
+  '{"division":"primary","me":{"rank":1,"balance":900},"top":[{"me":true,"name":"欧**明","rank":1,"grade":"四年级","balance":900,"class_name":"4班"},
+    {"me":false,"name":"陈*","rank":2,"grade":"四年级","balance":800,"class_name":"4班"}]}', 'top N of the caller''s division, masked names, own place');
+select is(tests.call(:'teacher', $$select deposit_ranking('junior')$$) -> 'top' -> 0 ->> 'balance', '1000', 'junior students rank separately');
 select tests.call(:'teacher', $$select set_setting('ranking_anonymous', 'false')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$) -> 'top' -> 1 ->> 'name', '陈晨', 'full names when not anonymous');
 select is(tests.call(:'t1', $$select deposit_ranking()$$) -> 'me', 'null', 'staff without an account have no place');
