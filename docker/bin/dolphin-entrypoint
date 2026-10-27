@@ -6,6 +6,7 @@ set -euo pipefail
 # localhost gets a certificate from Caddy's local CA, so no ACME account is involved.
 case "$DOLPHIN_DOMAIN" in localhost|localhost:*) : "${ACME_EMAIL:=admin@localhost}" ;; esac
 : "${ACME_EMAIL:?Set ACME_EMAIL to the address that receives certificate expiry notices}"
+export ACME_EMAIL
 mkdir -p /data/secrets /data/storage /data/backups /data/run /data/caddy
 chmod 700 /data/secrets
 
