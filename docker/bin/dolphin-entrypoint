@@ -1,0 +1,38 @@
+#!/bin/bash
+# Container entrypoint: create secrets on first boot, write runtime config, hand over to supervisord.
+set -euo pipefail
+
+: "${DOLPHIN_DOMAIN:?Set DOLPHIN_DOMAIN to the public domain (use localhost for a local test)}"
+: "${ACME_EMAIL:?Set ACME_EMAIL to the address that receives certificate expiry notices}"
+mkdir -p /data/secrets /data/storage /data/backups /data/run /data/caddy
+chmod 700 /data/secrets
+
+jwt() { # jwt <role>: long-lived HS256 API key signed with JWT_SECRET
+  node -e '
+    const c = require("crypto"), now = Math.floor(Date.now() / 1000);
+    const b = o => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const body = b({ alg: "HS256", typ: "JWT" }) + "." + b({ role: process.argv[1], iss: "supabase", iat: now, exp: now + 20 * 365 * 86400 });
+    process.stdout.write(body + "." + c.createHmac("sha256", process.env.JWT_SECRET).update(body).digest("base64url"));
+  ' "$1"
+}
+
+rand_hex() { node -e 'process.stdout.write(require("crypto").randomBytes(+process.argv[1]).toString("hex"))' "$1"; }
+
+if [ ! -f /data/secrets/env ]; then
+  POSTGRES_PASSWORD=$(rand_hex 24)
+  JWT_SECRET=$(rand_hex 32)
+  export JWT_SECRET
+  umask 077
+  cat > /data/secrets/env <<SECRETS
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+JWT_SECRET=$JWT_SECRET
+ANON_KEY=$(jwt anon)
+SERVICE_ROLE_KEY=$(jwt service_role)
+SECRETS
+fi
+set -a; . /data/secrets/env; set +a
+
+export SITE_URL="https://$DOLPHIN_DOMAIN"
+printf 'window.__DOLPHIN_CONFIG__ = %s;\n' "{\"supabaseUrl\":\"$SITE_URL\",\"anonKey\":\"$ANON_KEY\"}" > /data/run/config.js
+
+exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf

@@ -1,0 +1,24 @@
+#!/bin/bash
+# Apply supabase/migrations/*.sql once each, after Auth and Storage have created their schemas. Backs up first when the image version changes.
+set -euo pipefail
+until pg_isready -q -h 127.0.0.1 -U postgres; do sleep 1; done
+q() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
+until [ "$(q -c "select to_regclass('auth.users') is not null and to_regclass('storage.buckets') is not null")" = t ]; do sleep 1; done
+
+q -c "create table if not exists public.app_migrations (name text primary key, applied_at timestamptz not null default now())"
+
+version_file=/data/run/image-version
+if [ -f "$version_file" ] && [ "$(cat "$version_file")" != "$DOLPHIN_VERSION" ]; then
+  echo "dolphin-migrate: image version changed, backing up before migrating"
+  dolphin backup
+fi
+
+for f in /opt/dolphin/migrations/*.sql; do
+  [ -e "$f" ] || continue
+  name=$(basename "$f")
+  [ "$(q -c "select 1 from public.app_migrations where name = '$name'")" = 1 ] && continue
+  echo "dolphin-migrate: applying $name"
+  q -1 -f "$f" -c "insert into public.app_migrations(name) values ('$name')"
+done
+q -c "notify pgrst, 'reload schema'"
+echo "$DOLPHIN_VERSION" > "$version_file"

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Operations CLI: dolphin backup | backups | restore <file> | status
+set -euo pipefail
+BACKUPS=/data/backups
+psql_() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+
+backup() {
+  local name tmp
+  name="dolphin-$(date +%Y%m%d-%H%M%S).tar.gz"
+  tmp=$(mktemp -d)
+  pg_dump -h /var/run/postgresql -U postgres -d postgres -Fc -f "$tmp/db.dump"
+  tar -czf "$BACKUPS/$name.part" -C "$tmp" db.dump -C /data storage
+  mv "$BACKUPS/$name.part" "$BACKUPS/$name"
+  rm -rf "$tmp"
+  find "$BACKUPS" -name 'dolphin-*.tar.gz' -mtime +"$BACKUP_RETENTION_DAYS" -delete
+  echo "$BACKUPS/$name"
+}
+
+restore() {
+  local file="$BACKUPS/$(basename "${1:?usage: dolphin restore <file>}")" tmp
+  [ -f "$file" ] || { echo "No such backup: $file" >&2; exit 1; }
+  tmp=$(mktemp -d)
+  tar -xzf "$file" -C "$tmp"
+  [ -f "$tmp/db.dump" ] || { echo "Not a dolphin backup: $file" >&2; exit 1; }
+  echo "Backing up current data first: $(backup)"
+  supervisorctl stop caddy auth rest storage backup-schedule >/dev/null
+  trap 'supervisorctl start auth rest storage caddy backup-schedule >/dev/null' EXIT
+  psql_ -qc "select pg_terminate_backend(pid) from pg_stat_activity where datname = 'postgres' and pid <> pg_backend_pid()" >/dev/null
+  pg_restore -h /var/run/postgresql -U postgres -d postgres --clean --if-exists --single-transaction --exit-on-error "$tmp/db.dump"
+  rm -rf /data/storage && mv "$tmp/storage" /data/storage
+  rm -rf "$tmp"
+  psql_ -qc "notify pgrst, 'reload schema'"
+  echo "Restored $file"
+}
+
+case "${1:-}" in
+  backup)  backup ;;
+  backups) ls -1t "$BACKUPS" | grep '^dolphin-.*\.tar\.gz$' || true ;;
+  restore) restore "${2:-}" ;;
+  status)  supervisorctl status || true; echo "version: $DOLPHIN_VERSION"; echo "latest backup: $(ls -1t "$BACKUPS" | head -1)" ;;
+  *) echo "usage: dolphin backup | backups | restore <file> | status" >&2; exit 2 ;;
+esac

@@ -1,0 +1,4 @@
+#!/bin/bash
+# wait-for-db <command...>: start a service once Postgres accepts TCP connections (it listens only after first-boot init finishes).
+until pg_isready -q -h 127.0.0.1 -U postgres; do sleep 1; done
+exec "$@"

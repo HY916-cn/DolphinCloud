@@ -67,7 +67,7 @@
 │   /storage/v1/* → Storage API        127.0.0.1:5000      │
 │                                                         │
 │ Postgres（只监听容器内部）                                 │
-│ supercronic：每日备份、余额自检                            │
+│ 定时任务：每日备份、余额自检                              │
 │ supervisord：管理以上进程                                  │
 └──────────────── /data（数据库、图片、备份、密钥、证书）───┘
 ```
@@ -85,9 +85,9 @@
 | PostgREST | `postgrest/postgrest` 镜像中的静态二进制 | 表查询与 RPC |
 | Storage API | `supabase/storage-api`，在 `node:<ver>-bookworm-slim` 中按标签构建 | 商品图片，文件存放在 `/data/storage` |
 | Caddy | `caddy` 镜像中的二进制 | HTTPS 与路由 |
-| supervisord、supercronic | Debian 包 / 官方二进制 | 进程管理、定时任务 |
+| supervisord | Debian 包 | 进程管理；每日备份由它托管的定时脚本执行 |
 
-版本统一写在 `docker/versions.env`。开工时取 Supabase 官方 self-hosted `docker-compose.yml` 当时锁定的 Auth、PostgREST、Storage 版本，Postgres 主版本与 `supabase/config.toml` 的 `db.major_version` 一致；之后升级任一组件都要过一遍第 10 节的集成测试。
+版本统一写在 `docker/Dockerfile` 开头的 `ARG` 中，取自 Supabase 官方 self-hosted `docker-compose.yml`（2026 年 10 月）：Auth `v2.197.0`、PostgREST `v14.18`、Storage `v1.81.0`、Postgres `17`、Caddy `2.10`、Node `24`。Postgres 主版本与 `supabase/config.toml` 的 `db.major_version` 一致；升级任一组件后先跑 `docker/smoke-test.sh`，再跑第 10 节的集成测试。
 
 ### 3.3 运行配置
 
@@ -526,12 +526,13 @@ supabase/
   tests/                pgTAP 测试
   seed.sql              开发种子数据（示例学生、商品、各角色账号）
 docker/
-  Dockerfile
-  versions.env          组件版本
+  Dockerfile            多阶段构建，开头 ARG 锁定组件版本
+  smoke-test.sh         单容器冒烟测试（M0）
   Caddyfile
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
-  bin/dolphin           运维命令（见 9.3）
+  bin/                  入口脚本、迁移执行、定时备份、运维命令 dolphin（见 9.3）
+  www/                  前端构建产物接入前的占位页
 docs/
 design-system/
 ```
@@ -576,8 +577,8 @@ docker build -f docker/Dockerfile -t dolphin-cloud:dev .
 `docker/Dockerfile` 多阶段构建：
 
 1. `client-build`：`node` 镜像中 `npm ci && npx expo export -p web`，再用 `workbox generateSW` 生成 Service Worker。
-2. `storage-build`：`node:<ver>-bookworm-slim` 中按 `versions.env` 的标签构建 Storage API。
-3. 最终阶段基于 `postgres:<major>-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 构建产物与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord、supercronic。
+2. `storage`：把官方 Storage 镜像（Alpine）中的 `/app` 复制到 `node:24-bookworm-slim`，为 glibc 重新编译其中唯一的原生模块 `fs-xattr`。
+3. 最终阶段基于 `postgres:17-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord。
 
 镜像标签使用语义化版本（如 `1.0.0`），推送到 GitHub Container Registry。
 
@@ -654,8 +655,8 @@ CI（GitHub Actions）：每次推送运行 lint、单元测试、`supabase test
 
 | 里程碑 | 内容 | 完成标准 |
 | --- | --- | --- |
-| M0 技术验证 | 单容器镜像：Postgres + Auth + PostgREST + Storage + Caddy；入口脚本与 `config.js`；SQL 创建账号 | 浏览器经 HTTPS 登录、调用 RPC、上传图片均成功；`dolphin backup` 与 `restore` 往返一致 |
-| M1 数据与账务核心 | 全部表、RLS、账务函数、冲正、审计、`check_balances()` | pgTAP 全部通过 |
+| M0 技术验证 | 单容器镜像：Postgres + Auth + PostgREST + Storage + Caddy；入口脚本与 `config.js`；SQL 创建账号 | `docker/smoke-test.sh` 全部通过：经 HTTPS 登录、调用 RPC、上传并公开读取图片；`dolphin backup` → 改动 → `restore` 恢复到备份时状态；容器重启后数据完整 |
+| M1 数据与账务核心 | 全部表、RLS、账务函数、冲正、审计、`check_balances()`；运维命令 `dolphin create-admin`、`dolphin check` | pgTAP 全部通过 |
 | M2 前端基础 | 主题 token、组件库、登录与改密码、角色路由 | 设计系统组件与 `preview.html` 视觉对照一致 |
 | M3 柜台 | 存款、取款、兑换、查询、冲正、离线存款 | 柜台相关端到端测试通过；单笔办理 ≤ 1 分钟（由学生柜员试用计时） |
 | M4 后台与学生端 | 名册导入与开户通知单、账号角色、商品与入库、发行登记、流水查询、参数、日志；学生首页、明细、排名 | 全部端到端测试通过 |
