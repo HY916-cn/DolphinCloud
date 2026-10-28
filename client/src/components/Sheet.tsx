@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '@/lib/supabase';
+import { signOutCurrent } from '@/lib/accounts';
 
 // Confirmation sheet (design system Sheet): rises from the foot on phones, a centred dialog on wider screens.
 // Esc or a tap on the scrim cancels; closing plays the leaving animation before the sheet is removed.
@@ -37,7 +37,8 @@ export function ConfirmSheet({ title, text, confirm, onConfirm, onClose }: {
   );
 }
 
-// Sign out after a confirmation; `trigger` draws the control that opens the sheet.
+// Sign out after a confirmation, then continue with the next account remembered on this device, if any;
+// `trigger` draws the control that opens the sheet.
 export function SignOut({ trigger }: { trigger: (open: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -45,12 +46,12 @@ export function SignOut({ trigger }: { trigger: (open: () => void) => ReactNode 
     <>
       {trigger(() => setOpen(true))}
       {open && (
-        <ConfirmSheet title="退出登录" text="退出后，下次使用需要重新输入账号和密码。" confirm="退出登录"
+        <ConfirmSheet title="退出登录" text="退出后，这台设备不再保存这个账号，下次使用需要重新输入密码。" confirm="退出登录"
           onClose={() => setOpen(false)}
           onConfirm={async () => {
-            await supabase.auth.signOut();
+            const switched = await signOutCurrent();
             queryClient.clear();
-            router.replace('/login');
+            router.replace(switched ? '/' : '/login');
           }} />
       )}
     </>

@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { rememberSession, renameAccount } from './accounts';
 import { supabase, type LoginKind } from './supabase';
 
 export type Role = 'teller' | 'accountant' | 'storekeeper' | 'teacher' | 'sysadmin';
@@ -16,6 +17,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setState({ session: data.session, ready: true }));
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Every new or refreshed session is copied to this device's account list (lib/accounts.ts).
+      if (session) rememberSession(session);
       setState({ session, ready: true });
       queryClient.invalidateQueries({ queryKey: ['me'] });
     });
@@ -40,6 +43,7 @@ export function useMe() {
         supabase.from('students').select('student_no,name,division,cohort,class_no,class_label').eq('user_id', uid!).maybeSingle(),
       ]);
       if (profile.error) throw profile.error;
+      renameAccount(uid!, profile.data.display_name);
       return {
         profile: profile.data,
         roles: (roles.data ?? []).map((r) => r.role as Role),
@@ -49,12 +53,10 @@ export function useMe() {
   });
 }
 
-// The places a login can work in, in the order the workspace chooser shows them.
-export function destinations(me: Me) {
-  const back = me.roles.some((r) => r !== 'teller');
-  return [
-    ...(me.roles.includes('teller') ? (['/counter'] as const) : []),
-    ...(back ? (['/admin'] as const) : []),
-    ...(me.student ? (['/student'] as const) : []),
-  ];
+// Where a login works: each account has one identity (PHASE-1.md §4.1).
+export function home(me: Me) {
+  if (me.student) return '/student' as const;
+  if (me.roles.includes('teller')) return '/counter' as const;
+  if (me.roles.length) return '/admin' as const;
+  return null;
 }

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Icon, Notice, Welcome } from '@/components';
+import { Icon, link, Notice, Welcome } from '@/components';
 import { useSession } from '@/lib/session';
 import { loginEmail, supabase, type LoginKind } from '@/lib/supabase';
 
@@ -20,13 +20,15 @@ function message(code?: string) {
 
 export default function Login() {
   const { session, ready } = useSession();
+  // ?add=1: sign in one more account on this device; the current one stays remembered (lib/accounts.ts).
+  const adding = useLocalSearchParams<{ add?: string }>().add === '1';
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<LoginKind>('student');
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<{ title: string; text: string; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  if (ready && session) return <Redirect href="/" />;
+  if (ready && session && !adding) return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
 
   async function signIn() {
@@ -41,7 +43,7 @@ export default function Login() {
 
   return (
     <Welcome label="登录" onSubmit={signIn}>
-      <h2 className="dc-login-title">欢迎登录</h2>
+      <h2 className="dc-login-title">{adding ? '添加账号' : '欢迎登录'}</h2>
       <fieldset className="dc-seg" aria-label="身份">
         {KINDS.map((k) => (
           <label key={k.kind}>
@@ -68,7 +70,11 @@ export default function Login() {
         disabled={!busy && (!loginId.trim() || !password)}>
         {busy ? '正在登录' : '登录'}
       </button>
-      <p className="dc-login-help">首次登录请使用默认密码，登录后设置新密码<br />忘记密码请联系指导老师</p>
+      {adding && session ? (
+        <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/accounts')}>返回本机账号</a>
+      ) : (
+        <p className="dc-login-help">首次登录请使用默认密码，登录后设置新密码<br />忘记密码请联系指导老师</p>
+      )}
     </Welcome>
   );
 }

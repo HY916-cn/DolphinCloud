@@ -1,12 +1,11 @@
--- Deposit, withdraw and lookup: roles, amounts, limits, self-service, idempotency (PHASE-1.md §6.2).
+-- Deposit, withdraw and lookup: roles, amounts, limits, idempotency (PHASE-1.md §6.2).
 \ir helpers/setup.psql
 
-select tests.staff('t1', '{teller}') as t1 \gset
-select tests.staff('acc', '{accountant}') as acc \gset
+select tests.staff('t1', 'teller') as t1 \gset
+select tests.staff('acc', 'accountant') as acc \gset
 select tests.student('s1', 100) as s1 \gset
 select tests.student('s3', 50) as s3 \gset
 select tests.student('s4', 1000) as s4 \gset
-select tests.student('s9', 10, '{teller}') as s9 \gset
 select tests.student('frozen', 10);
 update students set status = 'frozen' where student_no = 'frozen';
 
@@ -37,10 +36,6 @@ select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":0}')
 select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '[10]')$$), 'INVALID_AMOUNT', 'not an object');
 select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 'nobody', '{"10":1}')$$), 'STUDENT_NOT_FOUND', 'unknown student');
 select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 'frozen', '{"10":1}')$$), 'STUDENT_INACTIVE', 'frozen account');
-select is(tests.err(:'s9', $$select deposit(gen_random_uuid(), 's9', '{"10":1}')$$), 'SELF_SERVICE_FORBIDDEN', 'a teller cannot serve their own account');
-select is(tests.err(:'s9', $$select lookup_student('s9')$$), 'SELF_SERVICE_FORBIDDEN', 'a teller cannot look up their own account');
-select is(tests.call(:'s9', $$select deposit(gen_random_uuid(), 's1', '{"1":1}')$$) ->> 'balance_after', '129',
-  'a student teller can serve other students');
 
 -- Withdraw
 select is(tests.err(:'t1', $$select withdraw(gen_random_uuid(), 's4', 201)$$), 'WITHDRAW_SINGLE_LIMIT', 'over the single limit');

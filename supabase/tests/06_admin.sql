@@ -1,10 +1,10 @@
 -- Roster import, staff logins, passwords, products, issues, settings, ranking (PHASE-1.md §6.4, §6.5).
 \ir helpers/setup.psql
 
-select tests.staff('teacher', '{teacher}') as teacher \gset
-select tests.staff('admin', '{sysadmin}') as admin \gset
-select tests.staff('keeper', '{storekeeper}') as keeper \gset
-select tests.staff('t1', '{teller}') as t1 \gset
+select tests.staff('teacher', 'teacher') as teacher \gset
+select tests.staff('admin', 'sysadmin') as admin \gset
+select tests.staff('keeper', 'storekeeper') as keeper \gset
+select tests.staff('t1', 'teller') as t1 \gset
 
 -- Roster import
 select is(tests.err(:'admin', $$select import_roster('[]')$$), 'FORBIDDEN', 'only a teacher imports the roster');
@@ -66,21 +66,27 @@ select is(tests.call(:'teacher', $$select jsonb_agg(jsonb_build_array(student_no
   '[["20260001", 4, "四年级(2)班"], ["20260003", 7, "七年级(1)班"]]', 'grade and class_label are computed fields of students');
 
 -- Staff logins and roles
-select tests.call(:'admin', $$select create_staff('Teller02', '柜员二', '{teller}')$$) as staff \gset
+select tests.call(:'admin', $$select create_staff('Teller02', '柜员二', 'teller')$$) as staff \gset
 select is(:'staff'::jsonb ->> 'password', 'a12345678', 'staff logins get the default password too');
 select is(:'staff'::jsonb ->> 'login_id', 'teller02', 'login ids are lower case');
-select is(tests.err(:'admin', $$select create_staff('teller02', '重复', '{teller}')$$), 'ALREADY_EXISTS', 'duplicate login');
-select is(tests.err(:'admin', $$select create_staff('a b', '空格', '{}')$$), 'INVALID_INPUT', 'invalid login id');
-select is(tests.err(:'admin', $$select create_staff('teacher2', '老师二', '{teacher}')$$), 'FORBIDDEN', 'a sysadmin cannot create a teacher');
-select is(tests.err(:'keeper', $$select create_staff('x1', 'x', '{}')$$), 'FORBIDDEN', 'a storekeeper cannot create logins');
-select is(tests.call(:'teacher', $$select create_staff('teacher2', '老师二', '{teacher}')$$) ->> 'login_id', 'teacher2', 'a teacher can');
+select is(:'staff'::jsonb ->> 'role', 'teller', 'a staff login has one role');
+select is(tests.err(:'admin', $$select create_staff('teller02', '重复', 'teller')$$), 'ALREADY_EXISTS', 'duplicate login');
+select is(tests.err(:'admin', $$select create_staff('a b', '空格', 'teller')$$), 'INVALID_INPUT', 'invalid login id');
+select is(tests.err(:'admin', $$select create_staff('x2', '无角色', null)$$), 'INVALID_INPUT', 'a staff login needs a role');
+select is(tests.err(:'admin', $$select create_staff('teacher2', '老师二', 'teacher')$$), 'FORBIDDEN', 'a sysadmin cannot create a teacher');
+select is(tests.err(:'keeper', $$select create_staff('x1', 'x', 'teller')$$), 'FORBIDDEN', 'a storekeeper cannot create logins');
+select is(tests.call(:'teacher', $$select create_staff('teacher2', '老师二', 'teacher')$$) ->> 'login_id', 'teacher2', 'a teacher can');
 
-select is(tests.err(:'admin', format($$select set_roles(%L, '{teller,teacher}')$$, :'t1')), 'FORBIDDEN', 'a sysadmin cannot grant teacher');
-select is(tests.err(:'admin', format($$select set_roles(%L, '{}')$$, :'teacher')), 'FORBIDDEN', 'nor revoke it');
-select is(tests.call(:'admin', $$select set_roles(id, '{teller,teller}') from profiles where login_id = '20260002'$$) -> 'roles',
-  '["teller"]', 'a sysadmin makes a student a teller');
-select is(tests.call(:'admin', format($$select set_roles(%L, '{accountant}')$$, :'t1')) -> 'roles', '["accountant"]', 'roles are replaced');
-select is(tests.err(:'admin', format($$select set_roles(%L, '{}')$$, gen_random_uuid())), 'USER_NOT_FOUND', 'unknown user');
+select is(tests.err(:'admin', format($$select set_role(%L, 'teacher')$$, :'t1')), 'FORBIDDEN', 'a sysadmin cannot make a teacher');
+select is(tests.err(:'admin', format($$select set_role(%L, 'teller')$$, :'teacher')), 'FORBIDDEN', 'nor change one');
+select is(tests.call(:'admin', format($$select set_role(%L, 'accountant')$$, :'t1')) ->> 'role', 'accountant', 'the role is replaced');
+select is((select array_agg(role)::text from user_roles where user_id = :'t1'), '{accountant}', 'and stays the only one');
+select is(tests.err(:'admin', $$select set_role(id, 'teller') from profiles where login_id = '20260002'$$), 'INVALID_INPUT',
+  'a student login cannot take a staff role');
+select is(tests.err(:'admin', format($$select set_role(%L, 'teller')$$, gen_random_uuid())), 'USER_NOT_FOUND', 'unknown user');
+select throws_ok(format($$insert into user_roles values (%L, 'teller')$$, :'t1'), '23505', null, 'one role per login, also for direct writes');
+select throws_ok($$insert into user_roles select id, 'teller' from profiles where login_id = '20260002'$$, 'P0001', 'INVALID_INPUT',
+  'student logins hold no role, also for direct writes');
 
 -- Passwords
 select id as stu from profiles where login_id = '20260002' \gset
@@ -103,7 +109,7 @@ update auth.users set encrypted_password = crypt('my-new-pass', gen_salt('bf', 4
 select ok(not (select must_change_password from profiles where id = :'stu'), 'which the user replaces once more');
 
 -- Until the default is replaced the login holds no role and sees no account data
-select tests.staff('fresh', '{teller}') as fresh \gset
+select tests.staff('fresh', 'teller') as fresh \gset
 update profiles set must_change_password = true where id = :'fresh';
 select is(tests.err(:'fresh', $$select lookup_student('20260001')$$), 'FORBIDDEN', 'a teller still on the default password cannot work');
 select id as newstu from profiles where login_id = '20260003' \gset
@@ -165,7 +171,7 @@ select is(tests.call(:'t1', $$select deposit_ranking()$$) -> 'me', 'null', 'staf
 select ok(app_private.create_admin('Head') is not null, 'create_admin');
 select ok((select must_change_password from profiles where login_id = 'head'), 'the admin starts on the default password');
 select is((select array_agg(role order by role)::text from user_roles r join profiles p on p.id = r.user_id where p.login_id = 'head'),
-  '{teacher,sysadmin}', 'with teacher and sysadmin');
+  '{teacher}', 'as a teacher');
 select throws_ok($$select app_private.create_admin('head')$$, 'P0001', 'ALREADY_EXISTS', 'create_admin refuses an existing login');
 select throws_ok($$select app_private.create_admin('a b')$$, 'P0001', 'INVALID_INPUT', 'create_admin checks the login id');
 

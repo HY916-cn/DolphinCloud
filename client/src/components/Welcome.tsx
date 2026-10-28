@@ -2,7 +2,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Icon } from './ui';
 
 // The sign-in look (LoginPage): the dolphin floating in sonar rings above a white shore, the panel rising from it.
-// Used by every page shown before the app proper: sign in, set a new password, choose a workspace.
+// Used by every page shown before the app proper: sign in, set a new password, this device's accounts.
 export function Welcome({ label, onSubmit, children }: { label: string; onSubmit?: (e: FormEvent) => void; children: ReactNode }) {
   const Panel = onSubmit ? 'form' : 'div';
   return (

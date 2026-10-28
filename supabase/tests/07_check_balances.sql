@@ -1,8 +1,8 @@
 -- The ledger self-check finds balances and stock that differ from the ledger (PHASE-1.md §5.4).
 \ir helpers/setup.psql
 
-select tests.staff('t1', '{teller}') as t1 \gset
-select tests.staff('keeper', '{storekeeper}') as keeper \gset
+select tests.staff('t1', 'teller') as t1 \gset
+select tests.staff('keeper', 'storekeeper') as keeper \gset
 select tests.student('s1', 100);
 select tests.call(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":1}')$$);
 select tests.call(:'keeper', $$select upsert_product(null, '书签', 5)$$) ->> 'id' as prod \gset

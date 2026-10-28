@@ -1,4 +1,4 @@
-import { Icon, Page, SignOut } from '@/components';
+import { Icon, link, Page, SignOut } from '@/components';
 import { useMe } from '@/lib/session';
 
 // 我的: who is signed in (the grade and class lead, the cohort follows quietly) and the account actions.
@@ -22,6 +22,11 @@ export default function StudentMe() {
           <div>
             <p className="dc-list-title">账户与安全</p>
             <ul className="dc-list">
+              <li>
+                <a className="dc-list-link" {...link('/accounts')}>
+                  <span className="dc-list-icon"><Icon name="transfer" /></span><span>切换账号</span><Icon name="next" />
+                </a>
+              </li>
               <li>
                 <SignOut trigger={(open) => (
                   <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); open(); }}>

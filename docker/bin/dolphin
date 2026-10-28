@@ -36,7 +36,7 @@ restore() {
 create_admin() {
   local login="${1:?usage: dolphin create-admin <login>}"
   psql_ -qAt -v login="$login" <<'SQL'
-select 'Created ' || lower(:'login') || ' (teacher, sysadmin): ' || app_private.create_admin(:'login')
+select 'Created ' || lower(:'login') || ' (teacher): ' || app_private.create_admin(:'login')
   || E'\nSign in with the default password ' || app_private.default_password() || ' and set a new one.';
 SQL
 }

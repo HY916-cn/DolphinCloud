@@ -1,8 +1,8 @@
 -- Purchases paid from the account or in cash: stock, listing, balance, change (PHASE-1.md §6.2).
 \ir helpers/setup.psql
 
-select tests.staff('t1', '{teller}') as t1 \gset
-select tests.staff('keeper', '{storekeeper}') as keeper \gset
+select tests.staff('t1', 'teller') as t1 \gset
+select tests.staff('keeper', 'storekeeper') as keeper \gset
 select tests.student('s1', 100) as s1 \gset
 select tests.student('s2', 20) as s2 \gset
 

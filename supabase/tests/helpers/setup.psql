@@ -1,5 +1,5 @@
 -- Included by every test file. Opens the transaction the file rolls back, installs pgTAP and the helpers:
---   tests.staff(login, roles) / tests.student(no, opening, roles, name, division, cohort) create logins as postgres and return the user id;
+--   tests.staff(login, role) / tests.student(no, opening, name, division, cohort) create logins as postgres and return the user id;
 --   tests.call(user, sql) runs sql as that authenticated user and returns its jsonb result, or {"error", "detail"}.
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -12,22 +12,21 @@ create extension pgtap with schema tests;
 set search_path = public, tests;
 select no_plan();
 
-create function tests.staff(p_login text, p_roles app_role[] default '{}') returns uuid language plpgsql as $$
+create function tests.staff(p_login text, p_role app_role default null) returns uuid language plpgsql as $$
 declare v uuid := app_private.create_login(p_login || '@staff.dolphin.internal', 'test-password');
 begin
   insert into profiles (id, login_kind, login_id, display_name, must_change_password) values (v, 'staff', p_login, p_login, false);
-  insert into user_roles (user_id, role) select v, unnest(p_roles);
+  insert into user_roles (user_id, role) select v, p_role where p_role is not null;
   return v;
 end $$;
 
-create function tests.student(p_no text, p_opening integer default 0, p_roles app_role[] default '{}', p_name text default null,
+create function tests.student(p_no text, p_opening integer default 0, p_name text default null,
   p_division text default 'primary', p_cohort integer default null)
 returns uuid language plpgsql as $$
 declare v uuid := app_private.create_login(p_no || '@student.dolphin.internal', '123456');
 begin
   insert into profiles (id, login_kind, login_id, display_name, must_change_password)
   values (v, 'student', p_no, coalesce(p_name, '学生' || p_no), false);
-  insert into user_roles (user_id, role) select v, unnest(p_roles);
   -- Default cohort: 四年级 for primary, 七年级 for junior, in class 4.
   insert into students (student_no, user_id, name, division, cohort, class_no)
   values (p_no, v, coalesce(p_name, '学生' || p_no), p_division,

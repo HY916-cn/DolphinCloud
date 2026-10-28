@@ -20,7 +20,7 @@ select ok(not has_function_privilege('authenticated', 'app_private.create_login(
 select ok(not has_function_privilege('authenticated', 'app_private.check_balances()', 'execute'),
   'authenticated cannot call check_balances');
 
-select tests.staff('t1', '{teller}') as t1 \gset
+select tests.staff('t1', 'teller') as t1 \gset
 select tests.student('s1', 100) as s1 \gset
 select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000001', 's1', '{"10":1}')$$) ->> 'txn_no' as txn_no \gset
 

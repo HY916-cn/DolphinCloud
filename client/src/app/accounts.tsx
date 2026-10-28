@@ -1,0 +1,54 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Gate, Icon, link, Notice, SignOut, Welcome } from '@/components';
+import { savedAccounts, switchAccount } from '@/lib/accounts';
+
+// 本机账号 (PHASE-1.md §7.4): the accounts signed in on this device; tap one to switch, add another, or sign out.
+export default function Accounts() {
+  const queryClient = useQueryClient();
+  const [expired, setExpired] = useState<string | null>(null);
+  return (
+    <Gate allow={() => true}>
+      {(me) => (
+        <Welcome label="本机账号">
+          <h2 className="dc-login-title">本机账号</h2>
+          {expired && <Notice tone="danger" title={`${expired}需要重新登录`}>请点「添加账号」重新输入密码。</Notice>}
+          <ul className="dc-list">
+            {savedAccounts().map((a) => {
+              const current = a.id === me.profile.id;
+              const body = (
+                <>
+                  <span className="dc-list-icon"><Icon name={a.kind === 'student' ? 'me' : 'teacher'} /></span>
+                  <span>{a.name}<small className="dc-top-sub">{a.kind === 'student' ? `学号 ${a.loginId}` : `工作账号 ${a.loginId}`}</small></span>
+                  {current ? <small className="dc-top-sub">当前</small> : <Icon name="next" />}
+                </>
+              );
+              return (
+                <li key={a.id}>
+                  {current ? <div className="dc-list-link" aria-current="true">{body}</div> : (
+                    <a className="dc-list-link" href="/" onClick={async (e) => {
+                      e.preventDefault();
+                      if (!(await switchAccount(a.id))) return setExpired(a.name);
+                      queryClient.clear();
+                      router.replace('/');
+                    }}>{body}</a>
+                  )}
+                </li>
+              );
+            })}
+            <li>
+              <a className="dc-list-link" {...link('/login?add=1')}>
+                <span className="dc-list-icon"><Icon name="plus" /></span><span>添加账号</span><Icon name="next" />
+              </a>
+            </li>
+          </ul>
+          <a className="dc-btn dc-btn-secondary dc-btn-block" {...link('/')}>返回</a>
+          <SignOut trigger={(open) => (
+            <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" onClick={open}>退出当前账号</button>
+          )} />
+        </Welcome>
+      )}
+    </Gate>
+  );
+}

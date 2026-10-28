@@ -1,12 +1,12 @@
 -- Who reads what (PHASE-1.md §6.6, §6.7).
 \ir helpers/setup.psql
 
-select tests.staff('t1', '{teller}') as t1 \gset
-select tests.staff('t2', '{teller}') as t2 \gset
-select tests.staff('acc', '{accountant}') as acc \gset
-select tests.staff('keeper', '{storekeeper}') as keeper \gset
-select tests.staff('teacher', '{teacher}') as teacher \gset
-select tests.staff('admin', '{sysadmin}') as admin \gset
+select tests.staff('t1', 'teller') as t1 \gset
+select tests.staff('t2', 'teller') as t2 \gset
+select tests.staff('acc', 'accountant') as acc \gset
+select tests.staff('keeper', 'storekeeper') as keeper \gset
+select tests.staff('teacher', 'teacher') as teacher \gset
+select tests.staff('admin', 'sysadmin') as admin \gset
 select tests.student('s1', 50) as s1 \gset
 select tests.student('s2', 30) as s2 \gset
 

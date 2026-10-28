@@ -1,10 +1,10 @@
 -- Reversal rules (PHASE-1.md §6.3).
 \ir helpers/setup.psql
 
-select tests.staff('t1', '{teller}') as t1 \gset
-select tests.staff('t2', '{teller}') as t2 \gset
-select tests.staff('teacher', '{teacher}') as teacher \gset
-select tests.staff('keeper', '{storekeeper}') as keeper \gset
+select tests.staff('t1', 'teller') as t1 \gset
+select tests.staff('t2', 'teller') as t2 \gset
+select tests.staff('teacher', 'teacher') as teacher \gset
+select tests.staff('keeper', 'storekeeper') as keeper \gset
 select tests.student('s1', 100) as s1 \gset
 select tests.student('s2') as s2 \gset
 
@@ -47,12 +47,11 @@ select is(tests.call(:'teacher', $$select reverse_txn(gen_random_uuid(), '000000
   'a teacher can');
 
 -- Opening balance: teacher only
-select tests.call(:'teacher', $$select set_roles(id, '{teacher,teller}') from profiles where login_id = 'teacher'$$);
 select id as opening from txns where student_no = 's1' and type = 'opening' \gset
 select is(tests.err(:'t1', format($$select reverse_txn(gen_random_uuid(), %L, '金额录错')$$, :'opening')),
   'REVERSAL_NOT_ALLOWED', 'a teller cannot reverse an opening balance');
 select is(tests.call(:'teacher', format($$select reverse_txn(gen_random_uuid(), %L, '金额录错')$$, :'opening')) ->> 'balance_after',
-  '0', 'a teacher can (also when they hold teller too)');
+  '0', 'a teacher can');
 
 -- A deposit reversal never overdraws
 select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000024', 's2', '{"10":5}')$$);
