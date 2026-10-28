@@ -47,18 +47,17 @@
 - 浮在页面上的元素（弹层、引导气泡、底部导航）用 `shadow-float`。
 - 按下：元素下移 3～4px，厚底变薄。禁用：`cloud-200` 底 + `ink-muted` 字，并把原因写在按钮上（“余额不足”）。
 - 键盘焦点：`focus-ring`（一圈白 + 一圈 `dolphin-deep`），所有可点元素都有。
-- 动效短而轻（100～200ms），只用于按下、出现和数字变化；不做闪烁和长时间循环动画。
+- 动效的时长、缓动和每个场景的做法见“动效”一节。
 
 ## 布局与触控
 
-- 间距用 `space-1` 到 `space-7`（4 → 48px）。卡片内边距 `space-5`，页面分区间距 `space-6`，手机端左右留白 `space-4`。
-- 可点区域最小 44×44px，主要按钮 56px 高；相邻可点元素至少相隔 `space-3`。
-- 电脑终端（柜台）：内容区最宽 1080px，业务宫格一行 4 个。手机终端（学生端、家长端）：单列，底部 `TabBar`。
-- 一屏一个主按钮，放在内容下方、拇指够得到的位置。
+- 手机、平板、电脑共用一套页面，断点 `bp-tablet`（600px）和 `bp-desktop`（1024px）；导航、栏数和按钮排版随宽度切换，细则见“排版与多端适配”一节。
+- 手机上的页面操作按钮总是整行、贴底；表单里的提交按钮在所有屏幕上撑满表单宽度。
+- 间距用 `space-1` 到 `space-7`（4 → 48px）；可点区域最小 44×44px，主要按钮 56px 高；相邻可点元素至少相隔 `space-2`。
 
 ## 图标
 
-- 图标使用 [morphicons](https://www.morphicons.com/) 的默认图标集 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 21 个业务图标，文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 图标使用 [morphicons](https://www.morphicons.com/) 的默认图标集 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 26 个图标（21 个业务图标和加、减、返回、关闭、排名 5 个界面图标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
 - 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
 - 图标在两种状态之间切换时（底部导航选中、展开 / 收起、办理完成打勾），用 morphicons（`npm install morphicons`）做形变过渡，时长不超过 200ms。
 - 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、导航 30px、提示条和余额卡 36px、宫格 52px。
@@ -66,4 +65,15 @@
 
 ## 组件
 
-组件是纯 CSS 类（`components/bundle.css`，前缀 `dc-`），在任意框架里写出对应的 HTML 结构即可使用：`Button`、`ServiceTile`、`BalanceCard`、`TxnList`、`GuideBubble`、`Steps`、`Field`、`Tag`、`Notice`、`TabBar`、`WaveDivider`。每个组件的 README 写明结构、何时使用，以及使用者需要提供什么。
+组件是纯 CSS 类（`components/bundle.css`，前缀 `dc-`），在任意框架里写出对应的 HTML 结构即可使用。每个组件的 README 写明结构、何时使用，以及使用者需要提供什么。
+
+- 布局：`AppShell`（多端外壳与导航）、`ActionBar`（页面操作栏）、`WaveDivider`。
+- 操作与导航：`Button`、`ServiceTile`、`TabBar`。
+- 表单：`Field`、`ChoiceCard`、`QtyStepper`。
+- 账户：`BalanceCard`、`TxnList`、`PersonCard`、`SummaryList`。
+- 引导与反馈：`GuideBubble`、`Steps`、`Tag`、`Notice`、`Sheet`、`Result`。
+- 动效示例：`Motion`。
+
+## 页面示例
+
+`LoginPage`（登录）、`StudentHomePage`（学生首页）、`CounterDepositPage`（柜台存款）、`ResultPage`（办理结果）四个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。

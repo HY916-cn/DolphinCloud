@@ -1,0 +1,9 @@
+<!-- @dsCard group="反馈" height=560 -->
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Result</title><style>body{padding:24px}</style></head>
+<body>
+<section class="dc-result"><span class="dc-result-badge dc-pop"><svg class="dc-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg></span><h1 class="display dc-enter" style="--i:2">存款成功</h1><p class="dc-result-lead dc-enter" style="--i:3">存入 <b>15 HTB</b>，当前余额 <b data-from="28" data-count="43">43</b> HTB</p><div class="dc-card dc-enter" style="--i:4"><dl class="dc-kv"><div><dt>学生</dt><dd>林小雨 · 四年级 2 班</dd></div><div><dt>面额</dt><dd>10 元 × 1，5 元 × 1</dd></div><div><dt>经办柜员</dt><dd>王一诺</dd></div><div><dt>办理时间</dt><dd>10月28日 12:20</dd></div><div><dt>交易号</dt><dd>D20261028-0156</dd></div></dl></div></section>
+<script>function dcCount(el){const to=+el.dataset.count;if(matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent=to.toLocaleString('en-US');return}const from=+(el.dataset.from||0),t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/600),e=1-Math.pow(1-p,3);el.textContent=Math.round(from+(to-from)*e).toLocaleString('en-US');if(p<1)requestAnimationFrame(f)})(t0)}document.querySelectorAll('[data-count]').forEach(dcCount);</script>
+</body>
+</html>

@@ -25,6 +25,11 @@
 | `help` | 帮助 | `circle-help` |
 | `success` | 成功 | `circle-check` |
 | `warning` | 警示 | `triangle-alert` |
+| `ranking` | 排名 | `trophy` |
+| `plus` | 增加 | `plus` |
+| `minus` | 减少 | `minus` |
+| `back` | 返回 | `chevron-left` |
+| `close` | 关闭 | `x` |
 
 - 组件里内联同一份路径，描边写 `stroke="currentColor"`，让图标跟随文字颜色；作为 `<img>` 使用时放在 `surface`、`surface-raised`、`cloud-100` 上。
 - 常用尺寸 20 / 26 / 30 / 36 / 52px。图标总是和文字一起出现，除非是头像或纯装饰。

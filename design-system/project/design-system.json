@@ -53,7 +53,12 @@
         "bell.svg",
         "help.svg",
         "success.svg",
-        "warning.svg"
+        "warning.svg",
+        "ranking.svg",
+        "plus.svg",
+        "minus.svg",
+        "back.svg",
+        "close.svg"
       ],
       "files": {
         "home.svg": {
@@ -181,6 +186,36 @@
           "blob": "a16e733babcdb91e352a474415e2f483",
           "size": 325,
           "type": "image/svg+xml"
+        },
+        "ranking.svg": {
+          "name": "ranking.svg",
+          "blob": "82bbf9feeb48aa44168ded434916472c",
+          "size": 540,
+          "type": "image/svg+xml"
+        },
+        "plus.svg": {
+          "name": "plus.svg",
+          "blob": "41ce2012374560a5521c7de551b8d697",
+          "size": 234,
+          "type": "image/svg+xml"
+        },
+        "minus.svg": {
+          "name": "minus.svg",
+          "blob": "f538d52f6963b83f7a9b719803fb3714",
+          "size": 208,
+          "type": "image/svg+xml"
+        },
+        "back.svg": {
+          "name": "back.svg",
+          "blob": "247d784585c7fb20d7bfe7584dda6c84",
+          "size": 214,
+          "type": "image/svg+xml"
+        },
+        "close.svg": {
+          "name": "close.svg",
+          "blob": "330f063129427b531e9d38a6306bede5",
+          "size": 238,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -191,8 +226,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-10-27T12:24:19Z",
+    "at": "2026-10-28T10:58:46Z",
     "via": "Claude Code",
-    "note": "图标改用 morphicons 默认图标集 Lucide（21 个业务图标）；Logo 只保留 PNG 版"
+    "note": "新增多端外壳、操作栏、单选卡、面额录入、核对清单、弹层、办理结果等组件，登录、首页、柜台存款、办理结果四个页面示例，以及动效与排版规范"
   }
 }
