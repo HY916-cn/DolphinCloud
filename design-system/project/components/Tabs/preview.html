@@ -1,8 +1,9 @@
 <!-- @dsCard group="导航" height=110 -->
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><title>Tabs</title><style>body{padding:24px}.dc-toast,.dc-sheet,.dc-scrim,.dc-progress-fill{animation:none}</style></head>
+<head><meta charset="utf-8"><title>Tabs</title><style>body{padding:24px}.dc-toast,.dc-sheet,.dc-scrim,.dc-progress-fill,.dc-notice,.dc-guide-bubble,.dc-field-hint{animation:none}</style></head>
 <body>
 <div style="max-width:560px"><div class="dc-tabs" role="tablist"><button class="dc-tabs-item" role="tab" type="button" aria-selected="true">全部<span class="dc-count">12</span></button><button class="dc-tabs-item" role="tab" type="button" aria-selected="false">存入<span class="dc-count">5</span></button><button class="dc-tabs-item" role="tab" type="button" aria-selected="false">支出<span class="dc-count">4</span></button><button class="dc-tabs-item" role="tab" type="button" aria-selected="false">奖励<span class="dc-count">3</span></button></div></div>
+<script>document.querySelectorAll('.dc-tabs').forEach(r=>{const ink=()=>{const t=r.querySelector('[aria-selected=true]');if(!t)return;const p=parseFloat(getComputedStyle(t).paddingLeft);r.style.setProperty('--ink-x',t.offsetLeft+p+'px');r.style.setProperty('--ink-s',(t.offsetWidth-2*p)/100)};r.addEventListener('click',e=>{const t=e.target.closest('[role=tab]');if(!t)return;r.querySelectorAll('[role=tab]').forEach(b=>b.setAttribute('aria-selected',b===t));ink()});ink();r.classList.add('has-ink');new ResizeObserver(ink).observe(r)});</script>
 </body>
 </html>
