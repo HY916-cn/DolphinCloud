@@ -350,7 +350,7 @@ create table audit_log (
 | `purchase` | teller | `p_id, p_student_no, p_items [{product_id, qty}], p_payment, p_cash_received`（收到的各面额张数） | 商品须已上架且库存足够；同一商品多行时合并；账户扣款时金额 ≤ 余额，`balance_delta = −金额`，`cash_delta = 0`；现金支付时收到金额 ≥ 应付，`balance_delta = 0`，`cash_delta = +金额`，记录找零；扣库存并写 `stock_movements` |
 | `reverse_txn` | teller / teacher | `p_id, p_original_id, p_reason` | 见 6.3 |
 
-公共校验：学生存在且 `status = 'normal'`；学生账户不属于当前操作人。
+公共校验：学生存在且 `status = 'normal'`。
 
 返回值统一为 `{ txn_no, type, amount, balance_after, change_given }`，前端据此显示结果页。
 
@@ -439,9 +439,9 @@ create table audit_log (
 | 数据 | `@supabase/supabase-js`、`@tanstack/react-query` |
 | 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成，内联为 `<svg class="dc-icon">`，颜色跟随文字 |
 | 字体 | Nunito Sans 与思源黑体（Noto Sans SC）的可变字体（`@fontsource-variable`，OFL），构建时复制到站点 `/fonts/`，不依赖外部字体服务；中文按 unicode-range 分片，页面只下载用到的字 |
-| 离线（M3） | Workbox 生成 Service Worker（缓存应用外壳）；`idb-keyval` 存离线队列 |
+| 离线 | Workbox 生成 Service Worker（预缓存应用外壳与拉丁字体，`/config.js` 网络优先并留存一份）；`idb-keyval` 在 IndexedDB 中存离线队列和名册；Web App Manifest 支持添加到主屏幕 |
 | Excel | SheetJS（从官方 CDN 发布的 tarball 安装并锁定版本） |
-| 测试 | `jest-expo`（单元）、Playwright（端到端） |
+| 测试 | Node 自带的类型擦除运行 `src/lib/*.test.mjs`（单元）、Playwright（端到端，`client/e2e`） |
 
 ### 7.2 目录
 
@@ -457,9 +457,9 @@ client/
       index.tsx               问候、余额卡、最近 10 笔
       me.tsx                  我的：年级班级、学届、退出
       txns.tsx  ranking.tsx   全部明细、存款排名（M4）
-    counter/                  柜台（AppShell）
-      index.tsx               业务宫格：存款 取款 兑换 查询 冲正
-      deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx  offline.tsx（M3）
+    counter/                  柜台（AppShell，导航：存款 取款 兑换 查询 冲正；进入时打开存款）
+      _layout.tsx             柜员准入；联网时把名册缓存到本机
+      deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx
     admin/                    后台（AppShell）
       index.tsx               按角色列出可用的管理功能
       students/  staff/  products/  issues/  txns/  settings/  audit/（M4）
@@ -471,7 +471,14 @@ client/
   src/lib/accounts.ts         本机记住的账号与会话、切换
   src/lib/format.ts           千分位、带符号金额、时间（当年不写年份）
   src/lib/txns.ts             流水 → TxnList 的标题、图标与方向
-  src/lib/cash.ts  offline-queue.ts  errors.ts（M3）
+  src/lib/cash.ts             面额合计、配钞与找零（贪心）、「10 元 × 2 张」文字
+  src/lib/counter.ts          柜台调用账务函数（5 秒超时视为离线）、柜台参数
+  src/lib/errors.ts           错误码 → 界面文字（7.6）
+  src/lib/online.ts           是否能连上服务器
+  src/lib/offline-queue.ts    离线存款队列与名册缓存（IndexedDB）
+  src/lib/*.test.mjs          单元测试：npm --prefix client test
+  e2e/counter.spec.ts         柜台端到端测试（Playwright）
+  workbox-config.cjs          Service Worker 配置
   public/index.html           页面模板，先加载 /config.js 和 /fonts/fonts.css
   public/logo.png             海豚云标志
   scripts/gen-tokens.mjs      npm run tokens
@@ -508,17 +515,21 @@ client/
 
 所有业务都是同一个步骤结构，用 `Steps` 显示进度：
 
-1. **输入学号**：大号数字键盘；输入完成后显示姓名、年级班级（如「四年级(1)班」）、余额，柜员核对后点「下一步」。
+1. **识别学生**：输入学号（数字键盘）后点「查找学生」。找到后进入第 2 步，页面顶部的 `PersonCard` 显示姓名、年级班级（如「四年级(1)班」）和余额，柜员边核对边录入。
 2. **办理**
    - 存款：每个面额一行「− 张数 +」，下方实时显示合计。
    - 取款：输入金额；显示配钞方案（如「10 元 × 2 张、5 元 × 1 张」）、可用余额、今日还可取金额。
    - 兑换：商品宫格（图片、名称、价格、库存，库存为 0 置灰）→ 购物车 → 选择付款方式；现金支付时录入收到的各面额张数，显示找零方案。
-3. **确认**：弹层大字复述「为 张小明 取款 25 HTB」，按钮写「确认取款」。
+3. **核对信息**：`Sheet` 弹层复述「为 张小明 取款 25 HTB」，按钮写「确认取款」。录入时右栏（手机上是贴底操作栏）一直显示合计与办理后余额，金额超出可取范围时主按钮写明原因并禁用。
 4. **结果**：`display` 字号写「取款成功」，下方「取款 25 HTB，当前余额 43 HTB」和交易号；按钮「办理下一位」回到第 1 步。
 
 配钞与找零使用贪心算法，面额从参数读取；对 1/2/5/10 面额贪心结果即张数最少。
 
-冲正：输入交易号或从「今天我办理的业务」列表中选择 → 显示原流水 → 选择原因 → 「确认冲正」。
+冲正：在「今天我办理的业务」列表中选择（可按交易号或学号筛选）→ 显示原流水 → 选择原因（「其他」须写说明）→ 「确认冲正」。
+
+查询：输入学号，显示余额、今日已取款与还可取金额、学部、学届和账户状态，不办理业务。
+
+手机上进入办理流程（页面有返回按钮）后不显示底部 `TabBar`，存款页一屏放下。
 
 ### 7.6 错误码与界面文字
 
@@ -545,11 +556,12 @@ client/
 ### 7.7 离线存款
 
 - 柜员登录时缓存名册（学号、姓名、班级），退出登录时清除；离线状态下输入学号仍能核对姓名与班级。
-- 判断离线：`navigator.onLine` 为假，或请求超时（5 秒）/ 网络错误。柜台顶部显示「离线登记」状态条。
-- 离线时只开放「存款」，其他入口禁用并写明原因。存款记录（含客户端 UUID、面额、学号、柜员 id、设备号、本机时间）写入 IndexedDB，结果页显示「已登记存款 15 HTB，联网后入账」，不显示余额。柜员同时按 SOP 填写纸质凭条。
+- 判断离线：`navigator.onLine` 为假，或请求超时（5 秒）/ 网络错误。柜台顶部显示「离线登记」状态条。联网办理存款时请求没有回应，也按离线登记，用同一个 `p_id` 上传，不会重复入账。
+- 离线时只开放「存款」，取款、兑换、查询、冲正页显示「需要联网」并提供「去登记存款」。存款记录（含客户端 UUID、面额、学号、柜员 id、设备号、本机时间）写入 IndexedDB，结果页显示「已登记存款 15 HTB，联网后入账」，不显示余额。柜员同时按 SOP 填写纸质凭条。
 - 恢复联网后，柜台首页提示「有 N 笔离线存款待上传」，点「上传」按本机时间顺序逐笔调用 `deposit`（`p_offline = true`）。成功一笔删一笔；因幂等，中途断开重传不会重复记账。
 - 队列记录了柜员 id：只有同一柜员登录时才能上传，其他人登录时只显示待上传数量和柜员姓名。
 - 服务端拒绝的记录（如学号已不存在）保留在队列中并标红，由指导老师核对纸质凭条后处理。
+- 断网时重新打开柜台：Service Worker 提供应用外壳和 `/config.js`，本人资料、柜台参数（面额、限额）和名册都有本机副本，仍可登记存款。前提是这台设备联网打开过一次柜台。
 
 ### 7.8 浏览器支持
 
@@ -614,6 +626,12 @@ docker/db-test.sh
 docker/smoke-test.sh
 ```
 
+```bash
+docker/e2e-test.sh
+```
+
+`e2e-test.sh` 用镜像起一个新容器（`https://localhost:18445`），导入种子数据后运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷；首次运行前执行一次 `npx --prefix client playwright install chromium`。
+
 前端检查：`npm --prefix client run typecheck`、`npm --prefix client test`。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto`、`dblink` 仅测试用），不依赖 Supabase 托管版独有扩展。
 
 ### 8.4 规范
@@ -631,7 +649,7 @@ docker/smoke-test.sh
 
 `docker/Dockerfile` 多阶段构建：
 
-1. `client`：`node` 镜像中 `npm ci && npm run build`（复制字体后 `expo export -p web`），产物复制到最终镜像的 `/srv/www`（M3 起再用 `workbox generateSW` 生成 Service Worker）。
+1. `client`：`node` 镜像中 `npm ci && npm run build`（复制字体、`expo export -p web`、`workbox generateSW` 生成 `sw.js`），产物复制到最终镜像的 `/srv/www`。
 2. `storage`：把官方 Storage 镜像（Alpine）中的 `/app` 复制到 `node:24-bookworm-slim`，为 glibc 重新编译其中唯一的原生模块 `fs-xattr`。
 3. 最终阶段基于 `postgres:17-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord。
 
@@ -698,8 +716,8 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 | 层级 | 工具 | 覆盖内容 |
 | --- | --- | --- |
 | 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
-| 前端单元 | jest-expo | `cash.ts` 配钞与找零；离线队列的入队、按序上传、失败保留、换柜员不可上传；错误码映射 |
-| 端到端 | Playwright，对构建好的生产镜像运行 | 老师导入名册 → 学生首次登录改密码 → 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；备份后恢复，数据一致 |
+| 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额与时间 |
+| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台（以上为 M3）。老师导入名册 → 学生首次登录改密码随 M4 加入；备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | 简单脚本 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒 |
 
 CI（GitHub Actions）：每次推送运行 lint、类型检查、单元测试、`docker/db-test.sh`；合并到 `main` 时构建镜像并在镜像上跑 pgTAP 与端到端测试，全部通过后推送镜像。

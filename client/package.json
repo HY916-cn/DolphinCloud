@@ -13,6 +13,7 @@
     "expo-linking": "~58.0.14",
     "expo-router": "~58.0.26",
     "expo-status-bar": "~58.0.4",
+    "idb-keyval": "^6.2.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -21,16 +22,18 @@
     "react-native-web": "^0.21.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/react": "~19.3.0",
     "@types/react-dom": "~19.3.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "workbox-cli": "^7.4.1"
   },
   "scripts": {
     "web": "node scripts/fonts.mjs && expo start --web",
-    "build": "node scripts/fonts.mjs && expo export -p web",
+    "build": "node scripts/fonts.mjs && expo export -p web && workbox generateSW workbox-config.cjs",
     "tokens": "node scripts/gen-tokens.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --no-warnings src/lib/format.test.mjs"
+    "test": "for t in src/lib/*.test.mjs; do node --experimental-strip-types --no-warnings $t || exit 1; done"
   },
   "private": true
 }

@@ -1,4 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
+import { dropRoster } from './offline-queue';
 import { supabase, type LoginKind } from './supabase';
 
 // The accounts signed in on this device (PHASE-1.md §7.4), each with its latest session, so switching needs no password.
@@ -47,6 +48,12 @@ export function renameAccount(id: string, name: string) {
 
 export function forgetAccount(id: string) {
   store(savedAccounts().filter((a) => a.id !== id));
+  dropRoster(id).catch(() => {});
+  try {
+    localStorage.removeItem(`dolphin.me:${id}`);
+  } catch {
+    // Nothing was kept.
+  }
 }
 
 // Makes a remembered account the active one. A session that no longer works (password reset, login disabled,
@@ -77,5 +84,5 @@ export async function signOutAll() {
   for (const a of savedAccounts()) {
     if (await switchAccount(a.id)) await supabase.auth.signOut({ scope: 'local' });
   }
-  store([]);
+  savedAccounts().forEach((a) => forgetAccount(a.id));
 }

@@ -5,3 +5,4 @@ export { Icon, Loading, Notice, link, type IconName } from './ui';
 export { Welcome } from './Welcome';
 export { Gate, SignOutBlock } from './Gate';
 export { Desk } from './Desk';
+export { CashCounter, CounterPage, FindStudent, NeedsNetwork, PersonCard, ResultView, Steps, Summary } from './Counter';

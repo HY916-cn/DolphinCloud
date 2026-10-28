@@ -3,3 +3,6 @@
 **/.DS_Store
 client/dist
 client/.expo
+client/test-results
+client/playwright-report
+client/public/fonts

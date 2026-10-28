@@ -1,0 +1,10 @@
+{
+  "name": "海豚云",
+  "short_name": "海豚云",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7ff",
+  "theme_color": "#f4f7ff",
+  "icons": [{ "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }]
+}

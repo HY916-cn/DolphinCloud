@@ -42,3 +42,7 @@ yarn-error.*
 
 # Copied from node_modules by scripts/fonts.mjs
 public/fonts/
+
+# Playwright
+test-results/
+playwright-report/

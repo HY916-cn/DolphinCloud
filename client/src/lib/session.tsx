@@ -29,6 +29,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
 export const useSession = () => useContext(SessionContext);
 
+// The last copy read is kept on the device, so a page reloaded without a network still knows who is signed in
+// (the offline counter, PHASE-1.md §7.7). A fresh copy replaces it as soon as the server answers.
+const meKey = (uid: string) => `dolphin.me:${uid}`;
+function savedMe(uid: string | undefined): Me | undefined {
+  try {
+    return uid ? JSON.parse(localStorage.getItem(meKey(uid)) ?? 'null') ?? undefined : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // Who is signed in: profile, roles and (for a student login) the student record.
 export function useMe() {
   const { session } = useSession();
@@ -36,6 +47,8 @@ export function useMe() {
   return useQuery({
     queryKey: ['me', uid],
     enabled: !!uid,
+    initialData: () => savedMe(uid),
+    initialDataUpdatedAt: 0,
     queryFn: async (): Promise<Me> => {
       const [profile, roles, student] = await Promise.all([
         supabase.from('profiles').select('id,login_kind,login_id,display_name,must_change_password').eq('id', uid!).single(),
@@ -43,12 +56,20 @@ export function useMe() {
         supabase.from('students').select('student_no,name,division,cohort,class_no,class_label').eq('user_id', uid!).maybeSingle(),
       ]);
       if (profile.error) throw profile.error;
+      if (roles.error) throw roles.error;
+      if (student.error) throw student.error;
       renameAccount(uid!, profile.data.display_name);
-      return {
+      const me: Me = {
         profile: profile.data,
-        roles: (roles.data ?? []).map((r) => r.role as Role),
+        roles: roles.data.map((r) => r.role as Role),
         student: (student.data as Student | null) ?? null,
       };
+      try {
+        localStorage.setItem(meKey(uid!), JSON.stringify(me));
+      } catch {
+        // Private mode: offline reloads are unavailable.
+      }
+      return me;
     },
   });
 }

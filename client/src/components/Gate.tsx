@@ -12,7 +12,7 @@ export function Gate({ allow, children }: { allow: (me: Me) => boolean; children
   const me = useMe();
   if (!ready || (session && me.isPending)) return <Loading />;
   if (!session) return <Redirect href="/login" />;
-  if (me.error || !me.data) {
+  if (!me.data) {
     return (
       <Welcome label="账号信息">
         <Notice tone="danger" title="暂时无法读取账号信息">请检查网络后刷新页面。</Notice>
