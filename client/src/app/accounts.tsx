@@ -1,13 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Gate, Icon, link, Notice, SignOut, Welcome } from '@/components';
-import { savedAccounts, switchAccount } from '@/lib/accounts';
+import { ConfirmSheet, Gate, Icon, link, Notice, SignOut, Welcome } from '@/components';
+import { savedAccounts, signOutAll, switchAccount } from '@/lib/accounts';
 
-// 本机账号 (PHASE-1.md §7.4): the accounts signed in on this device; tap one to switch, add another, or sign out.
+// 本机账号 (PHASE-1.md §7.4): the accounts signed in on this device; tap one to switch, add another, sign out one or all.
 export default function Accounts() {
   const queryClient = useQueryClient();
   const [expired, setExpired] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const count = savedAccounts().length;
   return (
     <Gate allow={() => true}>
       {(me) => (
@@ -47,6 +49,18 @@ export default function Accounts() {
           <SignOut trigger={(open) => (
             <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" onClick={open}>退出当前账号</button>
           )} />
+          {count > 1 && (
+            <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>
+          )}
+          {confirmAll && (
+            <ConfirmSheet title="退出全部账号" text={`这台设备上的 ${count} 个账号都会退出，下次使用需要重新输入密码。`} confirm="退出全部"
+              onClose={() => setConfirmAll(false)}
+              onConfirm={async () => {
+                await signOutAll();
+                queryClient.clear();
+                router.replace('/login');
+              }} />
+          )}
         </Welcome>
       )}
     </Gate>

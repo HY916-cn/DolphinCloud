@@ -407,7 +407,7 @@ create table audit_log (
 - 默认密码为 `a12345678`（`app_private.default_password()`）。新账号、`dolphin create-admin` 建的账号、重置后的账号都使用它，`must_change_password` 为 `true`。
 - `must_change_password` 为 `true` 时，该账号不具备任何角色，也看不到本人的学生账户，只能读到自己的 `profiles`；前端据此直接进入「设置新密码」页。
 - 设置新密码：前端调用 `supabase.auth.updateUser({ password })`。`auth.users` 上的触发器只在 `must_change_password` 为 `true` 时允许修改，且新密码不能是默认密码；修改后 `must_change_password` 变为 `false`。此后本人无法再改密码（Auth 返回错误），忘记或需要更换时由指导老师或系统管理员 `reset_password` 恢复为默认密码。
-- 学生新密码至少 6 位，工作账号至少 8 位（前端校验）。
+- 新密码至少 8 位，必须同时包含英文字母和数字，所有账号相同。由 Auth 校验（`GOTRUE_PASSWORD_MIN_LENGTH=8`、`GOTRUE_PASSWORD_REQUIRED_CHARACTERS` 要求字母与数字各至少一个），不符合时返回 `weak_password`；前端在提交前给出同样的提示。默认密码 `a12345678` 本身符合这条规则。
 
 ### 6.6 读取与 RLS
 
@@ -500,6 +500,7 @@ client/
 - 每次登录成功，账号（显示名、登录方式、账号）和它的会话记在本机 `localStorage`，同一账号只记一次。当前账号的会话由 supabase-js 保存和续期；切换前把最新会话写回列表，再用目标账号的会话恢复登录，不需要再输密码。
 - 「本机账号」页（`/accounts`）列出记住的账号，当前账号标「当前」；点其他账号即切换；「添加账号」打开登录页，登录后加入列表。入口：学生在「我的」，工作人员在标题行右侧。
 - 退出登录只结束本机这个会话（`signOut({ scope: 'local' })`），并从列表移除；本机还有其他账号时切换到下一个，没有时回到登录页。
+- 「退出全部账号」（本机记住两个以上账号时显示）逐个结束本机所有账号的会话并清空列表，回到登录页；先经 `Sheet` 确认。
 - 某个账号的会话已失效（密码被重置、账号被停用，或 7 天未使用）时，切换会失败：该账号从列表移除，提示重新登录。
 - 离线队列按柜员账号保存，切换账号不会混用（见 7.7）。
 

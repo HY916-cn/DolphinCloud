@@ -70,3 +70,12 @@ export async function signOutCurrent() {
   }
   return false;
 }
+
+// Ends this device's session of every remembered account and clears the list.
+export async function signOutAll() {
+  await supabase.auth.signOut({ scope: 'local' });
+  for (const a of savedAccounts()) {
+    if (await switchAccount(a.id)) await supabase.auth.signOut({ scope: 'local' });
+  }
+  store([]);
+}

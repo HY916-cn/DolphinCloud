@@ -1,6 +1,6 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
-# login, RPC, image upload and public read, backup → change → restore, container restart.
+# login, password rule, RPC, image upload and public read, backup → change → restore, container restart.
 # Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes its own container and volume.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -49,6 +49,15 @@ TOKEN=$(login teacher01@staff.dolphin.internal Smoke-pass-1)
 [ -n "$TOKEN" ] || fail "login: $(cat "$WORK/body")"
 [ -z "$(login teacher01@staff.dolphin.internal wrong-password)" ] || fail "wrong password accepted"
 pass "login with SQL-created account; wrong password rejected"
+
+set_password() { http -X PUT "$BASE/auth/v1/user" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"password\":\"$1\"}"; }
+for weak in abcdefgh 12345678 abc1234; do
+  code=$(set_password "$weak")
+  [ "$code" = 422 ] && grep -q weak_password "$WORK/body" || fail "password $weak accepted ($code): $(cat "$WORK/body")"
+done
+[ "$(set_password Smoke-pass-9)" = 200 ] && [ "$(set_password Smoke-pass-1)" = 200 ] || fail "valid password refused: $(cat "$WORK/body")"
+pass "passwords need at least 8 characters with a letter and a digit"
 
 [ "$(http -X POST "$BASE/rest/v1/rpc/whoami" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN")" = 200 ] || fail "rpc: $(cat "$WORK/body")"
 [ "$(jq -r .user_id "$WORK/body")" = "$USER_ID" ] && [ "$(jq -r .role "$WORK/body")" = authenticated ] || fail "whoami: $(cat "$WORK/body")"
