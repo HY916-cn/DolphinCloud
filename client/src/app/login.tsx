@@ -1,16 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
-import { Button, Field, Notice, Screen, WaveDivider } from '@/components';
+import { Icon, Notice, Welcome } from '@/components';
 import { useSession } from '@/lib/session';
 import { loginEmail, supabase, type LoginKind } from '@/lib/supabase';
-import { color, font, radius, shadow, space, text } from '@/theme';
 
-const KINDS: { kind: LoginKind; tab: string; field: string }[] = [
-  { kind: 'student', tab: '学生登录', field: '学号' },
-  { kind: 'staff', tab: '工作人员登录', field: '账号' },
-];
+const KINDS = [
+  { kind: 'student', label: '学生', icon: 'me', field: '学号', placeholder: '请输入学号', inputMode: 'numeric' },
+  { kind: 'staff', label: '工作人员', icon: 'teacher', field: '账号', placeholder: '请输入账号', inputMode: 'text' },
+] as const;
 
 // Auth error codes → what the person can do about it.
 function message(code?: string) {
@@ -26,54 +24,51 @@ export default function Login() {
   const [kind, setKind] = useState<LoginKind>('student');
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<{ title: string; text: string } | null>(null);
+  const [error, setError] = useState<{ title: string; text: string; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
   if (ready && session) return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
 
   async function signIn() {
+    if (busy || !loginId.trim() || !password) return;
     setBusy(true);
-    setError(null);
     const { error: e } = await supabase.auth.signInWithPassword({ email: loginEmail(kind, loginId), password });
     setBusy(false);
-    if (e) return setError(message(e.code));
+    if (e) return setError({ ...message(e.code), n: (error?.n ?? 0) + 1 });
     queryClient.clear();
     router.replace('/');
   }
 
   return (
-    <Screen>
-      <View style={{ overflow: 'hidden', borderRadius: radius.lg, backgroundColor: color.cloud100 }}>
-        <View style={{ alignItems: 'center', gap: space[3], paddingTop: space[6], paddingHorizontal: space[5], paddingBottom: space[4] }}>
-          <Image source={require('../../assets/logo.png')} style={{ width: 96, height: 96 }} resizeMode="contain"
-            accessibilityLabel="海豚云标志" />
-          <Text role="heading" aria-level={1} style={{ ...text.display, color: color.ink }}>海豚云</Text>
-          <Text style={{ ...text.body, color: color.inkMuted }}>明德实验学校海豚银行</Text>
-        </View>
-        <WaveDivider />
-      </View>
-
-      <View role="tablist" style={{ flexDirection: 'row', gap: space[1], padding: space[2], borderRadius: radius.lg,
-        backgroundColor: color.surfaceRaised, boxShadow: shadow.card }}>
+    <Welcome label="登录" onSubmit={signIn}>
+      <h2 className="dc-login-title">欢迎登录</h2>
+      <fieldset className="dc-seg" aria-label="身份">
         {KINDS.map((k) => (
-          <Pressable key={k.kind} role="tab" aria-selected={k.kind === kind}
-            onPress={() => { setKind(k.kind); setError(null); }}
-            style={{ flex: 1, alignItems: 'center', paddingVertical: space[3], borderRadius: radius.md,
-              backgroundColor: k.kind === kind ? color.cloud100 : 'transparent' }}>
-            <Text style={{ ...font(600), fontSize: 16, lineHeight: 26, color: k.kind === kind ? color.dolphinDeep : color.inkMuted }}>
-              {k.tab}
-            </Text>
-          </Pressable>
+          <label key={k.kind}>
+            <input type="radio" name="kind" checked={kind === k.kind} onChange={() => { setKind(k.kind); setError(null); }} />
+            <span><Icon name={k.icon} />{k.label}</span>
+          </label>
         ))}
-      </View>
-
-      <Field label={current.field} icon="me" value={loginId} onChangeText={setLoginId} autoCapitalize="none"
-        autoComplete="username" inputMode={kind === 'student' ? 'numeric' : 'text'}
-        placeholder={kind === 'student' ? '请输入学号' : '请输入账号'} />
-      <Field label="密码" icon="lock" value={password} onChangeText={setPassword} secureTextEntry
-        autoComplete="current-password" placeholder="请输入密码" onSubmitEditing={signIn} />
-      {error && <Notice variant="danger" title={error.title}>{error.text}</Notice>}
-      <Button label={busy ? '正在登录' : '登录'} onPress={signIn} disabled={busy || !loginId.trim() || !password} />
-    </Screen>
+      </fieldset>
+      <label className="dc-login-field">
+        <Icon name="me" />
+        <span className="dc-login-label">{current.field}</span>
+        <input value={loginId} onChange={(e) => setLoginId(e.target.value)} inputMode={current.inputMode}
+          autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={current.placeholder} />
+      </label>
+      {/* The key replays the nudge on each failed attempt. */}
+      <label key={error?.n} className={`dc-login-field ${error ? 'dc-nudge' : ''}`}>
+        <Icon name="lock" />
+        <span className="dc-login-label">密码</span>
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password" placeholder="请输入密码" />
+      </label>
+      {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      <button className={`dc-btn dc-btn-primary dc-btn-block ${busy ? 'is-loading' : ''}`} type="submit"
+        disabled={!busy && (!loginId.trim() || !password)}>
+        {busy ? '正在登录' : '登录'}
+      </button>
+      <p className="dc-login-help">首次登录请使用默认密码，登录后设置新密码<br />忘记密码请联系指导老师</p>
+    </Welcome>
   );
 }

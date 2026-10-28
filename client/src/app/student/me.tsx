@@ -1,27 +1,39 @@
-import { Text, View } from 'react-native';
-import { Screen } from '@/components';
-import { SignOutButton } from '@/lib/gate';
+import { Icon, Page, SignOut } from '@/components';
 import { useMe } from '@/lib/session';
-import { color, radius, space, text } from '@/theme';
 
-// 我的: who is signed in; the grade and class lead, the cohort follows quietly.
+// 我的: who is signed in (the grade and class lead, the cohort follows quietly) and the account actions.
 export default function StudentMe() {
-  const { student } = useMe().data!;
-  const s = student!;
+  const s = useMe().data!.student!;
   return (
-    <Screen tabBar>
-      <Text role="heading" aria-level={1} style={{ ...text.title, color: color.ink }}>我的</Text>
-      <View style={{ gap: space[1], padding: space[5], borderRadius: radius.lg, backgroundColor: color.surfaceRaised,
-        borderWidth: 2, borderColor: color.line }}>
-        <Text style={{ ...text.heading, color: color.ink }}>{s.name}</Text>
-        <Text style={{ ...text.bodyLg, color: color.ink }}>
-          {s.class_label ?? `${s.class_no} 班`}
-          <Text style={{ ...text.caption, color: color.inkMuted }}>{'  '}{s.cohort} 届</Text>
-        </Text>
-        <Text style={{ ...text.body, color: color.inkMuted }}>学号 {s.student_no}</Text>
-      </View>
-      <Text style={{ ...text.body, color: color.inkMuted }}>需要更换密码时，请联系老师重置。</Text>
-      <SignOutButton />
-    </Screen>
+    <Page title="我的">
+      <div className="dc-split">
+        <div className="dc-stack dc-enter">
+          <div className="dc-person">
+            <span className="dc-person-avatar"><Icon name="me" /></span>
+            <div className="dc-person-main">
+              <div className="dc-person-name">{s.name}</div>
+              <div className="dc-person-meta">
+                <span>{s.class_label ?? `${s.class_no} 班`}</span> · <span>{s.cohort} 届</span> · <span>学号 {s.student_no}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
+          <div>
+            <p className="dc-list-title">账户与安全</p>
+            <ul className="dc-list">
+              <li>
+                <SignOut trigger={(open) => (
+                  <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); open(); }}>
+                    <span className="dc-list-icon"><Icon name="logout" /></span><span>退出登录</span><Icon name="next" />
+                  </a>
+                )} />
+              </li>
+            </ul>
+          </div>
+          <p className="dc-top-sub" style={{ margin: '0 var(--space-2)' }}>需要更换密码时，请联系老师重置。</p>
+        </div>
+      </div>
+    </Page>
   );
 }

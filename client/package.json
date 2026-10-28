@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@expo-google-fonts/nunito-sans": "^0.4.2",
+    "@fontsource-variable/noto-sans-sc": "^5.3.1",
+    "@fontsource-variable/nunito-sans": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
     "@tanstack/react-query": "^5.105.0",
     "expo": "~58.0.19",
@@ -17,16 +18,16 @@
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
-    "react-native-svg": "15.16.0",
     "react-native-web": "^0.21.4"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "@types/react-dom": "~19.3.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "web": "expo start --web",
-    "build": "expo export -p web",
+    "web": "node scripts/fonts.mjs && expo start --web",
+    "build": "node scripts/fonts.mjs && expo export -p web",
     "tokens": "node scripts/gen-tokens.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings src/lib/format.test.mjs"

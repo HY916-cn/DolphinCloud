@@ -27,7 +27,7 @@ WORKDIR /client
 COPY client/package.json client/package-lock.json ./
 RUN npm ci
 COPY client/ ./
-RUN npx expo export -p web
+RUN npm run build
 
 FROM postgres:${POSTGRES_MAJOR}-bookworm
 ARG DOLPHIN_VERSION=dev

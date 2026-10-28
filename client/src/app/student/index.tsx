@@ -1,10 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { Text } from 'react-native';
-import { BalanceCard, Loading, Notice, Screen, TxnList } from '@/components';
+import { BalanceCard, Icon, Notice, Page, TxnList, TxnListLoading } from '@/components';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
-import { color, text } from '@/theme';
+
+const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': i } as React.CSSProperties });
+
+function greeting(now = new Date()) {
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', hour: 'numeric', hourCycle: 'h23' }).format(now));
+  return h < 12 ? '上午好' : h < 18 ? '下午好' : '晚上好';
+}
 
 // 学生首页: balance and the ten latest movements of the account (cash purchases do not touch it).
 export default function StudentHome() {
@@ -24,19 +29,28 @@ export default function StudentHome() {
   });
 
   return (
-    <Screen tabBar>
-      <Text role="heading" aria-level={1} style={{ ...text.title, color: color.ink }}>你好，{student.name}</Text>
-      {home.isPending ? <Loading /> : home.error ? (
-        <Notice variant="danger" title="暂时无法读取账户">请检查网络后刷新页面。</Notice>
+    <Page title={`${greeting()}，${student.name}`} sub={`${student.class_label ?? `${student.class_no} 班`} · 学号 ${student.student_no}`}>
+      {home.error ? (
+        <Notice tone="danger" title="暂时无法读取账户">请检查网络后刷新页面。</Notice>
       ) : (
-        <>
-          <BalanceCard amount={home.data.balance} />
-          <Text role="heading" aria-level={2} style={{ ...text.heading, color: color.ink }}>最近交易</Text>
-          {home.data.txns.length ? <TxnList items={home.data.txns} /> : (
-            <Notice title="还没有交易记录">在柜台办理存款后，这里会显示每一笔交易。</Notice>
-          )}
-        </>
+        <div className="dc-split">
+          <div {...enter(0)}>
+            {home.data ? <BalanceCard amount={home.data.balance} /> : <span className="dc-skeleton" style={{ height: 184, borderRadius: 'var(--radius-lg)' }} />}
+          </div>
+          <section {...enter(1)}>
+            <div className="dc-section-head"><h2 className="heading">最近交易</h2></div>
+            {!home.data ? <TxnListLoading /> : home.data.txns.length ? <TxnList items={home.data.txns} /> : (
+              <div className="dc-card">
+                <div className="dc-empty">
+                  <span className="dc-empty-icon"><Icon name="inbox" /></span>
+                  <h3>还没有交易记录</h3>
+                  <p>在柜台办理存款后，这里会显示每一笔交易。</p>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
       )}
-    </Screen>
+    </Page>
   );
 }

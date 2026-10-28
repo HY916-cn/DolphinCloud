@@ -1,5 +1,8 @@
-import type { Txn } from '@/components';
+import type { IconName } from '@/theme/icons';
 import { formatTime } from './format';
+
+// One ledger line as the account holder reads it.
+export type Txn = { key: string; icon: IconName; title: string; time: string; amount: number; note: string };
 
 export type TxnRow = {
   id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal'; amount: number; balance_delta: number;

@@ -37,7 +37,7 @@
 
 | 主题 | 决定 | 说明 |
 | --- | --- | --- |
-| 前端 | Expo + React Native + Expo Router，TypeScript，第一阶段只发布 Web | 柜台平板、后台电脑、学生手机都用浏览器访问；保留 React Native 写法，阶段三可直接出家长端、教师端原生 App |
+| 前端 | Expo Router + React，TypeScript，界面直接使用设计系统的 `bundle.css`；第一阶段只发布 Web | 柜台平板、后台电脑、学生手机都用浏览器访问，一套页面按宽度适配三种屏幕。原生客户端用同一份界面打包：M3 起是可安装的 PWA；阶段三用 Capacitor 打包安卓 / iOS 安装包，原生能力（推送、相机）走插件。数据与业务逻辑集中在 `src/lib`，不依赖 DOM，也可供 React Native 界面复用 |
 | 后端 | 自托管 Supabase 组件：Postgres、Auth（GoTrue）、PostgREST、Storage | 业务规则全部写在 Postgres 函数（RPC）里，前端只调用函数，不直接写表 |
 | 部署 | 单容器：Caddy + Postgres + Auth + PostgREST + Storage，由 supervisord 管理 | 一个镜像、一个数据卷；不含 Studio、Realtime、Edge Functions |
 | 网络 | 校内服务器，公网域名（已备案）+ 内网均可访问 | Caddy 自动申请并续期 Let's Encrypt 证书 |
@@ -432,10 +432,11 @@ create table audit_log (
 
 | 用途 | 选型 |
 | --- | --- |
-| 框架 | Expo SDK 58、Expo Router、React Native Web、TypeScript；`web.output = "single"` |
+| 框架 | Expo SDK 58、Expo Router、React DOM、TypeScript；`web.output = "single"`（单页应用，路由全部在前端） |
+| 样式 | 设计系统 `components/bundle.css` 与 `tokens.json` 生成的 CSS 变量，原样使用 `dc-` 类名 |
 | 数据 | `@supabase/supabase-js`、`@tanstack/react-query` |
-| 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成路径数据，用 `react-native-svg` 绘制 |
-| 字体 | `@expo-google-fonts/nunito-sans`（随站点打包，不依赖外部字体服务）；中文使用系统字体（苹方 / 微软雅黑 / 思源黑体） |
+| 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成，内联为 `<svg class="dc-icon">`，颜色跟随文字 |
+| 字体 | Nunito Sans 与思源黑体（Noto Sans SC）的可变字体（`@fontsource-variable`，OFL），构建时复制到站点 `/fonts/`，不依赖外部字体服务；中文按 unicode-range 分片，页面只下载用到的字 |
 | 离线（M3） | Workbox 生成 Service Worker（缓存应用外壳）；`idb-keyval` 存离线队列 |
 | Excel | SheetJS（从官方 CDN 发布的 tarball 安装并锁定版本） |
 | 测试 | `jest-expo`（单元）、Playwright（端到端） |
@@ -445,42 +446,47 @@ create table audit_log (
 ```
 client/
   src/app/                    路由（Expo Router）
-    _layout.tsx               字体、React Query、会话、键盘焦点环
+    _layout.tsx               设计系统样式、React Query、会话
     index.tsx                 按账号去向跳转（见下）
-    login.tsx                 学生登录 / 工作人员登录两个标签
+    login.tsx                 登录页（LoginPage）：学生 / 工作人员分段切换
     change-password.tsx       默认密码登录后设置新密码
     workspace.tsx             有多个去处的账号选择「柜台」「后台」「我的账户」
-    student/                  学生端（手机单列 + 底部 TabBar）
-      index.tsx               余额卡 + 最近 10 笔
+    student/                  学生端（AppShell）
+      index.tsx               问候、余额卡、最近 10 笔
       me.tsx                  我的：年级班级、学届、退出
       txns.tsx  ranking.tsx   全部明细、存款排名（M4）
-    counter/                  柜台（平板横屏，内容最宽 1080px）
+    counter/                  柜台（AppShell）
       index.tsx               业务宫格：存款 取款 兑换 查询 冲正
       deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx  offline.tsx（M3）
-    admin/                    后台（电脑浏览器）
+    admin/                    后台（AppShell）
       index.tsx               按角色列出可用的管理功能
       students/  staff/  products/  issues/  txns/  settings/  audit/（M4）
-    design.tsx                仅开发环境：全部组件与 preview.html 相同内容，用于对照
-  src/components/             按设计系统实现的 RN 组件，另有 Screen、DeskHeader
-  src/theme/                  tokens.ts、icons.ts（生成）与 font()、text 字体样式
+  src/components/             设计系统结构的 React 写法：Shell / Page（AppShell）、Welcome（登录页外观）、
+                              Gate（页面准入）、ConfirmSheet / SignOut、BalanceCard、TxnList、Notice、Icon、Desk
+  src/theme/                  tokens.css、bundle.css、icons.ts，均由 npm run tokens 生成
   src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
   src/lib/session.tsx         会话、本人资料与角色、去向
-  src/lib/gate.tsx            页面准入：未登录去登录页，默认密码去设置新密码，无权限回首页
   src/lib/format.ts           千分位、带符号金额、时间（当年不写年份）
   src/lib/txns.ts             流水 → TxnList 的标题、图标与方向
   src/lib/cash.ts  offline-queue.ts  errors.ts（M3）
-  public/index.html           页面模板，先加载 /config.js
+  public/index.html           页面模板，先加载 /config.js 和 /fonts/fonts.css
+  public/logo.png             海豚云标志
   scripts/gen-tokens.mjs      npm run tokens
+  scripts/fonts.mjs           npm run web / build 前把字体复制到 public/fonts（不入库）
   metro.config.js             开发时把 API 路径转发到本地容器，前端与 API 同源
 ```
 
-登录后按去向进入：还在用默认密码 → 设置新密码；去处只有一个（柜员 → 柜台，会计 / 库管 / 老师 / 系统管理员 → 后台，只有学生账户 → 学生端）时直接进入；有多个时进入选择页。
+`src/lib` 只放数据与业务逻辑，不引用 DOM、CSS 和组件，原生客户端可以直接复用。
+
+页面准入（`Gate`）：未登录去登录页，默认密码去设置新密码，无权限回首页。登录后按去向进入：还在用默认密码 → 设置新密码；去处只有一个（柜员 → 柜台，会计 / 库管 / 老师 / 系统管理员 → 后台，只有学生账户 → 学生端）时直接进入；有多个时进入选择页。
 
 ### 7.3 设计系统落地
 
-- `npm run tokens` 把 `tokens.json` 的颜色、字号、间距、圆角、阴影生成为 `src/theme/tokens.ts`，把 `assets/Icons/*.svg` 生成为 `src/theme/icons.ts`；组件只引用 token，不写死数值。设计系统改动后重新运行并提交生成的文件。
-- 设计系统的 `dc-` 组件（Button、ServiceTile、BalanceCard、TxnList、GuideBubble、Steps、Field、Tag、Notice、TabBar、WaveDivider）在 `src/components/` 中用 React Native 组件实现，结构与各组件 README 一致；开发服务器的 `/design` 页与 `preview.html` 内容相同，用于对照。厚底阴影用 `boxShadow` 的实色偏移实现，按下时下移 3～4px；键盘焦点环由全局 `:focus-visible` 样式提供，鼠标点击不显示。
-- 字体：Nunito Sans 按字重分别打包；中文按 tokens.json 的回退顺序使用系统字体，不从外部加载。
+- `npm run tokens` 从 `design-system/project` 生成三个文件：`tokens.json` → `src/theme/tokens.css`（同名 CSS 变量），`components/bundle.css` → `src/theme/bundle.css`（去掉 Google Fonts 引用，其余原样），`assets/Icons/*.svg` → `src/theme/icons.ts`。设计系统改动后重新运行并提交生成的文件。
+- 页面按设计系统 README 与页面示例写出相同的 HTML 结构和 `dc-` 类名，外观、动效、三种屏宽的布局都由 `bundle.css` 负责，组件里不写颜色和尺寸。断点用 `.dc-app` 的容器查询。
+- 登录、设置新密码、选择页面、账号状态提示都用登录页外观（`Welcome`）；登录后的页面都在 `AppShell` 里：手机底部 `TabBar`，平板图标导航，电脑侧边导航。导航列出这个账号能进入的全部地方（学生的首页、我的，柜台，后台），只有一项时手机上不显示 `TabBar`。
+- 退出登录先经 `Sheet` 确认。弹层渲染在 `body` 末尾一个占满视口的 `.dc-app` 里，不受页面容器和进入动画影响。
+- 字体：`tokens.json` 的字体顺序不变，前两项换成同一字体的可变字体名（`Nunito Sans Variable`、`Noto Sans SC Variable`），由站点自己提供。
 - 金额统一经 `lib/format.ts` 格式化：千分位、单位 `HTB`；收入 `+50`、支出 `−20`（减号 −）；金额字用 Nunito Sans 800、等宽数字。
 - 界面文字遵循设计系统「文字与语气」：规范业务用语，结果直接写结果，说明里写清数字和下一步。
 
@@ -534,9 +540,10 @@ client/
 
 ### 7.7 浏览器支持
 
-- 柜台：iPad Safari 16+、Android Chrome（横屏，最小宽度 1024px）。
+- 柜台：iPad Safari 16+、Android Chrome 105+（横屏，最小宽度 1024px）。
 - 后台：Chrome、Edge 最新两个大版本（最小宽度 1280px，内容最宽 1080px 居中按设计系统）。
-- 学生端：iOS Safari 16+、Android Chrome、微信内置浏览器（单列，最小宽度 360px）。
+- 学生端：iOS Safari 16+、Android Chrome 105+、微信内置浏览器（单列，最小宽度 360px）。
+- 这些版本起支持设计系统用到的容器查询和 `:has()`。
 
 ---
 
@@ -611,7 +618,7 @@ docker/smoke-test.sh
 
 `docker/Dockerfile` 多阶段构建：
 
-1. `client`：`node` 镜像中 `npm ci && npx expo export -p web`，产物复制到最终镜像的 `/srv/www`（M3 起再用 `workbox generateSW` 生成 Service Worker）。
+1. `client`：`node` 镜像中 `npm ci && npm run build`（复制字体后 `expo export -p web`），产物复制到最终镜像的 `/srv/www`（M3 起再用 `workbox generateSW` 生成 Service Worker）。
 2. `storage`：把官方 Storage 镜像（Alpine）中的 `/app` 复制到 `node:24-bookworm-slim`，为 glibc 重新编译其中唯一的原生模块 `fs-xattr`。
 3. 最终阶段基于 `postgres:17-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord。
 
@@ -692,7 +699,7 @@ CI（GitHub Actions）：每次推送运行 lint、类型检查、单元测试�
 | --- | --- | --- |
 | M0 技术验证 | 单容器镜像：Postgres + Auth + PostgREST + Storage + Caddy；入口脚本与 `config.js`；SQL 创建账号 | `docker/smoke-test.sh` 全部通过：经 HTTPS 登录、调用 RPC、上传并公开读取图片；`dolphin backup` → 改动 → `restore` 恢复到备份时状态；容器重启后数据完整 |
 | M1 数据与账务核心 | 全部表、RLS、账务与管理函数、冲正、审计、`check_balances()`；运维命令 `dolphin create-admin`、`dolphin check` | `docker/db-test.sh` 全部通过 |
-| M2 前端基础 | 主题 token、组件库、登录与设置新密码、按角色进入 | 设计系统组件与 `preview.html` 视觉对照一致 |
+| M2 前端基础 | 设计系统样式与图标接入、AppShell、登录与设置新密码、按角色进入 | 页面与设计系统页面示例在手机、平板、电脑三种宽度下一致；登录与设置新密码在 375×667 一屏放下 |
 | M3 柜台 | 存款、取款、兑换、查询、冲正、离线存款 | 柜台相关端到端测试通过；单笔办理 ≤ 1 分钟（由学生柜员试用计时） |
 | M4 后台与学生端 | 名册导入与开户通知单、账号角色、商品与入库、发行登记、流水查询、参数、日志；学生首页、明细、排名 | 全部端到端测试通过 |
 | M5 上线 | 正式服务器部署、迁入现有账本、柜员培训、试运行 | 第 12 节验收全部通过 |

@@ -6,10 +6,11 @@
     <title>%WEB_TITLE%</title>
     <!-- Site address and anon key, written by the container at start-up. -->
     <script src="/config.js"></script>
+    <link rel="stylesheet" href="/fonts/fonts.css" />
     <style id="expo-reset">
-      html, body { height: 100%; }
-      body { overflow: hidden; margin: 0; background: #f4f7ff; }
-      #root { display: flex; height: 100%; flex: 1; }
+      /* The page itself scrolls, so the tab bar and action bar can stick to the foot (design system AppShell). */
+      body { margin: 0; background: #f4f7ff; }
+      #root { display: flex; flex-direction: column; min-height: 100dvh; }
     </style>
   </head>
   <body>
