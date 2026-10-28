@@ -1,9 +1,10 @@
 # QtyStepper
 
-面额张数录入：柜员按面额点加减或直接输入张数，系统算出小计，不用心算。
+面额张数录入：每种面额一张卡片，柜员点加减或直接输入张数，系统算出小计，不用心算。
 
-- 外层 `dc-denoms`，每种面额一行 `dc-qty`：左侧面额 `dc-qty-face`（“10 元”），中间 `dc-qty-ctrl`（减按钮、张数输入 `dc-qty-input`、加按钮），右侧小计 `dc-qty-sum`。
-- 加减按钮 48px 圆形，按下缩小；张数为 0 时减按钮禁用。张数输入用 `inputmode="numeric"`，数字 24px 加粗、等宽。
-- 面额顺序固定为 1、2、5、10 元，与柜台现金盒一致。
+- 外层 `dc-denoms`（2 列网格），每种面额一张 `dc-qty` 卡片：上方 `dc-qty-head`（面额 `dc-qty-face`“10 元”、小计 `dc-qty-sum`），下方一条步进控件 `dc-qty-ctrl`：减按钮、张数输入 `dc-qty-input`、加按钮连成一个圆角矩形。
+- 张数大于 0 的卡片加 `is-filled`：描边变 `dolphin`，小计变 `dolphin-deep`，一眼看出收了哪些面额。张数为 0 时减按钮禁用。
+- 张数输入用 `inputmode="numeric"`，数字 22px 加粗、等宽；按钮 52px 宽，整条控件 52px 高。
+- 面额顺序固定为 1、2、5、10 元，与柜台现金盒一致；所有屏幕都是 2 列。
 
-使用者提供：面额列表、张数和小计的计算，以及每个按钮的 `aria-label`（“增加一张 10 元”）。合计金额放在旁边的 `SummaryList` 里。
+使用者提供：面额列表、张数、小计计算和 `is-filled` 切换，以及每个按钮的 `aria-label`（“增加一张 10 元”）。合计放在 `SummaryList` 里；手机上放进 `ActionBar` 的 `dc-actions-total`。

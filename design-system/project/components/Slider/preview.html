@@ -1,0 +1,9 @@
+<!-- @dsCard group="表单" height=170 -->
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Slider</title><style>body{padding:24px}.dc-toast,.dc-sheet,.dc-scrim,.dc-progress-fill{animation:none}</style></head>
+<body>
+<div class="dc-slider" style="max-width:420px"><label class="dc-slider-head" for="s">转为定期<output class="dc-slider-value" for="s">300<small>HTB</small></output></label><input id="s" type="range" min="0" max="480" step="10" value="300" style="--value:.625"><div class="dc-slider-scale"><span>0</span><span>活期余额 480</span></div></div>
+<script>document.querySelectorAll('.dc-slider input').forEach(i=>{const o=i.closest('.dc-slider').querySelector('output');i.oninput=()=>{i.style.setProperty('--value',(i.value-i.min)/(i.max-i.min));o.firstChild.textContent=i.value}})</script>
+</body>
+</html>

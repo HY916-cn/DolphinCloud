@@ -58,7 +58,13 @@
         "plus.svg",
         "minus.svg",
         "back.svg",
-        "close.svg"
+        "close.svg",
+        "check.svg",
+        "next.svg",
+        "expand.svg",
+        "logout.svg",
+        "inbox.svg",
+        "settings.svg"
       ],
       "files": {
         "home.svg": {
@@ -216,6 +222,42 @@
           "blob": "330f063129427b531e9d38a6306bede5",
           "size": 238,
           "type": "image/svg+xml"
+        },
+        "check.svg": {
+          "name": "check.svg",
+          "blob": "e655e0b3ac50cd5d369f80728b339899",
+          "size": 215,
+          "type": "image/svg+xml"
+        },
+        "next.svg": {
+          "name": "next.svg",
+          "blob": "2ce8325037dd95dc92a97d9e0a487b9c",
+          "size": 213,
+          "type": "image/svg+xml"
+        },
+        "expand.svg": {
+          "name": "expand.svg",
+          "blob": "b4d59e2a8c2a3450267e7c037b923d11",
+          "size": 212,
+          "type": "image/svg+xml"
+        },
+        "logout.svg": {
+          "name": "logout.svg",
+          "blob": "a51ce9b826c428c79cf87ab82a5e0b02",
+          "size": 297,
+          "type": "image/svg+xml"
+        },
+        "inbox.svg": {
+          "name": "inbox.svg",
+          "blob": "513bf30944f8766ff9787e927f818722",
+          "size": 370,
+          "type": "image/svg+xml"
+        },
+        "settings.svg": {
+          "name": "settings.svg",
+          "blob": "5be6bb476c5a0b429c8212f2866c9787",
+          "size": 566,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -226,8 +268,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-10-28T10:58:46Z",
+    "at": "2026-10-28T11:40:01Z",
     "via": "Claude Code",
-    "note": "新增多端外壳、操作栏、单选卡、面额录入、核对清单、弹层、办理结果等组件，登录、首页、柜台存款、办理结果四个页面示例，以及动效与排版规范"
+    "note": "新增开关、复选、单选、下拉、分段切换、标签页、筛选、搜索、滑块、进度、角标、轻提示、空状态、加载占位、列表组；重做登录页与柜台存款页，手机一屏放下"
   }
 }
