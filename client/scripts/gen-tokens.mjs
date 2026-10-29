@@ -13,7 +13,12 @@ const vars = ['color', 'spacing', 'radius', 'shadow', 'layout']
   .map((t) => `  --${t.name}: ${t.value.replace(/^\{(.+)\}$/, 'var(--$1)')};`);
 // The fonts are served from this site (scripts/fonts.mjs) under their variable-font names.
 const sans = tokens.type.families.sans.replace('"Nunito Sans", "Noto Sans SC"', '"Nunito Sans Variable", "Noto Sans SC Variable"');
-writeFileSync(new URL('tokens.css', out), `/* ${header} */\n:root {\n${vars.join('\n')}\n  --font-sans: ${sans};\n}\n`);
+// Each type style becomes a class of the same name (.display, .title, …); bundle.css adjusts them on phones.
+const types = tokens.type.groups.flatMap((g) => g.styles).map((s) =>
+  `.${s.name} { margin: 0; font: ${s.fontWeight} ${s.fontSize}/${s.lineHeight} var(--font-sans);` +
+  `${s.letterSpacing ? ` letter-spacing: ${s.letterSpacing};` : ''}${s.name === 'amount' ? ' font-variant-numeric: tabular-nums;' : ''} }`);
+writeFileSync(new URL('tokens.css', out),
+  `/* ${header} */\n:root {\n${vars.join('\n')}\n  --font-sans: ${sans};\n}\n${types.join('\n')}\n`);
 
 // The component styles as they are, without the Google Fonts import.
 const bundle = readFileSync(new URL('components/bundle.css', ds), 'utf8').replace(/^@import url\([^)]*\);\n+/m, '');

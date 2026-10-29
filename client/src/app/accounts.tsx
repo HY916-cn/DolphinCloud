@@ -50,7 +50,7 @@ export default function Accounts() {
             <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" onClick={open}>退出当前账号</button>
           )} />
           {count > 1 && (
-            <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>
+            <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block is-danger" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>
           )}
           {confirmAll && (
             <ConfirmSheet title="退出全部账号" text={`这台设备上的 ${count} 个账号都会退出，下次使用需要重新输入密码。`} confirm="退出全部"

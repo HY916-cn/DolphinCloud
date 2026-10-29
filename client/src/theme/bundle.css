@@ -15,6 +15,8 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-btn-secondary:active { background: var(--cloud-100); }
 .dc-btn-ghost { background: transparent; color: var(--dolphin-deep); padding: 0 var(--space-4); }
 .dc-btn-ghost:active { background: var(--cloud-100); }
+.dc-btn-ghost.is-danger { color: var(--danger); }
+.dc-btn-ghost.is-danger:active { background: var(--danger-soft); }
 .dc-btn-sm { min-height: 44px; padding: 0 var(--space-5); font-size: 16px; line-height: 26px; }
 .dc-btn-sm .dc-icon { width: 24px; height: 24px; }
 .dc-btn:disabled { background: var(--cloud-200); border-color: transparent; color: var(--ink-muted); box-shadow: none; cursor: not-allowed; transform: none; }
@@ -192,7 +194,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-main { grid-area: main; display: flex; flex-direction: column; min-width: 0; }
 .dc-top { display: flex; align-items: center; gap: var(--space-3); box-sizing: border-box; width: 100%; max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--space-4) 0; }
 .dc-top-title { flex: 1; min-width: 0; margin: 0; }
-.dc-top-sub { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-top-sub { display: block; margin-top: var(--space-1); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-content { flex: 1; display: flex; flex-direction: column; gap: var(--space-5); box-sizing: border-box; width: 100%; max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-6); }
 .dc-shell > .dc-tabbar { grid-area: tabs; position: sticky; bottom: 0; z-index: 2; margin: 0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom)); }
 .dc-nav { grid-area: nav; display: none; background: var(--surface-raised); border-right: 2px solid var(--line); }
@@ -617,6 +619,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 @media (hover: hover) {
   .dc-btn-primary:hover:not(:disabled) { background: var(--dolphin-deep); }
   .dc-btn-secondary:hover:not(:disabled), .dc-btn-ghost:hover:not(:disabled) { background: var(--cloud-100); }
+  .dc-btn-ghost.is-danger:hover:not(:disabled) { background: var(--danger-soft); }
   .dc-tile:hover:not(:active) { transform: translateY(-2px); }
   .dc-tile .dc-tile-icon { transition: transform var(--motion-quick) var(--ease-out); }
   .dc-tile:hover .dc-tile-icon { transform: scale(1.06); }

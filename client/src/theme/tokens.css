@@ -47,3 +47,10 @@
   --nav-side: 248px;
   --font-sans: "Nunito Sans Variable", "Noto Sans SC Variable", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
+.display { margin: 0; font: 800 36px/44px var(--font-sans); letter-spacing: 0.02em; }
+.title { margin: 0; font: 700 26px/34px var(--font-sans); letter-spacing: 0.02em; }
+.heading { margin: 0; font: 700 20px/28px var(--font-sans); }
+.amount { margin: 0; font: 800 40px/48px var(--font-sans); font-variant-numeric: tabular-nums; }
+.body-lg { margin: 0; font: 600 18px/28px var(--font-sans); }
+.body { margin: 0; font: 400 16px/26px var(--font-sans); }
+.caption { margin: 0; font: 500 14px/20px var(--font-sans); }
