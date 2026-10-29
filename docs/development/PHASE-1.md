@@ -692,7 +692,7 @@ docker/e2e-test.sh
 2. `storage`：把官方 Storage 镜像（Alpine）中的 `/app` 复制到 `node:24-bookworm-slim`，为 glibc 重新编译其中唯一的原生模块 `fs-xattr`。
 3. 最终阶段基于 `postgres:17-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord。
 
-镜像标签使用语义化版本（如 `1.0.0`），推送到 GitHub Container Registry。
+镜像推送到 GitHub Container Registry（`ghcr.io/hy916-cn/dolphin-cloud`）：CI 在 `main` 每次通过后推送 `main` 与 `sha-<7 位提交号>`，正式发布时另打语义化版本标签（如 `1.0.0`）。
 
 ### 9.2 启动
 
@@ -759,7 +759,7 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；老师导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 老师重置密码；新增工作账号、改身份、停用，系统管理员不能管理指导老师；商品新增、入库、上下架；流水筛选、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | 简单脚本 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒 |
 
-CI（GitHub Actions）：每次推送运行 lint、类型检查、单元测试、`docker/db-test.sh`；合并到 `main` 时构建镜像并在镜像上跑 pgTAP 与端到端测试，全部通过后推送镜像。
+CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。
 
 ---
 

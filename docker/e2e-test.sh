@@ -1,9 +1,10 @@
 #!/bin/bash
 # End-to-end tests (client/e2e, Playwright) against the production image: starts a fresh container on
 # https://localhost:18445, loads supabase/seed.sql, runs the tests, and removes the container and its volume.
-# Usage: docker/e2e-test.sh [image]   (default dolphin-cloud:dev). Needs `npx playwright install chromium` once.
+# Usage: docker/e2e-test.sh [image] [playwright args]   (default dolphin-cloud:dev). Needs `npx playwright install chromium` once.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
+shift $(( $# > 0 ? 1 : 0 ))
 NAME=dolphin-e2e
 PORT=18445
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
