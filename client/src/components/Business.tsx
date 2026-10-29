@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { cashTotal, describeCash, makeChange, nonEmpty, type Counts } from '@/lib/cash';
 import { classOf, deposit, newId, purchase, reverseTxn, useSettings, withdraw, type Student, type TxnResult } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatTime } from '@/lib/format';
+import { formatAmount, formatSigned, formatTime } from '@/lib/format';
 import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
@@ -12,25 +12,54 @@ import { CashCounter, Summary } from './Counter';
 import { ConfirmSheet } from './Sheet';
 import { Icon, Notice } from './ui';
 
-// The counter's businesses for one student (PHASE-1.md §7.5), shown as tabs on the 办理 page once the student is
-// confirmed. Each panel reports a finished business through onDone and starts again empty; onEnd ends the visit.
-export type Served = { label: string; lead: ReactNode; txnNo: string | null };
-type Props = { student: Student; onDone: (s: Served) => void; onEnd: () => void };
+// The counter's businesses for one student (PHASE-1.md §7.5, design system CounterServicePage). Each panel is the
+// entry on the left and the 办理单 on the right: the businesses already done in this visit, the one being entered,
+// and the balance after it. A finished business goes to onDone and the panel starts again empty; onEnd ends the visit.
+// `amount` is the change to the account (null when it is untouched: a cash exchange, an offline deposit's balance).
+export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null };
+type Props = { student: Student; served: Served[]; onDone: (s: Served) => void; onEnd: () => void };
 type Problem = { title: string; text: string } | null;
+type Current = { label: string; detail: string; amount: string } | null;
 
 const failure = (e: unknown) => {
   const err = e instanceof AppError ? e : new AppError('');
   return { err, problem: explain(err.code, err.detail) };
 };
 
-// The bar under every panel: end the visit (wider screens), the business's main button, and its total.
-function Bar({ onEnd, busy, ready, label, onClick, totalLabel, total, note }: {
-  onEnd: () => void; busy: boolean; ready: boolean; label: string; onClick: () => void;
-  totalLabel: string; total: number; note?: ReactNode;
+export const servedAmount = (s: Served) => (s.amount === null ? '现金' : formatSigned(s.amount));
+
+// 办理单: what this visit has done (newest last, popping in), the business being entered, the balance after it,
+// and the one way to end the visit.
+function Receipt({ served, current, after, onEnd }: { served: Served[]; current: Current; after: number | null; onEnd: () => void }) {
+  return (
+    <aside className="dc-card is-sticky" aria-label="办理单">
+      <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>办理单</h2>
+      <dl className="dc-kv" aria-live="polite">
+        {served.map((s, i) => (
+          <div key={i} className="dc-pop">
+            <dt>{s.label}<small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small></dt>
+            <dd>{servedAmount(s)}</dd>
+          </div>
+        ))}
+        {current && <div><dt>{current.label}（正在办理）<small className="dc-top-sub">{current.detail}</small></dt><dd>{current.amount}</dd></div>}
+        {current && after !== null && <div><dt>办理后余额</dt><dd>{formatAmount(after)} HTB</dd></div>}
+        {!served.length && !current && <div><dt>还没有办理业务</dt><dd /></div>}
+      </dl>
+      {served.length > 0 && (
+        <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" style={{ marginTop: 'var(--space-4)' }} onClick={onEnd}>
+          结束办理（已办 {served.length} 笔）
+        </button>
+      )}
+    </aside>
+  );
+}
+
+// The bar under every panel: the business's main button and its total.
+function Bar({ busy, ready, label, onClick, totalLabel, total, note }: {
+  busy: boolean; ready: boolean; label: string; onClick: () => void; totalLabel: string; total: number; note?: ReactNode;
 }) {
   return (
     <div className="dc-actions">
-      <button className="dc-btn dc-btn-secondary dc-hide-phone" type="button" onClick={onEnd}>结束办理</button>
       <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!busy && !ready} onClick={onClick}>
         {label}
       </button>
@@ -44,7 +73,7 @@ function Bar({ onEnd, busy, ready, label, onClick, totalLabel, total, note }: {
 
 // 存款: count the notes by face value. Offline, or when the call gets no answer, the deposit is registered on this
 // device and uploaded later under the same id (§7.7).
-export function DepositPanel({ student, onDone, onEnd }: Props) {
+export function DepositPanel({ student, served, onDone, onEnd }: Props) {
   const me = useMe().data!;
   const online = useOnline();
   const { denominations } = useSettings();
@@ -59,10 +88,8 @@ export function DepositPanel({ student, onDone, onEnd }: Props) {
 
   function finish(result: TxnResult | null) {
     onDone(result
-      ? { label: `存款 ${formatAmount(amount)} HTB`, txnNo: result.txn_no,
-          lead: <>存入 <b>{formatAmount(amount)} HTB</b>（{describeCash(counts)}），当前余额 <b>{formatAmount(result.balance_after)}</b> HTB</> }
-      : { label: `登记存款 ${formatAmount(amount)} HTB`, txnNo: null,
-          lead: <>登记 <b>{formatAmount(amount)} HTB</b>（{describeCash(counts)}），联网后入账</> });
+      ? { label: '存款', detail: describeCash(counts), amount, txnNo: result.txn_no }
+      : { label: '存款（离线登记）', detail: describeCash(counts), amount, txnNo: null });
     setCounts({});
     setId(newId());
   }
@@ -102,19 +129,11 @@ export function DepositPanel({ student, onDone, onEnd }: Props) {
           <h2 className="heading">按面额录入张数</h2>
           <CashCounter faces={denominations} counts={counts} onChange={setCounts} />
         </section>
-        <aside className="dc-card is-sticky dc-hide-phone">
-          <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>核对金额</h2>
-          <Summary
-            rows={[
-              ...Object.entries(nonEmpty(counts)).sort(([a], [b]) => Number(b) - Number(a))
-                .map(([face, n]): [string, ReactNode] => [`${face} 元 × ${n} 张`, formatAmount(Number(face) * n)]),
-              ...(after === null ? [] : [['存入后余额', `${formatAmount(after)} HTB`] as [string, string]]),
-            ]}
-            total={['合计存入', amount]} />
-        </aside>
+        <Receipt served={served} onEnd={onEnd} after={after}
+          current={amount > 0 ? { label: '存款', detail: describeCash(counts), amount: formatSigned(amount) } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar onEnd={onEnd} busy={busy} ready={amount > 0} onClick={() => setConfirming(true)}
+      <Bar busy={busy} ready={amount > 0} onClick={() => setConfirming(true)}
         label={busy ? '正在存款' : amount > 0 ? '确认存款' : '请录入张数'}
         totalLabel="合计存入" total={amount} note={after !== null && `存入后余额 ${formatAmount(after)} HTB`} />
       {confirming && (
@@ -126,7 +145,7 @@ export function DepositPanel({ student, onDone, onEnd }: Props) {
 }
 
 // 取款: the amount, the notes to pay out, and what is still allowed today.
-export function WithdrawPanel({ student, onDone, onEnd }: Props) {
+export function WithdrawPanel({ student, served, onDone, onEnd }: Props) {
   const settings = useSettings();
   const [text, setText] = useState('');
   const [id, setId] = useState(newId);
@@ -154,8 +173,7 @@ export function WithdrawPanel({ student, onDone, onEnd }: Props) {
     setError(null);
     try {
       const result = await withdraw(id, student.student_no, amount);
-      onDone({ label: `取款 ${formatAmount(amount)} HTB`, txnNo: result.txn_no,
-        lead: <>取款 <b>{formatAmount(amount)} HTB</b>，配钞 {payout}，当前余额 <b>{formatAmount(result.balance_after)}</b> HTB</> });
+      onDone({ label: '取款', detail: `配钞 ${payout}`, amount: -amount, txnNo: result.txn_no });
       setText('');
       setId(newId());
     } catch (e) {
@@ -181,18 +199,11 @@ export function WithdrawPanel({ student, onDone, onEnd }: Props) {
             </span>
           </label>
         </section>
-        <aside className="dc-card is-sticky dc-hide-phone">
-          <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>核对金额</h2>
-          <Summary rows={[
-            ['配钞方案', amount ? payout : '—'],
-            ['可用余额', `${formatAmount(balance)} HTB`],
-            ['今日还可取', todayLeft === undefined ? '—' : `${formatAmount(todayLeft)} HTB`],
-            ['取款后余额', `${formatAmount(Math.max(balance - amount, 0))} HTB`],
-          ]} total={['合计取款', amount]} />
-        </aside>
+        <Receipt served={served} onEnd={onEnd} after={Math.max(balance - amount, 0)}
+          current={amount ? { label: '取款', detail: `配钞 ${payout}`, amount: formatSigned(-amount) } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar onEnd={onEnd} busy={busy} ready={!!amount && !problem} onClick={() => setConfirming(true)}
+      <Bar busy={busy} ready={!!amount && !problem} onClick={() => setConfirming(true)}
         label={busy ? '正在取款' : !amount ? '请输入金额' : problem ? '金额超出可取范围' : '确认取款'}
         totalLabel="合计取款" total={amount} note={`取款后余额 ${formatAmount(Math.max(balance - amount, 0))} HTB`} />
       {confirming && (
@@ -207,7 +218,7 @@ type Product = { id: string; name: string; price: number; stock: number; image_p
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
 // 兑换: pick products, then pay from the account or in cash with change worked out.
-export function ShopPanel({ student, onDone, onEnd }: Props) {
+export function ShopPanel({ student, served, onDone, onEnd }: Props) {
   const { denominations } = useSettings();
   const products = useQuery({
     queryKey: ['products'],
@@ -247,10 +258,10 @@ export function ShopPanel({ student, onDone, onEnd }: Props) {
     try {
       const result = await purchase(id, student.student_no, lines.map((l) => ({ product_id: l.id, qty: l.qty })), payment,
         payment === 'cash' ? nonEmpty(received) : undefined);
-      onDone({ label: `兑换 ${items}`, txnNo: result.txn_no,
-        lead: payment === 'account'
-          ? <>兑换 {items}，账户支付 <b>{formatAmount(due)} HTB</b>，当前余额 <b>{formatAmount(result.balance_after)}</b> HTB</>
-          : <>兑换 {items}，现金收款 <b>{formatAmount(paid)} HTB</b>，找零 <b>{formatAmount(change)}</b> HTB（{describeCash(result.change_given ?? {}) || '不用找零'}）</> });
+      onDone(payment === 'account'
+        ? { label: `兑换 ${items}`, detail: '账户支付', amount: -due, txnNo: result.txn_no }
+        : { label: `兑换 ${items}`, amount: null, txnNo: result.txn_no,
+            detail: `现金收 ${formatAmount(paid)} HTB，找零 ${formatAmount(change)} HTB（${describeCash(result.change_given ?? {}) || '不用找零'}）` });
       setCart({});
       setPayment('account');
       setReceived({});
@@ -324,18 +335,16 @@ export function ShopPanel({ student, onDone, onEnd }: Props) {
             </>
           )}
         </section>
-        <aside className="dc-card is-sticky dc-hide-phone">
-          <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>核对金额</h2>
-          <Summary rows={[
-            ...lines.map((l): [string, string] => [`${l.name} × ${l.qty}`, formatAmount(l.price * l.qty)]),
-            ...(payment === 'account'
-              ? [['支付后余额', `${formatAmount(Math.max(balance - due, 0))} HTB`] as [string, string]]
-              : [['已收现金', `${formatAmount(paid)} HTB`], ['找零', change ? describeCash(makeChange(change, denominations)) : '—']] as [string, string][]),
-          ]} total={['应付', due]} />
-        </aside>
+        <Receipt served={served} onEnd={onEnd} after={payment === 'account' ? Math.max(balance - due, 0) : balance}
+          current={lines.length ? {
+            label: `兑换 ${items}`,
+            detail: payment === 'account' ? '账户支付'
+              : `现金收 ${formatAmount(paid)} HTB${change ? `，找零 ${describeCash(makeChange(change, denominations))}` : ''}`,
+            amount: payment === 'account' ? formatSigned(-due) : '现金',
+          } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar onEnd={onEnd} busy={busy} ready={!problem} onClick={() => setConfirming(true)}
+      <Bar busy={busy} ready={!problem} onClick={() => setConfirming(true)}
         label={busy ? '正在兑换' : problem ?? '确认兑换'}
         totalLabel="应付" total={due} note={payment === 'cash' && change > 0 && `找零 ${formatAmount(change)} HTB`} />
       {confirming && (
@@ -344,31 +353,6 @@ export function ShopPanel({ student, onDone, onEnd }: Props) {
             ? <>为 <b>{student.name}</b> 兑换 {items}，账户扣款 <b>{formatAmount(due)} HTB</b></>
             : <>为 <b>{student.name}</b> 兑换 {items}，现金收 <b>{formatAmount(paid)} HTB</b>{change ? `，找零 ${describeCash(makeChange(change, denominations))}` : ''}</>} />
       )}
-    </>
-  );
-}
-
-const STATUS: Record<string, string> = { normal: '正常', frozen: '已冻结', graduated: '已毕业' };
-
-// 查询: the student's account and today's withdrawal room, without any business.
-export function LookupPanel({ student, onEnd }: Pick<Props, 'student' | 'onEnd'>) {
-  const settings = useSettings();
-  const daily = settings.daily[student.division];
-  return (
-    <>
-      <div className="dc-card dc-enter">
-        <Summary rows={[
-          ['余额', `${formatAmount(student.balance ?? 0)} HTB`],
-          ['今日已取款', `${formatAmount(student.withdrawn_today ?? 0)} HTB`],
-          ['今日还可取', daily === undefined ? '—' : `${formatAmount(Math.max(daily - (student.withdrawn_today ?? 0), 0))} HTB`],
-          ['学部', student.division === 'junior' ? '初中部' : '小学部'],
-          ['学届', `${student.cohort} 届`],
-          ['账户状态', STATUS[student.status] ?? student.status],
-        ]} />
-      </div>
-      <div className="dc-actions">
-        <button className="dc-btn dc-btn-secondary" type="button" onClick={onEnd}>结束办理</button>
-      </div>
     </>
   );
 }
@@ -386,10 +370,9 @@ const describe = (t: Txn) =>
   t.type === 'purchase' ? `兑换 ${t.txn_items.map((i) => `${i.name} × ${i.qty}`).join('、')}（${t.payment === 'cash' ? '现金' : '账户'}）`
   : `${KIND[t.type]} ${formatAmount(t.amount)} HTB`;
 
-// 冲正 (PHASE-1.md §6.3): pick one of today's own businesses (RLS shows a teller only those), give the reason,
-// confirm. The original stays and is marked 已冲正. With a student, only that student's businesses are listed;
-// without one (the 冲正 page) the list is searched by transaction or student number.
-export function ReversalPanel({ student, onDone, onEnd }: { student?: Student; onDone: (s: Served) => void; onEnd?: () => void }) {
+// 冲正 (PHASE-1.md §6.3): pick one of today's own businesses (RLS shows a teller only those), searched by
+// transaction or student number, give the reason, confirm. The original stays and is marked 已冲正.
+export function ReversalPanel({ onDone }: { onDone: (s: Served) => void }) {
   const me = useMe().data!;
   const today = useQuery({
     queryKey: ['my-txns-today', me.profile.id],
@@ -425,8 +408,8 @@ export function ReversalPanel({ student, onDone, onEnd }: { student?: Student; o
     setError(null);
     try {
       const result = await reverseTxn(id, picked!.id, fullReason);
-      onDone({ label: `冲正 ${picked!.txn_no}`, txnNo: result.txn_no,
-        lead: <>已冲正{picked!.students.name}的{describe(picked!)}，原因：{fullReason}，当前余额 <b>{formatAmount(result.balance_after)}</b> HTB</> });
+      onDone({ label: `冲正 ${picked!.txn_no}`, amount: null, txnNo: result.txn_no,
+        detail: `已冲正${picked!.students.name}的${describe(picked!)}，原因：${fullReason}，当前余额 ${formatAmount(result.balance_after)} HTB` });
       back();
       setId(newId());
       today.refetch();
@@ -490,17 +473,14 @@ export function ReversalPanel({ student, onDone, onEnd }: { student?: Student; o
   }
 
   const q = search.trim();
-  const list = (today.data ?? []).filter((t) => student ? t.student_no === student.student_no
-    : !q || t.txn_no.includes(q.toUpperCase()) || t.student_no.includes(q));
+  const list = (today.data ?? []).filter((t) => !q || t.txn_no.includes(q.toUpperCase()) || t.student_no.includes(q));
   return (
     <>
-      {!student && (
-        <label className="dc-search">
-          <Icon name="query" />
-          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="输入交易号或学号" aria-label="查找业务" />
-        </label>
-      )}
-      <h2 className="heading">{student ? `今天我为${student.name}办理的业务` : '今天我办理的业务'}</h2>
+      <label className="dc-search">
+        <Icon name="query" />
+        <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="输入交易号或学号" aria-label="查找业务" />
+      </label>
+      <h2 className="heading">今天我办理的业务</h2>
       {today.error ? <Notice tone="danger" title="暂时无法读取业务">请检查网络后重试。</Notice>
         : !today.data ? null
         : list.length ? (
@@ -509,7 +489,7 @@ export function ReversalPanel({ student, onDone, onEnd }: { student?: Student; o
               <li key={t.id}>
                 <a className="dc-list-link" href="#" role="button" onClick={(e) => { e.preventDefault(); setPicked(t); }}>
                   <span className="dc-list-icon"><Icon name={t.type === 'purchase' ? 'exchange' : t.type} /></span>
-                  <span>{student ? '' : `${t.students.name} · `}{describe(t)}<small className="dc-top-sub">{t.txn_no} · {formatTime(t.created_at)}</small></span>
+                  <span>{t.students.name} · {describe(t)}<small className="dc-top-sub">{t.txn_no} · {formatTime(t.created_at)}</small></span>
                   <Icon name="next" />
                 </a>
               </li>
@@ -519,16 +499,11 @@ export function ReversalPanel({ student, onDone, onEnd }: { student?: Student; o
           <div className="dc-card">
             <div className="dc-empty">
               <span className="dc-empty-icon"><Icon name="inbox" /></span>
-              <h3>{q && !student ? '没有找到这笔业务' : '今天还没有可冲正的业务'}</h3>
+              <h3>{q ? '没有找到这笔业务' : '今天还没有可冲正的业务'}</h3>
               <p>只能冲正本人今天办理、还没冲正过的存款、取款和兑换。</p>
             </div>
           </div>
         )}
-      {onEnd && (
-        <div className="dc-actions">
-          <button className="dc-btn dc-btn-secondary" type="button" onClick={onEnd}>结束办理</button>
-        </div>
-      )}
     </>
   );
 }

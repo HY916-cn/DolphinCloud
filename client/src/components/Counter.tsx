@@ -14,37 +14,6 @@ import { Icon, link, Notice } from './ui';
 
 const css = (vars: Record<string, string | number>) => vars as React.CSSProperties;
 
-// Steps: dots and names on wider screens, a thin progress bar with one line of text on phones.
-export function Steps({ names, current }: { names: string[]; current: number }) {
-  return (
-    <>
-      <ol className="dc-steps">
-        {names.map((name, i) => (
-          <li key={name} className={`dc-step ${i < current ? 'is-done' : i === current ? 'is-current' : ''}`}
-            aria-current={i === current ? 'step' : undefined}>
-            <span className="dc-step-dot">{i < current ? '✓' : i + 1}</span>{name}
-          </li>
-        ))}
-      </ol>
-      <p className="dc-steps-caption">第 {current + 1} 步，共 {names.length} 步：{names[current]}</p>
-    </>
-  );
-}
-
-// PersonCard: who is being served. Offline the balance is unknown and is not shown.
-export function PersonCard({ student }: { student: Student }) {
-  return (
-    <div className="dc-person dc-enter">
-      <span className="dc-person-avatar"><Icon name="me" /></span>
-      <div className="dc-person-main">
-        <div className="dc-person-name">{student.name}</div>
-        <div className="dc-person-meta"><span>{classOf(student)}</span> · <span>学号 {student.student_no}</span></div>
-      </div>
-      {student.balance !== null && <div className="dc-person-side">{formatAmount(student.balance)}<small>当前余额 HTB</small></div>}
-    </div>
-  );
-}
-
 // QtyStepper: one card per face value, two columns, counts entered with − / + or typed.
 export function CashCounter({ faces, counts, onChange }: { faces: number[]; counts: Counts; onChange: (c: Counts) => void }) {
   const set = (face: number, n: number) => onChange({ ...counts, [face]: Math.max(0, Math.min(999, n || 0)) });

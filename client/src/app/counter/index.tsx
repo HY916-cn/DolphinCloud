@@ -9,7 +9,6 @@ const BUSINESSES: { href: string; icon: IconName; label: string }[] = [
   { href: '/counter/serve?b=deposit', icon: 'deposit', label: '存款' },
   { href: '/counter/serve?b=withdraw', icon: 'withdraw', label: '取款' },
   { href: '/counter/serve?b=shop', icon: 'exchange', label: '兑换' },
-  { href: '/counter/serve?b=lookup', icon: 'query', label: '查询' },
   { href: '/counter/reversal', icon: 'transfer', label: '冲正' },
 ];
 const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;

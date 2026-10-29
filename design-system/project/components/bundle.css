@@ -229,6 +229,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-form { flex: 1 0 auto; display: flex; flex-direction: column; gap: var(--space-5); width: 100%; max-width: var(--form-max); }
 .dc-card { box-sizing: border-box; padding: var(--space-5); background: var(--surface-raised); border: 2px solid var(--line); border-radius: var(--radius-lg); }
 .dc-app .dc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dc-app .dc-split .dc-tiles { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 @container app (max-width: 599px) {
   .display { font-size: 30px; line-height: 38px; }
   .title { font-size: 22px; line-height: 30px; }
