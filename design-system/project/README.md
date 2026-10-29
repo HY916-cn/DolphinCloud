@@ -21,7 +21,11 @@
 ## 颜色
 
 - 页面底色 `surface`，卡片和输入框 `surface-raised`。浅蓝 `cloud-100` 用于余额卡、选中态、引导气泡等“被强调的区域”。
-- `dolphin`（#1f5ff5，取自 logo 的海豚）是唯一的主色：主按钮、选中导航、图标、链接。按下和焦点用 `dolphin-deep`；`dolphin` 上的文字与图标用 `on-dolphin`。
+- `dolphin`（#1f5ff5，取自 logo 的海豚）是唯一的主色：主按钮、选中导航、链接，以及未指定辅助色的图标。按下和焦点用 `dolphin-deep`；`dolphin` 上的文字与图标用 `on-dolphin`。
+- **辅助色**让页面更丰富：海青 `sea`、葡萄紫 `grape`、珊瑚粉 `rose`，加上海豚币的金色，每组有实色（只做装饰）、浅底 `-soft` 和文字色 `-ink`。在组件或其容器上加 `dc-hue-sea` / `dc-hue-grape` / `dc-hue-rose` / `dc-hue-sun`，图标块、标签、进度条、面额卡片就换成这一色系；不加时是海豚蓝。
+  - 辅助色**只区分类别，不表示状态**，也不用在按钮、导航、链接上：可点的主操作永远是 `dolphin`，成功和警示永远是 `success` / `danger`。
+  - 按业务固定配色，全站一致：存款、查询 `sea`；取款、贷款、存折、帮助 `grape`；兑换、预约 `rose`；理财、奖励、海豚币、排名 `sun`；面额 1 / 2 / 5 / 10 元依次为 `sea` / `grape` / `rose` / `sun`。同一行相邻的图标块尽量不同色。
+  - 大面积用色只有两处：余额卡（`dolphin` → `grape-ink` 渐变）和登录页头图（`sea-soft` → `cloud-100` → `grape-soft` 渐变）。
 - 云朵色阶 `cloud-100` → `cloud-500` 取自 logo 的层层海浪，只用于背景、海浪和装饰；`cloud-300` 及更深不放文字。
 - 文字：标题和正文 `ink`，次要信息 `ink-muted`。`cloud-100` / `cloud-200` 上的蓝色文字用 `dolphin-deep`。
 - 海豚币用金色 `coin`（奖励高光、封面金币），金币相关文字用 `coin-ink`，放在 `coin-soft` 上。

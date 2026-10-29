@@ -14,6 +14,8 @@
   .c2 { fill:var(--cloud-200); }
   .c3 { fill:var(--cloud-300); }
   .coin { fill:var(--coin); }
+  .sea { fill:var(--sea); }
+  .grape { fill:var(--grape); }
   .blk { rx:var(--radius-lg); }
   .words { position:absolute; left:var(--space-6); bottom:var(--space-6); max-width:440px; }
   .name { margin:0; font-weight:800; font-size:120px; line-height:.95; letter-spacing:.02em; color:var(--ink); }
@@ -25,14 +27,14 @@
 <div class="art" aria-hidden="true">
 <svg viewBox="0 0 480 288" width="480" height="288">
 <!--
-  blocks      dolphin 176x228 slab bled off the top (the brand's one hue, largest) · cloud-300 136x240 bleeding off the right · cloud-200 144x112 tint · coin disc r40 (the HTB coin) — about 40% of 960x288
+  blocks      dolphin 176x228 slab bled off the top (the brand's one hue, largest) · grape 136x240 bleeding off the right · sea 144x112 accent · coin disc r40 (the HTB coin) — about 40% of 960x288
   arrangement one tall dolphin slab with satellites, all standing in the sea: blocks bottoms dip into the waves
   pattern     waves, from "云朵、海浪（连续缓曲线）": three smooth sine bands (periods 360/280/220, swell 10/9/7, the WaveDivider curve) in cloud-200, cloud-300, dolphin rising from the bottom like the logo's layered sea
   scales      gutters space-4/space-5; corners radius-lg (28px); coin rx = radius-pill; wave bands space-5 apart
 -->
 <rect class="brand blk" x="24" y="-28" width="176" height="228"/>
-<rect class="c3 blk" x="368" y="24" width="140" height="240"/>
-<rect class="c2 blk" x="216" y="120" width="136" height="112"/>
+<rect class="grape blk" x="368" y="24" width="140" height="240"/>
+<rect class="sea blk" x="216" y="120" width="136" height="112"/>
 <circle class="coin" cx="284" cy="64" r="40"/>
 <path class="c2" d="M0 214C63 204 117 204 180 214S297 224 360 214S477 204 540 214S657 224 720 214S837 204 900 214V288H0Z"/>
 <path class="c3" d="M-110 240C-61 231 -19 231 30 240S121 249 170 240S261 231 310 240S401 249 450 240S541 231 590 240S681 249 730 240S821 231 870 240V288H-110Z"/>

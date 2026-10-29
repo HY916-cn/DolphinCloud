@@ -3,6 +3,7 @@
 状态标签：图标 + 一两个词，贴在账户、交易或商品旁边。
 
 - `dc-tag`（默认，`cloud-100` 底 `dolphin-deep` 字）：活期、定期等类别。
+- 类别标签可加辅助色类：`dc-tag dc-hue-grape`（定期）、`dc-hue-sea`（储蓄目标）、`dc-hue-rose`（文创好物），浅底配同色系文字。辅助色只用于类别，不用于状态。
 - `dc-tag-success`：已到账、已领取。`dc-tag-danger`：已逾期、已下架。`dc-tag-coin`：奖励、闪光点。
 - 每个标签都带图标（20px），成功和警示总是配 `success` / `warning` 图标，不只靠颜色区分。
 
