@@ -5,6 +5,7 @@ import { rememberSession, renameAccount } from './accounts';
 import { supabase, type LoginKind } from './supabase';
 
 export type Role = 'teller' | 'accountant' | 'storekeeper' | 'teacher' | 'sysadmin';
+export const ROLES: Record<Role, string> = { teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '指导老师', sysadmin: '系统管理员' };
 export type Profile = { id: string; login_kind: LoginKind; login_id: string; display_name: string; must_change_password: boolean };
 export type Student = { student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number; class_label: string | null };
 export type Me = { profile: Profile; roles: Role[]; student: Student | null };

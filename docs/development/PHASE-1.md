@@ -413,18 +413,19 @@ create table audit_log (
 
 | 表 | 学生 | 柜员 | 会计 / 指导老师 | 库管 |
 | --- | --- | --- | --- | --- |
-| `students`、`accounts` | 本人 | 全部 | 全部 | — |
+| `students` | 本人 | 全部 | 全部 | — |
+| `accounts` | 本人 | 全部 | 全部 | — |
 | `txns`、`txn_items` | 本人 | 本人办理的当天流水 | 全部 | — |
 | `products` | 已上架 | 已上架 | 全部 | 全部 |
 | `currency_issues` | — | — | 全部 | — |
 | `audit_log` | — | — | 指导老师 | — |
 
-柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、学届、班号、年级、班级名称、余额，以及该生当天已取款合计。系统管理员可读 `profiles`、`user_roles`、`audit_log`。
+柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、学届、班号、年级、班级名称、余额，以及该生当天已取款合计。系统管理员可读 `profiles`、`user_roles`、`audit_log` 和 `students`（为学生重置密码时查找学生，不含余额）；会计可读工作账号的 `profiles` 和 `user_roles`（流水里的柜员姓名，按柜员筛选）。
 
 ### 6.7 图片存储
 
 - 桶 `product-images`，公开读；写入策略：`storage.objects` 上仅 `storekeeper`、`teacher` 可上传与删除。
-- 前端上传前用 `expo-image-manipulator` 缩放到最长边 800px、JPEG 质量 0.8。
+- 前端上传前用浏览器自带的 `canvas` 缩放到最长边 800px、JPEG 质量 0.8，文件名为随机 UUID。
 
 ---
 
@@ -440,7 +441,7 @@ create table audit_log (
 | 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成，内联为 `<svg class="dc-icon">`，颜色跟随文字 |
 | 字体 | Nunito Sans 与思源黑体（Noto Sans SC）的可变字体（`@fontsource-variable`，OFL），构建时复制到站点 `/fonts/`，不依赖外部字体服务；中文按 unicode-range 分片，页面只下载用到的字 |
 | 离线 | Workbox 生成 Service Worker（预缓存应用外壳与拉丁字体，`/config.js` 网络优先并留存一份）；`idb-keyval` 在 IndexedDB 中存离线队列和名册；Web App Manifest 支持添加到主屏幕 |
-| Excel | SheetJS（从官方 CDN 发布的 tarball 安装并锁定版本） |
+| Excel | SheetJS 0.20.3（从官方 CDN 发布的 tarball 安装并锁定版本），只在导入名册页按需加载 |
 | 测试 | Node 自带的类型擦除运行 `src/lib/*.test.mjs`（单元）、Playwright（端到端，`client/e2e`） |
 
 ### 7.2 目录
@@ -455,16 +456,22 @@ client/
     accounts.tsx              本机账号：切换、添加、退出
     student/                  学生端（AppShell）
       index.tsx               问候、余额卡、最近 10 笔
+      txns.tsx                明细：全部 / 存入 / 支出，按天分组，分页加载；本月收支
+      ranking.tsx             存款排名：本人名次，本学部前 N 名（按参数匿名）
       me.tsx                  我的：年级班级、学届、退出
-      txns.tsx  ranking.tsx   全部明细、存款排名（M4）
     counter/                  柜台（AppShell，导航：总览 办理 冲正；进入时打开总览）
       _layout.tsx             柜员准入；联网时把名册缓存到本机
       index.tsx  serve.tsx  reversal.tsx   总览、办理（一位学生连续办理多笔）、冲正
-    admin/                    后台（AppShell）
-      index.tsx               按角色列出可用的管理功能
-      students/  staff/  products/  issues/  txns/  settings/  audit/（M4）
+    admin/                    后台（AppShell，导航为总览和本身份可用的各项管理，见 7.9）
+      _layout.tsx             后台准入，每项管理只对 4.2 中有权限的身份开放
+      index.tsx               总览：管理入口；指导老师另见最近的余额自检不一致
+      students/               学生：查找、详情与重置密码（index、[no]）；导入名册与开户通知单（import）
+      staff/                  工作人员：列表、新增账号（new）、身份 / 重置密码 / 停用（[id]）
+      products/               商品：列表、新增与编辑、图片、上架、入库（index、[id]）
+      txns.tsx  issues.tsx  settings.tsx  audit.tsx   流水查询、发行登记、参数、操作日志
   src/components/             设计系统结构的 React 写法：Shell / Page（AppShell）、Welcome（登录页外观）、
-                              Gate（页面准入）、ConfirmSheet / SignOut、BalanceCard、TxnList、Notice、Icon、Desk
+                              Gate（页面准入）、ConfirmSheet / SignOut、BalanceCard、TxnList、Notice、Icon、
+                              Desk（后台页面框架）、AccountNotices（开户通知单的打印内容）
   src/theme/                  tokens.css、bundle.css、icons.ts，均由 npm run tokens 生成
   src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
   src/lib/session.tsx         会话、本人资料与角色、去向
@@ -472,12 +479,16 @@ client/
   src/lib/format.ts           千分位、带符号金额、时间（当年不写年份）
   src/lib/txns.ts             流水 → TxnList 的标题、图标与方向
   src/lib/cash.ts             面额合计、配钞与找零（贪心）、「10 元 × 2 张」文字
-  src/lib/counter.ts          柜台调用账务函数（5 秒超时视为离线）、柜台参数
+  src/lib/rpc.ts              调用数据库函数：超时（默认 5 秒）视为离线，错误码转为 AppError
+  src/lib/counter.ts          柜台调用账务函数、柜台参数、本机名册
+  src/lib/roster.ts           名册模板校验（逐行列出问题）与按学届推算年级
+  src/lib/students.ts  staff.ts   后台读取学生与工作账号
   src/lib/errors.ts           错误码 → 界面文字（7.6）
   src/lib/online.ts           是否能连上服务器
   src/lib/offline-queue.ts    离线存款队列与名册缓存（IndexedDB）
   src/lib/*.test.mjs          单元测试：npm --prefix client test
-  e2e/counter.spec.ts         柜台端到端测试（Playwright）
+  e2e/*.spec.ts               端到端测试（Playwright）：admin（名册与账号）、back-office（流水、发行、参数、日志）、
+                              counter（柜台）、products（商品）、student（学生端）；helpers.ts 为登录等公用步骤
   workbox-config.cjs          Service Worker 配置
   public/index.html           页面模板，先加载 /config.js 和 /fonts/fonts.css
   public/logo.png             海豚云标志
@@ -576,6 +587,27 @@ client/
 - 后台：Chrome、Edge 最新两个大版本（最小宽度 1280px，内容最宽 1080px 居中按设计系统）。
 - 学生端：iOS Safari 16+、Android Chrome 105+、微信内置浏览器（单列，最小宽度 360px）。
 - 这些版本起支持设计系统用到的容器查询和 `:has()`。
+
+### 7.9 后台
+
+后台导航为「总览」和本身份可用的各项管理（4.2）；手机底部 `TabBar` 最多 5 项，其余从总览宫格进入。每页标题行下写当前账号名，右侧是切换账号。
+
+- **学生**（指导老师、系统管理员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业；可一次打印所有还未设置新密码的学生的开户通知单。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认；指导老师另见余额和最近 10 笔交易。系统管理员看不到余额。
+- **导入名册**（指导老师）：选择 Excel 或 CSV → 逐行校验（`lib/roster.ts`，问题按行号列出，全部改好才能导入）→「核对名册」显示各学部人数与期初余额合计 →「确认导入」每 100 人一批并显示进度 → 「导入完成：新开户 N 人，更新 M 人」→「打印开户通知单」。页面提供「下载模板」。某一批被拒绝时，说明哪个学号有问题、前面已导入多少人；改好后重新导入整个名册即可。
+- **开户通知单**：浏览器打印，只打印通知单本身；按班分页，每张含姓名、班级、学号、初始密码、登录网址和「首次登录后请立即设置新密码」。
+- **工作人员**（指导老师、系统管理员）：列表显示姓名、身份、账号和停用、未设置密码状态。「新增账号」填写账号、姓名、身份，创建后提示初始密码。账号详情可改身份、重置密码、停用或启用（不能停用自己）。系统管理员不能创建指导老师，也不能修改指导老师的账号，页面显示「由指导老师管理」。
+- **商品**（库管、指导老师）：列表显示图片、名称、价格、库存和上架状态。编辑页填写名称、价格、成本、分类、图片和是否上架；已有商品另有「入库」（数量、备注）和最近 10 次库存变动。
+- **流水**（会计、指导老师）：按学号、日期范围、类型、柜员组合筛选，最新的在前，每次加载 50 笔，显示符合条件的总笔数；每笔写明业务、学生、柜员、交易号、时间和金额，已冲正的注明。
+- **发行**（指导老师）：登记批次号、发行日期、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
+- **参数**（指导老师）：面额、两个学部的单笔与单日取款上限、排名人数、升年级日期，「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
+- **日志**（指导老师、系统管理员）：最新的在前，每次加载 50 条；每条写明操作、操作人、时间、设备与 IP，展开后列出改动的字段（旧值 → 新值）。
+
+### 7.10 学生端
+
+学生导航四项：**首页**、**明细**、**排名**、**我的**。
+
+- **明细**：`Tabs` 全部 / 存入 / 支出，按天分组，每次加载 30 笔，「加载更早的交易」继续；右栏（手机在下方）是本月存入与支出合计。现金兑换不影响余额，不列入明细。
+- **排名**：先显示本人名次与余额，再列出本学部前 N 名（名次、姓名、班级、余额），本人一行标「我」；`ranking_anonymous` 为真时姓名显示为「张*明」。
 
 ---
 
@@ -723,8 +755,8 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 | 层级 | 工具 | 覆盖内容 |
 | --- | --- | --- |
 | 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
-| 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额与时间 |
-| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台（以上为 M3）。老师导入名册 → 学生首次登录改密码随 M4 加入；备份恢复由 `smoke-test.sh` 覆盖 |
+| 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额与时间；`roster.ts` 名册模板逐行校验与年级推算 |
+| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；老师导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 老师重置密码；新增工作账号、改身份、停用，系统管理员不能管理指导老师；商品新增、入库、上下架；流水筛选、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | 简单脚本 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒 |
 
 CI（GitHub Actions）：每次推送运行 lint、类型检查、单元测试、`docker/db-test.sh`；合并到 `main` 时构建镜像并在镜像上跑 pgTAP 与端到端测试，全部通过后推送镜像。

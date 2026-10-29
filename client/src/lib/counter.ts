@@ -1,26 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Counts } from './cash';
-import { AppError } from './errors';
 import { cachedRoster, saveRoster } from './offline-queue';
-import { setReachable } from './online';
+import { call } from './rpc';
 import { indexRoster } from './search';
 import { supabase } from './supabase';
-
-// The counter's calls to the database functions (PHASE-1.md §6.2). A call that gets no answer within 5 seconds,
-// or no answer at all, is a NETWORK error: the counter then treats itself as offline (§7.7).
-export async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error, status } = await supabase.rpc(fn, args).abortSignal(AbortSignal.timeout(5000));
-  setReachable(!!status);
-  if (!error) return data as T;
-  if (!status) throw new AppError('NETWORK');
-  let detail = {};
-  try {
-    detail = JSON.parse(error.details ?? '{}') ?? {};
-  } catch {
-    // details is plain text for errors that are not ours.
-  }
-  throw new AppError(error.message, detail);
-}
 
 export type Student = {
   student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number;

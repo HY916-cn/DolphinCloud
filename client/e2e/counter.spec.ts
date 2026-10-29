@@ -1,18 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { confirmIn, signIn } from './helpers';
 
 // The counter (M3, PHASE-1.md §7.5–7.7) on the seed data (supabase/seed.sql): teller01 serves 张小明 (20260001,
 // balance 108) and 李思远 (20260002, balance 70). Tests run in order and each one builds on the balances before it.
 test.describe.configure({ mode: 'serial' });
-
-async function signIn(page: Page, kind: '学生' | '工作人员', id: string, path = '/login') {
-  await page.goto(path);
-  await page.locator('.dc-seg label', { hasText: kind }).click();
-  await page.getByPlaceholder(kind === '学生' ? '请输入学号' : '请输入账号').fill(id);
-  await page.getByPlaceholder('请输入密码').fill('a12345678');
-  await page.getByRole('button', { name: '登录' }).click();
-}
-
-const confirmIn = (page: Page, name: string) => page.locator('.dc-sheet').getByRole('button', { name }).click();
 
 // Step 1: search (number, name, pinyin, initials or class), pick the student, confirm it is them.
 async function findStudent(page: Page, query: string, name: string) {

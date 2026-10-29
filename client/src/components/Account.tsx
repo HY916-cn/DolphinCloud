@@ -32,9 +32,9 @@ export function TxnList({ items }: { items: Txn[] }) {
 }
 
 // Skeleton rows while the list loads.
-export function TxnListLoading({ rows = 3 }: { rows?: number }) {
+export function TxnListLoading({ rows = 3, label = '正在加载交易' }: { rows?: number; label?: string }) {
   return (
-    <ul className="dc-txns" aria-busy="true" aria-label="正在加载交易">
+    <ul className="dc-txns" aria-busy="true" aria-label={label}>
       {Array.from({ length: rows }, (_, i) => (
         <li key={i} className="dc-txn" aria-hidden="true">
           <span className="dc-skeleton" style={{ width: 52, height: 52, borderRadius: 'var(--radius-md)' }} />

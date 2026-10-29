@@ -1,22 +1,35 @@
-import { Desk, Notice, type IconName } from '@/components';
-import { useMe, type Role } from '@/lib/session';
+import { useQuery } from '@tanstack/react-query';
+import { Desk, Icon, link, Notice, sectionsFor } from '@/components';
+import { formatTime } from '@/lib/format';
+import { useMe } from '@/lib/session';
+import { supabase } from '@/lib/supabase';
 
-// Back-office sections and who may open them (PHASE-1.md §4.2). The pages arrive with M4.
-const SECTIONS: { icon: IconName; label: string; roles: Role[] }[] = [
-  { icon: 'me', label: '学生', roles: ['teacher'] },
-  { icon: 'teacher', label: '工作人员', roles: ['teacher', 'sysadmin'] },
-  { icon: 'exchange', label: '商品', roles: ['storekeeper', 'teacher'] },
-  { icon: 'coin', label: '发行', roles: ['teacher'] },
-  { icon: 'passbook', label: '流水', roles: ['accountant', 'teacher'] },
-  { icon: 'settings', label: '参数', roles: ['teacher'] },
-  { icon: 'bell', label: '日志', roles: ['teacher', 'sysadmin'] },
-];
-
+// 总览: the sections this login may open. Teachers also see the last ledger check that found a difference (§9.4).
 export default function Admin() {
   const me = useMe().data!;
+  const teacher = me.roles.includes('teacher');
+  const mismatch = useQuery({
+    queryKey: ['check-mismatch'],
+    enabled: teacher,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('audit_log').select('at,after').eq('action', 'check.mismatch')
+        .gte('at', new Date(Date.now() - 2 * 86400_000).toISOString()).order('at', { ascending: false }).limit(1);
+      if (error) throw error;
+      return (data[0] ?? null) as { at: string; after: unknown[] } | null;
+    },
+  });
   return (
-    <Desk me={me} title="总览"
-      notice={<Notice title="管理功能即将开放">以下是你的账号可以使用的管理功能，将在后续版本中逐项开放。</Notice>}
-      tiles={SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)))} />
+    <Desk title="总览">
+      {mismatch.data && (
+        <Notice tone="danger" title="余额自检发现不一致">
+          {formatTime(mismatch.data.at)} 的自检有 {mismatch.data.after.length} 处余额或库存与流水不符，请在服务器上运行 dolphin check 核对。
+        </Notice>
+      )}
+      <div className="dc-tiles dc-enter">
+        {sectionsFor(me).map((s) => (
+          <a key={s.href} className="dc-tile" {...link(s.href)}><span className="dc-tile-icon"><Icon name={s.icon} /></span>{s.label}</a>
+        ))}
+      </div>
+    </Desk>
   );
 }

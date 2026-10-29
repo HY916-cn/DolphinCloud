@@ -30,12 +30,13 @@ $$;
 select is(tests.counts(:'s1'), '[1, 1, 1, 2, 1, 0, false, 6]', 'student: own profile, account and transactions; listed products');
 select is(tests.call(:'s1', $$select jsonb_agg(distinct student_no) from txns$$), '["s1"]', 'student sees only their own transactions');
 select is(tests.counts(:'t1'), '[1, 2, 2, 1, 1, 0, false, 6]', 'teller: all students, only their own transactions of today');
-select is(tests.counts(:'acc'), '[1, 2, 2, 5, 2, 1, false, 6]', 'accountant: all transactions, products and issues');
+select is(tests.counts(:'acc'), '[6, 2, 2, 5, 2, 1, false, 6]', 'accountant: all transactions, products, issues and the staff logins');
 select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, 6]', 'storekeeper: products only');
 select is(tests.counts(:'teacher'), '[8, 2, 2, 5, 2, 1, true, 6]', 'teacher: everything');
-select is(tests.counts(:'admin'), '[8, 0, 0, 0, 1, 0, true, 6]', 'sysadmin: accounts and the audit log, no business data');
+select is(tests.counts(:'admin'), '[8, 2, 0, 0, 1, 0, true, 6]', 'sysadmin: logins, students (no balances) and the audit log');
 select is(tests.call(:'s1', $$select count(*) from user_roles$$), '0', 'a student without roles sees no role rows');
 select is(tests.call(:'admin', $$select count(*) from user_roles$$), '6', 'sysadmin sees all roles');
+select is(tests.call(:'acc', $$select count(*) from user_roles$$), '6', 'accountant sees the staff roles (who is a teller)');
 
 update profiles set disabled = true where id = :'t1';
 select is(tests.counts(:'t1'), '[1, 0, 0, 0, 1, 0, false, 6]', 'a disabled teller loses access at once');

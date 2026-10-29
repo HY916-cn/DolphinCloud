@@ -1,11 +1,30 @@
 import { usePathname } from 'expo-router';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { Me } from '@/lib/session';
+import type { Me, Role } from '@/lib/session';
 import { Icon, link, type IconName } from './ui';
+
+// Back-office sections and who may open them (PHASE-1.md §4.2).
+export const SECTIONS: { href: string; icon: IconName; label: string; roles: Role[] }[] = [
+  { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'sysadmin'] },
+  { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher'] },
+  { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'teacher'] },
+  { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },
+  { href: '/admin/issues', icon: 'coin', label: '发行', roles: ['teacher'] },
+  { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher'] },
+  { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'sysadmin'] },
+];
+export const sectionsFor = (me: Me) => SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)));
 
 // The pages of this login's identity.
 function navItems(me: Me): { href: string; icon: IconName; label: string; exact?: boolean }[] {
-  if (me.student) return [{ href: '/student', icon: 'home', label: '首页', exact: true }, { href: '/student/me', icon: 'me', label: '我的' }];
+  if (me.student) {
+    return [
+      { href: '/student', icon: 'home', label: '首页', exact: true },
+      { href: '/student/txns', icon: 'passbook', label: '明细' },
+      { href: '/student/ranking', icon: 'ranking', label: '排名' },
+      { href: '/student/me', icon: 'me', label: '我的' },
+    ];
+  }
   if (me.roles.includes('teller')) {
     return [
       { href: '/counter', icon: 'home', label: '总览', exact: true },
@@ -13,7 +32,7 @@ function navItems(me: Me): { href: string; icon: IconName; label: string; exact?
       { href: '/counter/reversal', icon: 'transfer', label: '冲正' },
     ];
   }
-  return [{ href: '/admin', icon: 'home', label: '总览' }];
+  return [{ href: '/admin', icon: 'home', label: '总览', exact: true }, ...sectionsFor(me)];
 }
 
 // A page in the middle of a business (it has a back button) hides the phone TabBar (layout.md, AppShell).
@@ -23,6 +42,7 @@ const InFlow = createContext<(on: boolean) => void>(() => {});
 export function Shell({ me, children }: { me: Me; children: ReactNode }) {
   const path = usePathname();
   const items = navItems(me);
+  const tabs = items.slice(0, 5); // the phone TabBar holds five; every section is also a tile on 总览
   const [inFlow, setInFlow] = useState(false);
   const current = (i: (typeof items)[number]) => (i.exact ? path === i.href : path.startsWith(i.href)) ? ('page' as const) : undefined;
   return (
@@ -37,9 +57,9 @@ export function Shell({ me, children }: { me: Me; children: ReactNode }) {
           </div>
         </aside>
         <div className="dc-main"><InFlow.Provider value={setInFlow}>{children}</InFlow.Provider></div>
-        {items.length > 1 && !inFlow && (
+        {tabs.length > 1 && !inFlow && (
           <nav className="dc-tabbar" aria-label="主导航">
-            {items.map((i) => <a key={i.href} className="dc-tab" aria-current={current(i)} {...link(i.href)}><Icon name={i.icon} />{i.label}</a>)}
+            {tabs.map((i) => <a key={i.href} className="dc-tab" aria-current={current(i)} {...link(i.href)}><Icon name={i.icon} />{i.label}</a>)}
           </nav>
         )}
       </div>

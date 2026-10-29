@@ -216,18 +216,22 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-nav-item { position: relative; z-index: 1; }
 .dc-nav-item:not([aria-current]):hover { background: var(--surface); }
 .dc-nav-item[aria-current="page"] { color: var(--dolphin-deep); }
-/* 选中底块在导航项间上下滑动（纯 CSS，各项等高，2～6 项） */
+/* 选中底块在导航项间上下滑动（纯 CSS，各项等高，2～8 项） */
 .dc-nav nav { --nav-count: 1; --nav-index: 0; position: relative; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(2)) { --nav-count: 2; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(3)) { --nav-count: 3; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(4)) { --nav-count: 4; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(5)) { --nav-count: 5; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(6)) { --nav-count: 6; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(7)) { --nav-count: 7; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(8)) { --nav-count: 8; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(2)[aria-current="page"]) { --nav-index: 1; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(3)[aria-current="page"]) { --nav-index: 2; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(4)[aria-current="page"]) { --nav-index: 3; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(5)[aria-current="page"]) { --nav-index: 4; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(6)[aria-current="page"]) { --nav-index: 5; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(7)[aria-current="page"]) { --nav-index: 6; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(8)[aria-current="page"]) { --nav-index: 7; }
 .dc-nav nav:has(> [aria-current="page"])::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: calc(100% / var(--nav-count)); border-radius: var(--radius-md); background: var(--cloud-100); transform: translateY(calc(var(--nav-index) * 100%)); transition: transform var(--motion-enter) var(--ease-out); }
 .dc-nav-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
