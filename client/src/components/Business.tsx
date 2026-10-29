@@ -8,8 +8,10 @@ import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
+import { KINDS } from '@/lib/txns';
 import { CashCounter, Summary } from './Counter';
 import { ConfirmSheet } from './Sheet';
+import { ListLoading, TilesLoading } from './Skeleton';
 import { Icon, Notice } from './ui';
 
 // The counter's businesses for one student (PHASE-1.md §7.5, design system CounterServicePage). Each panel is the
@@ -127,7 +129,7 @@ export function DepositPanel({ student, served, onDone, onEnd }: Props) {
       <div className="dc-split">
         <section className="dc-stack">
           <h2 className="heading">按面额录入张数</h2>
-          <CashCounter faces={denominations} counts={counts} onChange={setCounts} />
+          <CashCounter faces={denominations} counts={counts} onChange={setCounts} kind="dc-kind-save" />
         </section>
         <Receipt served={served} onEnd={onEnd} after={after}
           current={amount > 0 ? { label: '存款', detail: describeCash(counts), amount: formatSigned(amount) } : null} />
@@ -281,10 +283,10 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
       <div className="dc-split">
         <section className="dc-stack">
           <h2 className="heading">选择商品</h2>
-          {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后重试。</Notice> : (
+          {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后重试。</Notice> : products.isPending ? <TilesLoading /> : (
             <div className="dc-tiles">
               {list.map((p) => (
-                <button key={p.id} type="button" className="dc-tile" disabled={!p.stock} onClick={() => setQty(p, (cart[p.id] ?? 0) + 1)}
+                <button key={p.id} type="button" className="dc-tile dc-kind-exchange" disabled={!p.stock} onClick={() => setQty(p, (cart[p.id] ?? 0) + 1)}
                   style={p.stock ? undefined : { opacity: 0.5, cursor: 'not-allowed' }}
                   aria-label={`${p.name}，${p.price} HTB，${p.stock ? `库存 ${p.stock}` : '已售罄'}`}>
                   <span className="dc-tile-icon">
@@ -300,7 +302,7 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
           {lines.length > 0 && (
             <>
               <h2 className="heading" style={{ marginTop: 'var(--space-2)' }}>已选商品</h2>
-              <div className="dc-denoms">
+              <div className="dc-denoms dc-kind-exchange">
                 {lines.map((l) => (
                   <div key={l.id} className="dc-qty is-filled">
                     <div className="dc-qty-head">
@@ -329,7 +331,7 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
               {payment === 'cash' && (
                 <>
                   <h2 className="heading" style={{ marginTop: 'var(--space-2)' }}>录入收到的现金</h2>
-                  <CashCounter faces={denominations} counts={received} onChange={setReceived} />
+                  <CashCounter faces={denominations} counts={received} onChange={setReceived} kind="dc-kind-exchange" />
                 </>
               )}
             </>
@@ -482,13 +484,13 @@ export function ReversalPanel({ onDone }: { onDone: (s: Served) => void }) {
       </label>
       <h2 className="heading">今天我办理的业务</h2>
       {today.error ? <Notice tone="danger" title="暂时无法读取业务">请检查网络后重试。</Notice>
-        : !today.data ? null
+        : !today.data ? <ListLoading rows={3} label="正在加载业务" />
         : list.length ? (
           <ul className="dc-list dc-stagger">
             {list.map((t) => (
               <li key={t.id}>
-                <a className="dc-list-link" href="#" role="button" onClick={(e) => { e.preventDefault(); setPicked(t); }}>
-                  <span className="dc-list-icon"><Icon name={t.type === 'purchase' ? 'exchange' : t.type} /></span>
+                <a className={`dc-list-link ${KINDS[t.type].kind}`} href="#" role="button" onClick={(e) => { e.preventDefault(); setPicked(t); }}>
+                  <span className="dc-list-icon"><Icon name={KINDS[t.type].icon} /></span>
                   <span>{t.students.name} · {describe(t)}<small className="dc-top-sub">{t.txn_no} · {formatTime(t.created_at)}</small></span>
                   <Icon name="next" />
                 </a>

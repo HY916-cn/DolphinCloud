@@ -50,7 +50,7 @@ export default function StudentRanking() {
             {!r ? <TxnListLoading label="正在加载排名" /> : r.top.length ? (
               <ul className="dc-txns dc-stagger">
                 {r.top.map((t, i) => (
-                  <li key={i} className="dc-txn">
+                  <li key={i} className="dc-txn dc-kind-reward">
                     <span className="dc-txn-icon">{t.rank}</span>
                     <div className="dc-txn-main">
                       <div className="dc-txn-title">{t.name}{t.me && <> <span className="dc-tag"><Icon name="me" />我</span></>}</div>
@@ -63,7 +63,7 @@ export default function StudentRanking() {
             ) : (
               <div className="dc-card">
                 <div className="dc-empty">
-                  <span className="dc-empty-icon"><Icon name="ranking" /></span>
+                  <span className="dc-empty-icon dc-kind-reward"><Icon name="ranking" /></span>
                   <h3>本学部还没有排名</h3>
                   <p>同学们在柜台存款后，这里会按余额排出名次。</p>
                 </div>

@@ -51,7 +51,7 @@ export default function Issues() {
             : issues.data.length ? (
               <ul className="dc-txns">
                 {issues.data.map((i) => (
-                  <li key={i.id} className="dc-txn">
+                  <li key={i.id} className="dc-txn dc-kind-reward">
                     <span className="dc-txn-icon"><Icon name="coin" /></span>
                     <div className="dc-txn-main">
                       <div className="dc-txn-title">{i.batch_no} · {i.purpose}</div>
@@ -65,7 +65,7 @@ export default function Issues() {
             ) : (
               <div className="dc-card">
                 <div className="dc-empty">
-                  <span className="dc-empty-icon"><Icon name="inbox" /></span>
+                  <span className="dc-empty-icon dc-kind-reward"><Icon name="coin" /></span>
                   <h3>还没有发行记录</h3>
                   <p>每印发一批海豚币，在这里登记一次。</p>
                 </div>
@@ -125,7 +125,7 @@ function IssueForm() {
       </Field>
       <div className="dc-field">
         <span className="dc-field-label"><Icon name="coin" />面额张数</span>
-        <CashCounter faces={faces} counts={counts} onChange={setCounts} />
+        <CashCounter faces={faces} counts={counts} onChange={setCounts} kind="dc-kind-reward" />
       </div>
       <Summary rows={[['面额', describeCash(counts) || '尚未填写']]} total={['发行总额', total]} />
       <Field icon="help" label="用途">

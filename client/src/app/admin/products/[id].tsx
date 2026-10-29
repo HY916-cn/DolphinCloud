@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Desk, Icon, Notice, type IconName } from '@/components';
+import { Desk, FormLoading, Icon, Notice, TxnListLoading, type IconName } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatSigned, formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -17,8 +17,9 @@ type Problem = { title: string; text: string } | null;
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, 6);
-const MOVE: Record<Move['kind'], { label: string; icon: IconName }> = {
-  stock_in: { label: '入库', icon: 'plus' }, sale: { label: '兑换', icon: 'exchange' }, reversal: { label: '冲正', icon: 'transfer' },
+const MOVE: Record<Move['kind'], { label: string; icon: IconName; kind: string }> = {
+  stock_in: { label: '入库', icon: 'plus', kind: '' }, sale: { label: '兑换', icon: 'exchange', kind: 'dc-kind-exchange' },
+  reversal: { label: '冲正', icon: 'transfer', kind: '' },
 };
 
 // Scales a picture to at most 800px on its longest side as a JPEG at quality 0.8 (PHASE-1.md §6.7), on a white ground
@@ -65,7 +66,7 @@ export default function ProductPage() {
   return (
     <Desk title={isNew ? '新增商品' : '编辑商品'} back={back}>
       {isNew ? <ProductForm product={null} /> : product.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
-        : product.isPending ? <span className="dc-skeleton" style={{ height: 480, borderRadius: 'var(--radius-lg)' }} />
+        : product.isPending ? <div className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></div>
         : !product.data ? <Notice tone="danger" title="未找到这件商品">请返回商品列表重新选择。</Notice>
         : (
           <div className="dc-split">
@@ -158,7 +159,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
       <div className="dc-field">
         <span className="dc-field-label"><Icon name="star" />商品图片</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-          <span className="dc-tile-icon" style={{ width: 96, height: 96, overflow: 'hidden', flex: 'none' }}>
+          <span className="dc-tile-icon dc-kind-exchange" style={{ width: 96, height: 96, overflow: 'hidden', flex: 'none' }}>
             {imagePath ? <img src={imageUrl(imagePath)} alt="商品图片预览" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : <Icon name="exchange" />}
           </span>
@@ -252,12 +253,12 @@ function StockIn({ product }: { product: Product }) {
       </form>
       <h2 className="heading">库存变动</h2>
       {moves.error ? <Notice tone="danger" title="暂时无法读取库存变动">请检查网络后刷新页面。</Notice>
-        : !moves.data ? null
+        : !moves.data ? <TxnListLoading label="正在加载库存变动" />
         : !moves.data.length ? <p className="dc-top-sub">还没有库存变动。</p>
         : (
           <ul className="dc-txns" aria-label="最近 10 条库存变动">
             {moves.data.map((m) => (
-              <li key={m.id} className="dc-txn">
+              <li key={m.id} className={`dc-txn ${MOVE[m.kind].kind}`}>
                 <span className="dc-txn-icon"><Icon name={MOVE[m.kind].icon} /></span>
                 <div className="dc-txn-main">
                   <div className="dc-txn-title">{[MOVE[m.kind].label, m.note].filter(Boolean).join(' · ')}</div>

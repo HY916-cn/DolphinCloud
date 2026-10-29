@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Desk, Icon, link, Notice } from '@/components';
+import { Desk, Icon, link, ListLoading, Notice } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
@@ -18,25 +18,26 @@ export default function Products() {
     },
   });
   return (
-    <Desk title="商品" actions={
-      <a className="dc-btn dc-btn-primary dc-btn-sm" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a>
-    }>
+    <Desk title="商品">
+      <div className="dc-section-head">
+        <p className="dc-top-sub">{products.data && `共 ${products.data.length} 件商品，${products.data.filter((p) => p.listed).length} 件已上架`}</p>
+        <a className="dc-btn dc-btn-primary dc-btn-sm" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a>
+      </div>
       {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
-        : !products.data ? <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />
+        : !products.data ? <ListLoading label="正在加载商品" />
         : !products.data.length ? (
           <div className="dc-card">
             <div className="dc-empty">
-              <span className="dc-empty-icon"><Icon name="inbox" /></span>
+              <span className="dc-empty-icon dc-kind-exchange"><Icon name="exchange" /></span>
               <h3>还没有商品</h3>
               <p>新增商品并上架后，柜台就可以办理兑换。</p>
-              <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/products/new')}>新增商品</a>
             </div>
           </div>
         ) : (
           <ul className="dc-list dc-enter" aria-label="商品">
             {products.data.map((p) => (
               <li key={p.id}>
-                <a className="dc-list-link" {...link(`/admin/products/${p.id}`)}>
+                <a className="dc-list-link dc-kind-exchange" {...link(`/admin/products/${p.id}`)}>
                   <span className="dc-list-icon" style={{ overflow: 'hidden' }}>
                     {p.image_path ? <img src={imageUrl(p.image_path)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <Icon name="exchange" />}

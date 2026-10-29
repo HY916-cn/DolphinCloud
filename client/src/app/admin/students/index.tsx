@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AccountNotices, Desk, Icon, link, Notice } from '@/components';
+import { AccountNotices, Desk, Icon, link, ListLoading, Notice } from '@/components';
 import { classOf } from '@/lib/counter';
 import { formatAmount } from '@/lib/format';
 import { searchRoster } from '@/lib/search';
@@ -20,9 +20,7 @@ export default function Students() {
   const waiting = all.filter((s) => s.profiles?.must_change_password);
 
   return (
-    <Desk title="学生" actions={me.roles.includes('teacher') && (
-      <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/students/import')}>导入名册</a>
-    )}>
+    <Desk title="学生">
       <form role="search" onSubmit={(e) => e.preventDefault()}>
         <label className="dc-search">
           <Icon name="query" />
@@ -32,17 +30,18 @@ export default function Students() {
         </label>
       </form>
       {students.isError && <Notice tone="danger" title="暂时无法读取名册">请检查网络后刷新页面。</Notice>}
-      {students.data && (
-        <div className="dc-section-head">
-          <p className="dc-top-sub">共 {all.length} 名学生{waiting.length > 0 && `，${waiting.length} 人还未设置新密码`}</p>
+      <div className="dc-section-head">
+        <p className="dc-top-sub">{students.data && <>共 {all.length} 名学生{waiting.length > 0 && `，${waiting.length} 人还未设置新密码`}</>}</p>
+        <span style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {waiting.length > 0 && (
             <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { setPrinting(true); setTimeout(print); }}>
               打印开户通知单
             </button>
           )}
-        </div>
-      )}
-      {students.isPending ? <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />
+          {me.roles.includes('teacher') && <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/students/import')}>导入名册</a>}
+        </span>
+      </div>
+      {students.isPending ? <ListLoading rows={6} label="正在加载学生" />
         : list.length ? (
           <ul className="dc-list" aria-label="学生">
             {list.map((s) => <Row key={s.student_no} s={s} />)}

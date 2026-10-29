@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, Notice, Summary } from '@/components';
+import { ConfirmSheet, Desk, Icon, KvLoading, Notice, PersonLoading, Summary } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -41,6 +41,7 @@ export default function StaffLogin() {
   return (
     <Desk title="工作人员" back={() => router.navigate('/admin/staff')}>
       {staff.isError && <Notice tone="danger" title="暂时无法读取工作人员">请检查网络后刷新页面。</Notice>}
+      {staff.isPending && <div className="dc-stack"><PersonLoading /><KvLoading /></div>}
       {staff.data && !p && <Notice tone="danger" title="未找到该账号">请返回列表重新选择。</Notice>}
       {p && (
         <div className="dc-split">

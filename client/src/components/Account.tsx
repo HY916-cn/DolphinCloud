@@ -18,7 +18,7 @@ export function TxnList({ items }: { items: Txn[] }) {
   return (
     <ul className="dc-txns dc-stagger">
       {items.map((t) => (
-        <li key={t.key} className="dc-txn">
+        <li key={t.key} className={`dc-txn ${t.kind}`}>
           <span className="dc-txn-icon"><Icon name={t.icon} /></span>
           <div className="dc-txn-main">
             <div className="dc-txn-title">{t.title}</div>

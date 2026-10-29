@@ -1,4 +1,4 @@
-import { Desk, Icon, link, Notice } from '@/components';
+import { Desk, Icon, link, ListLoading, Notice } from '@/components';
 import { ROLES } from '@/lib/session';
 import { useStaff } from '@/lib/staff';
 
@@ -6,9 +6,13 @@ import { useStaff } from '@/lib/staff';
 export default function Staff() {
   const staff = useStaff();
   return (
-    <Desk title="工作人员" actions={<a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a>}>
+    <Desk title="工作人员">
+      <div className="dc-section-head">
+        <p className="dc-top-sub">{staff.data && `共 ${staff.data.length} 个账号`}</p>
+        <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a>
+      </div>
       {staff.isError && <Notice tone="danger" title="暂时无法读取工作人员">请检查网络后刷新页面。</Notice>}
-      {staff.isPending ? <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} /> : staff.data && (
+      {staff.isPending ? <ListLoading label="正在加载工作人员" /> : staff.data && (
         <ul className="dc-list dc-enter" aria-label="工作人员">
           {staff.data.map((p) => (
             <li key={p.id}>

@@ -2,7 +2,7 @@ import type { IconName } from '@/theme/icons';
 import { formatTime } from './format';
 
 // One ledger line as the account holder reads it.
-export type Txn = { key: string; icon: IconName; title: string; time: string; amount: number; note: string };
+export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; note: string };
 
 export type TxnRow = {
   id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal'; amount: number; balance_delta: number;
@@ -10,12 +10,14 @@ export type TxnRow = {
   txn_items?: { name: string; qty: number }[];
 };
 
-const KINDS = {
-  opening: { icon: 'coin', title: '期初余额' },
-  deposit: { icon: 'deposit', title: '存款' },
-  withdraw: { icon: 'withdraw', title: '取款' },
-  purchase: { icon: 'exchange', title: '兑换' },
-  reversal: { icon: 'transfer', title: '冲正' },
+// Icon and category colour per business (design system ColorRoles): savings, withdrawals, exchanges; a reversal is
+// a correction and keeps the account blue.
+export const KINDS = {
+  opening: { icon: 'savings', title: '期初余额', kind: 'dc-kind-save' },
+  deposit: { icon: 'deposit', title: '存款', kind: 'dc-kind-save' },
+  withdraw: { icon: 'withdraw', title: '取款', kind: 'dc-kind-withdraw' },
+  purchase: { icon: 'exchange', title: '兑换', kind: 'dc-kind-exchange' },
+  reversal: { icon: 'transfer', title: '冲正', kind: '' },
 } as const;
 
 // A ledger row as the account holder reads it: "业务 · 详情", time, and the change to their balance.
@@ -27,6 +29,7 @@ export function toTxn(t: TxnRow): Txn {
   return {
     key: t.id,
     icon: KINDS[t.type].icon,
+    kind: KINDS[t.type].kind,
     title: [KINDS[t.type].title, detail].filter(Boolean).join(' · ') + (t.status === 'reversed' ? '（已冲正）' : ''),
     time: formatTime(t.created_at),
     amount: t.balance_delta,

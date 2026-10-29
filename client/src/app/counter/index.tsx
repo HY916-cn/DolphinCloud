@@ -1,14 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { CounterPage, Icon, link, Summary, type IconName } from '@/components';
+import { CounterPage, Icon, KvLoading, link, Summary, type IconName } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
-const BUSINESSES: { href: string; icon: IconName; label: string }[] = [
-  { href: '/counter/serve?b=deposit', icon: 'deposit', label: '存款' },
-  { href: '/counter/serve?b=withdraw', icon: 'withdraw', label: '取款' },
-  { href: '/counter/serve?b=shop', icon: 'exchange', label: '兑换' },
+const BUSINESSES: { href: string; icon: IconName; label: string; kind?: string }[] = [
+  { href: '/counter/serve?b=deposit', icon: 'deposit', label: '存款', kind: 'dc-kind-save' },
+  { href: '/counter/serve?b=withdraw', icon: 'withdraw', label: '取款', kind: 'dc-kind-withdraw' },
+  { href: '/counter/serve?b=shop', icon: 'exchange', label: '兑换', kind: 'dc-kind-exchange' },
   { href: '/counter/reversal', icon: 'transfer', label: '冲正' },
 ];
 const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
@@ -37,13 +37,14 @@ export default function Overview() {
     <CounterPage title="总览">
       <div className="dc-tiles dc-enter">
         {BUSINESSES.map((b) => (
-          <a key={b.href} className="dc-tile" {...link(b.href)}><span className="dc-tile-icon"><Icon name={b.icon} /></span>{b.label}</a>
+          <a key={b.href} className={`dc-tile ${b.kind ?? ''}`} {...link(b.href)}><span className="dc-tile-icon"><Icon name={b.icon} /></span>{b.label}</a>
         ))}
       </div>
       <section className="dc-card dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
         <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>今天我办理的业务</h2>
         {!online ? <p className="dc-top-sub">联网后显示今日统计。</p>
           : today.isError ? <p className="dc-top-sub">暂时读不到今日统计，请稍后再看。</p>
+          : today.isPending ? <KvLoading rows={rows.length} card={false} />
           : <Summary rows={rows} />}
       </section>
     </CounterPage>

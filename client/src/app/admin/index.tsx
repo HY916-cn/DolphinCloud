@@ -27,7 +27,7 @@ export default function Admin() {
       )}
       <div className="dc-tiles dc-enter">
         {sectionsFor(me).map((s) => (
-          <a key={s.href} className="dc-tile" {...link(s.href)}><span className="dc-tile-icon"><Icon name={s.icon} /></span>{s.label}</a>
+          <a key={s.href} className={`dc-tile ${s.kind ?? ''}`} {...link(s.href)}><span className="dc-tile-icon"><Icon name={s.icon} /></span>{s.label}</a>
         ))}
       </div>
     </Desk>

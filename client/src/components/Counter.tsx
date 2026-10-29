@@ -10,15 +10,16 @@ import { searchRoster } from '@/lib/search';
 import { useMe } from '@/lib/session';
 import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
+import { ListLoading } from './Skeleton';
 import { Icon, link, Notice } from './ui';
 
 const css = (vars: Record<string, string | number>) => vars as React.CSSProperties;
 
 // QtyStepper: one card per face value, two columns, counts entered with − / + or typed.
-export function CashCounter({ faces, counts, onChange }: { faces: number[]; counts: Counts; onChange: (c: Counts) => void }) {
+export function CashCounter({ faces, counts, onChange, kind }: { faces: number[]; counts: Counts; onChange: (c: Counts) => void; kind: string }) {
   const set = (face: number, n: number) => onChange({ ...counts, [face]: Math.max(0, Math.min(999, n || 0)) });
   return (
-    <div className="dc-denoms">
+    <div className={`dc-denoms ${kind}`}>
       {[...faces].sort((a, b) => a - b).map((face) => {
         const n = counts[face] ?? 0;
         return (
@@ -118,7 +119,8 @@ export function FindStudent({ onFound, offline }: { onFound: (s: Student) => voi
           <h3>查找学生</h3>
           <p>姓名、拼音首字母、班级、学号都能搜<br />例如 张小明 · zxm · 四年级1班{offline && <><br />离线时不显示余额</>}</p>
         </div>
-      ) : found.length ? (
+      ) : roster.isPending ? <ListLoading rows={3} label="正在加载名册" />
+      : found.length ? (
         <ul className="dc-list" aria-label="搜索结果">
           {found.map((s) => (
             <li key={s.student_no}>
@@ -134,7 +136,7 @@ export function FindStudent({ onFound, offline }: { onFound: (s: Student) => voi
         <div className="dc-empty">
           <span className="dc-empty-icon"><Icon name="query" /></span>
           <h3>没有找到「{query.trim()}」</h3>
-          <p>{roster.isPending ? '名册正在加载，请稍候。' : '换个写法试试：姓名、拼音首字母、班级或学号。'}</p>
+          <p>换个写法试试：姓名、拼音首字母、班级或学号。</p>
         </div>
       )}
       {picked && (

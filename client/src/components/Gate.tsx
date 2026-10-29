@@ -2,7 +2,8 @@ import { Redirect } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useMe, useSession, type Me } from '@/lib/session';
 import { SignOut } from './Sheet';
-import { Loading, Notice } from './ui';
+import { ShellLoading } from './Skeleton';
+import { Notice } from './ui';
 import { Welcome } from './Welcome';
 
 // Renders children for a signed-in login that may be here; otherwise sends it to sign in, to set a new
@@ -10,7 +11,7 @@ import { Welcome } from './Welcome';
 export function Gate({ allow, children }: { allow: (me: Me) => boolean; children: (me: Me) => ReactNode }) {
   const { session, ready } = useSession();
   const me = useMe();
-  if (!ready || (session && me.isPending)) return <Loading />;
+  if (!ready || (session && me.isPending)) return <ShellLoading />;
   if (!session) return <Redirect href="/login" />;
   if (!me.data) {
     return (

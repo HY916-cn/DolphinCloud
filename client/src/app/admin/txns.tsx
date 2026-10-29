@@ -150,7 +150,7 @@ function TxnLine({ row }: { row: Row }) {
   const t = toTxn(row);
   const delta = row.balance_delta;
   return (
-    <li className="dc-txn">
+    <li className={`dc-txn ${t.kind}`}>
       <span className="dc-txn-icon"><Icon name={t.icon} /></span>
       <div className="dc-txn-main">
         <div className="dc-txn-title">{t.title}</div>
