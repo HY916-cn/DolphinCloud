@@ -147,7 +147,7 @@ export function FindStudent({ onFound, offline }: { onFound: (s: Student) => voi
         <div className="dc-empty">
           <span className="dc-empty-icon"><Icon name="me" /></span>
           <h3>查找学生</h3>
-          <p>可以输入姓名（张小明）、拼音或首字母（zxm）、班级（四年级1班）或学号{offline ? '。离线时不显示余额' : ''}。</p>
+          <p>姓名、拼音首字母、班级、学号都能搜<br />例如 张小明 · zxm · 四年级1班{offline && <><br />离线时不显示余额</>}</p>
         </div>
       ) : found.length ? (
         <ul className="dc-list" aria-label="搜索结果">
