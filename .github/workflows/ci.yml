@@ -26,7 +26,8 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
         working-directory: client
-      - run: npm run typecheck
+      # Expo writes this file (CSS and asset module types) on `expo start`; it is not committed.
+      - run: echo '/// <reference types="expo/types" />' > expo-env.d.ts && npm run typecheck
         working-directory: client
       - run: npm test
         working-directory: client
