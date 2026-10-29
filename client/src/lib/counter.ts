@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Counts } from './cash';
 import { AppError } from './errors';
+import { cachedRoster, saveRoster } from './offline-queue';
 import { setReachable } from './online';
+import { indexRoster } from './search';
 import { supabase } from './supabase';
 
 // The counter's calls to the database functions (PHASE-1.md §6.2). A call that gets no answer within 5 seconds,
@@ -70,6 +72,21 @@ export function useSettings() {
       return settings;
     },
   }).data;
+}
+
+// The roster the counter searches (lib/search.ts). Each read is kept on this device; offline, or when the read gets
+// no answer, the counter searches the copy kept there (§7.7).
+export function useRoster(accountId: string) {
+  return useQuery({
+    queryKey: ['roster', accountId],
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('students').select('student_no,name,class_no,class_label,status')
+        .abortSignal(AbortSignal.timeout(5000));
+      if (!error) await saveRoster(accountId, data);
+      return indexRoster(error ? await cachedRoster(accountId) : data);
+    },
+  });
 }
 
 export const newId = () => crypto.randomUUID();

@@ -4,17 +4,22 @@ import { expect, test, type Page } from '@playwright/test';
 // balance 108) and 李思远 (20260002, balance 70). Tests run in order and each one builds on the balances before it.
 test.describe.configure({ mode: 'serial' });
 
-async function signIn(page: Page, kind: '学生' | '工作人员', id: string) {
-  await page.goto('/login');
+async function signIn(page: Page, kind: '学生' | '工作人员', id: string, path = '/login') {
+  await page.goto(path);
   await page.locator('.dc-seg label', { hasText: kind }).click();
   await page.getByPlaceholder(kind === '学生' ? '请输入学号' : '请输入账号').fill(id);
   await page.getByPlaceholder('请输入密码').fill('a12345678');
   await page.getByRole('button', { name: '登录' }).click();
 }
 
-async function findStudent(page: Page, no: string) {
-  await page.getByPlaceholder('请输入学号').fill(no);
-  await page.getByRole('button', { name: '查找学生' }).click();
+const confirmIn = (page: Page, name: string) => page.locator('.dc-sheet').getByRole('button', { name }).click();
+
+// Step 1: search (number, name, pinyin, initials or class), pick the student, confirm it is them.
+async function findStudent(page: Page, query: string, name: string) {
+  await page.getByRole('searchbox', { name: '搜索学生' }).fill(query);
+  await page.locator('.dc-list-link', { hasText: name }).click();
+  await expect(page.locator('.dc-sheet')).toContainText(`是${name}吗？`);
+  await confirmIn(page, '是，继续办理');
 }
 
 // Opens a counter business from the navigation and waits for its page, so typing goes to the right form.
@@ -24,12 +29,13 @@ async function open(page: Page, label: string, path: string) {
   await expect(page.locator('.dc-top-title')).toContainText(label);
 }
 
-const confirmIn = (page: Page, name: string) => page.locator('.dc-sheet').getByRole('button', { name }).click();
 
 test('deposit counts the notes and books the total', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
-  await expect(page).toHaveURL(/\/counter\/deposit$/);
-  await findStudent(page, '20260001');
+  await expect(page).toHaveURL(/\/counter$/);
+  await expect(page.locator('.dc-card')).toContainText('今天我办理的业务');
+  await open(page, '存款', 'deposit');
+  await findStudent(page, 'zxm', '张小明');
   await expect(page.locator('.dc-person')).toContainText('张小明');
   await expect(page.locator('.dc-person')).toContainText('108');
   await page.getByLabel('增加一张 10 元').click();
@@ -45,7 +51,7 @@ test('deposit counts the notes and books the total', async ({ page }) => {
 test('withdraw stops at the balance and shows the payout', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
   await open(page, '取款', 'withdraw');
-  await findStudent(page, '20260002');
+  await findStudent(page, '李思远', '李思远');
   const amount = page.getByPlaceholder('请输入金额');
   await amount.fill('80');
   await expect(page.getByRole('button', { name: '金额超出可取范围' })).toBeDisabled();
@@ -60,7 +66,7 @@ test('withdraw stops at the balance and shows the payout', async ({ page }) => {
 test('exchange from the account and in cash with change', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
   await open(page, '兑换', 'shop');
-  await findStudent(page, '20260001');
+  await findStudent(page, '20260001', '张小明');
   await page.locator('.dc-tile', { hasText: '海豚书签' }).click();
   await page.getByRole('button', { name: '确认兑换' }).click();
   await expect(page.locator('.dc-sheet')).toContainText('账户扣款 10 HTB');
@@ -68,7 +74,7 @@ test('exchange from the account and in cash with change', async ({ page }) => {
   await expect(page.locator('.dc-result')).toContainText('账户支付 10 HTB，当前余额 120 HTB');
 
   await page.getByRole('button', { name: '办理下一位' }).click();
-  await findStudent(page, '20260002');
+  await findStudent(page, 'lisi', '李思远');
   await page.locator('.dc-tile', { hasText: '海浪中性笔' }).click();
   await page.locator('.dc-choice', { hasText: '现金支付' }).click();
   await expect(page.getByRole('button', { name: '收款不足，还差 6 HTB' })).toBeDisabled();
@@ -94,11 +100,12 @@ test('reversal of today\'s deposit restores the balance', async ({ page }) => {
 
 test('offline deposit is registered, then uploaded once online', async ({ page, context }) => {
   await signIn(page, '工作人员', 'teller01');
-  await expect(page).toHaveURL(/\/counter\/deposit$/);
-  await page.waitForLoadState('networkidle'); // the roster is cached for offline lookups
+  await expect(page).toHaveURL(/\/counter$/);
+  await page.waitForLoadState('networkidle'); // the roster is kept for offline searches
+  await open(page, '存款', 'deposit');
   await context.setOffline(true);
   await expect(page.locator('.dc-notice', { hasText: '离线登记' })).toBeVisible();
-  await findStudent(page, '20260002');
+  await findStudent(page, '20260002', '李思远');
   await expect(page.locator('.dc-person')).toContainText('李思远');
   await page.getByLabel('增加一张 5 元').click();
   await page.getByRole('button', { name: '确认存款' }).click();
@@ -111,13 +118,13 @@ test('offline deposit is registered, then uploaded once online', async ({ page, 
   await page.getByRole('button', { name: '上传' }).click();
   await expect(page.locator('.dc-notice', { hasText: '待上传' })).toHaveCount(0);
   await open(page, '查询', 'lookup');
-  await findStudent(page, '20260002');
+  await findStudent(page, 'lsy', '李思远');
   await expect(page.locator('.dc-kv')).toContainText('47 HTB');
 });
 
 test('the counter reopens without a network once installed', async ({ page, context }) => {
   await signIn(page, '工作人员', 'teller01');
-  await expect(page).toHaveURL(/\/counter\/deposit$/);
+  await expect(page).toHaveURL(/\/counter$/);
   const registered = await page.evaluate(() =>
     navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready).then(() => 'ready', (e) => String(e)));
   expect(registered).toBe('ready');
@@ -125,9 +132,21 @@ test('the counter reopens without a network once installed', async ({ page, cont
   await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   await page.reload();
-  await expect(page.locator('.dc-top-title')).toContainText('存款');
+  await expect(page.locator('.dc-top-title')).toContainText('总览');
   await expect(page.locator('.dc-notice', { hasText: '离线登记' })).toBeVisible();
   await context.setOffline(false);
+});
+
+test('switching accounts asks who you are first', async ({ page }) => {
+  await signIn(page, '工作人员', 'teller01');
+  await expect(page).toHaveURL(/\/counter$/);
+  await signIn(page, '学生', '20260001', '/login?add=1');
+  await expect(page).toHaveURL(/\/student$/);
+  await page.goto('/accounts');
+  await page.locator('.dc-list-link', { hasText: '柜员小林' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('你是柜员小林吗？');
+  await confirmIn(page, '是，切换');
+  await expect(page).toHaveURL(/\/counter$/);
 });
 
 test('the student sees the counter\'s work', async ({ page }) => {

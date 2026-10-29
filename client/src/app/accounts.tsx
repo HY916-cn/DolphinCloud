@@ -2,13 +2,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ConfirmSheet, Gate, Icon, link, Notice, SignOut, Welcome } from '@/components';
-import { savedAccounts, signOutAll, switchAccount } from '@/lib/accounts';
+import { savedAccounts, signOutAll, switchAccount, type SavedAccount } from '@/lib/accounts';
 
-// 本机账号 (PHASE-1.md §7.4): the accounts signed in on this device; tap one to switch, add another, sign out one or all.
+// 本机账号 (PHASE-1.md §7.4): the accounts signed in on this device; tap one and confirm who you are to switch, add
+// another, sign out one or all.
 export default function Accounts() {
   const queryClient = useQueryClient();
   const [expired, setExpired] = useState<string | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+  const [ask, setAsk] = useState<SavedAccount | null>(null);
   const count = savedAccounts().length;
   return (
     <Gate allow={() => true}>
@@ -29,12 +31,7 @@ export default function Accounts() {
               return (
                 <li key={a.id}>
                   {current ? <div className="dc-list-link" aria-current="true">{body}</div> : (
-                    <a className="dc-list-link" href="/" onClick={async (e) => {
-                      e.preventDefault();
-                      if (!(await switchAccount(a.id))) return setExpired(a.name);
-                      queryClient.clear();
-                      router.replace('/');
-                    }}>{body}</a>
+                    <a className="dc-list-link" href="/" onClick={(e) => { e.preventDefault(); setAsk(a); }}>{body}</a>
                   )}
                 </li>
               );
@@ -51,6 +48,18 @@ export default function Accounts() {
           )} />
           {count > 1 && (
             <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block is-danger" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>
+          )}
+          {ask && (
+            <ConfirmSheet title={`你是${ask.name}吗？`} cancel="不是" confirm="是，切换"
+              text={`确定后切换到${ask.kind === 'student' ? `学号 ${ask.loginId}` : `工作账号 ${ask.loginId}`}。`}
+              onClose={() => setAsk(null)}
+              onConfirm={async () => {
+                const a = ask;
+                setAsk(null);
+                if (!(await switchAccount(a.id))) return setExpired(a.name);
+                queryClient.clear();
+                router.replace('/');
+              }} />
           )}
           {confirmAll && (
             <ConfirmSheet title="退出全部账号" text={`这台设备上的 ${count} 个账号都会退出，下次使用需要重新输入密码。`} confirm="退出全部"

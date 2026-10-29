@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { describeCash, type Counts } from '@/lib/cash';
-import { classOf, deposit, lookupStudent, type Student } from '@/lib/counter';
+import { classOf, deposit, lookupStudent, useRoster, type Student } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
-import { cachedRoster, offlineQueue } from '@/lib/offline-queue';
+import { offlineQueue, type RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
+import { searchRoster } from '@/lib/search';
 import { useMe } from '@/lib/session';
+import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
 import { Icon, link, Notice } from './ui';
 
@@ -102,52 +104,76 @@ export function ResultView({ title, lead, rows, next = '办理下一位', onNext
   );
 }
 
-// Step 1 of every business: type the student number and find the student. Offline (deposits only) the name
-// and class come from the roster cached on this device, without a balance.
+// Step 1 of every business: search the roster by name, pinyin, initials, class or number, pick the student, and
+// confirm it is them. Online the counter then reads their balance; offline (deposits only) it goes on without one.
 export function FindStudent({ onFound, offline }: { onFound: (s: Student) => void; offline?: boolean }) {
   const me = useMe().data!;
-  const [no, setNo] = useState('');
+  const roster = useRoster(me.profile.id);
+  const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState<RosterEntry | null>(null);
   const [error, setError] = useState<{ title: string; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const found = useMemo(() => searchRoster(roster.data ?? [], query), [roster.data, query]);
 
-  async function find(e: FormEvent) {
-    e.preventDefault();
-    if (!no.trim() || busy) return;
+  async function confirm() {
+    if (busy) return;
+    const s = picked!;
+    if (offline) return onFound({ ...s, division: 'primary', cohort: 0, balance: null, withdrawn_today: null });
     setBusy(true);
     setError(null);
     try {
-      if (offline) {
-        const s = (await cachedRoster(me.profile.id)).find((r) => r.student_no === no.trim());
-        if (!s) throw new AppError('STUDENT_NOT_FOUND');
-        onFound({ ...s, division: 'primary', cohort: 0, balance: null, withdrawn_today: null });
-      } else {
-        onFound(await lookupStudent(no));
-      }
+      onFound(await lookupStudent(s.student_no));
     } catch (err) {
-      const code = err instanceof AppError ? err.code : '';
-      setError(explain(code, err instanceof AppError ? err.detail : {}));
+      setPicked(null);
+      setError(explain(err instanceof AppError ? err.code : '', err instanceof AppError ? err.detail : {}));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form className="dc-form" onSubmit={find} noValidate>
-      <label className={`dc-field ${error ? 'is-error' : ''}`}>
-        <span className="dc-field-label"><Icon name="me" />学号</span>
-        <span className="dc-input-wrap">
-          <input className="dc-input" inputMode="numeric" autoComplete="off" autoFocus value={no} placeholder="请输入学号"
-            onChange={(e) => setNo(e.target.value)} />
-        </span>
-        <span className="dc-field-hint">输入后核对姓名和班级{offline ? '（离线时不显示余额）' : ''}</span>
+    <section className="dc-stack">
+      {/* A form, so Enter or the phone keyboard's search key picks a single match. */}
+      <form role="search" onSubmit={(e) => { e.preventDefault(); if (found.length === 1) setPicked(found[0]); }}>
+      <label className="dc-search">
+        <Icon name="query" />
+        <input type="search" aria-label="搜索学生" placeholder="输入姓名、拼音首字母、班级或学号" autoComplete="off" autoFocus
+          enterKeyHint="search" value={query} onChange={(e) => { setQuery(e.target.value); setError(null); }} />
+        {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
       </label>
+      </form>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <div className="dc-actions">
-        <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={!busy && !no.trim()}>
-          {busy ? '正在查找' : '查找学生'}
-        </button>
-      </div>
-    </form>
+      {!query.trim() ? (
+        <div className="dc-empty">
+          <span className="dc-empty-icon"><Icon name="me" /></span>
+          <h3>查找学生</h3>
+          <p>可以输入姓名（张小明）、拼音或首字母（zxm）、班级（四年级1班）或学号{offline ? '。离线时不显示余额' : ''}。</p>
+        </div>
+      ) : found.length ? (
+        <ul className="dc-list" aria-label="搜索结果">
+          {found.map((s) => (
+            <li key={s.student_no}>
+              <a className="dc-list-link" href={`#${s.student_no}`} onClick={(e) => { e.preventDefault(); setPicked(s); }}>
+                <span className="dc-list-icon"><Icon name="me" /></span>
+                <span>{s.name}<small className="dc-top-sub">{classOf(s)} · 学号 {s.student_no}</small></span>
+                <Icon name="next" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="dc-empty">
+          <span className="dc-empty-icon"><Icon name="query" /></span>
+          <h3>没有找到「{query.trim()}」</h3>
+          <p>{roster.isPending ? '名册正在加载，请稍候。' : '换个写法试试：姓名、拼音首字母、班级或学号。'}</p>
+        </div>
+      )}
+      {picked && (
+        <ConfirmSheet title={`是${picked.name}吗？`} cancel="不是" confirm={busy ? '正在读取' : '是，继续办理'}
+          text={<>{classOf(picked)} · 学号 {picked.student_no}<br />请当面核对学生本人。</>}
+          onClose={() => setPicked(null)} onConfirm={confirm} />
+      )}
+    </section>
   );
 }
 

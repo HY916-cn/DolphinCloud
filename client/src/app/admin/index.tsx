@@ -15,7 +15,7 @@ const SECTIONS: { icon: IconName; label: string; roles: Role[] }[] = [
 export default function Admin() {
   const me = useMe().data!;
   return (
-    <Desk me={me} title="后台管理"
+    <Desk me={me} title="总览"
       notice={<Notice title="管理功能即将开放">以下是你的账号可以使用的管理功能，将在后续版本中逐项开放。</Notice>}
       tiles={SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)))} />
   );

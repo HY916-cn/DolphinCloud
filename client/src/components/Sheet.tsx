@@ -6,8 +6,8 @@ import { signOutCurrent } from '@/lib/accounts';
 
 // Confirmation sheet (design system Sheet): rises from the foot on phones, a centred dialog on wider screens.
 // Esc or a tap on the scrim cancels; closing plays the leaving animation before the sheet is removed.
-export function ConfirmSheet({ title, text, confirm, onConfirm, onClose }: {
-  title: string; text: ReactNode; confirm: string; onConfirm: () => void; onClose: () => void;
+export function ConfirmSheet({ title, text, confirm, cancel = '取消', onConfirm, onClose }: {
+  title: string; text: ReactNode; confirm: string; cancel?: string; onConfirm: () => void; onClose: () => void;
 }) {
   const [leaving, setLeaving] = useState(false);
   const first = useRef<HTMLButtonElement>(null);
@@ -27,7 +27,7 @@ export function ConfirmSheet({ title, text, confirm, onConfirm, onClose }: {
         <h2 className="dc-sheet-title" id="dc-sheet-title">{title}</h2>
         <p className="dc-sheet-text">{text}</p>
         <div className="dc-sheet-actions">
-          <button ref={first} className="dc-btn dc-btn-secondary" type="button" onClick={() => setLeaving(true)}>取消</button>
+          <button ref={first} className="dc-btn dc-btn-secondary" type="button" onClick={() => setLeaving(true)}>{cancel}</button>
           <button className="dc-btn dc-btn-primary" type="button" onClick={onConfirm}>{confirm}</button>
         </div>
       </div>
