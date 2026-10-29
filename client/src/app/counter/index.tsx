@@ -6,15 +6,16 @@ import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
 const BUSINESSES: { href: string; icon: IconName; label: string }[] = [
-  { href: '/counter/deposit', icon: 'deposit', label: '存款' },
-  { href: '/counter/withdraw', icon: 'withdraw', label: '取款' },
-  { href: '/counter/shop', icon: 'exchange', label: '兑换' },
-  { href: '/counter/lookup', icon: 'query', label: '查询' },
+  { href: '/counter/serve?b=deposit', icon: 'deposit', label: '存款' },
+  { href: '/counter/serve?b=withdraw', icon: 'withdraw', label: '取款' },
+  { href: '/counter/serve?b=shop', icon: 'exchange', label: '兑换' },
+  { href: '/counter/serve?b=lookup', icon: 'query', label: '查询' },
   { href: '/counter/reversal', icon: 'transfer', label: '冲正' },
 ];
 const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
 
-// 总览: the counter's businesses and what this teller has done today (RLS shows a teller only their own day).
+// 总览: the counter's businesses (each opens 办理 on its tab; one student can then have several) and what this
+// teller has done today (RLS shows a teller only their own day).
 export default function Overview() {
   const me = useMe().data!;
   const online = useOnline();

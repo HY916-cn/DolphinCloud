@@ -4,17 +4,13 @@ import type { Me } from '@/lib/session';
 import { Icon, link, type IconName } from './ui';
 
 // The pages of this login's identity.
-// The phone TabBar holds at most five; an item marked `phone: false` is reached from the overview there.
-function navItems(me: Me): { href: string; icon: IconName; label: string; exact?: boolean; phone?: false }[] {
+function navItems(me: Me): { href: string; icon: IconName; label: string; exact?: boolean }[] {
   if (me.student) return [{ href: '/student', icon: 'home', label: '首页', exact: true }, { href: '/student/me', icon: 'me', label: '我的' }];
   if (me.roles.includes('teller')) {
     return [
       { href: '/counter', icon: 'home', label: '总览', exact: true },
-      { href: '/counter/deposit', icon: 'deposit', label: '存款' },
-      { href: '/counter/withdraw', icon: 'withdraw', label: '取款' },
-      { href: '/counter/shop', icon: 'exchange', label: '兑换' },
-      { href: '/counter/lookup', icon: 'query', label: '查询' },
-      { href: '/counter/reversal', icon: 'transfer', label: '冲正', phone: false },
+      { href: '/counter/serve', icon: 'coin', label: '办理' },
+      { href: '/counter/reversal', icon: 'transfer', label: '冲正' },
     ];
   }
   return [{ href: '/admin', icon: 'home', label: '总览' }];
@@ -43,7 +39,7 @@ export function Shell({ me, children }: { me: Me; children: ReactNode }) {
         <div className="dc-main"><InFlow.Provider value={setInFlow}>{children}</InFlow.Provider></div>
         {items.length > 1 && !inFlow && (
           <nav className="dc-tabbar" aria-label="主导航">
-            {items.filter((i) => i.phone !== false).map((i) => <a key={i.href} className="dc-tab" aria-current={current(i)} {...link(i.href)}><Icon name={i.icon} />{i.label}</a>)}
+            {items.map((i) => <a key={i.href} className="dc-tab" aria-current={current(i)} {...link(i.href)}><Icon name={i.icon} />{i.label}</a>)}
           </nav>
         )}
       </div>

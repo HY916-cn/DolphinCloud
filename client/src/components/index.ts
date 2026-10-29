@@ -6,3 +6,4 @@ export { Welcome } from './Welcome';
 export { Gate, SignOutBlock } from './Gate';
 export { Desk } from './Desk';
 export { CashCounter, CounterPage, FindStudent, NeedsNetwork, PersonCard, ResultView, Steps, Summary } from './Counter';
+export { DepositPanel, LookupPanel, ReversalPanel, ShopPanel, WithdrawPanel, type Served } from './Business';

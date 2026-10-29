@@ -246,7 +246,7 @@ export function NeedsNetwork({ business }: { business: string }) {
         <span className="dc-empty-icon"><Icon name="warning" /></span>
         <h3>{business}需要联网</h3>
         <p>联网后再办理{business}；离线时可以继续登记存款。</p>
-        <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/counter/deposit')}>去登记存款</a>
+        <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/counter/serve')}>去登记存款</a>
       </div>
     </div>
   );
