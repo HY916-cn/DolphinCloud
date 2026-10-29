@@ -459,7 +459,7 @@ client/
       txns.tsx  ranking.tsx   全部明细、存款排名（M4）
     counter/                  柜台（AppShell，导航：总览 办理 冲正；进入时打开总览）
       _layout.tsx             柜员准入；联网时把名册缓存到本机
-      deposit.tsx  withdraw.tsx  shop.tsx  lookup.tsx  reversal.tsx
+      index.tsx  serve.tsx  reversal.tsx   总览、办理（一位学生连续办理多笔）、冲正
     admin/                    后台（AppShell）
       index.tsx               按角色列出可用的管理功能
       students/  staff/  products/  issues/  txns/  settings/  audit/（M4）
