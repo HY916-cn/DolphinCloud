@@ -20,16 +20,23 @@
 
 ## 颜色
 
-- 页面底色 `surface`，卡片和输入框 `surface-raised`。浅蓝 `cloud-100` 用于余额卡、选中态、引导气泡等“被强调的区域”。
-- `dolphin`（#1f5ff5，取自 logo 的海豚）是唯一的主色：主按钮、选中导航、链接，以及未指定辅助色的图标。按下和焦点用 `dolphin-deep`；`dolphin` 上的文字与图标用 `on-dolphin`。
-- **辅助色**让页面更丰富：海青 `sea`、葡萄紫 `grape`、珊瑚粉 `rose`，加上海豚币的金色，每组有实色（只做装饰）、浅底 `-soft` 和文字色 `-ink`。在组件或其容器上加 `dc-hue-sea` / `dc-hue-grape` / `dc-hue-rose` / `dc-hue-sun`，图标块、标签、进度条、面额卡片就换成这一色系；不加时是海豚蓝。
-  - 辅助色**只区分类别，不表示状态**，也不用在按钮、导航、链接上：可点的主操作永远是 `dolphin`，成功和警示永远是 `success` / `danger`。
-  - 按业务固定配色，全站一致：存款、查询 `sea`；取款、贷款、存折、帮助 `grape`；兑换、预约 `rose`；理财、奖励、海豚币、排名 `sun`；面额 1 / 2 / 5 / 10 元依次为 `sea` / `grape` / `rose` / `sun`。同一行相邻的图标块尽量不同色。
-  - 大面积用色只有两处：余额卡（`dolphin` → `grape-ink` 渐变）和登录页头图（`sea-soft` → `cloud-100` → `grape-soft` 渐变）。
+每种颜色只有一个用途。先问“这是操作、类别还是状态”，再选颜色；“颜色用途”卡片把下表画了出来。
+
+| 颜色 | 类名 / token | 表示 | 用在 |
+| --- | --- | --- | --- |
+| 海豚蓝 | `dolphin` | **操作与导航** | 主按钮、链接、选中的导航、焦点环。全系统只有它表示“可以点、去办理”。 |
+| 海豚蓝（默认） | 不加类 | **账户与服务**：不涉及钱进出 | 查询、明细、存折、预约、帮助、设置、身份的图标 |
+| 海青 | `dc-kind-save`（`sea-soft` / `sea-ink`） | **储蓄**：钱存进来、攒起来 | 存款、储蓄、定期、储蓄目标；柜台存款的面额卡 |
+| 葡萄紫 | `dc-kind-withdraw`（`grape-soft` / `grape-ink`） | **支取**：钱出去，或借入、归还 | 取款、转账、贷款；柜台取款的面额卡 |
+| 珊瑚粉 | `dc-kind-exchange`（`rose-soft` / `rose-ink`） | **兑换**：用海豚币换东西 | 兑换、文创好物 |
+| 金色 | `dc-kind-reward`（`coin-soft` / `coin-ink`） | **海豚币与奖励** | 奖励、闪光点、利息、理财、排名；币图标 |
+| 绿 / 橙红 | `success` / `danger` | **状态**，不是类别 | 办成了、已到账 / 没办成、需要注意。永远配 `success` / `warning` 图标和文字 |
+
+- **类别色只出现在四处**：图标底块（宫格、交易、列表、空状态）、类别标签 `Tag`、进度条 `Progress`、面额卡 `QtyStepper`。类名加在组件或它的容器上，浅底配同色系的图标和文字。
+- **类别色不用于**按钮、导航、链接、正文文字、页面和卡片背景。一项业务在全站只用一种颜色，同一个页面里同类的东西颜色相同（一屏的面额卡全是存款的海青）。
+- **大面积色块只有两处**：余额卡（`dolphin` → `dolphin-deep` 渐变，金色币图标）和登录页头图（`sea-soft` → `cloud-100`，海水到天空）。封面同样只用海豚蓝、云朵色、海青和金色。
+- **底色与文字**：页面底色 `surface`，卡片和输入框 `surface-raised`，选中态和引导气泡用 `cloud-100`。标题和正文 `ink`，次要信息 `ink-muted`；`cloud-100` / `cloud-200` 上的蓝色文字用 `dolphin-deep`，`dolphin` 上的文字与图标用 `on-dolphin`。
 - 云朵色阶 `cloud-100` → `cloud-500` 取自 logo 的层层海浪，只用于背景、海浪和装饰；`cloud-300` 及更深不放文字。
-- 文字：标题和正文 `ink`，次要信息 `ink-muted`。`cloud-100` / `cloud-200` 上的蓝色文字用 `dolphin-deep`。
-- 海豚币用金色 `coin`（奖励高光、封面金币），金币相关文字用 `coin-ink`，放在 `coin-soft` 上。
-- 状态：`success` / `success-soft` 表示办理成功、已到账；`danger` / `danger-soft` 表示没办成或需要注意。两者亮度相近，所以**永远配图标和文字**（`success` / `warning` 图标）。
 - 所有文字与底色的组合 ≥ 4.5:1，边框、焦点环、图标 ≥ 3:1；每个颜色的 usage 写明了它能放在哪些底色上。
 
 ## 字体
@@ -71,6 +78,7 @@
 
 组件是纯 CSS 类（`components/bundle.css`，前缀 `dc-`），在任意框架里写出对应的 HTML 结构即可使用。每个组件的 README 写明结构、何时使用，以及使用者需要提供什么。
 
+- 颜色：`ColorRoles`（每种颜色用于什么）。
 - 布局：`AppShell`（多端外壳与导航）、`ActionBar`（页面操作栏）、`WaveDivider`。
 - 操作与导航：`Button`、`ServiceTile`、`TabBar`、`Tabs`、`Segmented`、`FilterChips`。
 - 表单与选择：`Field`、`Select`、`SearchField`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`Slider`、`QtyStepper`。

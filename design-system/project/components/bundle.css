@@ -7,11 +7,11 @@
 body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 26px; font-weight: 400; background: var(--surface); color: var(--ink); }
 .dc-icon { display: block; flex: none; color: var(--dolphin); }
 
-/* Hue — 辅助色：加在组件或其容器上，图标块、标签、进度条换成这一色系。只区分类别，不表示状态；不加时为海豚蓝 */
-.dc-hue-sea { --hue: var(--sea); --hue-soft: var(--sea-soft); --hue-ink: var(--sea-ink); }
-.dc-hue-grape { --hue: var(--grape); --hue-soft: var(--grape-soft); --hue-ink: var(--grape-ink); }
-.dc-hue-rose { --hue: var(--rose); --hue-soft: var(--rose-soft); --hue-ink: var(--rose-ink); }
-.dc-hue-sun { --hue: var(--coin); --hue-soft: var(--coin-soft); --hue-ink: var(--coin-ink); }
+/* Kind — 业务类别色：按“钱怎么动”给图标底块、类别标签、进度条、面额卡上色（规则见 README“颜色”）。不加时为海豚蓝：账户与服务 */
+.dc-kind-save { --hue-soft: var(--sea-soft); --hue-ink: var(--sea-ink); }
+.dc-kind-withdraw { --hue-soft: var(--grape-soft); --hue-ink: var(--grape-ink); }
+.dc-kind-exchange { --hue-soft: var(--rose-soft); --hue-ink: var(--rose-ink); }
+.dc-kind-reward { --hue-soft: var(--coin-soft); --hue-ink: var(--coin-ink); }
 .dc-tile-icon .dc-icon, .dc-txn-icon .dc-icon, .dc-choice-icon .dc-icon, .dc-list-icon .dc-icon, .dc-empty-icon .dc-icon, .dc-login-points .dc-icon { color: var(--hue-ink, var(--dolphin)); }
 
 /* Button */
@@ -51,7 +51,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-waves i:nth-child(3) { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 24' preserveAspectRatio='none'%3E%3Cpath d='M0 12C40 0 80 0 120 12S200 24 240 12V24H0Z'/%3E%3C/svg%3E") 50px 0 / 220px 12px repeat-x, linear-gradient(#000 0 0) 0 11px / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 24' preserveAspectRatio='none'%3E%3Cpath d='M0 12C40 0 80 0 120 12S200 24 240 12V24H0Z'/%3E%3C/svg%3E") 50px 0 / 220px 12px repeat-x, linear-gradient(#000 0 0) 0 11px / 100% 100% no-repeat; }
 
 /* BalanceCard */
-.dc-balance { position: relative; overflow: hidden; padding: var(--space-5) var(--space-6) 72px; background: linear-gradient(135deg, var(--dolphin) 0%, var(--grape-ink) 100%); border-radius: var(--radius-lg); color: var(--on-dolphin); }
+.dc-balance { position: relative; overflow: hidden; padding: var(--space-5) var(--space-6) 72px; background: linear-gradient(135deg, var(--dolphin) 0%, var(--dolphin-deep) 100%); border-radius: var(--radius-lg); color: var(--on-dolphin); }
 .dc-balance::before { content: ""; position: absolute; top: -72px; right: -48px; width: 220px; height: 220px; border-radius: var(--radius-pill); background: radial-gradient(circle, rgba(255, 255, 255, .22) 0 38%, rgba(255, 255, 255, .1) 39% 62%, transparent 63%); }
 .dc-balance > :not(.dc-waves) { position: relative; }
 .dc-balance-label { display: flex; align-items: center; gap: var(--space-2); font: 700 20px/28px var(--font-sans); }
@@ -382,7 +382,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 /* LoginLayout — 登录页：声呐波纹托起漂浮的海豚，最前一层海浪就是登录面板。手机上一屏放下，不滚动 */
 @keyframes dc-float { 50% { transform: translateY(-6px); } }
 .dc-login { flex: 1; display: flex; flex-direction: column; min-height: 100%; background: var(--surface-raised); }
-.dc-login-hero { position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: var(--space-6) var(--space-5) 60px; background: linear-gradient(160deg, var(--sea-soft) 0%, var(--cloud-100) 45%, var(--grape-soft) 100%); text-align: center; }
+.dc-login-hero { position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: var(--space-6) var(--space-5) 60px; background: linear-gradient(160deg, var(--sea-soft) 0%, var(--cloud-100) 60%); text-align: center; }
 .dc-login-mark { display: grid; place-items: center; width: 80px; height: 80px; margin-bottom: var(--space-4); border-radius: var(--radius-pill); background: var(--surface-raised); box-shadow: 0 0 0 10px rgba(255, 255, 255, .6), 0 0 0 26px rgba(255, 255, 255, .32), 0 0 0 46px rgba(255, 255, 255, .16); }
 .dc-login-mark img { width: 76px; height: 76px; object-fit: contain; animation: dc-float 4s ease-in-out infinite; }
 .dc-login-hero h1 { margin: 0; font: 800 30px/38px var(--font-sans); letter-spacing: .08em; color: var(--ink); }
