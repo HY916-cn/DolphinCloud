@@ -33,8 +33,20 @@ restore() {
   echo "Restored $file"
 }
 
+# On the first start dolphin-migrate takes a minute; a call made meanwhile would run against a half-built schema.
+ready() {
+  local want=$(ls /opt/dolphin/migrations/*.sql | wc -l)
+  for _ in $(seq 1 90); do
+    [ "$(psql_ -qAt -c 'select count(*) from public.app_migrations' 2>/dev/null)" = "$want" ] && return
+    sleep 2
+  done
+  echo "The database is still being set up; try again in a minute." >&2
+  exit 1
+}
+
 create_admin() {
   local login="${1:?usage: dolphin create-admin <login>}"
+  ready
   psql_ -qAt -v login="$login" <<'SQL'
 select 'Created ' || lower(:'login') || ' (teacher): ' || app_private.create_admin(:'login')
   || E'\nSign in with the default password ' || app_private.default_password() || ' and set a new one.';
