@@ -441,7 +441,7 @@ create table audit_log (
 | 数据 | `@supabase/supabase-js`、`@tanstack/react-query` |
 | 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成，内联为 `<svg class="dc-icon">`，颜色跟随文字 |
 | 字体 | Nunito Sans 与思源黑体（Noto Sans SC）的可变字体（`@fontsource-variable`，OFL），构建时复制到站点 `/fonts/`，不依赖外部字体服务；中文按 unicode-range 分片，页面只下载用到的字 |
-| 离线 | Workbox 生成 Service Worker（预缓存应用外壳与拉丁字体，`/config.js` 网络优先并留存一份）；`idb-keyval` 在 IndexedDB 中存离线队列和名册；Web App Manifest 支持添加到主屏幕 |
+| 离线 | Workbox 生成 Service Worker（预缓存应用外壳与拉丁字体，`/config.js` 网络优先并留存一份）；`idb-keyval` 在 IndexedDB 中存离线队列和名册；Web App Manifest 支持添加到主屏幕。部署新版本后，页面先从旧缓存打开，新的 Service Worker 接管时自动刷新一次；Caddy 对带哈希的 `/_expo/static/*` 设长期缓存，其余静态文件 `no-cache`，每次向服务器确认 |
 | Excel | SheetJS 0.20.3（从官方 CDN 发布的 tarball 安装并锁定版本），只在导入名册页按需加载 |
 | 测试 | Node 自带的类型擦除运行 `src/lib/*.test.mjs`（单元）、Playwright（端到端，`client/e2e`） |
 
