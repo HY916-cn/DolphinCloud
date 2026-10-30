@@ -53,7 +53,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 /* BalanceCard */
 .dc-balance { position: relative; overflow: hidden; padding: var(--space-5) var(--space-6) 72px; background: var(--dolphin); border-radius: var(--radius-lg); color: var(--on-dolphin); }
 .dc-balance-label { display: flex; align-items: center; gap: var(--space-2); font: 700 20px/28px var(--font-sans); }
-.dc-balance-label .dc-icon { width: 36px; height: 36px; color: var(--coin); }
+.dc-balance-label .dc-icon { width: 36px; height: 36px; color: inherit; }
 .dc-balance-amount { margin: var(--space-3) 0 var(--space-2); font: 800 40px/48px var(--font-sans); font-variant-numeric: tabular-nums; }
 .dc-balance-amount span { margin-left: var(--space-2); font: 600 16px/26px var(--font-sans); }
 .dc-balance-split { display: flex; flex-wrap: wrap; gap: var(--space-2); }
