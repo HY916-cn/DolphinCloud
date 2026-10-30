@@ -28,9 +28,10 @@ test('add a product, stock it in and out, then unlist it', async ({ page }) => {
 
   await expect(page.locator('section[aria-label="库存"] .dc-kv')).toContainText('0件');
 
-  // 出入库: stock in 20, then take 5 out, which needs a reason.
+  // 出入库 opens with one piece of this product picked: stock in 20, then take 5 out, which needs a reason.
   await page.getByRole('link', { name: '去出入库' }).click();
-  await expect(page).toHaveURL(/\/admin\/stock$/);
+  await expect(page).toHaveURL(/\/admin\/stock\?product=[0-9a-f-]{36}$/);
+  await expect(page.getByLabel(`${name}入库数量`)).toHaveValue('1');
   await page.getByLabel(`${name}入库数量`).fill('20');
   await page.getByRole('button', { name: '确认入库' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('已入库 1 种商品，共 20 件');
@@ -43,6 +44,11 @@ test('add a product, stock it in and out, then unlist it', async ({ page }) => {
   await page.getByRole('button', { name: '确认出库' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('已出库 1 种商品，共 5 件');
   await expect(page.locator('section[aria-label="最近库存变动"] .dc-txn').first()).toContainText('−5');
+
+  // The movement names its product as a link back to it.
+  await page.locator('section[aria-label="最近库存变动"] .dc-txn').first().getByRole('link', { name }).click();
+  await expect(page).toHaveURL(/\/admin\/products\/[0-9a-f-]{36}$/);
+  await expect(page.locator('section[aria-label="库存"] .dc-kv')).toContainText('15件');
 
   await page.locator('.dc-nav-item', { hasText: '商品' }).click();
   await expect(row).toContainText('价格 3 HTB · 库存 15');

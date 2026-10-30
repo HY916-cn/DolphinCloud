@@ -94,3 +94,43 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await expect(page.locator('.dc-notice')).toContainText('银行管理员只有一个');
   await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
 });
+
+test('总览 links the students who have not set a new password to the filtered 学生 list', async ({ page }) => {
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.locator('section[aria-label="待办"] .dc-list-link', { hasText: '名学生还未设置新密码' }).click();
+  await expect(page).toHaveURL(/\/admin\/students\?filter=waiting$/);
+  const chip = page.getByRole('button', { name: /^未设置密码/ });
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  const rows = page.getByRole('list', { name: '学生' }).locator('.dc-list-link');
+  await expect(rows.filter({ hasText: '王小雨' })).toHaveCount(1);
+  await expect(rows.filter({ hasNotText: '未设置密码' })).toHaveCount(0);
+  await chip.click();
+  await expect(rows.filter({ hasText: '张小明' })).toHaveCount(1);
+});
+
+// 20269001 was imported above with an opening balance of 30; nothing after this relies on it.
+test('学生 → 查看全部流水 shows only that student, and the teacher reverses the opening balance there', async ({ page }) => {
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/students/20269001');
+  await page.getByRole('link', { name: '查看全部流水' }).click();
+  await expect(page).toHaveURL(/\/admin\/txns\?student=20269001$/);
+  await expect(page.getByPlaceholder('全部学生')).toHaveValue('20269001');
+  const list = page.locator('section[aria-label="流水"]');
+  const rows = list.locator('.dc-txn');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('期初余额');
+  await expect(rows.first()).toContainText('学号 20269001');
+
+  await rows.first().click();
+  await list.getByRole('button', { name: '冲正', exact: true }).click();
+  await page.locator('.dc-sheet .dc-check', { hasText: '金额录错' }).click();
+  await confirmIn(page, '确认冲正');
+  await expect(page.locator('.dc-notice-success')).toContainText('冲正成功');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: '冲正 · 金额录错' })).toHaveCount(1);
+  const original = list.locator('details', { has: page.locator('.dc-txn-title', { hasText: '期初余额（已冲正）' }) });
+  await expect(original.locator('.dc-kv')).toContainText('已冲正 · 金额录错');
+  await expect(original.getByRole('button', { name: '冲正', exact: true })).toHaveCount(0);
+});

@@ -8,12 +8,9 @@ import { offlineQueue, type RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { searchRoster } from '@/lib/search';
 import { useMe } from '@/lib/session';
-import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
 import { ListLoading } from './Skeleton';
 import { Icon, link, Notice } from './ui';
-
-const css = (vars: Record<string, string | number>) => vars as React.CSSProperties;
 
 // QtyStepper: one card per face value, two columns, counts entered with − / + or typed.
 export function CashCounter({ faces, counts, onChange, kind }: { faces: number[]; counts: Counts; onChange: (c: Counts) => void; kind: string }) {
@@ -55,56 +52,49 @@ export function Summary({ rows, total }: { rows: [string, ReactNode][]; total?: 
   );
 }
 
-// Result: the large outcome, the amounts, and the details of what was done; one action continues.
-export function ResultView({ title, lead, rows, next = '办理下一位', onNext }: {
-  title: string; lead: ReactNode; rows: [string, ReactNode][]; next?: string; onNext: () => void;
-}) {
-  return (
-    <>
-      <section className="dc-result">
-        <span className="dc-result-badge dc-pop"><Icon name="success" /></span>
-        <h1 className="display dc-enter" style={css({ '--i': 1 })}>{title}</h1>
-        <p className="dc-result-lead dc-enter" style={css({ '--i': 2 })}>{lead}</p>
-        <div className="dc-card dc-enter" style={css({ '--i': 3 })}><Summary rows={rows} /></div>
-      </section>
-      <div className="dc-actions">
-        <button className="dc-btn dc-btn-primary" type="button" autoFocus onClick={onNext}>{next}</button>
-      </div>
-    </>
-  );
-}
-
-// Step 1 of every business: search the roster by name, pinyin, initials, class or number, pick the student, and
-// confirm it is them. Online the counter then reads their balance; offline (deposits only) it goes on without one.
-export function FindStudent({ onFound, offline }: { onFound: (s: Student) => void; offline?: boolean }) {
+// Step 1 of a visit: search the roster by name, pinyin, initials, class or number and tap the student; the next page
+// shows them large for the teller to check against the student in front of them. Online the counter reads their
+// balance; offline (deposits only) it goes on without one. With an empty search, `recent` offers the students this
+// teller served today.
+export function FindStudent({ onFound, offline, recent = [] }: { onFound: (s: Student) => void; offline?: boolean; recent?: RosterEntry[] }) {
   const me = useMe().data!;
   const roster = useRoster(me.profile.id);
   const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState<RosterEntry | null>(null);
+  const [reading, setReading] = useState<string | null>(null);
   const [error, setError] = useState<{ title: string; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
   const found = useMemo(() => searchRoster(roster.data ?? [], query), [roster.data, query]);
 
-  async function confirm() {
-    if (busy) return;
-    const s = picked!;
+  async function pick(s: RosterEntry) {
+    if (reading) return;
     if (offline) return onFound({ ...s, division: 'primary', cohort: 0, balance: null, withdrawn_today: null });
-    setBusy(true);
+    setReading(s.student_no);
     setError(null);
     try {
       onFound(await lookupStudent(s.student_no));
     } catch (err) {
-      setPicked(null);
       setError(explain(err instanceof AppError ? err.code : '', err instanceof AppError ? err.detail : {}));
-    } finally {
-      setBusy(false);
+      setReading(null);
     }
   }
 
+  const list = (rows: RosterEntry[], label: string) => (
+    <ul className="dc-list" aria-label={label}>
+      {rows.map((s) => (
+        <li key={s.student_no}>
+          <a className="dc-list-link" href={`#${s.student_no}`} aria-busy={reading === s.student_no} onClick={(e) => { e.preventDefault(); pick(s); }}>
+            <span className="dc-list-icon"><Icon name="me" /></span>
+            <span>{s.name}<small className="dc-top-sub">{classOf(s)} · 学号 {s.student_no}</small></span>
+            {reading === s.student_no ? <small className="dc-top-sub">正在读取</small> : <Icon name="next" />}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <section className="dc-stack">
-      {/* A form, so Enter or the phone keyboard's search key picks a single match. */}
-      <form role="search" onSubmit={(e) => { e.preventDefault(); if (found.length === 1) setPicked(found[0]); }}>
+      {/* A form, so Enter or the phone keyboard's search key takes a single match. */}
+      <form role="search" onSubmit={(e) => { e.preventDefault(); if (found.length === 1) pick(found[0]); }}>
       <label className="dc-search">
         <Icon name="query" />
         <input type="search" aria-label="搜索学生" placeholder="输入姓名、拼音首字母、班级或学号" autoComplete="off" autoFocus
@@ -114,35 +104,25 @@ export function FindStudent({ onFound, offline }: { onFound: (s: Student) => voi
       </form>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
       {!query.trim() ? (
-        <div className="dc-empty">
-          <span className="dc-empty-icon"><Icon name="me" /></span>
-          <h3>查找学生</h3>
-          <p>姓名、拼音首字母、班级、学号都能搜<br />例如 张小明 · zxm · 四年级1班{offline && <><br />离线时不显示余额</>}</p>
-        </div>
+        recent.length ? (
+          <>
+            <p className="dc-list-title">今天办理过的学生</p>
+            {list(recent, '今天办理过的学生')}
+          </>
+        ) : (
+          <div className="dc-empty">
+            <span className="dc-empty-icon"><Icon name="me" /></span>
+            <h3>查找学生</h3>
+            <p>姓名、拼音首字母、班级、学号都能搜<br />例如 张小明 · zxm · 四年级1班{offline && <><br />离线时不显示余额</>}</p>
+          </div>
+        )
       ) : roster.isPending ? <ListLoading rows={3} label="正在加载名册" />
-      : found.length ? (
-        <ul className="dc-list" aria-label="搜索结果">
-          {found.map((s) => (
-            <li key={s.student_no}>
-              <a className="dc-list-link" href={`#${s.student_no}`} onClick={(e) => { e.preventDefault(); setPicked(s); }}>
-                <span className="dc-list-icon"><Icon name="me" /></span>
-                <span>{s.name}<small className="dc-top-sub">{classOf(s)} · 学号 {s.student_no}</small></span>
-                <Icon name="next" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
+      : found.length ? list(found, '搜索结果') : (
         <div className="dc-empty">
           <span className="dc-empty-icon"><Icon name="query" /></span>
           <h3>没有找到「{query.trim()}」</h3>
           <p>换个写法试试：姓名、拼音首字母、班级或学号。</p>
         </div>
-      )}
-      {picked && (
-        <ConfirmSheet title={`是${picked.name}吗？`} cancel="不是" confirm={busy ? '正在读取' : '是，继续办理'}
-          text={<>{classOf(picked)} · 学号 {picked.student_no}<br />请当面核对学生本人。</>}
-          onClose={() => setPicked(null)} onConfirm={confirm} />
       )}
     </section>
   );
@@ -217,7 +197,7 @@ export function NeedsNetwork({ business }: { business: string }) {
         <span className="dc-empty-icon"><Icon name="warning" /></span>
         <h3>{business}需要联网</h3>
         <p>联网后再办理{business}；离线时可以继续登记存款。</p>
-        <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/counter/serve')}>去登记存款</a>
+        <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/counter')}>去登记存款</a>
       </div>
     </div>
   );

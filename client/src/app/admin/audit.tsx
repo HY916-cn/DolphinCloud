@@ -1,7 +1,9 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { Desk, Icon, Notice, TxnListLoading } from '@/components';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Desk, Icon, link, Notice, sectionsFor, TxnListLoading } from '@/components';
 import { describeCash, type Counts } from '@/lib/cash';
 import { formatTime } from '@/lib/format';
+import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
 const PAGE = 50;
@@ -10,6 +12,8 @@ type Entry = {
   before: unknown; after: unknown; ip: string | null; device_id: string | null;
 };
 type Row = Record<string, unknown>;
+// Names of the actors and of the logins entries are about; `staff` holds the staff logins among them.
+type People = { names: Map<string, string>; staff: Set<string> };
 
 // Function logs (PHASE-1.md §5.5) and the trigger rows "<table>.<insert|update|delete>" (app_private.audit_row).
 const ACTIONS: Record<string, string> = {
@@ -45,7 +49,20 @@ function label(e: Entry) {
   return ACTIONS[e.action] ?? (TABLES[table] && OPS[op] ? `${OPS[op]}${TABLES[table]}` : e.action);
 }
 
-const profileOf = (e: Entry) => (e.target?.startsWith('profiles:') ? e.target.slice(9) : null);
+// The login an entry is about: profiles:<id>, or user_roles:<user_id> for a change of role.
+const profileOf = (e: Entry) => e.target?.match(/^(?:profiles|user_roles):(.+)$/)?.[1] ?? null;
+
+// The page of the entry's object, when there is one: the staff login, the student, the product, or for a reversal
+// the student's 流水.
+type Target = { href: string; label: string } | null;
+function targetOf(e: Entry, staff: Set<string>): Target {
+  const id = profileOf(e);
+  if (id) return staff.has(id) ? { href: `/admin/staff/${id}`, label: '查看账号' } : null;
+  if (e.target?.startsWith('students:')) return { href: `/admin/students/${e.target.slice(9)}`, label: '查看学生' };
+  if (e.target?.startsWith('products:')) return { href: `/admin/products/${e.target.slice(9)}`, label: '查看商品' };
+  const no = e.action === 'txn.reverse' ? asRow(e.before).student_no : null;
+  return no ? { href: `/admin/txns?student=${no}`, label: '查看学生流水' } : null;
+}
 
 // What the entry is about, in the row's own words: the batch, student, product, login or setting; for a reversal the
 // original transaction, for a password reset the login.
@@ -78,31 +95,58 @@ function changes(e: Entry): [string, string][] {
     });
 }
 
-// 日志 (teacher, sysadmin): the audit log, newest first, 50 at a time; a row opens to show what changed.
+// 日志 (teacher, sysadmin): the audit log, newest first, 50 at a time; a row opens to show what changed and links to
+// its object. ?actor=<profile id> shows one login's entries.
 export default function Audit() {
+  const { actor } = useLocalSearchParams<{ actor?: string }>();
+  const me = useMe().data!;
+  // Only links to pages this login may open.
+  const allowed = (href: string) => sectionsFor(me).some((s) => href.startsWith(s.href));
+  const actorName = useQuery({
+    queryKey: ['profile-name', actor],
+    enabled: !!actor,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('display_name').eq('id', actor!).maybeSingle();
+      if (error) throw error;
+      return data?.display_name ?? '已删除的账号';
+    },
+  });
   const list = useInfiniteQuery({
-    queryKey: ['audit-log'],
+    queryKey: ['audit-log', actor ?? null],
     initialPageParam: 0,
-    getNextPageParam: (last: { entries: Entry[]; names: Map<string, string> }, pages) => (last.entries.length === PAGE ? pages.length : undefined),
+    getNextPageParam: (last: { entries: Entry[] } & People, pages) => (last.entries.length === PAGE ? pages.length : undefined),
     queryFn: async ({ pageParam }) => {
-      const { data, error } = await supabase.from('audit_log').select('id,at,actor_id,action,target,before,after,ip,device_id')
-        .order('id', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
+      let q = supabase.from('audit_log').select('id,at,actor_id,action,target,before,after,ip,device_id');
+      if (actor) q = q.eq('actor_id', actor);
+      const { data, error } = await q.order('id', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
       if (error) throw error;
       const entries = data as Entry[];
       const ids = [...new Set(entries.flatMap((e) => [e.actor_id, profileOf(e)].filter((id): id is string => !!id)))];
       const names = new Map<string, string>();
+      const staff = new Set<string>();
       if (ids.length) {
-        const { data: people, error: e } = await supabase.from('profiles').select('id,display_name').in('id', ids);
+        const { data: people, error: e } = await supabase.from('profiles').select('id,display_name,login_kind').in('id', ids);
         if (e) throw e;
-        for (const p of people) names.set(p.id, p.display_name);
+        for (const p of people) {
+          names.set(p.id, p.display_name);
+          if (p.login_kind === 'staff') staff.add(p.id);
+        }
       }
-      return { entries, names };
+      return { entries, names, staff };
     },
   });
   const pages = list.data?.pages;
 
   return (
     <Desk title="日志">
+      {actor && (
+        <div className="dc-chips" role="group" aria-label="筛选">
+          <button className="dc-chip" type="button" aria-pressed="true" aria-label={`取消只看 ${actorName.data ?? ''} 的操作`}
+            onClick={() => router.replace('/admin/audit')}>
+            <Icon name="close" />操作人：{actorName.data ?? '…'}
+          </button>
+        </div>
+      )}
       <section className="dc-stack dc-enter" aria-label="操作日志">
         {list.error && !pages ? (
           <Notice tone="danger" title="暂时无法读取日志">请检查网络后刷新页面。</Notice>
@@ -111,9 +155,10 @@ export default function Audit() {
         ) : pages[0].entries.length ? (
           <>
             <ul className="dc-txns">
-              {pages.flatMap(({ entries, names }) => entries.map((e) => ({ e, names }))).map(({ e, names }, i) => (
-                <AuditLine key={e.id} first={!i} entry={e} names={names} />
-              ))}
+              {pages.flatMap((p) => p.entries.map((e) => ({ e, p }))).map(({ e, p }, i) => {
+                const to = targetOf(e, p.staff);
+                return <AuditLine key={e.id} first={!i} entry={e} names={p.names} to={to && allowed(to.href) ? to : null} />;
+              })}
             </ul>
             {list.isFetchingNextPage && <TxnListLoading rows={2} />}
           </>
@@ -121,7 +166,7 @@ export default function Audit() {
           <div className="dc-card">
             <div className="dc-empty">
               <span className="dc-empty-icon"><Icon name="inbox" /></span>
-              <h3>还没有操作日志</h3>
+              <h3>{actor ? '这个账号还没有操作日志' : '还没有操作日志'}</h3>
               <p>导入名册、修改参数等操作会记录在这里。</p>
             </div>
           </div>
@@ -135,27 +180,33 @@ export default function Audit() {
   );
 }
 
-function AuditLine({ entry, names, first }: { entry: Entry; names: Map<string, string>; first: boolean }) {
+function AuditLine({ entry, names, first, to }: { entry: Entry; names: Map<string, string>; first: boolean; to: Target }) {
   const actor = entry.actor_id ? names.get(entry.actor_id) ?? '已删除的账号' : '系统';
   const what = subject(entry, names);
   const diff = changes(entry);
+  const open = diff.length > 0 || !!to;
   const where = [entry.device_id && `设备 ${entry.device_id.slice(0, 8)}`, entry.ip && `IP ${entry.ip}`].filter(Boolean).join(' · ');
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>
-        <summary className="dc-txn" style={{ listStyle: 'none', cursor: diff.length ? 'pointer' : 'default' }}>
+        <summary className="dc-txn" style={{ listStyle: 'none', cursor: open ? 'pointer' : 'default' }}>
           <span className="dc-txn-icon"><Icon name={entry.action.startsWith('check.') ? 'warning' : 'bell'} /></span>
           <div className="dc-txn-main">
             <div className="dc-txn-title">{label(entry)}{what && ` · ${what}`}</div>
             <div className="dc-txn-time">{actor} · {formatTime(entry.at)}</div>
             {where && <div className="dc-txn-time">{where}</div>}
           </div>
-          {diff.length > 0 && <span style={{ width: 24, flex: 'none' }}><Icon name="expand" /></span>}
+          {open && <span style={{ width: 24, flex: 'none' }}><Icon name="expand" /></span>}
         </summary>
-        {diff.length > 0 && (
-          <dl className="dc-kv" style={{ paddingLeft: 'calc(52px + var(--space-3))' }}>
-            {diff.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-          </dl>
+        {open && (
+          <div className="dc-stack" style={{ paddingLeft: 'calc(52px + var(--space-3))', paddingBottom: 'var(--space-3)' }}>
+            {diff.length > 0 && (
+              <dl className="dc-kv">
+                {diff.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+              </dl>
+            )}
+            {to && <div><a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(to.href)}>{to.label}<Icon name="next" /></a></div>}
+          </div>
         )}
       </details>
     </li>

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, KvLoading, Notice, PersonLoading, SkeletonGroup, Summary } from '@/components';
+import { ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -11,7 +11,8 @@ import { useStaff } from '@/lib/staff';
 type Action = { title: string; text: string; confirm: string; fn: string; args: Record<string, unknown>; done: string };
 
 // One staff login: correct its role, reset its password, stop or restore it. Only a teacher manages a teacher's login,
-// and nobody stops their own (PHASE-1.md §6.4).
+// and nobody stops their own (PHASE-1.md §6.4). Links to the transactions a teller handled (流水 is the teacher's) and
+// to the login's 日志.
 export default function StaffLogin() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe().data!;
@@ -60,6 +61,20 @@ export default function StaffLogin() {
                 ['创建时间', formatTime(p.created_at)],
               ]} />
             </div>
+            <ul className="dc-list" aria-label="相关记录">
+              {p.role === 'teller' && me.roles.includes('teacher') && (
+                <li>
+                  <a className="dc-list-link" {...link(`/admin/txns?operator=${p.id}`)}>
+                    <span className="dc-list-icon"><Icon name="passbook" /></span><span>查看他办理的流水</span><Icon name="next" />
+                  </a>
+                </li>
+              )}
+              <li>
+                <a className="dc-list-link" {...link(`/admin/audit?actor=${p.id}`)}>
+                  <span className="dc-list-icon"><Icon name="bell" /></span><span>操作日志</span><Icon name="next" />
+                </a>
+              </li>
+            </ul>
           </div>
           {canManage ? (
             <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>

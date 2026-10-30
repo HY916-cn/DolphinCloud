@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, KvLoading, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
+import { ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -11,7 +11,8 @@ import { DIVISION, STATUS, useStudent } from '@/lib/students';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
 
-// One student: who they are, whether they have signed in, the latest movements (teacher), and 重置密码.
+// One student: who they are, whether they have signed in, the latest movements with the way to all of them in 流水
+// (teacher), and 重置密码.
 export default function Student() {
   const { no } = useLocalSearchParams<{ no: string }>();
   const me = useMe().data!;
@@ -72,7 +73,10 @@ export default function Student() {
           </div>
           {teacher && (
             <section className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
-              <div className="dc-section-head"><h2 className="heading">最近交易</h2></div>
+              <div className="dc-section-head">
+                <h2 className="heading">最近交易</h2>
+                <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/txns?student=${s.student_no}`)}>查看全部流水<Icon name="next" /></a>
+              </div>
               {!txns.data ? <TxnListLoading /> : txns.data.length ? <TxnList items={txns.data} /> : <p className="dc-top-sub">还没有交易记录。</p>}
             </section>
           )}

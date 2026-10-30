@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 type Row = { id: string; name: string; price: number; stock: number; listed: boolean; image_path: string | null };
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
-// 商品: every product, listed ones first; a row opens the product to edit it or stock it in (PHASE-1.md §1.1).
+// 商品: every product, listed ones first, those out of stock marked 缺货; a row opens the product to edit it, 出入库
+// stocks several in or out at once (PHASE-1.md §1.1).
 export default function Products() {
   const products = useQuery({
     queryKey: ['products', 'all'],
@@ -21,7 +22,10 @@ export default function Products() {
     <Desk title="商品">
       <div className="dc-section-head">
         <p className="dc-top-sub">{products.data && `共 ${products.data.length} 件商品，${products.data.filter((p) => p.listed).length} 件已上架`}</p>
-        <a className="dc-btn dc-btn-primary dc-btn-sm" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a>
+        <span style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/stock')}><Icon name="inbox" />出入库</a>
+          <a className="dc-btn dc-btn-primary dc-btn-sm" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a>
+        </span>
       </div>
       {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
         : !products.data ? <ListLoading label="正在加载商品" />
@@ -42,7 +46,11 @@ export default function Products() {
                     {p.image_path ? <img src={imageUrl(p.image_path)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <Icon name="exchange" />}
                   </span>
-                  <span>{p.name}<small className="dc-top-sub">价格 {formatAmount(p.price)} HTB · 库存 {p.stock}</small></span>
+                  <span>
+                    {p.name}
+                    {p.stock === 0 && <> <span className="dc-tag dc-tag-danger"><Icon name="warning" />缺货</span></>}
+                    <small className="dc-top-sub">价格 {formatAmount(p.price)} HTB · 库存 {p.stock}</small>
+                  </span>
                   <span className={`dc-tag ${p.listed ? '' : 'dc-tag-danger'}`} style={{ flex: 'none' }}>
                     <Icon name={p.listed ? 'check' : 'warning'} />{p.listed ? '已上架' : '已下架'}
                   </span>

@@ -1,25 +1,25 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { cashTotal, describeCash, makeChange, nonEmpty, type Counts } from '@/lib/cash';
-import { classOf, deposit, newId, purchase, reverseTxn, useSettings, withdraw, type Student, type TxnResult } from '@/lib/counter';
+import { classOf, deposit, newId, purchase, useSettings, withdraw, type Student, type TxnResult } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { formatAmount, formatSigned } from '@/lib/format';
 import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
-import { KINDS } from '@/lib/txns';
 import { CashCounter, Summary } from './Counter';
-import { ConfirmSheet } from './Sheet';
-import { ListLoading, TilesLoading } from './Skeleton';
+import { TilesLoading } from './Skeleton';
 import { Icon, Notice } from './ui';
 
 // The counter's businesses for one student (PHASE-1.md §7.5, design system CounterServicePage). Each panel is the
 // entry on the left and the 办理单 on the right: the businesses already done in this visit, the one being entered,
-// and the balance after it. A finished business goes to onDone and the panel starts again empty; onEnd ends the visit.
-// `amount` is the change to the account (null when it is untouched: a cash exchange, an offline deposit's balance).
-export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null };
-type Props = { student: Student; served: Served[]; onDone: (s: Served) => void; onEnd: () => void };
+// and the balance after it. The main button does the business at once (no second confirmation): a mistake is put
+// right with 冲正 on its line in the 办理单. A finished business goes to onDone and the panel starts again empty;
+// onEnd ends the visit. `amount` is the change to the account (null when it is untouched: a cash exchange, an
+// offline deposit's balance); `txnId` is null until an offline deposit is uploaded.
+export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean };
+type Props = { student: Student; served: Served[]; onDone: (s: Served) => void; onEnd: () => void; onReverse: (s: Served) => void };
 type Problem = { title: string; text: string } | null;
 type Current = { label: string; detail: string; amount: string } | null;
 
@@ -30,16 +30,25 @@ const failure = (e: unknown) => {
 
 export const servedAmount = (s: Served) => (s.amount === null ? '现金' : formatSigned(s.amount));
 
-// 办理单: what this visit has done (newest last, popping in), the business being entered, the balance after it,
-// and the one way to end the visit.
-function Receipt({ served, current, after, onEnd }: { served: Served[]; current: Current; after: number | null; onEnd: () => void }) {
+// 办理单: what this visit has done (newest last, popping in, each with its 冲正), the business being entered, the
+// balance after it, and the one way to end the visit.
+function Receipt({ served, current, after, onEnd, onReverse }: {
+  served: Served[]; current: Current; after: number | null; onEnd: () => void; onReverse: (s: Served) => void;
+}) {
   return (
     <aside className="dc-card is-sticky" aria-label="办理单">
       <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>办理单</h2>
       <dl className="dc-kv" aria-live="polite">
         {served.map((s, i) => (
-          <div key={i} className="dc-pop">
-            <dt>{s.label}<small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small></dt>
+          <div key={i} className="dc-pop" style={s.reversed ? { opacity: 0.6 } : undefined}>
+            <dt>
+              {s.label}{s.reversed && '（已冲正）'}
+              <small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small>
+              {s.txnId && !s.reversed && (
+                <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" style={{ marginTop: 'var(--space-1)', paddingInline: 0 }}
+                  aria-label={`冲正${s.label}`} onClick={() => onReverse(s)}><Icon name="transfer" />冲正</button>
+              )}
+            </dt>
             <dd>{servedAmount(s)}</dd>
           </div>
         ))}
@@ -49,7 +58,7 @@ function Receipt({ served, current, after, onEnd }: { served: Served[]; current:
       </dl>
       {served.length > 0 && (
         <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" style={{ marginTop: 'var(--space-4)' }} onClick={onEnd}>
-          结束办理（已办 {served.length} 笔）
+          结束办理（已办 {served.filter((s) => !s.reversed).length} 笔）
         </button>
       )}
     </aside>
@@ -75,14 +84,13 @@ function Bar({ busy, ready, label, onClick, totalLabel, total, note }: {
 
 // 存款: count the notes by face value. Offline, or when the call gets no answer, the deposit is registered on this
 // device and uploaded later under the same id (§7.7).
-export function DepositPanel({ student, served, onDone, onEnd }: Props) {
+export function DepositPanel({ student, served, onDone, onEnd, onReverse }: Props) {
   const me = useMe().data!;
   const online = useOnline();
   const { denominations } = useSettings();
   const queryClient = useQueryClient();
   const [counts, setCounts] = useState<Counts>({});
   const [id, setId] = useState(newId);
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const amount = cashTotal(counts);
@@ -90,14 +98,14 @@ export function DepositPanel({ student, served, onDone, onEnd }: Props) {
 
   function finish(result: TxnResult | null) {
     onDone(result
-      ? { label: '存款', detail: describeCash(counts), amount, txnNo: result.txn_no }
-      : { label: '存款（离线登记）', detail: describeCash(counts), amount, txnNo: null });
+      ? { label: '存款', detail: describeCash(counts), amount, txnNo: result.txn_no, txnId: result.id }
+      : { label: '存款（离线登记）', detail: describeCash(counts), amount, txnNo: null, txnId: null });
     setCounts({});
     setId(newId());
   }
 
   async function submit() {
-    setConfirming(false);
+    if (busy) return; // the same id is idempotent on the server too
     setBusy(true);
     setError(null);
     const queue = () => offlineQueue.add({
@@ -131,27 +139,22 @@ export function DepositPanel({ student, served, onDone, onEnd }: Props) {
           <h2 className="heading">按面额录入张数</h2>
           <CashCounter faces={denominations} counts={counts} onChange={setCounts} kind="dc-kind-save" />
         </section>
-        <Receipt served={served} onEnd={onEnd} after={after}
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={after}
           current={amount > 0 ? { label: '存款', detail: describeCash(counts), amount: formatSigned(amount) } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar busy={busy} ready={amount > 0} onClick={() => setConfirming(true)}
-        label={busy ? '正在存款' : amount > 0 ? '确认存款' : '请录入张数'}
+      <Bar busy={busy} ready={amount > 0} onClick={submit}
+        label={busy ? '正在存款' : amount > 0 ? `确认存款 ${formatAmount(amount)} HTB` : '请录入张数'}
         totalLabel="合计存入" total={amount} note={after !== null && `存入后余额 ${formatAmount(after)} HTB`} />
-      {confirming && (
-        <ConfirmSheet title="确认存款" confirm="确认存款" onClose={() => setConfirming(false)} onConfirm={submit}
-          text={<>为 <b>{student.name}</b> 存款 <b>{formatAmount(amount)} HTB</b>{online ? '' : '（离线登记，联网后入账）'}</>} />
-      )}
     </>
   );
 }
 
 // 取款: the amount, the notes to pay out, and what is still allowed today.
-export function WithdrawPanel({ student, served, onDone, onEnd }: Props) {
+export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Props) {
   const settings = useSettings();
   const [text, setText] = useState('');
   const [id, setId] = useState(newId);
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const amount = Number(text) || 0;
@@ -170,12 +173,12 @@ export function WithdrawPanel({ student, served, onDone, onEnd }: Props) {
   const payout = describeCash(makeChange(amount, settings.denominations));
 
   async function submit() {
-    setConfirming(false);
+    if (busy) return; // the same id is idempotent on the server too
     setBusy(true);
     setError(null);
     try {
       const result = await withdraw(id, student.student_no, amount);
-      onDone({ label: '取款', detail: `配钞 ${payout}`, amount: -amount, txnNo: result.txn_no });
+      onDone({ label: '取款', detail: `配钞 ${payout}`, amount: -amount, txnNo: result.txn_no, txnId: result.id });
       setText('');
       setId(newId());
     } catch (e) {
@@ -201,17 +204,13 @@ export function WithdrawPanel({ student, served, onDone, onEnd }: Props) {
             </span>
           </label>
         </section>
-        <Receipt served={served} onEnd={onEnd} after={Math.max(balance - amount, 0)}
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={Math.max(balance - amount, 0)}
           current={amount ? { label: '取款', detail: `配钞 ${payout}`, amount: formatSigned(-amount) } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar busy={busy} ready={!!amount && !problem} onClick={() => setConfirming(true)}
-        label={busy ? '正在取款' : !amount ? '请输入金额' : problem ? '金额超出可取范围' : '确认取款'}
+      <Bar busy={busy} ready={!!amount && !problem} onClick={submit}
+        label={busy ? '正在取款' : !amount ? '请输入金额' : problem ? '金额超出可取范围' : `确认取款 ${formatAmount(amount)} HTB`}
         totalLabel="合计取款" total={amount} note={`取款后余额 ${formatAmount(Math.max(balance - amount, 0))} HTB`} />
-      {confirming && (
-        <ConfirmSheet title="确认取款" confirm="确认取款" onClose={() => setConfirming(false)} onConfirm={submit}
-          text={<>为 <b>{student.name}</b> 取款 <b>{formatAmount(amount)} HTB</b>，配钞 {payout}</>} />
-      )}
     </>
   );
 }
@@ -220,7 +219,7 @@ type Product = { id: string; name: string; price: number; stock: number; image_p
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
 // 兑换: pick products, then pay from the account or in cash with change worked out.
-export function ShopPanel({ student, served, onDone, onEnd }: Props) {
+export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) {
   const { denominations } = useSettings();
   const products = useQuery({
     queryKey: ['products'],
@@ -235,7 +234,6 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
   const [payment, setPayment] = useState<'account' | 'cash'>('account');
   const [received, setReceived] = useState<Counts>({});
   const [id, setId] = useState(newId);
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
 
@@ -254,15 +252,15 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
     : null;
 
   async function submit() {
-    setConfirming(false);
+    if (busy) return; // the same id is idempotent on the server too
     setBusy(true);
     setError(null);
     try {
       const result = await purchase(id, student.student_no, lines.map((l) => ({ product_id: l.id, qty: l.qty })), payment,
         payment === 'cash' ? nonEmpty(received) : undefined);
       onDone(payment === 'account'
-        ? { label: `兑换 ${items}`, detail: '账户支付', amount: -due, txnNo: result.txn_no }
-        : { label: `兑换 ${items}`, amount: null, txnNo: result.txn_no,
+        ? { label: `兑换 ${items}`, detail: '账户支付', amount: -due, txnNo: result.txn_no, txnId: result.id }
+        : { label: `兑换 ${items}`, amount: null, txnNo: result.txn_no, txnId: result.id,
             detail: `现金收 ${formatAmount(paid)} HTB，找零 ${formatAmount(change)} HTB（${describeCash(result.change_given ?? {}) || '不用找零'}）` });
       setCart({});
       setPayment('account');
@@ -337,7 +335,7 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
             </>
           )}
         </section>
-        <Receipt served={served} onEnd={onEnd} after={payment === 'account' ? Math.max(balance - due, 0) : balance}
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={payment === 'account' ? Math.max(balance - due, 0) : balance}
           current={lines.length ? {
             label: `兑换 ${items}`,
             detail: payment === 'account' ? '账户支付'
@@ -346,166 +344,9 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
           } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar busy={busy} ready={!problem} onClick={() => setConfirming(true)}
-        label={busy ? '正在兑换' : problem ?? '确认兑换'}
+      <Bar busy={busy} ready={!problem} onClick={submit}
+        label={busy ? '正在兑换' : problem ?? `确认兑换 ${formatAmount(due)} HTB`}
         totalLabel="应付" total={due} note={payment === 'cash' && change > 0 && `找零 ${formatAmount(change)} HTB`} />
-      {confirming && (
-        <ConfirmSheet title="确认兑换" confirm="确认兑换" onClose={() => setConfirming(false)} onConfirm={submit}
-          text={payment === 'account'
-            ? <>为 <b>{student.name}</b> 兑换 {items}，账户扣款 <b>{formatAmount(due)} HTB</b></>
-            : <>为 <b>{student.name}</b> 兑换 {items}，现金收 <b>{formatAmount(paid)} HTB</b>{change ? `，找零 ${describeCash(makeChange(change, denominations))}` : ''}</>} />
-      )}
-    </>
-  );
-}
-
-type Txn = {
-  id: string; txn_no: string; type: 'deposit' | 'withdraw' | 'purchase'; amount: number; payment: 'account' | 'cash' | null;
-  denominations: Record<string, number> | null; created_at: string; student_no: string;
-  students: { name: string; class_no: number; class_label: string | null };
-  txn_items: { name: string; qty: number }[];
-};
-const KIND = { deposit: '存款', withdraw: '取款', purchase: '兑换' };
-const REASONS = ['金额录错', '学号录错', '业务选错', '其他'];
-
-const describe = (t: Txn) =>
-  t.type === 'purchase' ? `兑换 ${t.txn_items.map((i) => `${i.name} × ${i.qty}`).join('、')}（${t.payment === 'cash' ? '现金' : '账户'}）`
-  : `${KIND[t.type]} ${formatAmount(t.amount)} HTB`;
-
-// 冲正 (PHASE-1.md §6.3): pick one of today's own businesses (RLS shows a teller only those), searched by
-// transaction or student number, give the reason, confirm. The original stays and is marked 已冲正.
-export function ReversalPanel({ onDone }: { onDone: (s: Served) => void }) {
-  const me = useMe().data!;
-  const today = useQuery({
-    queryKey: ['my-txns-today', me.profile.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('txns')
-        .select('id,txn_no,type,amount,payment,denominations,created_at,student_no,students(name,class_no,class_label),txn_items(name,qty)')
-        .eq('operator_id', me.profile.id).eq('status', 'normal').in('type', ['deposit', 'withdraw', 'purchase'])
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as unknown as Txn[];
-    },
-  });
-  const [search, setSearch] = useState('');
-  const [picked, setPicked] = useState<Txn | null>(null);
-  const [reason, setReason] = useState('');
-  const [other, setOther] = useState('');
-  const [id, setId] = useState(newId);
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<Problem>(null);
-  const fullReason = reason === '其他' ? `其他：${other.trim()}` : reason;
-
-  function back() {
-    setPicked(null);
-    setReason('');
-    setOther('');
-    setError(null);
-  }
-
-  async function submit() {
-    setConfirming(false);
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await reverseTxn(id, picked!.id, fullReason);
-      onDone({ label: `冲正 ${picked!.txn_no}`, amount: null, txnNo: result.txn_no,
-        detail: `已冲正${picked!.students.name}的${describe(picked!)}，原因：${fullReason}，当前余额 ${formatAmount(result.balance_after)} HTB` });
-      back();
-      setId(newId());
-      today.refetch();
-    } catch (e) {
-      setError(failure(e).problem);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (picked) {
-    const ready = !!reason && (reason !== '其他' || !!other.trim());
-    return (
-      <>
-        <div className="dc-split">
-          <section className="dc-card dc-enter">
-            <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>要冲正的业务</h2>
-            <Summary rows={[
-              ['业务', describe(picked)],
-              ['学生', `${picked.students.name} · ${classOf(picked.students)} · 学号 ${picked.student_no}`],
-              ...(picked.denominations ? [[picked.type === 'purchase' ? '收到现金' : '面额', describeCash(picked.denominations)] as [string, string]] : []),
-              ['办理时间', formatTime(picked.created_at)],
-              ['交易号', picked.txn_no],
-            ]} />
-          </section>
-          <section className="dc-stack">
-            <fieldset className="dc-check-group">
-              <legend>冲正原因</legend>
-              {REASONS.map((r) => (
-                <label key={r} className="dc-check">
-                  <input type="radio" name="reason" checked={reason === r} onChange={() => setReason(r)} />
-                  <span className="dc-radio-dot" />{r}
-                </label>
-              ))}
-            </fieldset>
-            {reason === '其他' && (
-              <label className="dc-field">
-                <span className="dc-field-label"><Icon name="help" />说明</span>
-                <span className="dc-input-wrap">
-                  <input className="dc-input" autoFocus value={other} maxLength={60} placeholder="写清楚冲正的原因"
-                    onChange={(e) => setOther(e.target.value)} />
-                </span>
-              </label>
-            )}
-          </section>
-        </div>
-        {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-        <div className="dc-actions">
-          <button className="dc-btn dc-btn-secondary" type="button" onClick={back}>返回列表</button>
-          <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!busy && !ready}
-            onClick={() => setConfirming(true)}>
-            {busy ? '正在冲正' : ready ? '确认冲正' : '请选择冲正原因'}
-          </button>
-        </div>
-        {confirming && (
-          <ConfirmSheet title="确认冲正" confirm="确认冲正" onClose={() => setConfirming(false)} onConfirm={submit}
-            text={<>冲正 <b>{picked.students.name}</b> 的{describe(picked)}（{picked.txn_no}），原因：{fullReason}。冲正后不能撤销。</>} />
-        )}
-      </>
-    );
-  }
-
-  const q = search.trim();
-  const list = (today.data ?? []).filter((t) => !q || t.txn_no.includes(q.toUpperCase()) || t.student_no.includes(q));
-  return (
-    <>
-      <label className="dc-search">
-        <Icon name="query" />
-        <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="输入交易号或学号" aria-label="查找业务" />
-      </label>
-      <h2 className="heading">今天我办理的业务</h2>
-      {today.error ? <Notice tone="danger" title="暂时无法读取业务">请检查网络后重试。</Notice>
-        : !today.data ? <ListLoading rows={3} label="正在加载业务" />
-        : list.length ? (
-          <ul className="dc-list dc-stagger">
-            {list.map((t) => (
-              <li key={t.id}>
-                <a className={`dc-list-link ${KINDS[t.type].kind}`} href="#" role="button" onClick={(e) => { e.preventDefault(); setPicked(t); }}>
-                  <span className="dc-list-icon"><Icon name={KINDS[t.type].icon} /></span>
-                  <span>{t.students.name} · {describe(t)}<small className="dc-top-sub">{t.txn_no} · {formatTime(t.created_at)}</small></span>
-                  <Icon name="next" />
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="dc-card">
-            <div className="dc-empty">
-              <span className="dc-empty-icon"><Icon name="inbox" /></span>
-              <h3>{q ? '没有找到这笔业务' : '今天还没有可冲正的业务'}</h3>
-              <p>只能冲正本人今天办理、还没冲正过的存款、取款和兑换。</p>
-            </div>
-          </div>
-        )}
     </>
   );
 }

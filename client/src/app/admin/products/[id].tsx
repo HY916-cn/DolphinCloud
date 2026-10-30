@@ -183,7 +183,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   );
 }
 
-// The stock and its latest movements; stock in and out is done on 出入库.
+// The stock and its latest movements; stock in and out is done on 出入库, which opens with this product picked.
 function StockHistory({ product }: { product: Product }) {
   const moves = useQuery({
     queryKey: ['stock_movements', product.id],
@@ -201,7 +201,7 @@ function StockHistory({ product }: { product: Product }) {
         <dl className="dc-kv">
           <div className="is-total"><dt>当前库存</dt><dd>{formatAmount(product.stock)}<small>件</small></dd></div>
         </dl>
-        <div><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/stock')}><Icon name="inbox" />去出入库</a></div>
+        <div><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link(`/admin/stock?product=${product.id}`)}><Icon name="inbox" />去出入库</a></div>
       </div>
       <h2 className="heading">库存变动</h2>
       {moves.error ? <Notice tone="danger" title="暂时无法读取库存变动">请检查网络后刷新页面。</Notice>

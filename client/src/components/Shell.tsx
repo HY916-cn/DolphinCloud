@@ -28,9 +28,8 @@ function navItems(me: Me): { href: string; icon: IconName; label: string; exact?
   }
   if (me.roles.includes('teller')) {
     return [
-      { href: '/counter', icon: 'home', label: '总览', exact: true },
-      { href: '/counter/serve', icon: 'coin', label: '办理' },
-      { href: '/counter/reversal', icon: 'transfer', label: '冲正' },
+      { href: '/counter', icon: 'coin', label: '办理', exact: true },
+      { href: '/counter/today', icon: 'passbook', label: '今日业务' },
     ];
   }
   return [{ href: '/admin', icon: 'home', label: '总览', exact: true }, ...sectionsFor(me)];

@@ -5,68 +5,57 @@ import { confirmIn, signIn } from './helpers';
 // balance 108) and 李思远 (20260002, balance 70). Tests run in order and each one builds on the balances before it.
 test.describe.configure({ mode: 'serial' });
 
-// Step 1: search (number, name, pinyin, initials or class), pick the student, confirm it is them.
+// A visit starts by searching (number, name, pinyin, initials or class) and tapping the student.
 async function findStudent(page: Page, query: string, name: string) {
   await page.getByRole('searchbox', { name: '搜索学生' }).fill(query);
   await page.locator('.dc-list-link', { hasText: name }).click();
-  await expect(page.locator('.dc-sheet')).toContainText(`是${name}吗？`);
-  await confirmIn(page, '是，继续办理');
+  await expect(page.locator('.dc-person-name')).toHaveText(name);
 }
-
-// Opens a counter page from the navigation and waits for it, so typing goes to the right form.
-async function open(page: Page, label: string, path: string) {
-  await page.locator('.dc-nav-item', { hasText: label }).click();
-  await expect(page).toHaveURL(new RegExp(`/counter/${path}$`));
-  await expect(page.locator('.dc-top-title')).toContainText(label);
-}
-
 
 const pick = (page: Page, name: string) => page.locator('.dc-seg label', { hasText: name }).click();
 const receipt = (page: Page) => page.locator('aside[aria-label="办理单"]');
+const reverse = async (page: Page, reason: string) => {
+  await page.locator('.dc-sheet .dc-check', { hasText: reason }).click();
+  await confirmIn(page, '确认冲正');
+};
 
-test('one visit: deposit, then an exchange from the account, then the summary', async ({ page }) => {
+test('one visit: deposit, then an exchange from the account, then back to the search', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
   await expect(page).toHaveURL(/\/counter$/);
-  await expect(page.locator('.dc-card')).toContainText('今天我办理的业务');
-  await open(page, '办理', 'serve');
   await findStudent(page, 'zxm', '张小明');
   await expect(page.locator('.dc-person')).toContainText('108');
   await page.getByLabel('增加一张 10 元').click();
   await page.getByLabel('增加一张 10 元').click();
   await page.getByLabel('增加一张 2 元').click();
   await expect(receipt(page)).toContainText('办理后余额130 HTB');
-  await page.getByRole('button', { name: '确认存款' }).click();
-  await expect(page.locator('.dc-sheet')).toContainText('为 张小明 存款 22 HTB');
-  await confirmIn(page, '确认存款');
+  await page.getByRole('button', { name: '确认存款 22 HTB' }).click();
   await expect(receipt(page)).toContainText('10 元 × 2 张、2 元 × 1 张 · HT');
   await expect(page.locator('.dc-person')).toContainText('130');
 
   await pick(page, '兑换');
   await page.locator('.dc-tile', { hasText: '海豚书签' }).click();
-  await page.getByRole('button', { name: '确认兑换' }).click();
-  await expect(page.locator('.dc-sheet')).toContainText('账户扣款 10 HTB');
-  await confirmIn(page, '确认兑换');
+  await page.getByRole('button', { name: '确认兑换 10 HTB' }).click();
   await expect(page.locator('.dc-person')).toContainText('120');
 
   await receipt(page).getByRole('button', { name: '结束办理（已办 2 笔）' }).click();
-  await expect(page.locator('.dc-result')).toContainText('为 张小明 办理了 2 笔业务，当前余额 120 HTB');
-  await expect(page.locator('.dc-result')).toContainText('存款 +22');
-  await expect(page.locator('.dc-result')).toContainText('兑换 海豚书签 × 1 −10');
+  const summary = page.locator('.dc-notice-success');
+  await expect(summary).toContainText('张小明：办理完成');
+  await expect(summary).toContainText('存款 +22；兑换 海豚书签 × 1 −10。当前余额 120 HTB');
+  await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeFocused();
+  await expect(page.locator('ul[aria-label="今天办理过的学生"]')).toContainText('张小明');
 });
 
-test('one visit: withdraw within the limits, then a cash exchange with change', async ({ page }) => {
+test('one visit: withdraw within the limits, a cash exchange, and 冲正 from the 办理单', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
-  await page.locator('.dc-tile', { hasText: '取款' }).click();
   await findStudent(page, '李思远', '李思远');
-  await expect(page.getByRole('radio', { name: '取款' })).toBeChecked();
+  await pick(page, '取款');
   const amount = page.getByPlaceholder('请输入金额');
   await amount.fill('80');
   await expect(page.getByRole('button', { name: '金额超出可取范围' })).toBeDisabled();
   await expect(page.locator('.dc-field-hint')).toContainText('余额不足');
   await amount.fill('28');
   await expect(page.locator('.dc-field-hint')).toContainText('10 元 × 2 张、5 元 × 1 张、2 元 × 1 张、1 元 × 1 张');
-  await page.getByRole('button', { name: '确认取款' }).click();
-  await confirmIn(page, '确认取款');
+  await page.getByRole('button', { name: '确认取款 28 HTB' }).click();
   await expect(receipt(page)).toContainText('取款');
   await expect(page.locator('.dc-person')).toContainText('42');
 
@@ -75,44 +64,56 @@ test('one visit: withdraw within the limits, then a cash exchange with change', 
   await page.locator('.dc-choice', { hasText: '现金支付' }).click();
   await expect(page.getByRole('button', { name: '收款不足，还差 6 HTB' })).toBeDisabled();
   await page.getByLabel('增加一张 10 元').click();
-  await page.getByRole('button', { name: '确认兑换' }).click();
-  await confirmIn(page, '确认兑换');
+  await page.getByRole('button', { name: '确认兑换 6 HTB' }).click();
   await expect(receipt(page)).toContainText('现金收 10 HTB，找零 4 HTB（2 元 × 2 张）');
+
+  // A wrong exchange is put right where it shows: the pen goes back to stock, the balance stays.
+  await receipt(page).getByRole('button', { name: '冲正兑换 海浪中性笔 × 1' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('李思远 · 兑换 海浪中性笔 × 1 现金');
+  await reverse(page, '业务选错');
+  await expect(receipt(page)).toContainText('兑换 海浪中性笔 × 1（已冲正）');
+  await expect(receipt(page).getByRole('button', { name: '结束办理（已办 1 笔）' })).toBeVisible();
   await expect(page.locator('.dc-person')).toContainText('42');
 });
 
-test('reversal of today\'s deposit restores the balance', async ({ page }) => {
+test('今日业务: today\'s totals, 冲正 of the deposit, and back to that student', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
-  await open(page, '冲正', 'reversal');
-  await page.locator('.dc-list-link', { hasText: '存款 22 HTB' }).click();
-  await page.locator('.dc-check', { hasText: '金额录错' }).click();
-  await page.getByRole('button', { name: '确认冲正' }).click();
-  await confirmIn(page, '确认冲正');
-  await expect(page.locator('.dc-result')).toContainText('冲正成功');
-  await expect(page.locator('.dc-result')).toContainText('当前余额 98 HTB');
-  await page.getByRole('button', { name: '返回列表' }).click();
-  await expect(page.locator('.dc-list-link', { hasText: '存款 22 HTB' })).toHaveCount(0);
+  await page.locator('.dc-nav-item', { hasText: '今日业务' }).click();
+  await expect(page).toHaveURL(/\/counter\/today$/);
+  // The seed has deposits of its own today, so the totals are read first and must drop by this one.
+  const deposits = page.locator('aside[aria-label="今日合计"] .dc-kv > div', { hasText: '存款' }).locator('dd');
+  await expect(deposits).toHaveText(/^\d+ 笔 · \d+ HTB$/);
+  const [count, sum] = (await deposits.innerText()).match(/\d+/g)!.map(Number);
+  const deposit = page.locator('.dc-txn', { hasText: '张小明 · 存款 22 HTB' });
+  await deposit.getByRole('button', { name: /^冲正/ }).click();
+  await reverse(page, '金额录错');
+  await expect(page.locator('.dc-notice-success')).toContainText('当前余额 98 HTB');
+  await expect(deposit).toContainText('（已冲正）');
+  await expect(deposit.getByRole('button', { name: /^冲正/ })).toHaveCount(0);
+  await expect(deposits).toHaveText(`${count - 1} 笔 · ${sum - 22} HTB`);
+
+  await deposit.getByRole('link', { name: '为张小明继续办理' }).click();
+  await expect(page).toHaveURL(/\/counter\?s=20260001$/);
+  await expect(page.locator('.dc-person')).toContainText('98');
 });
 
 test('offline deposit is registered, then uploaded once online', async ({ page, context }) => {
   await signIn(page, '工作人员', 'teller01');
   await expect(page).toHaveURL(/\/counter$/);
   await page.waitForLoadState('networkidle'); // the roster is kept for offline searches
-  await open(page, '办理', 'serve');
   await context.setOffline(true);
   await expect(page.locator('.dc-notice', { hasText: '离线登记' })).toBeVisible();
   await findStudent(page, '20260002', '李思远');
   await expect(page.getByRole('radio', { name: '取款' })).toBeDisabled();
   await page.getByLabel('增加一张 5 元').click();
-  await page.getByRole('button', { name: '确认存款' }).click();
-  await confirmIn(page, '确认存款');
+  await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
   await expect(receipt(page)).toContainText('存款（离线登记）');
   await expect(receipt(page)).toContainText('联网后入账');
+  await expect(receipt(page).getByRole('button', { name: /^冲正/ })).toHaveCount(0);
 
   await context.setOffline(false);
   await receipt(page).getByRole('button', { name: '结束办理（已办 1 笔）' }).click();
-  await expect(page.locator('.dc-result')).toContainText('联网后入账');
-  await page.getByRole('button', { name: '办理下一位' }).click();
+  await expect(page.locator('.dc-notice-success')).toContainText('存款（离线登记） +5');
   await expect(page.locator('.dc-notice', { hasText: '有 1 笔离线存款待上传' })).toBeVisible();
   await page.getByRole('button', { name: '上传' }).click();
   await expect(page.locator('.dc-notice', { hasText: '待上传' })).toHaveCount(0);
@@ -130,7 +131,7 @@ test('the counter reopens without a network once installed', async ({ page, cont
   await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   await page.reload();
-  await expect(page.locator('.dc-top-title')).toContainText('总览');
+  await expect(page.locator('.dc-top-title')).toContainText('办理');
   await expect(page.locator('.dc-notice', { hasText: '离线登记' })).toBeVisible();
   await context.setOffline(false);
 });

@@ -99,6 +99,26 @@ test('参数: switch 排名匿名 off and on again', async ({ page }) => {
   await expect(page.getByRole('button', { name: '保存参数' })).toBeDisabled();
 });
 
+test('人员 → 操作日志 shows only that login, and the filter can be removed', async ({ page }) => {
+  await open(page, '人员', 'staff');
+  await page.locator('.dc-list-link', { hasText: '柜员小林' }).click();
+  await page.getByRole('link', { name: '查看他办理的流水' }).click();
+  await expect(page).toHaveURL(/\/admin\/txns\?operator=[0-9a-f-]{36}$/);
+  const rows = page.locator('section[aria-label="流水"] .dc-txn');
+  await expect(rows.first()).toBeVisible();
+  await expect(rows.filter({ hasNotText: '经办人 柜员小林' })).toHaveCount(0);
+
+  await page.goto('/admin/staff');
+  await page.locator('.dc-list-link', { hasText: '银行管理员' }).first().click();
+  await page.getByRole('link', { name: '操作日志' }).click();
+  await expect(page).toHaveURL(/\/admin\/audit\?actor=[0-9a-f-]{36}$/);
+  const chip = page.getByRole('button', { name: /只看 银行管理员 的操作/ });
+  await expect(chip).toBeVisible();
+  await expect(page.locator('section[aria-label="操作日志"] .dc-txn').first()).toContainText('银行管理员 · ');
+  await chip.click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+});
+
 test('日志: the batch registered above, with its fields', async ({ page }) => {
   await open(page, '日志', 'audit');
   const entry = page.locator('details', { has: page.locator('.dc-txn-title', { hasText: `新增发行 · ${batch}` }) });

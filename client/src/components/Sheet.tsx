@@ -5,9 +5,11 @@ import { createPortal } from 'react-dom';
 import { signOutCurrent } from '@/lib/accounts';
 
 // Confirmation sheet (design system Sheet): rises from the foot on phones, a centred dialog on wider screens.
-// Esc or a tap on the scrim cancels; closing plays the leaving animation before the sheet is removed.
-export function ConfirmSheet({ title, text, confirm, cancel = '取消', onConfirm, onClose }: {
-  title: string; text: ReactNode; confirm: string; cancel?: string; onConfirm: () => void; onClose: () => void;
+// Esc or a tap on the scrim cancels; closing plays the leaving animation before the sheet is removed. `children`
+// holds the choices a confirmation needs (e.g. a reason); `ready` keeps the confirm button off until they are made.
+export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = true, busy = false, onConfirm, onClose, children }: {
+  title: string; text: ReactNode; confirm: string; cancel?: string; ready?: boolean; busy?: boolean;
+  onConfirm: () => void; onClose: () => void; children?: ReactNode;
 }) {
   const [leaving, setLeaving] = useState(false);
   const first = useRef<HTMLButtonElement>(null);
@@ -26,9 +28,10 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', onConfir
       <div className="dc-sheet" role="dialog" aria-modal="true" aria-labelledby="dc-sheet-title">
         <h2 className="dc-sheet-title" id="dc-sheet-title">{title}</h2>
         <p className="dc-sheet-text">{text}</p>
+        {children}
         <div className="dc-sheet-actions">
           <button ref={first} className="dc-btn dc-btn-secondary" type="button" onClick={() => setLeaving(true)}>{cancel}</button>
-          <button className="dc-btn dc-btn-primary" type="button" onClick={onConfirm}>{confirm}</button>
+          <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!ready || busy} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>
     </div>

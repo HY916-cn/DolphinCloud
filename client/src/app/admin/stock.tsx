@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Desk, Icon, link, ListLoading, MoveList, Notice, TxnListLoading, type Move } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
@@ -17,8 +18,10 @@ const KIND = {
 } as const;
 
 // 出入库 (storekeeper, teacher): stock in or take out several products in one go with the counter's steppers, and the
-// latest movements of every product (PHASE-1.md §7.9).
+// latest movements of every product (PHASE-1.md §7.9). ?product=<id> (from the product page or 总览) opens with one
+// piece of that product to stock in, scrolled into view.
 export default function Stock() {
+  const { product } = useLocalSearchParams<{ product?: string }>();
   const queryClient = useQueryClient();
   const products = useQuery({
     queryKey: ['products', 'stock'],
@@ -31,19 +34,24 @@ export default function Stock() {
   const moves = useQuery({
     queryKey: ['stock_movements', 'all'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('stock_movements').select('id,kind,qty_delta,note,created_at,products(name)')
+      const { data, error } = await supabase.from('stock_movements').select('id,kind,qty_delta,note,created_at,products(id,name)')
         .order('created_at', { ascending: false }).limit(20);
       if (error) throw error;
       return data as unknown as Move[];
     },
   });
   const [kind, setKind] = useState<Kind>('stock_in');
-  const [qtys, setQtys] = useState<Record<string, number>>({});
+  const [qtys, setQtys] = useState<Record<string, number>>(product ? { [product]: 1 } : {});
   const [note, setNote] = useState('');
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ kind: Kind; count: number; qty: number } | null>(null);
   const [error, setError] = useState<Problem>(null);
+
+  const loaded = !!products.data;
+  useEffect(() => {
+    if (loaded && product) document.getElementById(`stock-${product}`)?.scrollIntoView({ block: 'center' });
+  }, [loaded, product]);
 
   const out = kind === 'stock_out';
   const max = (p: Product) => (out ? p.stock : 999_999);
@@ -113,9 +121,10 @@ export default function Stock() {
                 {products.data.map((p) => {
                   const n = qtys[p.id] ?? 0;
                   return (
-                    <div key={p.id} className={`dc-qty ${n ? 'is-filled' : ''}`}>
+                    <div key={p.id} id={`stock-${p.id}`} className={`dc-qty ${n ? 'is-filled' : ''}`}>
                       <div className="dc-qty-head">
-                        <span className="dc-qty-face" style={{ fontSize: 18, minWidth: 0, overflowWrap: 'anywhere' }}>{p.name}</span>
+                        <a className="dc-qty-face" style={{ fontSize: 18, minWidth: 0, overflowWrap: 'anywhere' }}
+                          {...link(`/admin/products/${p.id}`)}>{p.name}</a>
                         <span className="dc-qty-sum" style={{ flex: 'none' }}>库存<b>{formatAmount(p.stock)}</b></span>
                       </div>
                       <div className="dc-qty-ctrl">
