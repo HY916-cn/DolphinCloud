@@ -36,7 +36,7 @@ export default function StudentMe() {
               </li>
             </ul>
           </div>
-          <p className="dc-top-sub" style={{ margin: '0 var(--space-2)' }}>需要更换密码时，请联系老师重置。</p>
+          <p className="dc-top-sub" style={{ margin: '0 var(--space-2)' }}>需要更换密码时，请联系银行管理员重置。</p>
         </div>
       </div>
     </Page>

@@ -35,7 +35,7 @@ const COLUMNS: Record<string, string> = {
 const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id']);
 const WORDS: Record<string, string> = {
   primary: '小学部', junior: '初中部', normal: '正常', frozen: '冻结', graduated: '毕业', reversed: '已冲正',
-  teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '指导老师', sysadmin: '系统管理员',
+  teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '银行管理员', sysadmin: '运维员',
 };
 
 const asRow = (v: unknown): Row => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Row) : {});

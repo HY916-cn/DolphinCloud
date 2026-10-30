@@ -197,7 +197,7 @@ function PendingUploads({ operatorId }: { operatorId: string }) {
       )}
       {mine.filter((e) => e.error).map((e) => (
         <Notice key={e.id} tone="danger" title={`离线存款未能入账：${e.name} ${formatAmount(e.amount)} HTB`}>
-          {explain(e.error!).title}。{describeCash(e.cash)}，{new Date(e.created_at).toLocaleString('zh-CN', { hour12: false })} 登记，请交指导老师核对纸质凭条。
+          {explain(e.error!).title}。{describeCash(e.cash)}，{new Date(e.created_at).toLocaleString('zh-CN', { hour12: false })} 登记，请交银行管理员核对纸质凭条。
         </Notice>
       ))}
       {others.length > 0 && (

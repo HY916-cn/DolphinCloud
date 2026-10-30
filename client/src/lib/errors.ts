@@ -27,10 +27,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'OUT_OF_STOCK': return { title: '已售罄', text: `${d.name} 库存不足，请调整数量。` };
     case 'PRODUCT_UNLISTED': return { title: '商品已下架', text: '请重新选择商品。' };
     case 'CASH_NOT_ENOUGH': return { title: '收款不足', text: `应付 ${d.due} HTB，已收 ${d.received} HTB。` };
-    case 'REVERSAL_NOT_ALLOWED': return { title: '不能冲正这笔业务', text: '只能冲正本人今天办理的业务，其他情况请联系指导老师。' };
+    case 'REVERSAL_NOT_ALLOWED': return { title: '不能冲正这笔业务', text: '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
     case 'REVERSAL_INSUFFICIENT_BALANCE':
-      return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系指导老师。` };
-    case 'STUDENT_INACTIVE': return { title: '账户不可办理', text: '该账户已冻结或已毕业，请联系指导老师。' };
+      return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系银行管理员。` };
+    case 'STUDENT_INACTIVE': return { title: '账户不可办理', text: '该账户已冻结或已毕业，请联系银行管理员。' };
     case 'INVALID_AMOUNT': return { title: '金额有误', text: '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
     case 'FORBIDDEN': return { title: '没有权限', text: '当前账号不能办理这项业务。' };
@@ -39,6 +39,6 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ALREADY_EXISTS': return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
     case 'USER_NOT_FOUND': case 'PRODUCT_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
-    default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系指导老师。' };
+    default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }
 }

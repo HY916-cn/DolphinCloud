@@ -12,7 +12,7 @@ begin
   insert into profiles (id, login_kind, login_id, display_name) values (v_teller, 'staff', 'teller01', '柜员小林');
   insert into user_roles values (v_teller, 'teller');
   v_admin := app_private.create_login('admin01@staff.dolphin.internal', app_private.default_password());
-  insert into profiles (id, login_kind, login_id, display_name) values (v_admin, 'staff', 'admin01', '信息老师');
+  insert into profiles (id, login_kind, login_id, display_name) values (v_admin, 'staff', 'admin01', '运维小周');
   insert into user_roles values (v_admin, 'sysadmin');
 
   for v_row in select * from (values

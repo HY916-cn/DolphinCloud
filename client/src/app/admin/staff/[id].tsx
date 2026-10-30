@@ -95,7 +95,7 @@ export default function StaffLogin() {
               )}
             </div>
           ) : (
-            <Notice title="由指导老师管理">指导老师的账号只能由指导老师修改身份、重置密码或停用。</Notice>
+            <Notice title="由银行管理员管理">银行管理员的账号只能由银行管理员修改身份、重置密码或停用。</Notice>
           )}
         </div>
       )}

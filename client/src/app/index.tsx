@@ -11,7 +11,7 @@ export default function Index() {
         if (place) return <Redirect href={place} />;
         return (
           <Welcome label="账号状态">
-            <Notice title="账号还没有分配身份">请联系指导老师为你的账号分配角色。</Notice>
+            <Notice title="账号还没有分配身份">请联系银行管理员为你的账号分配角色。</Notice>
             <SignOutBlock />
           </Welcome>
         );
