@@ -630,6 +630,7 @@ docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）
   db-test.sh            在镜像上运行 supabase/tests 的 pgTAP 测试（M1）
+  perf-test.sh          全校规模（2000 名学生、10 万笔流水）的性能与越权修改检查
   Caddyfile
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
@@ -758,7 +759,7 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 | 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
 | 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额与时间；`roster.ts` 名册模板逐行校验与年级推算 |
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；老师导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 老师重置密码；新增工作账号、改身份、停用，系统管理员不能管理指导老师；商品新增、入库、上下架；流水筛选、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
-| 性能 | 简单脚本 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒 |
+| 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 
 CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。
 
