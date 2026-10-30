@@ -318,7 +318,7 @@ export function ShopPanel({ student, served, onDone, onEnd }: Props) {
                 ))}
               </div>
               <h2 className="heading" style={{ marginTop: 'var(--space-2)' }}>付款方式</h2>
-              <div className="dc-choices" role="radiogroup" aria-label="付款方式">
+              <div className="dc-choices dc-kind-exchange" role="radiogroup" aria-label="付款方式">
                 {([['account', 'savings', '账户扣款', `可用余额 ${formatAmount(balance)} HTB`], ['cash', 'coin', '现金支付', '收款并找零']] as const)
                   .map(([value, icon, name, note]) => (
                     <label key={value} className="dc-choice">
