@@ -1,5 +1,6 @@
 import '@/theme/tokens.css';
 import '@/theme/bundle.css';
+import '@/app.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Slot } from 'expo-router';
 import { SessionProvider } from '@/lib/session';

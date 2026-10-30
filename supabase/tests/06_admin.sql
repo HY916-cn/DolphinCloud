@@ -138,6 +138,21 @@ select is(tests.err(:'keeper', format($$select stock_in(%L, 0)$$, :'prod')), 'IN
 select is(tests.call(:'keeper', format($$select stock_in(%L, 7, '首批')$$, :'prod')) ->> 'stock', '7', 'stock in');
 select is((select count(*)::int from audit_log where target = 'products:' || :'prod'), 2, 'product edits are audited, stock changes are not');
 
+-- 出入库 in one call: several products, all or nothing; 出库 needs a reason and never goes below 0.
+select tests.call(:'keeper', $$select upsert_product(null, '贴纸', 2)$$) ->> 'id' as prod2 \gset
+select is(tests.call(:'keeper', format($$select stock_move('stock_in', '[{"product_id":"%s","qty":3},{"product_id":"%s","qty":2},{"product_id":"%s","qty":10}]')$$,
+  :'prod', :'prod', :'prod2')), '{"qty": 15, "count": 2}', 'stock in several products, one product in two lines merged');
+select is((select stock from products where id = :'prod'), 12, 'stock after stock in');
+select is(tests.err(:'keeper', format($$select stock_move('stock_out', '[{"product_id":"%s","qty":1}]')$$, :'prod')), 'INVALID_INPUT', 'stock out needs a reason');
+select is(tests.err(:'keeper', format($$select stock_move('stock_out', '[{"product_id":"%s","qty":1},{"product_id":"%s","qty":11}]', '损坏')$$, :'prod', :'prod2')),
+  'OUT_OF_STOCK', 'stock out beyond stock is refused');
+select is((select stock from products where id = :'prod'), 12, 'a refused stock out changes nothing');
+select is(tests.call(:'keeper', format($$select stock_move('stock_out', '[{"product_id":"%s","qty":2}]', '损坏')$$, :'prod')) ->> 'qty', '2', 'stock out');
+select is((select row(kind, qty_delta, note)::text from stock_movements where product_id = :'prod' order by id desc limit 1), '(stock_out,-2,损坏)', 'stock out recorded');
+select is(tests.err(:'t1', format($$select stock_move('stock_in', '[{"product_id":"%s","qty":1}]')$$, :'prod')), 'FORBIDDEN', 'only storekeepers and teachers move stock');
+select is(tests.err(:'keeper', format($$select stock_move('sale', '[{"product_id":"%s","qty":1}]')$$, :'prod')), 'INVALID_INPUT', 'only stock in and stock out');
+select is(tests.err(:'keeper', $$select stock_move('stock_in', '[]')$$), 'INVALID_INPUT', 'at least one product');
+
 select is(tests.call(:'teacher', $$select register_issue('2026-01', '2026-09-01', '{"1":500,"10":100}', '开学发行', '王老师')$$) ->> 'total', '1500',
   'issue total is computed from the denominations');
 select is(tests.err(:'teacher', $$select register_issue('2026-01', '2026-09-01', '{"1":1}', '重复', '王老师')$$), 'ALREADY_EXISTS', 'duplicate batch');

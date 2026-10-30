@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { CashCounter, Desk, Icon, Notice, Summary, TxnListLoading, type IconName } from '@/components';
+import { CashCounter, DatePicker, Desk, Icon, Notice, Summary, TxnListLoading, today, type IconName } from '@/components';
 import { cashTotal, describeCash, nonEmpty, type Counts } from '@/lib/cash';
 import { useSettings } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
@@ -14,8 +14,6 @@ type Issue = {
 type Problem = { title: string; text: string } | null;
 
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
-// Today in Asia/Shanghai as YYYY-MM-DD, the value of <input type="date">.
-const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 // "10月27日" (with the year when it is not this year) for a date column.
 const formatDay = (date: string) => formatTime(`${date}T12:00:00+08:00`).split(' ')[0];
 
@@ -120,9 +118,7 @@ function IssueForm() {
       <Field icon="passbook" label="批次号">
         <input className="dc-input" value={batchNo} maxLength={40} placeholder="例如 2026-01" onChange={(e) => setBatchNo(e.target.value)} />
       </Field>
-      <Field icon="calendar" label="发行日期">
-        <input className="dc-input" type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} />
-      </Field>
+      <DatePicker label="发行日期" value={issuedOn} onChange={setIssuedOn} rule="选这批钞票交给柜台的日期" />
       <div className="dc-field">
         <span className="dc-field-label"><Icon name="coin" />面额张数</span>
         <CashCounter faces={faces} counts={counts} onChange={setCounts} kind="dc-kind-reward" />

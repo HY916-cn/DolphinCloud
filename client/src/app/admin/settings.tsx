@@ -13,13 +13,51 @@ type Problem = { title: string; text: string } | null;
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, 7);
 
-function Field({ icon, label, hint, unit, children }: { icon: IconName; label: string; hint?: string; unit?: string; children: ReactNode }) {
+// The notes the bank can print; 1 is always one of them (the counter makes change with it).
+const FACES = [1, 2, 5, 10, 20, 50, 100];
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+const pad = (n: number) => String(n).padStart(2, '0');
+
+function Field({ icon, label, hint, children }: { icon: IconName; label: string; hint?: string; children: ReactNode }) {
   return (
-    <label className="dc-field">
+    <div className="dc-field">
       <span className="dc-field-label"><Icon name={icon} />{label}</span>
-      <span className="dc-input-wrap">{children}{unit && <span className="dc-input-unit">{unit}</span>}</span>
+      {children}
       {hint && <span className="dc-field-hint">{hint}</span>}
-    </label>
+    </div>
+  );
+}
+
+// QtyStepper control (design system): minus, the number (typed or stepped) and plus, kept within min and max.
+function Stepper({ label, value, onChange, step, min, max }: {
+  label: string; value: string; onChange: (v: string) => void; step: number; min: number; max?: number;
+}) {
+  const n = Number(value);
+  const to = (v: number) => onChange(String(Math.min(max ?? Infinity, Math.max(min, v))));
+  return (
+    <div className="dc-qty-ctrl">
+      <button className="dc-qty-btn" type="button" aria-label={`${label}减少 ${step}`} disabled={n <= min} onClick={() => to(n - step)}><Icon name="minus" /></button>
+      <input className="dc-qty-input" inputMode="numeric" aria-label={label} value={value} onChange={(e) => onChange(digits(e.target.value))} />
+      <button className="dc-qty-btn" type="button" aria-label={`${label}增加 ${step}`} disabled={max != null && n >= max} onClick={() => to(n + step)}><Icon name="plus" /></button>
+    </div>
+  );
+}
+
+// One limit for both divisions: a QtyStepper card each, in the two-column grid the counter uses for notes.
+function LimitPair({ label, hint, primary, junior }: {
+  label: string; hint?: string; primary: [string, (v: string) => void]; junior: [string, (v: string) => void];
+}) {
+  return (
+    <Field icon="withdraw" label={`${label}（HTB）`} hint={hint}>
+      <div className="dc-denoms">
+        {([['小学部', primary], ['初中部', junior]] as const).map(([name, [value, set]]) => (
+          <div key={name} className="dc-qty">
+            <div className="dc-qty-head"><span className="dc-qty-face" style={{ fontSize: 18 }}>{name}</span></div>
+            <Stepper label={`${name}${label}`} value={value} onChange={set} step={10} min={1} />
+          </div>
+        ))}
+      </div>
+    </Field>
   );
 }
 
@@ -61,27 +99,32 @@ function SettingsForm({ saved }: { saved: Values }) {
   const queryClient = useQueryClient();
   const single = saved.withdraw_single_limit as Limit;
   const daily = saved.withdraw_daily_limit as Limit;
-  const [faces, setFaces] = useState((saved.denominations as number[]).join(', '));
+  const [faces, setFaces] = useState(saved.denominations as number[]);
   const [singlePrimary, setSinglePrimary] = useState(String(single.primary));
   const [singleJunior, setSingleJunior] = useState(String(single.junior));
   const [dailyPrimary, setDailyPrimary] = useState(String(daily.primary));
   const [dailyJunior, setDailyJunior] = useState(String(daily.junior));
   const [rankingSize, setRankingSize] = useState(String(saved.ranking_size));
-  const [promotion, setPromotion] = useState(String(saved.promotion_date));
+  const [promoMonth, promoDay] = String(saved.promotion_date).split('-').map(Number);
+  const [month, setMonth] = useState(promoMonth);
+  const [day, setDay] = useState(promoDay);
   const [anonymous, setAnonymous] = useState(saved.ranking_anonymous === true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // The values as set_setting takes them; the server checks each one (a face that is not a whole number goes as
-  // null and is refused). Limits list junior first, the key order jsonb returns, so unchanged ones compare equal.
+  // The values as set_setting takes them; the server checks each one. Limits list junior first, the key order jsonb
+  // returns, so unchanged ones compare equal.
+  const days = new Date(Date.UTC(2001, month, 0)).getUTCDate(); // a common year: no 29 February
   const next: Values = {
-    denominations: faces.split(/[\s,，、]+/).filter(Boolean).map(Number).sort((a, b) => a - b),
+    denominations: [...faces].sort((a, b) => a - b),
     withdraw_single_limit: { junior: Number(singleJunior), primary: Number(singlePrimary) },
     withdraw_daily_limit: { junior: Number(dailyJunior), primary: Number(dailyPrimary) },
     ranking_size: Number(rankingSize),
-    promotion_date: promotion.trim(),
+    promotion_date: `${pad(month)}-${pad(Math.min(day, days))}`,
   };
+  const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
+  const toggleFace = (f: number) => setFaces(faces.includes(f) ? faces.filter((x) => x !== f) : [...faces, f]);
   const changed = Object.keys(next).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(saved[k]));
 
   const refresh = () => Promise.all([
@@ -129,21 +172,16 @@ function SettingsForm({ saved }: { saved: Values }) {
           <div>
             <p className="dc-list-title">柜台</p>
             <div className="dc-card dc-stack">
-              <Field icon="coin" label="面额" unit="元" hint="用逗号分隔，必须包含 1，例如 1, 2, 5, 10">
-                <input className="dc-input" value={faces} onChange={(e) => setFaces(e.target.value)} />
+              <Field icon="coin" label="面额（元）" hint="柜台点钞按这些面额录入；1 元必须保留">
+                <div className="dc-chips" role="group" aria-label="面额">
+                  {allFaces.map((f) => (
+                    <button key={f} className="dc-chip" type="button" aria-pressed={faces.includes(f)} disabled={f === 1}
+                      onClick={() => toggleFace(f)}><Icon name="check" />{f} 元</button>
+                  ))}
+                </div>
               </Field>
-              <Field icon="withdraw" label="单笔取款上限 · 小学部" unit="HTB">
-                <input className="dc-input" inputMode="numeric" value={singlePrimary} onChange={(e) => setSinglePrimary(digits(e.target.value))} />
-              </Field>
-              <Field icon="withdraw" label="单笔取款上限 · 初中部" unit="HTB">
-                <input className="dc-input" inputMode="numeric" value={singleJunior} onChange={(e) => setSingleJunior(digits(e.target.value))} />
-              </Field>
-              <Field icon="withdraw" label="单日取款上限 · 小学部" unit="HTB" hint="当天累计，不含已冲正的取款">
-                <input className="dc-input" inputMode="numeric" value={dailyPrimary} onChange={(e) => setDailyPrimary(digits(e.target.value))} />
-              </Field>
-              <Field icon="withdraw" label="单日取款上限 · 初中部" unit="HTB" hint="当天累计，不含已冲正的取款">
-                <input className="dc-input" inputMode="numeric" value={dailyJunior} onChange={(e) => setDailyJunior(digits(e.target.value))} />
-              </Field>
+              <LimitPair label="单笔取款上限" primary={[singlePrimary, setSinglePrimary]} junior={[singleJunior, setSingleJunior]} />
+              <LimitPair label="单日取款上限" hint="当天累计，不含已冲正的取款" primary={[dailyPrimary, setDailyPrimary]} junior={[dailyJunior, setDailyJunior]} />
             </div>
           </div>
         </div>
@@ -159,8 +197,8 @@ function SettingsForm({ saved }: { saved: Values }) {
                 </label>
               </li>
               <li>
-                <Field icon="ranking" label="排名人数" unit="名" hint="每个学部显示前几名，1 到 100">
-                  <input className="dc-input" inputMode="numeric" value={rankingSize} onChange={(e) => setRankingSize(digits(e.target.value).slice(0, 3))} />
+                <Field icon="ranking" label="排名人数（名）" hint="每个学部显示前几名，1 到 100">
+                  <Stepper label="排名人数" value={rankingSize} onChange={(v) => setRankingSize(v.slice(0, 3))} step={1} min={1} max={100} />
                 </Field>
               </li>
             </ul>
@@ -168,8 +206,19 @@ function SettingsForm({ saved }: { saved: Values }) {
           <div>
             <p className="dc-list-title">学年</p>
             <div className="dc-card">
-              <Field icon="calendar" label="升年级日期" hint="月-日，例如 09-01；从这天起所有学生的年级加一">
-                <input className="dc-input" inputMode="numeric" value={promotion} maxLength={5} placeholder="09-01" onChange={(e) => setPromotion(e.target.value)} />
+              <Field icon="calendar" label="升年级日期" hint="每年从这天起，所有学生的年级加一">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <span className="dc-select">
+                    <select aria-label="升年级月份" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                      {MONTHS.map((m) => <option key={m} value={m}>{m} 月</option>)}
+                    </select>
+                  </span>
+                  <span className="dc-select">
+                    <select aria-label="升年级日" value={Math.min(day, days)} onChange={(e) => setDay(Number(e.target.value))}>
+                      {Array.from({ length: days }, (_, i) => <option key={i} value={i + 1}>{i + 1} 日</option>)}
+                    </select>
+                  </span>
+                </div>
               </Field>
             </div>
           </div>

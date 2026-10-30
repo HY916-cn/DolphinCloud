@@ -8,6 +8,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'sysadmin'] },
   { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher'] },
   { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'teacher'], kind: 'dc-kind-exchange' },
+  { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher'], kind: 'dc-kind-exchange' },
   { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },
   { href: '/admin/issues', icon: 'coin', label: '发行', roles: ['teacher'], kind: 'dc-kind-reward' },
   { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher'] },

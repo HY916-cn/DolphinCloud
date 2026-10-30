@@ -90,7 +90,7 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await signIn(page, '工作人员', 'ops01', '/login?add=1');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/staff');
-  await page.locator('.dc-list-link', { hasText: 'admin' }).click();
+  await page.locator('.dc-list-link', { hasText: '银行管理员' }).first().click();
   await expect(page.locator('.dc-notice')).toContainText('银行管理员只有一个');
   await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
 });

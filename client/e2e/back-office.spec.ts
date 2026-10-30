@@ -31,6 +31,22 @@ test('流水: filter by student number', async ({ page }) => {
   await expect(page.locator('.dc-empty')).toContainText('没有符合条件的流水');
 });
 
+test('流水: pick today as the start date in the calendar', async ({ page }) => {
+  await open(page, '流水', 'txns');
+  const start = page.getByRole('button', { name: '开始日期' });
+  await expect(start).toHaveText('不限');
+  await start.click();
+  const calendar = page.getByRole('dialog', { name: '选择开始日期' });
+  await expect(calendar.locator('.dc-cal-day.is-today')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(calendar.locator('.dc-cal-day.is-today')).toBeFocused(); // tomorrow cannot be picked
+  await page.keyboard.press('Enter');
+  await expect(calendar).toBeHidden();
+  await expect(start).toHaveText(/^\d{4}年\d{1,2}月\d{1,2}日 星期[一二三四五六日]$/);
+  await page.getByRole('button', { name: '查询', exact: true }).click();
+  await expect(page.locator('.dc-list-title', { hasText: /^共 \d+ 笔$/ })).toBeVisible();
+});
+
 test('发行: register a batch and see it in the list', async ({ page }) => {
   await open(page, '发行', 'issues');
   await page.getByLabel('批次号').fill(batch);
@@ -60,6 +76,14 @@ test('参数: switch 排名匿名 off and on again', async ({ page }) => {
   const toggle = () => page.locator('.dc-switch', { hasText: '排名匿名' }).click();
   await expect(anonymous).toBeChecked();
 
+  // The steppers change a value; back to the saved value, there is nothing to save.
+  const save = page.getByRole('button', { name: '保存参数' });
+  await page.getByLabel('排名人数增加 1').click();
+  await expect(page.getByLabel('排名人数', { exact: true })).toHaveValue('11');
+  await expect(save).toBeEnabled();
+  await page.getByLabel('排名人数减少 1').click();
+  await expect(save).toBeDisabled();
+
   await toggle();
   await expect(anonymous).not.toBeChecked();
   await expect(page.locator('.dc-toast')).toHaveText('设置已保存');
@@ -78,7 +102,7 @@ test('参数: switch 排名匿名 off and on again', async ({ page }) => {
 test('日志: the batch registered above, with its fields', async ({ page }) => {
   await open(page, '日志', 'audit');
   const entry = page.locator('details', { has: page.locator('.dc-txn-title', { hasText: `新增发行 · ${batch}` }) });
-  await expect(entry).toContainText('admin');
+  await expect(entry).toContainText('银行管理员');
   await entry.locator('summary').click();
   await expect(entry.locator('.dc-kv')).toContainText('批次号');
   await expect(entry.locator('.dc-kv')).toContainText('总额25');

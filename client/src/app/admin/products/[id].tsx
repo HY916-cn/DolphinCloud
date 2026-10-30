@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Desk, FormLoading, SkeletonGroup, Icon, Notice, TxnListLoading, type IconName } from '@/components';
+import { Desk, FormLoading, SkeletonGroup, Icon, link, MoveList, Notice, TxnListLoading, type IconName, type Move } from '@/components';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { formatAmount } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 
@@ -11,16 +11,11 @@ type Product = {
   id: string; name: string; price: number; cost: number | null; category: string | null;
   image_path: string | null; listed: boolean; stock: number;
 };
-type Move = { id: number; kind: 'stock_in' | 'sale' | 'reversal'; qty_delta: number; note: string | null; created_at: string };
 type Problem = { title: string; text: string } | null;
 
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, 6);
-const MOVE: Record<Move['kind'], { label: string; icon: IconName; kind: string }> = {
-  stock_in: { label: '入库', icon: 'plus', kind: '' }, sale: { label: '兑换', icon: 'exchange', kind: 'dc-kind-exchange' },
-  reversal: { label: '冲正', icon: 'transfer', kind: '' },
-};
 
 // Scales a picture to at most 800px on its longest side as a JPEG at quality 0.8 (PHASE-1.md §6.7), on a white ground
 // so transparent PNGs do not turn black.
@@ -48,7 +43,7 @@ function Field({ icon, label, error, hint, children }: { icon: IconName; label: 
   );
 }
 
-// 新增商品 (id "new") or 编辑商品 with 入库 and the latest stock movements.
+// 新增商品 (id "new") or 编辑商品 with its stock and the latest stock movements.
 export default function ProductPage() {
   const { id, saved } = useLocalSearchParams<{ id: string; saved?: string }>();
   const isNew = id === 'new';
@@ -71,7 +66,7 @@ export default function ProductPage() {
         : (
           <div className="dc-split">
             <ProductForm key={product.data.id} product={product.data} savedBefore={!!saved} />
-            <StockIn product={product.data} />
+            <StockHistory product={product.data} />
           </div>
         )}
     </Desk>
@@ -188,8 +183,8 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   );
 }
 
-function StockIn({ product }: { product: Product }) {
-  const queryClient = useQueryClient();
+// The stock and its latest movements; stock in and out is done on 出入库.
+function StockHistory({ product }: { product: Product }) {
   const moves = useQuery({
     queryKey: ['stock_movements', product.id],
     queryFn: async () => {
@@ -199,76 +194,20 @@ function StockIn({ product }: { product: Product }) {
       return data as Move[];
     },
   });
-  const [qty, setQty] = useState('');
-  const [note, setNote] = useState('');
-  const [tried, setTried] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<number | null>(null);
-  const [error, setError] = useState<Problem>(null);
-  const qtyProblem = tried && !(Number(qty) > 0) ? '请输入大于 0 的入库数量' : null;
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setTried(true);
-    if (busy || !(Number(qty) > 0)) return;
-    setBusy(true);
-    setError(null);
-    setDone(null);
-    try {
-      await call('stock_in', { p_product_id: product.id, p_qty: Number(qty), p_note: note.trim() || null });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-        queryClient.invalidateQueries({ queryKey: ['stock_movements', product.id] }),
-      ]);
-      setDone(Number(qty));
-      setQty('');
-      setNote('');
-      setTried(false);
-    } catch (err) {
-      setError(failure(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <section className="dc-stack">
-      <form className="dc-card dc-stack" onSubmit={submit} noValidate aria-label="入库">
-        <h2 className="heading">入库</h2>
-        <dl className="dc-kv" aria-live="polite">
+    <section className="dc-stack" aria-label="库存">
+      <div className="dc-card dc-stack">
+        <h2 className="heading">库存</h2>
+        <dl className="dc-kv">
           <div className="is-total"><dt>当前库存</dt><dd>{formatAmount(product.stock)}<small>件</small></dd></div>
         </dl>
-        <Field icon="plus" label="入库数量" error={qtyProblem}>
-          <input className="dc-input" inputMode="numeric" value={qty} placeholder="请输入数量" onChange={(e) => setQty(digits(e.target.value))} />
-          <span className="dc-input-unit">件</span>
-        </Field>
-        <Field icon="passbook" label="备注" hint="选填，例如进货批次">
-          <input className="dc-input" value={note} maxLength={60} placeholder="选填" onChange={(e) => setNote(e.target.value)} />
-        </Field>
-        {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-        {done !== null && !error && <Notice tone="success" title="入库成功">已入库 {done} 件，当前库存 {product.stock} 件。</Notice>}
-        <div>
-          <button className={`dc-btn dc-btn-primary dc-btn-sm ${busy ? 'is-loading' : ''}`} type="submit">{busy ? '正在入库' : '确认入库'}</button>
-        </div>
-      </form>
+        <div><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/stock')}><Icon name="inbox" />去出入库</a></div>
+      </div>
       <h2 className="heading">库存变动</h2>
       {moves.error ? <Notice tone="danger" title="暂时无法读取库存变动">请检查网络后刷新页面。</Notice>
         : !moves.data ? <TxnListLoading label="正在加载库存变动" />
         : !moves.data.length ? <p className="dc-top-sub">还没有库存变动。</p>
-        : (
-          <ul className="dc-txns" aria-label="最近 10 条库存变动">
-            {moves.data.map((m) => (
-              <li key={m.id} className={`dc-txn ${MOVE[m.kind].kind}`}>
-                <span className="dc-txn-icon"><Icon name={MOVE[m.kind].icon} /></span>
-                <div className="dc-txn-main">
-                  <div className="dc-txn-title">{[MOVE[m.kind].label, m.note].filter(Boolean).join(' · ')}</div>
-                  <div className="dc-txn-time">{formatTime(m.created_at)}</div>
-                </div>
-                <div className={`dc-txn-amount ${m.qty_delta > 0 ? 'is-in' : ''}`}>{formatSigned(m.qty_delta)}<small>件</small></div>
-              </li>
-            ))}
-          </ul>
-        )}
+        : <MoveList moves={moves.data} label="最近 10 条库存变动" />}
     </section>
   );
 }

@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Desk, Icon, Notice, TxnListLoading, type IconName } from '@/components';
+import { DatePicker, Desk, Icon, Notice, TxnListLoading, today, type IconName } from '@/components';
 import { formatAmount, formatSigned } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
@@ -31,6 +31,7 @@ export default function Txns() {
   const [draft, setDraft] = useState<Filters>(EMPTY);
   const [applied, setApplied] = useState<Filters>(EMPTY);
   const set = (patch: Partial<Filters>) => setDraft((f) => ({ ...f, ...patch }));
+  const now = today();
 
   // Tellers for the filter.
   const tellers = useQuery({
@@ -91,16 +92,10 @@ export default function Txns() {
               </select>
             </span>
           </Field>
-          <Field icon="calendar" label="开始日期">
-            <span className="dc-input-wrap">
-              <input className="dc-input" type="date" value={draft.from} max={draft.to || undefined} onChange={(e) => set({ from: e.target.value })} />
-            </span>
-          </Field>
-          <Field icon="calendar" label="结束日期">
-            <span className="dc-input-wrap">
-              <input className="dc-input" type="date" value={draft.to} min={draft.from || undefined} onChange={(e) => set({ to: e.target.value })} />
-            </span>
-          </Field>
+          <DatePicker label="开始日期" value={draft.from} placeholder="不限" max={draft.to || now} rule="今天之后的日期不能选"
+            onChange={(from) => set({ from })} />
+          <DatePicker label="结束日期" value={draft.to} placeholder="不限" min={draft.from || undefined} max={now}
+            rule={draft.from ? '不能早于开始日期' : '今天之后的日期不能选'} onChange={(to) => set({ to })} />
         </div>
         <div className="dc-chips" role="group" aria-label="类型">
           {KINDS.map(([k, label]) => (

@@ -17,7 +17,7 @@
 | 学生端 | 余额、最近 10 笔交易、全部明细（分页）、存款排名（按学部分开排，默认匿名） |
 | 柜台 | 总览、办理、冲正：按姓名、拼音、班级或学号找到学生并确认是本人后，在一次办理里连续办理存款、取款、兑换，办理单记下每一笔 |
 | 离线登记 | 断网时只允许登记存款，本机暂存，恢复后补传；纸质凭条兜底 |
-| 文创商城 | 商品新增、编辑、图片、价格、上架 / 下架、入库（增加库存） |
+| 文创商城 | 商品新增、编辑、图片、价格、上架 / 下架；出入库（一次为多件商品入库或出库） |
 | 货币发行 | 发行批次登记 |
 | 流水查询 | 会计与银行管理员按学生、日期、类型、柜员组合查询全部流水 |
 | 系统 | 账号与角色、参数设置、操作日志、每日自动备份与命令行恢复、余额自检 |
@@ -135,7 +135,7 @@
 | 冲正本人当天业务 | | ✓ | | | | |
 | 冲正任意业务 | | | | | ✓ | |
 | 查看全部流水 | | | ✓ | | ✓ | |
-| 商品管理、入库 | | | | ✓ | ✓ | |
+| 商品管理、出入库 | | | | ✓ | ✓ | |
 | 发行登记 | | | | | ✓ | |
 | 导入名册、开户 | | | | | ✓ | |
 | 管理工作账号 | | | | | ✓ | ✓ |
@@ -258,7 +258,7 @@ create table txn_items (
 create table stock_movements (
   id          bigserial primary key,
   product_id  uuid not null references products(id),
-  kind        text not null check (kind in ('stock_in','sale','reversal')),
+  kind        text not null check (kind in ('stock_in','stock_out','sale','reversal')),
   qty_delta   integer not null,
   txn_id      uuid references txns(id),
   operator_id uuid not null references profiles(id),
@@ -373,12 +373,13 @@ create table audit_log (
 | `set_role(p_user_id, p_role)` | teacher / sysadmin | 更正工作账号的角色（仍只有一个）；学生账号不能设置角色；不能改成或改掉 `teacher`（`ONE_BANK_ADMIN`） |
 | `reset_password(p_user_id)` | teacher / sysadmin | 把密码恢复为默认密码（`must_change_password` 随之为 `true`），并结束该账号的所有会话 |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`） |
-| `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 入库只增加库存；库存减少只来自兑换 |
+| `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 单件商品入库 |
+| `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log`；不经 API 开放 |
-| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，密码为默认密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
+| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，显示名为「银行管理员」，密码为默认密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
 
 ### 6.5 名册导入与账号创建
 
@@ -468,11 +469,12 @@ client/
       index.tsx               总览：管理入口；银行管理员另见最近的余额自检不一致
       students/               学生：查找、详情与重置密码（index、[no]）；导入名册与开户通知单（import）
       staff/                  工作人员：列表、新增账号（new）、身份 / 重置密码 / 停用（[id]）
-      products/               商品：列表、新增与编辑、图片、上架、入库（index、[id]）
+      products/               商品：列表、新增与编辑、图片、上架、库存变动（index、[id]）
+      stock.tsx               出入库：多件商品一次入库或出库，最近 20 次库存变动
       txns.tsx  issues.tsx  settings.tsx  audit.tsx   流水查询、发行登记、参数、操作日志
   src/components/             设计系统结构的 React 写法：Shell / Page（AppShell）、Welcome（登录页外观）、
                               Gate（页面准入）、ConfirmSheet / SignOut、BalanceCard、TxnList、Notice、Icon、
-                              Desk（后台页面框架）、AccountNotices / OpeningSheet（开户通知单、期初余额核对表的打印内容）
+                              Desk（后台页面框架）、DatePicker（月历选日期）、MoveList（库存变动）、AccountNotices / OpeningSheet（开户通知单、期初余额核对表的打印内容）
   src/theme/                  tokens.css、bundle.css、icons.ts，均由 npm run tokens 生成
   src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
   src/lib/session.tsx         会话、本人资料与角色、去向
@@ -489,7 +491,7 @@ client/
   src/lib/offline-queue.ts    离线存款队列与名册缓存（IndexedDB）
   src/lib/*.test.mjs          单元测试：npm --prefix client test
   e2e/*.spec.ts               端到端测试（Playwright）：admin（名册与账号）、back-office（流水、发行、参数、日志）、
-                              counter（柜台）、products（商品）、student（学生端）；helpers.ts 为登录等公用步骤
+                              counter（柜台）、products（商品与出入库）、student（学生端）；helpers.ts 为登录等公用步骤
   workbox-config.cjs          Service Worker 配置
   public/index.html           页面模板，先加载 /config.js 和 /fonts/fonts.css
   public/logo.png             海豚云标志
@@ -592,17 +594,18 @@ client/
 
 ### 7.9 后台
 
-后台导航为「总览」和本身份可用的各项管理（4.2）；手机底部 `TabBar` 最多 5 项，其余从总览宫格进入。每页标题行下写当前账号名，右侧只放切换账号；页面自己的操作（导入名册、新增账号、新增商品）放在内容第一行，左边是这一页的计数。数据加载时各页显示与真实布局同形的骨架屏（`components/Skeleton.tsx`），超过 10 秒换成「加载时间比平时长」提示，一页只出一条。读取整个名册时按每页 1000 行分页读取（接口单次最多返回 1000 行，`lib/supabase.ts` 的 `readAll`）。
+后台导航为「总览」和本身份可用的各项管理（4.2）；手机底部 `TabBar` 最多 5 项，其余从总览宫格进入。每页标题行下写当前账号的显示名（银行管理员显示「银行管理员」），右侧只放切换账号；页面自己的操作（导入名册、新增账号、新增商品）放在内容第一行，左边是这一页的计数。数据加载时各页显示与真实布局同形的骨架屏（`components/Skeleton.tsx`），超过 10 秒换成「加载时间比平时长」提示，一页只出一条。读取整个名册时按每页 1000 行分页读取（接口单次最多返回 1000 行，`lib/supabase.ts` 的 `readAll`）。
 
 - **学生**（银行管理员、运维员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业；可一次打印所有还未设置新密码的学生的开户通知单；银行管理员还可打印期初余额核对表。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认；银行管理员另见余额和最近 10 笔交易。运维员看不到余额。
 - **导入名册**（银行管理员）：选择 Excel 或 CSV → 逐行校验（`lib/roster.ts`，问题按行号列出，全部改好才能导入）→「核对名册」显示各学部人数与期初余额合计 →「确认导入」每 100 人一批并显示进度 → 「导入完成：新开户 N 人，更新 M 人」→「打印开户通知单」。页面提供「下载模板」。某一批被拒绝时，说明哪个学号有问题、前面已导入多少人；改好后重新导入整个名册即可。
 - **开户通知单**：浏览器打印，只打印通知单本身；按班分页，每张含姓名、班级、学号、初始密码、登录网址和「首次登录后请立即设置新密码」。
 - **期初余额核对表**：同样按班分页，每班一张表，列出学号、姓名、系统期初余额（`opening` 流水金额，没有则为 0），留空「原账本余额」和「一致」两栏，表头写本班人数与合计，表尾留核对人和日期。
 - **工作人员**（银行管理员、运维员）：列表显示姓名、身份、账号和停用、未设置密码状态。「新增账号」填写账号、姓名、身份，创建后提示初始密码。账号详情可改身份、重置密码、停用或启用（不能停用自己）。运维员不能创建银行管理员，也不能修改银行管理员的账号，页面显示「由银行管理员管理」。
-- **商品**（库管、银行管理员）：列表显示图片、名称、价格、库存和上架状态。编辑页填写名称、价格、成本、分类、图片和是否上架；已有商品另有「入库」（数量、备注）和最近 10 次库存变动。
-- **流水**（会计、银行管理员）：按学号、日期范围、类型、柜员组合筛选，最新的在前，每次加载 50 笔，显示符合条件的总笔数；每笔写明业务、学生、柜员、交易号、时间和金额，已冲正的注明。
-- **发行**（银行管理员）：登记批次号、发行日期、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
-- **参数**（银行管理员）：面额、两个学部的单笔与单日取款上限、排名人数、升年级日期，「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
+- **商品**（库管、银行管理员）：列表显示图片、名称、价格、库存和上架状态。编辑页填写名称、价格、成本、分类、图片和是否上架；已有商品另显示当前库存、最近 10 次库存变动和「去出入库」。
+- **出入库**（库管、银行管理员）：`Segmented` 切换入库 / 出库；每件商品一张 `QtyStepper` 卡片（名称、当前库存、加减数量），出库数量不超过库存；入库可写备注，出库须写原因；下方合计后「确认入库 / 确认出库」一次提交（`stock_move`）。右栏（手机在下方）是全部商品最近 20 次库存变动，写明商品与备注。
+- **流水**（会计、银行管理员）：按学号、日期范围（开始、结束日期用 `DatePicker` 月历选择，留空为不限，今天之后不能选）、类型、柜员组合筛选，最新的在前，每次加载 50 笔，显示符合条件的总笔数；每笔写明业务、学生、柜员、交易号、时间和金额，已冲正的注明。
+- **发行**（银行管理员）：登记批次号、发行日期（`DatePicker`，默认今天）、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
+- **参数**（银行管理员）：面额用 `FilterChips` 勾选（1、2、5、10、20、50、100 元，1 元必选）；两个学部的单笔与单日取款上限用 `QtyStepper`（每次 ±10，也可直接输入）；排名人数用 `QtyStepper`（1～100）；升年级日期用月、日两个 `Select`。「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
 - **日志**（银行管理员、运维员）：最新的在前，每次加载 50 条；每条写明操作、操作人、时间、设备与 IP，展开后列出改动的字段（旧值 → 新值）。
 
 ### 7.10 学生端
@@ -761,7 +764,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | --- | --- | --- |
 | 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
 | 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额与时间；`roster.ts` 名册模板逐行校验与年级推算 |
-| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、入库、上下架；流水筛选、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
+| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换、冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水筛选、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 
 CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。

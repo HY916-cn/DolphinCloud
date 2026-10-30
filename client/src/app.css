@@ -1,0 +1,4 @@
+/* The bank admin's sidebar has 9 items (总览 and 8 sections); the design system's indicator rules go up to 8.
+   shortcut: drop this file once design-system/project/bundle.css covers a ninth .dc-nav-item. */
+.dc-nav nav:has(> .dc-nav-item:nth-child(9)) { --nav-count: 9; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(9)[aria-current="page"]) { --nav-index: 8; }
