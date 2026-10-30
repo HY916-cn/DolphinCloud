@@ -3,7 +3,7 @@ import type { Counts } from './cash';
 import { cachedRoster, saveRoster } from './offline-queue';
 import { call } from './rpc';
 import { indexRoster } from './search';
-import { supabase } from './supabase';
+import { readAll, supabase } from './supabase';
 
 export type Student = {
   student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number;
@@ -64,10 +64,11 @@ export function useRoster(accountId: string) {
     queryKey: ['roster', accountId],
     staleTime: 10 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from('students').select('student_no,name,class_no,class_label,status')
-        .abortSignal(AbortSignal.timeout(5000));
-      if (!error) await saveRoster(accountId, data);
-      return indexRoster(error ? await cachedRoster(accountId) : data);
+      const signal = AbortSignal.timeout(5000);
+      const data = await readAll((from, to) => supabase.from('students').select('student_no,name,class_no,class_label,status')
+        .order('student_no').range(from, to).abortSignal(signal)).catch(() => null);
+      if (data) await saveRoster(accountId, data);
+      return indexRoster(data ?? await cachedRoster(accountId));
     },
   });
 }

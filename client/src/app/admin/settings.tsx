@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Desk, FormLoading, Icon, Notice, type IconName } from '@/components';
+import { Desk, FormLoading, SkeletonGroup, Icon, Notice, type IconName } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
@@ -51,7 +51,7 @@ export default function Settings() {
   return (
     <Desk title="参数">
       {settings.error ? <Notice tone="danger" title="暂时无法读取参数">请检查网络后刷新页面。</Notice>
-        : !settings.data ? <div className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></div>
+        : !settings.data ? <SkeletonGroup className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></SkeletonGroup>
         : <SettingsForm saved={settings.data} />}
     </Desk>
   );

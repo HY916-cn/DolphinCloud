@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { indexRoster } from './search';
-import { supabase } from './supabase';
+import { readAll, supabase } from './supabase';
 
 // One student as the back office lists them. A sysadmin reads no balances (accounts is null for them, PHASE-1.md §6.6).
 export type AdminStudent = {
@@ -18,10 +18,9 @@ export function useStudents() {
   return useQuery({
     queryKey: ['admin-students'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('students').select(COLUMNS)
-        .order('division', { ascending: false }).order('cohort', { ascending: false }).order('class_no').order('student_no');
-      if (error) throw error;
-      const rows = data as unknown as AdminStudent[];
+      const rows = await readAll<AdminStudent>((from, to) => supabase.from('students').select(COLUMNS)
+        .order('division', { ascending: false }).order('cohort', { ascending: false }).order('class_no').order('student_no')
+        .range(from, to) as unknown as PromiseLike<{ data: AdminStudent[] | null; error: unknown }>);
       return { rows, index: indexRoster(rows) };
     },
   });

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, KvLoading, Notice, PersonLoading, Summary, TxnList, TxnListLoading } from '@/components';
+import { ConfirmSheet, Desk, Icon, KvLoading, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -46,7 +46,7 @@ export default function Student() {
   return (
     <Desk title="学生" back={() => router.navigate('/admin/students')}>
       {student.isError && <Notice tone="danger" title="暂时无法读取学生信息">请检查网络后刷新页面。</Notice>}
-      {student.isPending && <div className="dc-stack"><PersonLoading side /><KvLoading rows={4} /></div>}
+      {student.isPending && <SkeletonGroup className="dc-stack"><PersonLoading side /><KvLoading rows={4} /></SkeletonGroup>}
       {student.data === null && <Notice tone="danger" title="未找到该学号">请返回学生列表重新查找。</Notice>}
       {s && (
         <div className="dc-split">

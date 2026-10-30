@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Desk, FormLoading, Icon, Notice, TxnListLoading, type IconName } from '@/components';
+import { Desk, FormLoading, SkeletonGroup, Icon, Notice, TxnListLoading, type IconName } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatSigned, formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -66,7 +66,7 @@ export default function ProductPage() {
   return (
     <Desk title={isNew ? '新增商品' : '编辑商品'} back={back}>
       {isNew ? <ProductForm product={null} /> : product.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
-        : product.isPending ? <div className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></div>
+        : product.isPending ? <SkeletonGroup className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></SkeletonGroup>
         : !product.data ? <Notice tone="danger" title="未找到这件商品">请返回商品列表重新选择。</Notice>
         : (
           <div className="dc-split">

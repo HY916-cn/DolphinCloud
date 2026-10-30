@@ -1,5 +1,6 @@
 import { formatAmount, formatSigned } from '@/lib/format';
 import type { Txn } from '@/lib/txns';
+import { SlowNotice, useSlow } from './Skeleton';
 import { Icon } from './ui';
 
 // BalanceCard: the largest number on the page, on a cloud with the three-layer wave at its foot.
@@ -33,6 +34,7 @@ export function TxnList({ items }: { items: Txn[] }) {
 
 // Skeleton rows while the list loads.
 export function TxnListLoading({ rows = 3, label = '正在加载交易' }: { rows?: number; label?: string }) {
+  if (useSlow()) return <SlowNotice />;
   return (
     <ul className="dc-txns" aria-busy="true" aria-label={label}>
       {Array.from({ length: rows }, (_, i) => (

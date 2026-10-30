@@ -151,6 +151,7 @@ export default function ImportRoster() {
             {stage.created.length > 0 && (
               <p className="dc-top-sub dc-enter" style={{ '--i': 3 } as React.CSSProperties}>请打印开户通知单按班发放，提醒学生尽快登录并设置新密码。</p>
             )}
+            <p className="dc-top-sub dc-enter" style={{ '--i': 4 } as React.CSSProperties}>回到学生页可打印期初余额核对表，与原账本逐人核对。</p>
           </section>
           <div className="dc-actions">
             <button className="dc-btn dc-btn-secondary" type="button" onClick={() => router.navigate('/admin/students')}>返回学生</button>
