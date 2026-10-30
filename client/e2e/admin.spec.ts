@@ -16,7 +16,7 @@ const roster = (rows: (string | number)[][]) => ({
 });
 
 test('a roster with problems is shown row by row and nothing is imported', async ({ page }) => {
-  await signIn(page, '工作人员', 'teacher01');
+  await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '学生' }).click();
   await page.getByRole('link', { name: '导入名册' }).click();
   await page.getByLabel('选择名册文件').setInputFiles(roster([
@@ -28,7 +28,7 @@ test('a roster with problems is shown row by row and nothing is imported', async
 });
 
 test('the teacher imports a roster, the new student signs in and must set a new password', async ({ page }) => {
-  await signIn(page, '工作人员', 'teacher01');
+  await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students/import');
   await page.getByLabel('选择名册文件').setInputFiles(roster([
@@ -58,7 +58,7 @@ test('the teacher imports a roster, the new student signs in and must set a new 
 });
 
 test('the teacher resets a student password back to the default', async ({ page }) => {
-  await signIn(page, '工作人员', 'teacher01');
+  await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students/20269001');
   await expect(page.locator('.dc-kv')).toContainText('已设置新密码');
@@ -69,7 +69,7 @@ test('the teacher resets a student password back to the default', async ({ page 
 });
 
 test('staff logins: create one, change its role, stop it; a sysadmin cannot touch a teacher', async ({ page }) => {
-  await signIn(page, '工作人员', 'teacher01');
+  await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '人员' }).click();
   await page.getByRole('link', { name: '新增账号' }).click();
   await page.getByPlaceholder('如 teller02').fill('Teller09');
@@ -87,10 +87,10 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await confirmIn(page, '停用账号');
   await expect(page.locator('.dc-kv')).toContainText('已停用');
 
-  await signIn(page, '工作人员', 'admin01', '/login?add=1');
+  await signIn(page, '工作人员', 'ops01', '/login?add=1');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/staff');
-  await page.locator('.dc-list-link', { hasText: 'teacher01' }).click();
+  await page.locator('.dc-list-link', { hasText: 'admin' }).click();
   await expect(page.locator('.dc-notice')).toContainText('银行管理员只有一个');
   await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
 });

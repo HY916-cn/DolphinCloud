@@ -44,10 +44,10 @@ SERVICE=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$SERVICE_ROLE_
 [ "$(http "$BASE/config.js")" = 200 ] && grep -q "$ANON" "$WORK/body" && ! grep -q "$SERVICE" "$WORK/body" || fail "config.js"
 pass "HTTPS static site and config.js (anon key only)"
 
-USER_ID=$(sql "select app_private.create_login('teacher01@staff.dolphin.internal', 'Smoke-pass-1')")
-TOKEN=$(login teacher01@staff.dolphin.internal Smoke-pass-1)
+USER_ID=$(sql "select app_private.create_login('admin@staff.dolphin.internal', 'Smoke-pass-1')")
+TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
 [ -n "$TOKEN" ] || fail "login: $(cat "$WORK/body")"
-[ -z "$(login teacher01@staff.dolphin.internal wrong-password)" ] || fail "wrong password accepted"
+[ -z "$(login admin@staff.dolphin.internal wrong-password)" ] || fail "wrong password accepted"
 pass "login with SQL-created account; wrong password rejected"
 
 set_password() { http -X PUT "$BASE/auth/v1/user" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -78,13 +78,13 @@ sql "select app_private.create_login('after@staff.dolphin.internal', 'Smoke-pass
 docker exec "$NAME" dolphin restore "$(basename "$BACKUP")" >/dev/null
 wait_ready
 [ -z "$(login after@staff.dolphin.internal Smoke-pass-2)" ] || fail "account created after backup survived restore"
-[ -n "$(login teacher01@staff.dolphin.internal Smoke-pass-1)" ] || fail "account lost in restore"
+[ -n "$(login admin@staff.dolphin.internal Smoke-pass-1)" ] || fail "account lost in restore"
 [ "$(http "$BASE/storage/v1/object/public/product-images/smoke/logo.png")" = 200 ] && cmp -s "$WORK/body" "$LOGO" || fail "image lost in restore"
 pass "backup → change → restore brings back the backed-up state"
 
 docker restart "$NAME" >/dev/null
 wait_ready
-TOKEN=$(login teacher01@staff.dolphin.internal Smoke-pass-1)
+TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
 [ -n "$TOKEN" ] && [ "$(http -X POST "$BASE/rest/v1/rpc/whoami" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN")" = 200 ] || fail "after restart"
 pass "data and services survive a container restart"
 echo "All M0 checks passed."

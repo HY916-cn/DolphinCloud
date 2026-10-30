@@ -2,12 +2,12 @@
 \ir helpers/setup.psql
 
 select tests.staff('teacher', 'teacher') as teacher \gset
-select tests.staff('admin', 'sysadmin') as admin \gset
+select tests.staff('ops', 'sysadmin') as ops \gset
 select tests.staff('keeper', 'storekeeper') as keeper \gset
 select tests.staff('t1', 'teller') as t1 \gset
 
 -- Roster import
-select is(tests.err(:'admin', $$select import_roster('[]')$$), 'FORBIDDEN', 'only a teacher imports the roster');
+select is(tests.err(:'ops', $$select import_roster('[]')$$), 'FORBIDDEN', 'only a teacher imports the roster');
 -- Roster rows write "P4" / "J7" for the cohorts now in 四年级 / 七年级, so the tests hold whatever today's date is.
 select app_private.grade_of('primary', 0) - 4 as p4, app_private.grade_of('junior', 0) - 7 as j7 \gset
 create function tests.roster(p_user uuid, p_rows text) returns jsonb language sql as $$
@@ -66,28 +66,28 @@ select is(tests.call(:'teacher', $$select jsonb_agg(jsonb_build_array(student_no
   '[["20260001", 4, "四年级(2)班"], ["20260003", 7, "七年级(1)班"]]', 'grade and class_label are computed fields of students');
 
 -- Staff logins and roles
-select tests.call(:'admin', $$select create_staff('Teller02', '柜员二', 'teller')$$) as staff \gset
+select tests.call(:'ops', $$select create_staff('Teller02', '柜员二', 'teller')$$) as staff \gset
 select is(:'staff'::jsonb ->> 'password', 'a12345678', 'staff logins get the default password too');
 select is(:'staff'::jsonb ->> 'login_id', 'teller02', 'login ids are lower case');
 select is(:'staff'::jsonb ->> 'role', 'teller', 'a staff login has one role');
-select is(tests.err(:'admin', $$select create_staff('teller02', '重复', 'teller')$$), 'ALREADY_EXISTS', 'duplicate login');
-select is(tests.err(:'admin', $$select create_staff('a b', '空格', 'teller')$$), 'INVALID_INPUT', 'invalid login id');
-select is(tests.err(:'admin', $$select create_staff('x2', '无角色', null)$$), 'INVALID_INPUT', 'a staff login needs a role');
-select is(tests.err(:'admin', $$select create_staff('teacher2', '老师二', 'teacher')$$), 'FORBIDDEN', 'a sysadmin cannot create a teacher');
+select is(tests.err(:'ops', $$select create_staff('teller02', '重复', 'teller')$$), 'ALREADY_EXISTS', 'duplicate login');
+select is(tests.err(:'ops', $$select create_staff('a b', '空格', 'teller')$$), 'INVALID_INPUT', 'invalid login id');
+select is(tests.err(:'ops', $$select create_staff('x2', '无角色', null)$$), 'INVALID_INPUT', 'a staff login needs a role');
+select is(tests.err(:'ops', $$select create_staff('teacher2', '老师二', 'teacher')$$), 'FORBIDDEN', 'a sysadmin cannot create a teacher');
 select is(tests.err(:'keeper', $$select create_staff('x1', 'x', 'teller')$$), 'FORBIDDEN', 'a storekeeper cannot create logins');
 select is(tests.err(:'teacher', $$select create_staff('teacher2', '老师二', 'teacher')$$), 'ONE_BANK_ADMIN', 'nor can the teacher: there is one');
 
-select is(tests.err(:'admin', format($$select set_role(%L, 'teacher')$$, :'t1')), 'FORBIDDEN', 'a sysadmin cannot make a teacher');
-select is(tests.err(:'admin', format($$select set_role(%L, 'teller')$$, :'teacher')), 'FORBIDDEN', 'nor change one');
+select is(tests.err(:'ops', format($$select set_role(%L, 'teacher')$$, :'t1')), 'FORBIDDEN', 'a sysadmin cannot make a teacher');
+select is(tests.err(:'ops', format($$select set_role(%L, 'teller')$$, :'teacher')), 'FORBIDDEN', 'nor change one');
 select is(tests.err(:'teacher', format($$select set_role(%L, 'teacher')$$, :'t1')), 'ONE_BANK_ADMIN', 'nor does the teacher make a second one');
 select is(tests.err(:'teacher', format($$select set_role(%L, 'teller')$$, :'teacher')), 'ONE_BANK_ADMIN', 'or give up the role');
 select throws_ok(format($$update user_roles set role = 'teacher' where user_id = %L$$, :'t1'), '23505', null,
   'one teacher, also for direct writes');
-select is(tests.call(:'admin', format($$select set_role(%L, 'accountant')$$, :'t1')) ->> 'role', 'accountant', 'the role is replaced');
+select is(tests.call(:'ops', format($$select set_role(%L, 'accountant')$$, :'t1')) ->> 'role', 'accountant', 'the role is replaced');
 select is((select array_agg(role)::text from user_roles where user_id = :'t1'), '{accountant}', 'and stays the only one');
-select is(tests.err(:'admin', $$select set_role(id, 'teller') from profiles where login_id = '20260002'$$), 'INVALID_INPUT',
+select is(tests.err(:'ops', $$select set_role(id, 'teller') from profiles where login_id = '20260002'$$), 'INVALID_INPUT',
   'a student login cannot take a staff role');
-select is(tests.err(:'admin', format($$select set_role(%L, 'teller')$$, gen_random_uuid())), 'USER_NOT_FOUND', 'unknown user');
+select is(tests.err(:'ops', format($$select set_role(%L, 'teller')$$, gen_random_uuid())), 'USER_NOT_FOUND', 'unknown user');
 select throws_ok(format($$insert into user_roles values (%L, 'teller')$$, :'t1'), '23505', null, 'one role per login, also for direct writes');
 select throws_ok($$insert into user_roles select id, 'teller' from profiles where login_id = '20260002'$$, 'P0001', 'INVALID_INPUT',
   'student logins hold no role, also for direct writes');
@@ -95,19 +95,19 @@ select throws_ok($$insert into user_roles select id, 'teller' from profiles wher
 -- Passwords
 select id as stu from profiles where login_id = '20260002' \gset
 insert into auth.sessions (id, user_id) values (gen_random_uuid(), :'stu');
-select tests.call(:'admin', format($$select reset_password(%L)$$, :'stu')) ->> 'password' as pw \gset
+select tests.call(:'ops', format($$select reset_password(%L)$$, :'stu')) ->> 'password' as pw \gset
 select is(:'pw'::text, 'a12345678', 'reset returns the default password');
 select ok((select encrypted_password = crypt('a12345678', encrypted_password) from auth.users where id = :'stu'), 'the login now uses it');
 select ok((select must_change_password from profiles where id = :'stu'), 'and must change it at the next sign-in');
 select is((select count(*)::int from auth.sessions where user_id = :'stu'), 0, 'existing sessions are ended');
-select is(tests.err(:'admin', format($$select reset_password(%L)$$, :'teacher')), 'FORBIDDEN', 'a sysadmin cannot reset a teacher''s password');
+select is(tests.err(:'ops', format($$select reset_password(%L)$$, :'teacher')), 'FORBIDDEN', 'a sysadmin cannot reset a teacher''s password');
 select throws_ok(format($$update auth.users set encrypted_password = crypt('a12345678', gen_salt('bf', 4)) where id = %L$$, :'stu'),
   'P0001', 'PASSWORD_UNCHANGED', 'the new password cannot be the default');
 update auth.users set encrypted_password = crypt('my-own-pass', gen_salt('bf', 4)) where id = :'stu';
 select ok(not (select must_change_password from profiles where id = :'stu'), 'replacing the default clears must_change_password');
 select throws_ok(format($$update auth.users set encrypted_password = crypt('another-pass', gen_salt('bf', 4)) where id = %L$$, :'stu'),
   '42501', 'PASSWORD_CHANGE_FORBIDDEN', 'after that the user cannot change it again');
-select tests.call(:'admin', format($$select reset_password(%L)$$, :'stu'));
+select tests.call(:'ops', format($$select reset_password(%L)$$, :'stu'));
 select ok((select must_change_password from profiles where id = :'stu'), 'an admin reset brings back the default');
 update auth.users set encrypted_password = crypt('my-new-pass', gen_salt('bf', 4)) where id = :'stu';
 select ok(not (select must_change_password from profiles where id = :'stu'), 'which the user replaces once more');

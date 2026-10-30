@@ -25,7 +25,7 @@ ANON=$(curl -sk "$BASE/config.js" | sed -E 's/.*"anonKey":"([^"]+)".*/\1/')
 token() { curl -sk "$BASE/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$1\",\"password\":\"a12345678\"}" | sed -E 's/.*"access_token":"([^"]+)".*/\1/'; }
 api() { local who=$1; shift; curl -sk -H "apikey: $ANON" -H "Authorization: Bearer $who" -H 'Content-Type: application/json' "$@"; }
-TEACHER=$(token teacher01@staff.dolphin.internal)
+TEACHER=$(token admin@staff.dolphin.internal)
 TELLER=$(token teller01@staff.dolphin.internal)
 fail() { echo "FAIL: $*" >&2; exit 1; }
 # The time of one request that must answer 200.

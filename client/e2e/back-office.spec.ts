@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 
-// 流水, 发行, 参数 and 日志 (PHASE-1.md §4.2) as teacher01 on the seed data. The counter tests that follow rely on the
+// 流水, 发行, 参数 and 日志 (PHASE-1.md §4.2) as admin on the seed data. The counter tests that follow rely on the
 // seed's faces and withdrawal limits, so these tests leave them alone and switch 排名匿名 back to how they found it.
 // The 日志 test looks for the batch the 发行 test registers.
 test.describe.configure({ mode: 'serial' });
@@ -9,7 +9,7 @@ test.describe.configure({ mode: 'serial' });
 const batch = `E2E-${Date.now()}`;
 
 async function open(page: Page, label: string, path: string) {
-  await signIn(page, '工作人员', 'teacher01');
+  await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.locator('.dc-nav-item', { hasText: label }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/${path}$`));
@@ -78,7 +78,7 @@ test('参数: switch 排名匿名 off and on again', async ({ page }) => {
 test('日志: the batch registered above, with its fields', async ({ page }) => {
   await open(page, '日志', 'audit');
   const entry = page.locator('details', { has: page.locator('.dc-txn-title', { hasText: `新增发行 · ${batch}` }) });
-  await expect(entry).toContainText('teacher01');
+  await expect(entry).toContainText('admin');
   await entry.locator('summary').click();
   await expect(entry.locator('.dc-kv')).toContainText('批次号');
   await expect(entry.locator('.dc-kv')).toContainText('总额25');

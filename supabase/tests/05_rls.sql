@@ -6,7 +6,7 @@ select tests.staff('t2', 'teller') as t2 \gset
 select tests.staff('acc', 'accountant') as acc \gset
 select tests.staff('keeper', 'storekeeper') as keeper \gset
 select tests.staff('teacher', 'teacher') as teacher \gset
-select tests.staff('admin', 'sysadmin') as admin \gset
+select tests.staff('ops', 'sysadmin') as ops \gset
 select tests.student('s1', 50) as s1 \gset
 select tests.student('s2', 30) as s2 \gset
 
@@ -33,9 +33,9 @@ select is(tests.counts(:'t1'), '[1, 2, 2, 1, 1, 0, false, 6]', 'teller: all stud
 select is(tests.counts(:'acc'), '[6, 2, 2, 5, 2, 1, false, 6]', 'accountant: all transactions, products, issues and the staff logins');
 select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, 6]', 'storekeeper: products only');
 select is(tests.counts(:'teacher'), '[8, 2, 2, 5, 2, 1, true, 6]', 'teacher: everything');
-select is(tests.counts(:'admin'), '[8, 2, 0, 0, 1, 0, true, 6]', 'sysadmin: logins, students (no balances) and the audit log');
+select is(tests.counts(:'ops'), '[8, 2, 0, 0, 1, 0, true, 6]', 'sysadmin: logins, students (no balances) and the audit log');
 select is(tests.call(:'s1', $$select count(*) from user_roles$$), '0', 'a student without roles sees no role rows');
-select is(tests.call(:'admin', $$select count(*) from user_roles$$), '6', 'sysadmin sees all roles');
+select is(tests.call(:'ops', $$select count(*) from user_roles$$), '6', 'sysadmin sees all roles');
 select is(tests.call(:'acc', $$select count(*) from user_roles$$), '6', 'accountant sees the staff roles (who is a teller)');
 
 update profiles set disabled = true where id = :'t1';

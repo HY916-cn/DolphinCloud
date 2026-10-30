@@ -713,7 +713,7 @@ docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 
 首次启动后创建第一个银行管理员账号（默认密码登录后设置新密码）：
 
 ```bash
-docker exec -it dolphin-cloud dolphin create-admin teacher01
+docker exec -it dolphin-cloud dolphin create-admin admin
 ```
 
 ### 9.3 运维命令

@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
-// 商品 (PHASE-1.md §1.1): teacher01 adds a product with a picture, stocks it in, then takes it off the shelf.
+// 商品 (PHASE-1.md §1.1): admin adds a product with a picture, stocks it in, then takes it off the shelf.
 // The seed products 海豚书签 and 海浪中性笔 belong to the counter tests and stay untouched.
 test('add a product, stock it in, then unlist it', async ({ page }) => {
   const name = `海豚贴纸${Date.now().toString().slice(-4)}`;
   const row = page.locator('.dc-list-link', { hasText: name });
-  await signIn(page, '工作人员', 'teacher01');
+  await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.locator('.dc-nav-item', { hasText: '商品' }).click();
   await expect(page.locator('.dc-list-link', { hasText: '海豚书签' })).toContainText('已上架');
