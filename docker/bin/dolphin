@@ -1,5 +1,5 @@
 #!/bin/bash
-# Operations CLI: dolphin create-admin <login> | backup | backups | restore <file> | check | status
+# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | status
 set -euo pipefail
 BACKUPS=/data/backups
 psql_() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
@@ -53,6 +53,15 @@ select 'Created ' || lower(:'login') || ' (teacher): ' || app_private.create_adm
 SQL
 }
 
+# The 银行管理员 forgot its password: back to the default one, to be changed at the next sign-in.
+reset_admin() {
+  ready
+  psql_ -qAt <<'SQL'
+select 'Reset ' || app_private.reset_admin() || ' (teacher) to the default password ' || app_private.default_password()
+  || E'.\nSign in with it and set a new one.';
+SQL
+}
+
 # Lists ledger mismatches (and logs them to audit_log); exits 1 when there are any.
 check() {
   local rows
@@ -63,6 +72,7 @@ check() {
 
 case "${1:-}" in
   create-admin) create_admin "${2:-}" ;;
+  reset-admin) reset_admin ;;
   check)   check ;;
   backup)  backup ;;
   backups) ls -1t "$BACKUPS" | grep '^dolphin-.*\.tar\.gz$' || true ;;

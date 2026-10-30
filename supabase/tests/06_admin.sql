@@ -75,10 +75,14 @@ select is(tests.err(:'admin', $$select create_staff('a b', '空格', 'teller')$$
 select is(tests.err(:'admin', $$select create_staff('x2', '无角色', null)$$), 'INVALID_INPUT', 'a staff login needs a role');
 select is(tests.err(:'admin', $$select create_staff('teacher2', '老师二', 'teacher')$$), 'FORBIDDEN', 'a sysadmin cannot create a teacher');
 select is(tests.err(:'keeper', $$select create_staff('x1', 'x', 'teller')$$), 'FORBIDDEN', 'a storekeeper cannot create logins');
-select is(tests.call(:'teacher', $$select create_staff('teacher2', '老师二', 'teacher')$$) ->> 'login_id', 'teacher2', 'a teacher can');
+select is(tests.err(:'teacher', $$select create_staff('teacher2', '老师二', 'teacher')$$), 'ONE_BANK_ADMIN', 'nor can the teacher: there is one');
 
 select is(tests.err(:'admin', format($$select set_role(%L, 'teacher')$$, :'t1')), 'FORBIDDEN', 'a sysadmin cannot make a teacher');
 select is(tests.err(:'admin', format($$select set_role(%L, 'teller')$$, :'teacher')), 'FORBIDDEN', 'nor change one');
+select is(tests.err(:'teacher', format($$select set_role(%L, 'teacher')$$, :'t1')), 'ONE_BANK_ADMIN', 'nor does the teacher make a second one');
+select is(tests.err(:'teacher', format($$select set_role(%L, 'teller')$$, :'teacher')), 'ONE_BANK_ADMIN', 'or give up the role');
+select throws_ok(format($$update user_roles set role = 'teacher' where user_id = %L$$, :'t1'), '23505', null,
+  'one teacher, also for direct writes');
 select is(tests.call(:'admin', format($$select set_role(%L, 'accountant')$$, :'t1')) ->> 'role', 'accountant', 'the role is replaced');
 select is((select array_agg(role)::text from user_roles where user_id = :'t1'), '{accountant}', 'and stays the only one');
 select is(tests.err(:'admin', $$select set_role(id, 'teller') from profiles where login_id = '20260002'$$), 'INVALID_INPUT',
@@ -167,7 +171,18 @@ select tests.call(:'teacher', $$select set_setting('ranking_anonymous', 'false')
 select is(tests.call(:'r1', $$select deposit_ranking()$$) -> 'top' -> 1 ->> 'name', '陈晨', 'full names when not anonymous');
 select is(tests.call(:'t1', $$select deposit_ranking()$$) -> 'me', 'null', 'staff without an account have no place');
 
--- create-admin
+-- create-admin and reset-admin
+select throws_ok($$select app_private.create_admin('head')$$, 'P0001', 'ONE_BANK_ADMIN', 'create_admin refuses a second teacher');
+select set_config('dolphin.password_reset', 'on', false);
+update auth.users set encrypted_password = crypt('Forgot-it-1', gen_salt('bf', 4)), banned_until = now() + interval '1 day'
+where id = :'teacher';
+select set_config('dolphin.password_reset', '', false);
+update profiles set must_change_password = false where id = :'teacher';
+select is(app_private.reset_admin(), 'teacher', 'reset_admin resets the teacher');
+select ok((select encrypted_password = crypt('a12345678', encrypted_password) and banned_until is null from auth.users where id = :'teacher'),
+  'back on the default password and able to sign in');
+select ok((select must_change_password from profiles where id = :'teacher'), 'and must change it at the next sign-in');
+delete from user_roles where role = 'teacher';
 select ok(app_private.create_admin('Head') is not null, 'create_admin');
 select ok((select must_change_password from profiles where login_id = 'head'), 'the admin starts on the default password');
 select is((select array_agg(role order by role)::text from user_roles r join profiles p on p.id = r.user_id where p.login_id = 'head'),

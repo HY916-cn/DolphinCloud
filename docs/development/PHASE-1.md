@@ -122,6 +122,7 @@
 | 运维员 | `sysadmin` | 同上 |
 
 - 学生账号由名册导入产生，不带任何角色。
+- 银行管理员全系统只有一个（`user_roles` 上 `role = 'teacher'` 的唯一索引）：由 `dolphin create-admin` 创建，不能新增第二个，也不能把其他账号改成银行管理员或改掉它的身份；忘记密码时用 `dolphin reset-admin` 恢复默认密码。其他身份可以有多个账号。
 - 工作账号恰好有一个角色；`user_roles` 每个账号最多一行，学生账号不能写入。
 
 ### 4.2 权限矩阵
@@ -368,8 +369,8 @@ create table audit_log (
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `import_roster(p_rows)` | teacher | 见 6.5 |
-| `create_staff(p_login_id, p_name, p_role)` | teacher / sysadmin | 创建一个角色的工作账号，密码为默认密码；运维员不能创建 `teacher` |
-| `set_role(p_user_id, p_role)` | teacher / sysadmin | 更正工作账号的角色（仍只有一个）；学生账号不能设置角色；运维员不能改成或改掉 `teacher` |
+| `create_staff(p_login_id, p_name, p_role)` | teacher / sysadmin | 创建一个角色的工作账号，密码为默认密码；不能创建 `teacher`（只有一个，`ONE_BANK_ADMIN`） |
+| `set_role(p_user_id, p_role)` | teacher / sysadmin | 更正工作账号的角色（仍只有一个）；学生账号不能设置角色；不能改成或改掉 `teacher`（`ONE_BANK_ADMIN`） |
 | `reset_password(p_user_id)` | teacher / sysadmin | 把密码恢复为默认密码（`must_change_password` 随之为 `true`），并结束该账号的所有会话 |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`） |
 | `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 入库只增加库存；库存减少只来自兑换 |
@@ -377,7 +378,7 @@ create table audit_log (
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log`；不经 API 开放 |
-| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，密码为默认密码；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
+| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，密码为默认密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
 
 ### 6.5 名册导入与账号创建
 
@@ -568,6 +569,7 @@ client/
 | `FORBIDDEN` | 没有权限 | 当前账号不能办理这项业务。 |
 | `INVALID_INPUT` | 填写有误 | 请检查 {field}（名册导入时为第 {row} 行）。 |
 | `ALREADY_EXISTS` | 已存在 | {field} 已被使用。 |
+| `ONE_BANK_ADMIN` | 银行管理员只有一个 | 不能新增银行管理员，也不能更改银行管理员的身份。 |
 | `USER_NOT_FOUND`、`PRODUCT_NOT_FOUND` | 未找到 | 请刷新后重试。 |
 | 网络中断（存款以外） | 网络已断开 | 联网后再办理这项业务；存款可以继续离线登记。 |
 
@@ -718,7 +720,8 @@ docker exec -it dolphin-cloud dolphin create-admin teacher01
 
 | 命令 | 作用 |
 | --- | --- |
-| `dolphin create-admin <账号>` | 创建银行管理员账号，密码为默认密码 |
+| `dolphin create-admin <账号>` | 创建银行管理员账号（全系统一个），密码为默认密码 |
+| `dolphin reset-admin` | 银行管理员忘记密码时，把它恢复为默认密码并解除停用，下次登录设置新密码 |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
 | `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据 |

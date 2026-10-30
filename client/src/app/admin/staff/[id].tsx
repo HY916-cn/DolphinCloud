@@ -21,9 +21,8 @@ export default function StaffLogin() {
   const [role, setRole] = useState<Role | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
-  const teacher = me.roles.includes('teacher');
-  const canManage = !!p && (teacher || p.role !== 'teacher');
-  const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher' || teacher);
+  const canManage = !!p && p.role !== 'teacher';
+  const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
   const picked = role ?? p?.role ?? 'teller';
 
   async function run(a: Action) {
@@ -95,7 +94,7 @@ export default function StaffLogin() {
               )}
             </div>
           ) : (
-            <Notice title="由银行管理员管理">银行管理员的账号只能由银行管理员修改身份、重置密码或停用。</Notice>
+            <Notice title="银行管理员只有一个">这个账号的身份不能更改，也不能停用。忘记密码时，由服务器维护人员运行 dolphin reset-admin 恢复为默认密码。</Notice>
           )}
         </div>
       )}

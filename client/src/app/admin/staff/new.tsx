@@ -4,15 +4,14 @@ import { useState } from 'react';
 import { Desk, Icon, Notice } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
-import { ROLES, useMe, type Role } from '@/lib/session';
+import { ROLES, type Role } from '@/lib/session';
 
 const LOGIN = /^[a-z0-9][a-z0-9_.-]{1,31}$/;
 
-// 新增账号: one staff login with one role, on the default password (create_staff). A sysadmin cannot create teachers.
+// 新增账号: one staff login with one role, on the default password (create_staff). The one 银行管理员 already exists.
 export default function NewStaff() {
-  const me = useMe().data!;
   const queryClient = useQueryClient();
-  const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher' || me.roles.includes('teacher'));
+  const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
   const [login, setLogin] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('teller');
