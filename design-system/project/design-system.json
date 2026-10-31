@@ -268,8 +268,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-10-30T14:32:43Z",
+    "at": "2026-10-31T08:18:34Z",
     "via": "Claude Code",
-    "note": "新增 DatePicker 日期选择器；结果页按钮在电脑上整组居中"
+    "note": "DatePicker 加月份面板：点标题按年选月"
   }
 }
