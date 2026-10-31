@@ -480,11 +480,14 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-cal { position: absolute; top: calc(100% + var(--space-2)); left: 0; z-index: 5; box-sizing: border-box; width: 100%; max-width: 380px; padding: var(--space-4); background: var(--surface-raised); border: 2px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-float); animation: dc-rise var(--motion-quick) var(--ease-out); }
 .dc-cal[hidden] { display: none; }
 .dc-cal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
-.dc-cal-title { margin: 0; font: 700 18px/28px var(--font-sans); font-variant-numeric: tabular-nums; }
+.dc-cal-title { display: flex; align-items: center; gap: var(--space-1); height: 44px; padding: 0 var(--space-3) 0 var(--space-4); border: 0; border-radius: var(--radius-pill); background: none; font: 700 18px/28px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; transition: background-color var(--motion-press); }
+.dc-cal-title:hover, .dc-cal-title[aria-expanded="true"] { background: var(--cloud-100); }
+.dc-cal-title .dc-icon { width: 22px; height: 22px; color: var(--dolphin-deep); transition: transform var(--motion-quick); }
+.dc-cal-title[aria-expanded="true"] .dc-icon { transform: rotate(180deg); }
 .dc-cal-nav { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--cloud-100); color: var(--dolphin-deep); cursor: pointer; }
 .dc-cal-nav .dc-icon { width: 22px; height: 22px; color: inherit; }
 .dc-cal-nav:disabled { background: var(--surface); color: var(--cloud-300); cursor: not-allowed; }
-.dc-cal-nav:focus-visible, .dc-cal-day:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dc-cal-nav:focus-visible, .dc-cal-title:focus-visible, .dc-cal-day:focus-visible, .dc-cal-month:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
 .dc-cal-week { font: 600 14px/32px var(--font-sans); color: var(--ink-muted); text-align: center; }
 .dc-cal-day { aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; font: 600 17px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; transition: background-color var(--motion-press); }
@@ -492,6 +495,13 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-cal-day.is-today { box-shadow: inset 0 0 0 2px var(--dolphin); color: var(--dolphin-deep); }
 .dc-cal-day[aria-pressed="true"] { background: var(--dolphin); color: var(--on-dolphin); box-shadow: none; }
 .dc-cal-day:disabled { background: none; color: var(--cloud-300); cursor: not-allowed; }
+.dc-cal-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-2); }
+.dc-cal.is-months .dc-cal-grid, .dc-cal:not(.is-months) .dc-cal-months { display: none; }
+.dc-cal-month { height: 56px; padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--surface); font: 600 17px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; transition: background-color var(--motion-press); }
+.dc-cal-month:hover { background: var(--cloud-100); }
+.dc-cal-month.is-today { box-shadow: inset 0 0 0 2px var(--dolphin); color: var(--dolphin-deep); }
+.dc-cal-month[aria-pressed="true"] { background: var(--dolphin); color: var(--on-dolphin); box-shadow: none; }
+.dc-cal-month:disabled { background: none; color: var(--cloud-300); cursor: not-allowed; }
 .dc-cal-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 2px solid var(--line); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 
 /* Segmented — 分段切换：一块白色滑块滑到选中项（纯 CSS，最多 4 段） */

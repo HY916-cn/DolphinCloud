@@ -47,6 +47,53 @@ test('流水: pick today as the start date in the calendar', async ({ page }) =>
   await expect(page.locator('.dc-list-title', { hasText: /^共 \d+ 笔$/ })).toBeVisible();
 });
 
+test('流水: jump to a day last year through the month panel', async ({ page }) => {
+  await open(page, '流水', 'txns');
+  const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()).split('-').map(Number);
+  const start = page.getByRole('button', { name: '开始日期' });
+  const calendar = page.getByRole('dialog', { name: '选择开始日期' });
+  const title = calendar.getByRole('button', { name: '选择年月' });
+
+  // Keyboard: arrows move through the months and cross into last year; Esc goes back to the days, then closes.
+  await start.click();
+  await title.click();
+  await expect(calendar).toHaveClass(/is-months/);
+  await expect(title).toHaveText(`${y}年`);
+  await expect(calendar.getByRole('button', { name: '下一年' })).toBeDisabled();
+  await expect(calendar.locator('.dc-cal-month.is-today')).toBeFocused();
+  await page.keyboard.press('ArrowRight'); // next month cannot be picked
+  await expect(calendar.locator('.dc-cal-month.is-today')).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await expect(title).toHaveText(`${y - 1}年`);
+  await expect(calendar.getByRole('button', { name: `${y - 1}年${m}月` })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(calendar).not.toHaveClass(/is-months/);
+  await expect(title).toHaveText(`${y}年${m}月`);
+  await expect(calendar.locator('.dc-cal-day.is-today')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(calendar).toBeHidden();
+  await expect(start).toBeFocused();
+
+  // Mouse: title, 上一年, 3月, 15.
+  await start.click();
+  await title.click();
+  await calendar.getByRole('button', { name: '上一年' }).click();
+  await calendar.getByRole('button', { name: `${y - 1}年3月` }).click();
+  await expect(title).toHaveText(`${y - 1}年3月`);
+  await calendar.getByRole('button', { name: /^3月15日/ }).click();
+  await expect(start).toHaveText(new RegExp(`^${y - 1}年3月15日 星期`));
+
+  // A click outside closes it, even from the month panel.
+  await start.click();
+  await title.click();
+  await expect(title).toHaveText(`${y - 1}年`);
+  await page.locator('.dc-top-title').click();
+  await expect(calendar).toBeHidden();
+});
+
 test('发行: register a batch and see it in the list', async ({ page }) => {
   await open(page, '发行', 'issues');
   await page.getByLabel('批次号').fill(batch);
