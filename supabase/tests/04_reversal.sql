@@ -20,7 +20,7 @@ select is(tests.err(:'t1', $$select reverse_txn(gen_random_uuid(), '00000000-000
   '"other" needs an explanation');
 select is(tests.err(:'t1', $$select reverse_txn(gen_random_uuid(), gen_random_uuid(), '金额录错')$$), 'TXN_NOT_FOUND', 'unknown transaction');
 select is(tests.call(:'t1', $$select reverse_txn('00000000-0000-4000-8000-000000000031', '00000000-0000-4000-8000-000000000021', '金额录错')$$)
-  - 'id' - 'txn_no' - 'created_at', '{"type":"reversal","amount":10,"balance_after":120,"change_given":null}', 'teller reverses own deposit today');
+  - 'id' - 'txn_no' - 'created_at', '{"type":"reversal","amount":10,"balance_after":120,"denominations":null,"change_given":null}', 'teller reverses own deposit today');
 select is((select row(balance_delta, cash_delta, reversal_of, reason)::text from txns where id = '00000000-0000-4000-8000-000000000031'),
   row(-10, -10, '00000000-0000-4000-8000-000000000021'::uuid, '金额录错')::text, 'the reversal mirrors the original');
 select is((select status from txns where id = '00000000-0000-4000-8000-000000000021'), 'reversed', 'the original is marked reversed');

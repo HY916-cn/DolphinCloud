@@ -9,8 +9,9 @@ module.exports = {
   navigateFallbackDenylist: [/^\/(auth|rest|storage)\//, /^\/config\.js$/],
   runtimeCaching: [
     { urlPattern: /\/config\.js$/, handler: 'NetworkFirst', options: { cacheName: 'config', networkTimeoutSeconds: 3 } },
-    // Other font slices (Chinese and the rest) are fetched only as pages need them, then kept.
-    { urlPattern: /\/fonts\//, handler: 'CacheFirst', options: { cacheName: 'fonts' } },
+    // Other font slices (Chinese and the rest) are fetched only as pages need them, then kept; their names carry no
+    // version, so a kept slice is checked again in the background and a new font arrives on the next load.
+    { urlPattern: /\/fonts\//, handler: 'StaleWhileRevalidate', options: { cacheName: 'fonts' } },
   ],
   cleanupOutdatedCaches: true,
   clientsClaim: true,

@@ -15,7 +15,7 @@ select tests.call(:'keeper', format($$select stock_in(%L, 5)$$, :'c'));
 
 select is(tests.call(:'t1', format($$select purchase('00000000-0000-4000-8000-000000000010', 's1', %L, 'account')$$,
   jsonb_build_array(jsonb_build_object('product_id', :'a', 'qty', 2), jsonb_build_object('product_id', :'b', 'qty', 1))))
-  - 'id' - 'txn_no' - 'created_at', '{"type":"purchase","amount":23,"balance_after":77,"change_given":null}', 'account purchase');
+  - 'id' - 'txn_no' - 'created_at', '{"type":"purchase","amount":23,"balance_after":77,"denominations":null,"change_given":null}', 'account purchase');
 select is((select row(balance, total_spent)::text from accounts where student_no = 's1'), '(77,23)', 'balance and total spent');
 select is((select array_agg(stock order by price) from products where id in (:'a', :'b')), '{0,3}', 'stock is reduced');
 select is((select count(*)::int from txn_items where txn_id = '00000000-0000-4000-8000-000000000010'), 2, 'one item row per product');
@@ -58,7 +58,7 @@ select is((select qty from txn_items where txn_id = '00000000-0000-4000-8000-000
 select tests.call(:'keeper', format($$select stock_in(%L, 5)$$, :'a'));
 select is(tests.call(:'t1', format($$select purchase('00000000-0000-4000-8000-000000000012', 's2', %L, 'cash', '{"10":1,"5":1,"2":1}')$$,
   jsonb_build_array(jsonb_build_object('product_id', :'a', 'qty', 1)))) - 'id' - 'txn_no' - 'created_at',
-  '{"type":"purchase","amount":10,"balance_after":20,"change_given":{"2":1,"5":1}}', 'cash purchase gives change for 7');
+  '{"type":"purchase","amount":10,"balance_after":20,"denominations":{"2":1,"5":1,"10":1},"change_given":{"2":1,"5":1}}', 'cash purchase gives change for 7');
 select is((select row(balance_delta, cash_delta, payment, denominations)::text from txns where id = '00000000-0000-4000-8000-000000000012'),
   row(0, 10, 'cash', '{"10":1,"5":1,"2":1}'::jsonb)::text, 'cash purchase keeps the balance and adds the price to counter cash');
 select is((select balance from accounts where student_no = 's2'), 20, 'balance unchanged');

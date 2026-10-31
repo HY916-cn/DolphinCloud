@@ -202,6 +202,12 @@ select is(tests.err(:'teacher', $$select set_setting('ranking_anonymous', '"yes"
 select is(tests.err(:'teacher', $$select set_setting('colour', '1')$$), 'INVALID_INPUT', 'unknown key');
 select is(tests.err(:'t1', $$select set_setting('ranking_size', '3')$$), 'FORBIDDEN', 'only a teacher changes settings');
 select is((select count(*)::int from audit_log where action = 'settings.update' and actor_id = :'teacher'), 4, 'setting changes are audited');
+select is(tests.err(:'teacher', $$select set_settings('{"ranking_size": 20, "promotion_date": "13-01"}')$$), 'INVALID_INPUT',
+  'set_settings refuses a set with one bad value');
+select isnt((select value from settings where key = 'ranking_size'), '20', 'and saves none of it');
+select is(tests.call(:'teacher', $$select set_settings('{"ranking_size": 20, "promotion_date": "09-01"}')$$),
+  '{"ranking_size": 20, "promotion_date": "09-01"}', 'set_settings saves them together');
+select is(tests.err(:'t1', $$select set_settings('{"ranking_size": 3}')$$), 'FORBIDDEN', 'only a teacher');
 
 -- Ranking
 select tests.student('r1', 900, p_name => '欧阳小明') as r1 \gset

@@ -1,11 +1,16 @@
 #!/bin/bash
 # Apply supabase/migrations/*.sql once each, after Auth and Storage have created their schemas. Backs up first when the image version changes.
+# Each applied migration's sha256 is kept; a file that no longer matches stops the run (migrations are never edited).
+# One run at a time: `dolphin-migrate` started by hand waits for the one supervisord started.
 set -euo pipefail
+exec 9>/data/run/migrate.lock
+flock 9
 until pg_isready -q -h 127.0.0.1 -U postgres; do sleep 1; done
-q() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
+q() { PGOPTIONS='-c client_min_messages=warning' psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
 until [ "$(q -c "select to_regclass('auth.users') is not null and to_regclass('storage.buckets') is not null")" = t ]; do sleep 1; done
 
 q -c "create table if not exists public.app_migrations (name text primary key, applied_at timestamptz not null default now())"
+q -c "alter table public.app_migrations add column if not exists checksum text"
 
 version_file=/data/run/image-version
 if [ -f "$version_file" ] && [ "$(cat "$version_file")" != "$DOLPHIN_VERSION" ]; then
@@ -16,9 +21,17 @@ fi
 for f in /opt/dolphin/migrations/*.sql; do
   [ -e "$f" ] || continue
   name=$(basename "$f")
-  [ "$(q -c "select 1 from public.app_migrations where name = '$name'")" = 1 ] && continue
+  sum=$(sha256sum "$f" | cut -d' ' -f1)
+  applied=$(q -c "select coalesce(checksum, '-') from public.app_migrations where name = '$name'")
+  if [ "$applied" = - ]; then # applied before checksums were kept
+    q -c "update public.app_migrations set checksum = '$sum' where name = '$name'"
+  elif [ -n "$applied" ] && [ "$applied" != "$sum" ]; then
+    echo "dolphin-migrate: $name differs from the one applied (sha256 $applied, now $sum); not migrating" >&2
+    exit 1
+  fi
+  [ -n "$applied" ] && continue
   echo "dolphin-migrate: applying $name"
-  q -1 -f "$f" -c "insert into public.app_migrations(name) values ('$name')"
+  q -1 -f "$f" -c "insert into public.app_migrations(name, checksum) values ('$name', '$sum')"
 done
 q -c "notify pgrst, 'reload schema'"
 echo "$DOLPHIN_VERSION" > "$version_file"

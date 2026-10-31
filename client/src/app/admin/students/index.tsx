@@ -11,7 +11,7 @@ import { useMe } from '@/lib/session';
 import { STATUS, useStudents, type AdminStudent } from '@/lib/students';
 import { readAll, supabase } from '@/lib/supabase';
 
-const SHOWN = 100;
+const SHOWN = 100; // more with 「显示更多」
 const BATCH = 100; // passwords are hashed one by one on the server, as in import_roster
 
 // 学生: find any student by name, pinyin, class or number, or only those who have not set a new password
@@ -24,15 +24,16 @@ export default function Students() {
   const [query, setQuery] = useState('');
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [onlyWaiting, setOnlyWaiting] = useState(filter === 'waiting');
+  const [limit, setLimit] = useState(SHOWN);
   const [printing, setPrinting] = useState<Map<string, number> | null>(null);
   const [opening, setOpening] = useState<'loading' | 'failed' | null>(null);
   const [reissue, setReissue] = useState<'confirm' | 'busy' | { title: string; text: string } | null>(null);
   const all = students.data?.rows ?? [];
   const waiting = all.filter((s) => s.profiles?.must_change_password);
   const list = useMemo(() => {
-    const found = query.trim() ? searchRoster(students.data?.index ?? [], query, onlyWaiting ? all.length : SHOWN) : all;
-    return (onlyWaiting ? found.filter((s) => s.profiles?.must_change_password) : found).slice(0, SHOWN);
-  }, [students.data, query, onlyWaiting]);
+    const found = query.trim() ? searchRoster(students.data?.index ?? [], query, onlyWaiting ? all.length : limit) : all;
+    return (onlyWaiting ? found.filter((s) => s.profiles?.must_change_password) : found).slice(0, limit);
+  }, [students.data, query, onlyWaiting, limit]);
   const shown = onlyWaiting ? waiting : all;
   const teacher = me.roles.includes('teacher');
 
@@ -122,7 +123,11 @@ export default function Students() {
             <p>{query ? '换个写法试试：姓名、拼音首字母、班级或学号。' : onlyWaiting ? '取消「未设置密码」筛选可以查看全部学生。' : '导入名册后，这里会列出全部学生。'}</p>
           </div>
         )}
-      {!query && shown.length > SHOWN && <p className="dc-top-sub">只列出前 {SHOWN} 人，输入姓名、班级或学号查找其余学生。</p>}
+      {!query && shown.length > limit && (
+        <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => setLimit(limit + SHOWN)}>
+          显示更多（已显示 {limit} / {shown.length} 人）
+        </button>
+      )}
       {reissue === 'confirm' && (
         <ConfirmSheet title={`为 ${waiting.length} 名学生重新生成初始密码？`} confirm="生成并下载"
           onClose={() => setReissue(null)} onConfirm={reprint}

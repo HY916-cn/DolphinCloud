@@ -99,12 +99,13 @@ check() {
   echo "Balances and stock match the ledger"
 }
 
-# The container's HEALTHCHECK: every service answers on its own port and Caddy is running.
+# The container's HEALTHCHECK: every service answers on its own port, Caddy is running and migrate has not failed.
 health() {
   curl -fsS -o /dev/null http://127.0.0.1:9999/health
   curl -fsS -o /dev/null http://127.0.0.1:3000/
   curl -fsS -o /dev/null http://127.0.0.1:5000/status
   supervisorctl status caddy | grep -q RUNNING
+  ! supervisorctl status migrate | grep -qE 'FATAL|BACKOFF'
 }
 
 case "${1:-}" in

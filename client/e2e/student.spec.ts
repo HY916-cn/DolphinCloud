@@ -1,11 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { resetData, signIn } from './helpers';
 
 // 学生端明细与排名 (PHASE-1.md §1.1) on the seed data (supabase/seed.sql): 张小明 (20260001, 小学部) has an opening
-// balance, a deposit, a withdrawal and an exchange. Other specs change balances first, so only the structure is checked.
+// balance, a deposit, a withdrawal and an exchange.
+test.beforeAll(resetData);
 
+// The visible 主导航: the side navigation on wider screens, the bottom TabBar on phones.
 async function open(page: Page, label: string, path: string) {
-  await page.locator('.dc-nav-item', { hasText: label }).click();
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: label, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/student/${path}$`));
 }
 

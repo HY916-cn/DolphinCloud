@@ -17,7 +17,7 @@ select is(tests.err(:'s1', $$select lookup_student('s3')$$), 'FORBIDDEN', 'a stu
 -- Deposit
 select set_config('request.headers', '{"x-device-id":"pad-1"}', false);
 select is(tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000002', 's1', '{"10":2,"5":1}')$$) - 'id' - 'txn_no' - 'created_at',
-  '{"type":"deposit","amount":25,"balance_after":125,"change_given":null}', 'deposit sums the denominations');
+  '{"type":"deposit","amount":25,"balance_after":125,"denominations":{"5":1,"10":2},"change_given":null}', 'deposit sums the denominations');
 select is((select row(balance_delta, cash_delta, device_id, offline)::text from txns where id = '00000000-0000-4000-8000-000000000002'),
   row(25, 25, 'pad-1', false)::text, 'deposit adds to balance and counter cash and records the device');
 select is(tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000002', 's1', '{"10":2,"5":1}')$$) ->> 'balance_after', '125',
@@ -60,8 +60,10 @@ select is(tests.err(:'t1', $$select withdraw(gen_random_uuid(), 's4', 0)$$), 'IN
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's3', 60)$$) ->> 'detail', '{"short": 10, "balance": 50}',
   'overdraft is refused with balance and shortfall');
 select is(tests.call(:'t1', $$select withdraw('00000000-0000-4000-8000-000000000004', 's4', 200)$$) ->> 'balance_after', '800', 'withdraw');
-select is((select row(balance_delta, cash_delta)::text from txns where id = '00000000-0000-4000-8000-000000000004'), '(-200,-200)',
-  'withdraw takes from balance and counter cash');
+select is((select row(balance_delta, cash_delta, denominations)::text from txns where id = '00000000-0000-4000-8000-000000000004'),
+  '(-200,-200,"{""10"": 20}")', 'withdraw takes from balance and counter cash, and records the notes paid out');
+select is(tests.call(:'t1', $$select withdraw('00000000-0000-4000-8000-000000000004', 's4', 200)$$) -> 'denominations', '{"10": 20}',
+  'the result names the notes');
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) ->> 'balance_after', '600', 'second withdrawal today');
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 150)$$) ->> 'detail', '{"limit": 500, "remaining": 100}',
   'over the daily limit shows what is left today');

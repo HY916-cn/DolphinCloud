@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { signIn } from './helpers';
+import { resetData, signIn } from './helpers';
 
 // 商品 and 出入库 (PHASE-1.md §1.1): admin adds a product with a picture, stocks it in and out, then takes it off the shelf.
-// The seed products 海豚书签 and 海浪中性笔 belong to the counter tests and stay untouched.
+test.beforeAll(resetData);
+
 test('add a product, stock it in and out, then unlist it', async ({ page }) => {
   const name = `海豚贴纸${Date.now().toString().slice(-4)}`;
   const row = page.locator('.dc-list-link', { hasText: name });
@@ -56,11 +57,14 @@ test('add a product, stock it in and out, then unlist it', async ({ page }) => {
 
   await row.click();
   await expect(page.getByRole('switch')).toBeChecked();
+  await page.getByRole('button', { name: '移除图片' }).click();
+  await expect(page.getByAltText('商品图片预览')).toHaveCount(0);
   await page.locator('.dc-switch').click();
   await page.getByRole('button', { name: '保存商品' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('商品已下架');
   await page.getByRole('button', { name: '返回' }).click();
   await expect(row).toContainText('已下架');
+  await expect(row.locator('img')).toHaveCount(0);
 });
 
 test('the accountant reads products with their cost, without editing them', async ({ page }) => {

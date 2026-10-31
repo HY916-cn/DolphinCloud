@@ -10,7 +10,10 @@ export type Student = {
   student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number;
   class_label: string | null; status: string; balance: number | null; withdrawn_today: number | null;
 };
-export type TxnResult = { id: string; txn_no: string; type: string; amount: number; balance_after: number; change_given: Counts | null; created_at: string };
+export type TxnResult = {
+  id: string; txn_no: string; type: string; amount: number; balance_after: number; denominations: Counts | null;
+  change_given: Counts | null; created_at: string;
+};
 
 export const lookupStudent = (no: string) => call<Student>('lookup_student', { p_student_no: no.trim() });
 export const deposit = (id: string, no: string, cash: Counts, offline = false, at?: string) =>

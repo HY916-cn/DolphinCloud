@@ -1,7 +1,7 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
-# security headers, non-root services, health check, login, lockout, password rule, create-admin, RPC, image upload
-# and public read, encrypted backup → change → restore, container restart.
+# security headers, non-root services, migration checksums, health check, login, lockout, password rule, create-admin,
+# RPC, image upload and public read, encrypted backup → change → restore, container restart.
 # Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes its own container and volume.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -22,7 +22,7 @@ wait_ready() {
     if docker exec "$NAME" test -f /data/caddy/caddy/pki/authorities/local/root.crt 2>/dev/null; then
       docker cp -q "$NAME:/data/caddy/caddy/pki/authorities/local/root.crt" "$WORK/root.crt"
       [ "$(http "$BASE/auth/v1/health" 2>/dev/null)" = 200 ] \
-        && [ "$(sql "select count(*) from public.app_migrations" 2>/dev/null)" -ge 1 ] \
+        && [ "$(sql "select count(*) from public.app_migrations" 2>/dev/null || echo 0)" -ge 1 ] \
         && [ "$(http "$BASE/storage/v1/status" 2>/dev/null)" = 200 ] && return 0
     fi
     sleep 2
@@ -56,6 +56,15 @@ for p in auth rest storage caddy migrate backup-schedule; do
   [ "$pid" = 0 ] || [ "$(docker exec "$NAME" stat -c %U "/proc/$pid")" = dolphin ] || fail "$p does not run as dolphin"
 done
 pass "the site cannot be framed; services run as dolphin"
+
+FIRST=$(sql "select name from public.app_migrations order by name limit 1")
+[ "$(sql "select count(*) from public.app_migrations where checksum is null")" = 0 ] || fail "migrations without checksum"
+SUM=$(sql "select checksum from public.app_migrations where name = '$FIRST'")
+sql "update public.app_migrations set checksum = 'edited' where name = '$FIRST'"
+! docker exec -u dolphin "$NAME" dolphin-migrate >/dev/null 2>&1 || fail "dolphin-migrate ran over an edited migration"
+sql "update public.app_migrations set checksum = '$SUM' where name = '$FIRST'"
+docker exec -u dolphin "$NAME" dolphin-migrate >/dev/null || fail "dolphin-migrate"
+pass "applied migrations are checksummed; a changed one stops dolphin-migrate"
 
 docker exec "$NAME" dolphin health || fail "dolphin health"
 [ "$(docker inspect -f '{{.Config.Healthcheck.Test}}' "$NAME")" = '[CMD dolphin health]' ] || fail "image has no HEALTHCHECK"

@@ -182,7 +182,7 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
     setError(null);
     try {
       const result = await withdraw(id, student.student_no, amount);
-      onDone({ label: '取款', detail: `配钞 ${payout}`, amount: -amount, txnNo: result.txn_no, txnId: result.id });
+      onDone({ label: '取款', detail: `配钞 ${describeCash(result.denominations ?? {})}`, amount: -amount, txnNo: result.txn_no, txnId: result.id });
       setText('');
       setId(newId());
     } catch (e) {

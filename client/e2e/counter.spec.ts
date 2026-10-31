@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmIn, signIn } from './helpers';
+import { confirmIn, resetData, signIn } from './helpers';
 
 // The counter (M3, PHASE-1.md §7.5–7.7) on the seed data (supabase/seed.sql): teller01 serves 张小明 (20260001,
 // balance 108) and 李思远 (20260002, balance 70). Tests run in order and each one builds on the balances before it.
 test.describe.configure({ mode: 'serial' });
+test.beforeAll(resetData);
 
 // A visit starts by searching (number, name, pinyin, initials or class) and tapping the student.
 async function findStudent(page: Page, query: string, name: string) {

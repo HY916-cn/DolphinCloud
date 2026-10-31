@@ -1,12 +1,12 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Download, type Page } from '@playwright/test';
-import { confirmIn, signIn } from './helpers';
+import { confirmIn, resetData, signIn } from './helpers';
 
 // The back office's logins (M4, PHASE-1.md §6.4–6.5): the teacher imports a roster and a new student signs in for the
-// first time; staff logins are created and managed. Only new students and logins are touched: the counter tests
-// that run after these rely on the seed's balances.
+// first time; staff logins are created and managed.
 test.describe.configure({ mode: 'serial' });
+test.beforeAll(resetData);
 
 // The 开户通知单 PDF is drawn on a canvas: record every text drawn, before the page loads.
 const recordNotices = (page: Page) => page.addInitScript(() => {

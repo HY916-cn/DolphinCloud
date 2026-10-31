@@ -25,6 +25,9 @@ select tests.student('s1', 100) as s1 \gset
 select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000001', 's1', '{"10":1}')$$) ->> 'txn_no' as txn_no \gset
 
 select matches(:'txn_no'::text, '^HT[0-9]{12}$', 'transaction number is HT + YYMMDD + 6 digits');
+select setval('txns_seq_seq', 1000000);
+select matches(tests.call(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"1":1}')$$) ->> 'txn_no', '^HT[0-9]{6}1000001$',
+  'past 999999 the number keeps the whole sequence number');
 select is(tests.err(:'t1', $$update txns set amount = 1$$), 'permission denied for table txns', 'users cannot update txns');
 select is(tests.err(:'s1', $$delete from txns$$), 'permission denied for table txns', 'users cannot delete txns');
 

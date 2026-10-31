@@ -113,8 +113,8 @@ function SettingsForm({ saved }: { saved: Values }) {
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // The values as set_setting takes them; the server checks each one. Limits list junior first, the key order jsonb
-  // returns, so unchanged ones compare equal.
+  // The values as set_settings takes them; the server checks each one and saves all or none. Limits list junior
+  // first, the key order jsonb returns, so unchanged ones compare equal.
   const days = new Date(Date.UTC(2001, month, 0)).getUTCDate(); // a common year: no 29 February
   const next: Values = {
     denominations: [...faces].sort((a, b) => a - b),
@@ -138,7 +138,7 @@ function SettingsForm({ saved }: { saved: Values }) {
     setBusy(true);
     setError(null);
     try {
-      for (const key of changed) await call('set_setting', { p_key: key, p_value: next[key] });
+      await call('set_settings', { p_values: Object.fromEntries(changed.map((k) => [k, next[k]])) });
       setToast('参数已保存');
     } catch (err) {
       setError(failure(err));

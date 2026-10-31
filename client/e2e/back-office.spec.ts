@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { resetData, signIn } from './helpers';
 
-// 流水, 发行, 参数 and 日志 (PHASE-1.md §4.2) as admin on the seed data. The counter tests that follow rely on the
-// seed's faces and withdrawal limits, so these tests leave them alone and switch 排名匿名 back to how they found it.
-// The 日志 test looks for the batch the 发行 test registers.
+// 流水, 发行, 参数 and 日志 (PHASE-1.md §4.2) as admin on the seed data. The 日志 test looks for the batch the 发行
+// test registers.
 test.describe.configure({ mode: 'serial' });
+test.beforeAll(resetData);
 
 const batch = `E2E-${Date.now()}`;
 

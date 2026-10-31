@@ -15,6 +15,9 @@ type Product = {
 type Problem = { title: string; text: string } | null;
 
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+// Best effort: a picture that stays behind only takes space. shortcut: one uploaded and never saved (the page closed
+// first) stays in the bucket; clean the bucket by hand if that ever adds up.
+const dropImage = (path: string | null) => { if (path) supabase.storage.from('product-images').remove([path]); };
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, 6);
 // The picture types the product-images bucket accepts.
@@ -90,6 +93,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   const [safety, setSafety] = useState(String(product?.safety_stock ?? 5));
   const [listed, setListed] = useState(product?.listed ?? false);
   const [imagePath, setImagePath] = useState(product?.image_path ?? null);
+  const savedImage = useRef(product?.image_path ?? null); // the picture the saved product has
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [tried, setTried] = useState(false);
@@ -120,6 +124,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
       if (status === '415') return setError({ title: '服务器不接受这种图片格式', text: '请选择 JPG、PNG 或 WebP 图片。' });
       if (status === '413') return setError({ title: '图片太大', text: '请换一张小一些的图片。' });
       if (e) return setError({ title: '图片未能上传', text: '请检查网络后重新选择图片。' });
+      if (imagePath !== savedImage.current) dropImage(imagePath);
       setImagePath(path);
     } finally {
       setUploading(false);
@@ -139,6 +144,8 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
         p_category: category.trim() || null, p_image_path: imagePath, p_listed: listed,
         p_safety_stock: safety ? Number(safety) : null,
       });
+      if (savedImage.current !== imagePath) dropImage(savedImage.current);
+      savedImage.current = imagePath;
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       if (!product) return router.replace(`/admin/products/${row.id}?saved=1` as Href);
       setSaved(true);
@@ -181,10 +188,16 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
             onClick={() => fileInput.current?.click()}>
             {uploading ? '正在上传' : imagePath ? '更换图片' : '选择图片'}
           </button>
+          {imagePath && !uploading && (
+            <button type="button" className="dc-btn dc-btn-ghost dc-btn-sm"
+              onClick={() => { if (imagePath !== savedImage.current) dropImage(imagePath); setImagePath(null); }}>
+              移除图片
+            </button>
+          )}
           <input ref={fileInput} type="file" accept={IMAGE_TYPES} hidden aria-label="选择商品图片"
             onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
-        <span className="dc-field-hint">JPG、PNG 或 WebP，上传前自动缩小到最长边 800 像素</span>
+        <span className="dc-field-hint">JPG、PNG 或 WebP，上传前自动缩小到最长边 800 像素；更换或移除后保存才生效</span>
       </div>
       <label className="dc-switch">
         <span className="dc-switch-text"><b>上架</b><small>上架后柜台可以兑换这件商品，保存后生效</small></span>

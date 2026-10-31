@@ -201,7 +201,7 @@ create table accounts (
   balance      integer not null default 0 check (balance >= 0),
   total_in     integer not null default 0,     -- 累计存入（含期初）
   total_out    integer not null default 0,     -- 累计取出
-  total_spent  integer not null default 0,     -- 累计账户兑换
+  total_spent  integer not null default 0,     -- 累计账户兑换（现金兑换不经账户，不计入）
   updated_at   timestamptz not null default now()
 );
 
@@ -210,7 +210,7 @@ create type txn_type as enum ('opening','deposit','withdraw','purchase','reversa
 create table txns (
   id                uuid primary key,          -- 客户端生成，作幂等键
   seq               bigserial unique,
-  txn_no            text unique not null,      -- 交易号：HT + YYMMDD + 6 位序号
+  txn_no            text unique not null,      -- 交易号：HT + YYMMDD + 序号（完整序号，不足 6 位补 0）
   type              txn_type not null,
   student_no        text not null references students(student_no),
   amount            integer not null check (amount > 0),
@@ -218,7 +218,7 @@ create table txns (
   balance_after     integer not null,
   cash_delta        integer not null default 0,-- 对柜台现金的影响：存款 +，取款 −，现金兑换 +
   payment           text check (payment in ('account','cash')),  -- 仅兑换
-  denominations     jsonb,                     -- 面额明细，如 {"10":2,"5":1}
+  denominations     jsonb,                     -- 面额明细，如 {"10":2,"5":1}：存款收到的、取款付出的（服务端按面额从大到小配钞）
   change_given      jsonb,                     -- 现金兑换的找零明细
   status            text not null default 'normal' check (status in ('normal','reversed')),
   reversal_of       uuid unique references txns(id),
@@ -356,7 +356,7 @@ create table audit_log (
 
 公共校验：学生存在且 `status = 'normal'`。
 
-返回值统一为 `{ txn_no, type, amount, balance_after, change_given }`，前端据此显示结果页。
+返回值统一为 `{ txn_no, type, amount, balance_after, denominations, change_given }`，前端据此显示结果页（取款凭条的配钞取 `denominations`）。
 
 ### 6.3 冲正规则
 
@@ -382,6 +382,7 @@ create table audit_log (
 | `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
+| `set_settings(p_values)` | teacher | 一次保存多项参数（`{key: value}`），逐项按 `set_setting` 校验，全部成功或全部不保存；「参数」页保存用它 |
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回与流水不一致的记录（`kind`：余额、库存、办理后余额衔接 `balance_after`、累计 `total_in` / `total_out` / `total_spent`、兑换明细合计 `txn_items`），并写 `audit_log`；不经 API 开放 |
 | `public.hook_password_verification_attempt(event)` | Auth 登录钩子 | 每次密码校验后调用：同一账号 15 分钟内输错 5 次即锁定 15 分钟（期间密码正确也拒绝，返回 `LOGIN_LOCKED`），登录成败记入 `audit_log`（`login.ok` / `login.failed` / `login.locked`）；只授予 `supabase_auth_admin`；事件里没有 `user_id` 时交给 Auth 自行处理 |
@@ -437,6 +438,7 @@ create table audit_log (
 
 - 桶 `product-images`，公开读，只接受 jpeg / png / webp、单个不超过 5 MB；写入策略：`storage.objects` 上仅 `storekeeper`、`teacher` 可上传与删除。
 - 前端上传前用浏览器自带的 `canvas` 缩放到最长边 800px、JPEG 质量 0.8，文件名为随机 UUID。
+- 更换或移除图片在保存商品后生效：保存成功即删除旧图；保存前又换了一张，先删掉刚传的那张。上传后没保存就离开页面的图片会留在桶里。
 
 ---
 
@@ -451,7 +453,7 @@ create table audit_log (
 | 数据 | `@supabase/supabase-js`、`@tanstack/react-query` |
 | 图标 | 设计系统 `assets/Icons` 的 Lucide 图标，由 `npm run tokens` 生成，内联为 `<svg class="dc-icon">`，颜色跟随文字 |
 | 字体 | Nunito Sans 与思源黑体（Noto Sans SC）的可变字体（`@fontsource-variable`，OFL），构建时复制到站点 `/fonts/`，不依赖外部字体服务；中文按 unicode-range 分片，页面只下载用到的字 |
-| 离线 | Workbox 生成 Service Worker（预缓存应用外壳与拉丁字体，`/config.js` 网络优先并留存一份）；`idb-keyval` 在 IndexedDB 中存离线队列和名册；Web App Manifest 支持添加到主屏幕。部署新版本后，页面先从旧缓存打开，新的 Service Worker 接管时自动刷新一次；Caddy 对带哈希的 `/_expo/static/*` 设长期缓存，其余静态文件 `no-cache`，每次向服务器确认 |
+| 离线 | Workbox 生成 Service Worker（预缓存应用外壳与拉丁字体，其余字体分片用到时下载并留存、后台再向服务器确认，`/config.js` 网络优先并留存一份）；`idb-keyval` 在 IndexedDB 中存离线队列和名册；Web App Manifest 支持添加到主屏幕。部署新版本后，页面先从旧缓存打开，新的 Service Worker 接管时自动刷新一次；Caddy 对带哈希的 `/_expo/static/*` 设长期缓存，其余静态文件 `no-cache`，每次向服务器确认 |
 | Excel | SheetJS 0.20.3（从官方 CDN 发布的 tarball 安装并锁定版本），只在导入名册页按需加载 |
 | 测试 | Node 自带的类型擦除运行 `src/lib/*.test.mjs`（单元）、Playwright（端到端，`client/e2e`） |
 
@@ -608,12 +610,12 @@ client/
 
 - **总览**：自检不一致提示、管理入口宫格，然后按身份显示：会计、银行管理员看今日存款、取款、兑换的笔数和金额（不含已冲正）、账户余额合计和最近 8 笔流水；银行管理员、运维员看待办（未设置新密码的学生、已停用的工作人员账号）；库管、银行管理员看库存不多于安全库存的已上架商品（`products.low`，0 件标「缺货」）和最近库存变动。每一项都点进对应页面，并已带好筛选条件。
 - **页面互通**：流水的筛选条件可以写在地址里（`student`、`operator`、`from`、`to`、`type`），其他页面据此直接打开筛选好的流水。学生详情有「查看全部流水」；人员详情里柜员账号有「查看他办理的流水」，所有账号有「操作日志」（日志按操作人筛选，可取消）；日志条目链到它涉及的工作人员账号、学生、商品，冲正记录链到该学生的流水，只显示本身份能打开的页面。
-- **学生**（银行管理员、运维员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业；可一次为所有还未设置新密码的学生重新生成初始密码并下载开户通知单（`reissue_passwords`，确认后旧通知单失效）；银行管理员还可打印期初余额核对表。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认，新初始密码只显示一次；银行管理员另见余额和最近 10 笔交易（含现金兑换），并可冻结、解冻、标记毕业或恢复为在读（`set_student_status`，均经确认）。运维员看不到余额。
+- **学生**（银行管理员、运维员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业，每次列出 100 人，「显示更多」继续；可一次为所有还未设置新密码的学生重新生成初始密码并下载开户通知单（`reissue_passwords`，确认后旧通知单失效）；银行管理员还可打印期初余额核对表。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认，新初始密码只显示一次；银行管理员另见余额和最近 10 笔交易（含现金兑换），并可冻结、解冻、标记毕业或恢复为在读（`set_student_status`，均经确认）。运维员看不到余额。
 - **导入名册**（银行管理员）：选择 Excel 或 CSV → 逐行校验（`lib/roster.ts`，问题按行号列出，全部改好才能导入）→「核对名册」显示各学部人数与期初余额合计 →「确认导入」每 100 人一批并显示进度 → 「导入完成：新开户 N 人，更新 M 人」→「下载开户通知单」。页面提供「下载模板」。某一批被拒绝时，说明哪个学号有问题、前面已导入多少人；改好后重新导入整个名册即可。
 - **开户通知单**：在浏览器里生成 PDF 直接下载（`开户通知单-日期-N人.pdf`），每人一页 A4，按班、按学号排列。每页由设计系统的部件组成，尺寸和颜色与界面一致：顶部是登录页头图（标志与波纹、「海豚云」、学校与日期、`WaveDivider`），下面依次是 `display` 问候语、`dc-card` 里的核对清单（班级、学号，初始密码作为合计行）、`Steps` 三步登录说明（含登录网址和新密码规则；网址取服务器配置的正式地址 `https://$DOLPHIN_DOMAIN`，与打开后台用的地址无关）和默认 `Notice` 保管提醒。页面用设计系统的 token、字体和图标画在 canvas 上再存为 JPEG（`lib/pdf.ts` 写出 PDF），不嵌入字体，约 140 KB 一页。
 - **期初余额核对表**：同样按班分页，每班一张表，列出学号、姓名、系统期初余额（`opening` 流水金额，没有则为 0），留空「原账本余额」和「一致」两栏，表头写本班人数与合计，表尾留核对人和日期。
 - **工作人员**（银行管理员、运维员）：列表显示姓名、身份、账号和停用、未设置密码状态。「新增账号」填写账号、姓名、身份，创建后提示初始密码。账号详情可改身份、重置密码、停用或启用（不能停用自己）。运维员不能创建银行管理员，也不能修改银行管理员的账号，页面显示「由银行管理员管理」。
-- **商品**（库管、银行管理员；会计只读）：列表显示图片、名称、价格、库存和上架状态，缺货的标「缺货」，内容第一行有「出入库」。编辑页填写名称、价格、成本、分类、安全库存（默认 5 件）、图片和是否上架；已有商品另显示当前库存、最近 10 次库存变动和「去出入库」。会计打开的是「商品详情」：名称、价格、成本、分类、安全库存、上架状态和库存变动，没有编辑、新增和出入库入口。
+- **商品**（库管、银行管理员；会计只读）：列表显示图片、名称、价格、库存和上架状态，缺货的标「缺货」，内容第一行有「出入库」。编辑页填写名称、价格、成本、分类、安全库存（默认 5 件）、图片（可更换、移除）和是否上架；已有商品另显示当前库存、最近 10 次库存变动和「去出入库」。会计打开的是「商品详情」：名称、价格、成本、分类、安全库存、上架状态和库存变动，没有编辑、新增和出入库入口。
 - **出入库**（库管、银行管理员）：可带商品打开（`?product=`，预填入库 1 件），卡片和库存变动里的商品名链到商品页；`Segmented` 切换入库 / 出库；每件商品一张 `QtyStepper` 卡片（名称、当前库存、加减数量），出库数量不超过库存；入库可写备注，出库须写原因；下方合计后「确认入库 / 确认出库」一次提交（`stock_move`）。右栏（手机在下方）是全部商品最近 20 次库存变动，写明商品与备注。
 - **流水**（会计、银行管理员）：每一行可以展开看完整信息，已冲正的写明原因和冲正交易号；银行管理员从展开处进入学生和经办人页面，并可直接冲正正常状态的期初、存款、取款、兑换（`ReversalSheet`）。按学号、日期范围（开始、结束日期用 `DatePicker` 月历选择，留空为不限，今天之后不能选）、类型、柜员组合筛选，最新的在前，每次加载 50 笔，显示符合条件的总笔数；每笔写明业务、学生、柜员、交易号、时间和金额，已冲正的注明。
 - **发行**（银行管理员）：登记批次号、发行日期（`DatePicker`，默认今天）、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
@@ -693,9 +695,9 @@ docker/e2e-test.sh
 docker/upgrade-test.sh <生产环境当前的提交>
 ```
 
-`e2e-test.sh` 用镜像起一个新容器（`https://localhost:18445`），导入种子数据后运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷；首次运行前执行一次 `npx --prefix client playwright install chromium`。
+`e2e-test.sh` 用镜像起一个新容器（`https://localhost:18445`），导入种子数据并留一份数据快照，再运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷。每个 spec 开始前把数据恢复到快照（只清空、重灌表数据和图片文件，服务连接不断），互不依赖执行顺序。Chromium（1180×820）跑全部，WebKit 跑柜台和学生端，iPhone 13 尺寸跑学生端。首次运行前执行一次 `npx --prefix client playwright install chromium webkit`。
 
-前端检查：`npm --prefix client run typecheck`、`npm --prefix client test`。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto`、`dblink` 仅测试用），不依赖 Supabase 托管版独有扩展。
+前端检查：`npm --prefix client run typecheck`、`npm --prefix client run lint`（ESLint，`eslint-config-expo`）、`npm --prefix client test`。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto`、`dblink` 仅测试用），不依赖 Supabase 托管版独有扩展。
 
 ### 8.4 规范
 
@@ -727,7 +729,7 @@ docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 
 入口脚本顺序：
 
 1. 首次启动：初始化数据库，执行 `init/`（创建 `anon`、`authenticated`、`service_role`、`authenticator`、`supabase_auth_admin`、`supabase_storage_admin` 等角色与 `auth`、`storage` schema），生成密钥。
-2. 每次启动：若数据库已有数据且镜像版本变化，先做一次升级前备份；Postgres 就绪后依次启动 Auth、Storage（各自执行内置迁移），执行 `supabase/migrations/` 中未应用的迁移（记录在 `app_migrations` 表），再启动 PostgREST 与 Caddy。
+2. 每次启动：若数据库已有数据且镜像版本变化，先做一次升级前备份；Postgres 就绪后依次启动 Auth、Storage（各自执行内置迁移），执行 `supabase/migrations/` 中未应用的迁移（记录在 `app_migrations` 表，含每个文件的 sha256；已应用的文件内容变了就停止迁移并报错，`dolphin health` 随之失败；同一时间只有一个迁移进程），再启动 PostgREST 与 Caddy。
 3. 生成 `/config.js`，内容为站点地址与 anon key。
 
 首次启动后创建第一个银行管理员账号（命令打印初始密码，登录后设置新密码）：
