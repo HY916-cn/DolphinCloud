@@ -63,7 +63,11 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '下载开户通知单' }).click();
   expect(await noticePages(await download)).toBe(2);
-  expect(await page.evaluate(() => (window as unknown as { notices: string[] }).notices)).toContain('四年级(1)班');
+  const drawn = await page.evaluate(() => (window as unknown as { notices: string[] }).notices);
+  expect(drawn).toContain('四年级(1)班');
+  // The address to sign in at is the site's configured one (https://$DOLPHIN_DOMAIN), not the one this page uses.
+  expect(drawn).toContain(await page.evaluate(() => window.__DOLPHIN_CONFIG__!.supabaseUrl));
+  expect(drawn).not.toContain(new URL(page.url()).origin);
   const password = await noticePassword(page, '20269001');
   expect(password).toMatch(/^\d{8}$/);
   expect(await noticePassword(page, '20269002')).not.toBe(password);

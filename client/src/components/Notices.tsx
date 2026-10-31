@@ -104,7 +104,7 @@ export async function downloadNotices(students: NoticeAccount[]) {
   };
 
   const date = new Date();
-  const origin = location.origin;
+  const origin = window.__DOLPHIN_CONFIG__?.supabaseUrl ?? location.origin; // the site's public address, whatever this page was opened at
   const steps = [['打开网址', origin, ''], ['登录', '选「学生」', '输入学号和初始密码'], ['设新密码', '至少 8 位', '包含字母和数字']];
   const words = ['海豚云明德实验学校海豚银行开户通知年月日同学，你好你的海豚银行账户已经开通，请按下面的步骤登录。登录信息班级学号初始密码怎样登录',
     '请妥善保管本通知单设置新密码后初始密码失效，不要把密码告诉他人。', ...steps.flat(),
