@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { formatAmount } from '@/lib/format';
 import { A4, jpegPdf, type PdfPage } from '@/lib/pdf';
+import { icons, type IconName } from '@/theme/icons';
 import { today } from './DatePicker';
 
 export type NoticeStudent = { student_no: string; name: string; class_label: string | null; cohort: number; class_no: number };
@@ -59,28 +60,26 @@ export function OpeningSheet({ students, openings }: { students: NoticeStudent[]
   );
 }
 
-// 开户通知单 (PHASE-1.md §6.5) as a PDF to download: one A4 page per student, by class: a branded header, a greeting,
-// the student's name, class and number, their own initial password, how to sign in, and a reminder to keep it safe.
-// Each page is drawn on a canvas in the app's own font and colours.
+// The design system's wave (WaveDivider): one period of the curve, repeated across the width.
+const WAVE = 'M0 12C40 0 80 0 120 12S200 24 240 12V24H0Z';
+
+// 开户通知单 (PHASE-1.md §6.5) as a PDF to download: one A4 page per student, by class. Each page is drawn on a canvas
+// from the design system's parts, at their sizes and colours (1 CSS px = 1 pt): the LoginPage hero (logo with its
+// rings, sea-soft → cloud-100, WaveDivider with a white shore), a display greeting, a dc-card with a SummaryList
+// (class, number, the initial password as its total), Steps for signing in, and a Notice to keep the page safe.
 export async function downloadNotices(students: NoticeAccount[]) {
   // shortcut: about 140 KB a page at 144 dpi (a 2000-student import is ~280 MB); split the download by class if that
   // becomes a problem.
   const scale = 2; // canvas pixels per point
   const W = A4.width;
+  const X = 56; // page margin
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(W * scale);
   canvas.height = Math.round(A4.height * scale);
   const ctx = canvas.getContext('2d')!;
   const css = getComputedStyle(document.documentElement);
-  const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-  const c = {
-    dolphin: token('--dolphin', '#1f5ff5'), deep: token('--dolphin-deep', '#1546c4'), ink: token('--ink', '#13285c'),
-    muted: token('--ink-muted', '#4a5b85'), surface: token('--surface', '#f4f7ff'), line: token('--line', '#d6e0fa'),
-    cloud: token('--cloud-400', '#88a3e5'), cloudSoft: token('--cloud-100', '#e2e9fc'), coin: token('--coin', '#ffc233'),
-    coinSoft: token('--coin-soft', '#fdefcf'), coinInk: token('--coin-ink', '#895700'), rose: token('--rose-soft', '#ffe6ef'),
-    roseInk: token('--rose-ink', '#903c61'),
-  };
-  const family = token('--font-sans', 'sans-serif');
+  const v = (name: string) => css.getPropertyValue(`--${name}`).trim();
+  const family = v('font-sans') || 'sans-serif';
   const font = (weight: number, size: number) => `${weight} ${size}px ${family}`;
   const text = (value: string, x: number, y: number, weight: number, size: number, color: string, align: CanvasTextAlign = 'left') => {
     ctx.font = font(weight, size);
@@ -89,84 +88,119 @@ export async function downloadNotices(students: NoticeAccount[]) {
     ctx.fillText(value, x, y);
     return ctx.measureText(value).width;
   };
-  const box = (x: number, y: number, w: number, h: number, fill: string, stroke?: string) => {
+  const block = (x: number, y: number, w: number, h: number, radius: number, fill: string, border?: string) => {
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 16);
+    ctx.roundRect(x + 1, y + 1, w - 2, h - 2, radius);
     ctx.fillStyle = fill;
     ctx.fill();
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+    if (border) { ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.stroke(); }
+  };
+  // Lucide icons from the design system, stroked in one colour (README "图标").
+  const icon = (name: IconName, color: string) => {
+    const img = new Image();
+    img.src = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" `
+      + `stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[name]}</svg>`);
+    return img;
   };
 
-  const day = today();
+  const date = new Date();
   const origin = location.origin;
-  const steps = ['用浏览器打开 ', '选「学生」，输入学号和上面的初始密码', '设置新密码：至少 8 位，同时包含字母和数字'];
-  const notes = ['设置新密码后，本通知单上的初始密码即失效。', '请妥善保管本通知单，不要把密码告诉他人。'];
-  const words = ['海豚云开户通知同学，你好！你的海豚银行账户已经开好，下面是登录需要的信息。姓名班级学号初始密码请在首次登录时修改怎样登录海豚银行',
-    ...steps, ...notes, origin, day, ...students.map((s) => s.name + classOf(s) + s.student_no + s.password)].join('');
+  const steps = [['打开网址', origin, ''], ['登录', '选「学生」', '输入学号和初始密码'], ['设新密码', '至少 8 位', '包含字母和数字']];
+  const words = ['海豚云明德实验学校海豚银行开户通知年月日同学，你好你的海豚银行账户已经开通，请按下面的步骤登录。登录信息班级学号初始密码怎样登录',
+    '请妥善保管本通知单设置新密码后初始密码失效，不要把密码告诉他人。', ...steps.flat(),
+    ...students.map((s) => s.name + classOf(s) + s.student_no + s.password)].join('');
   const logo = new Image();
   logo.src = '/logo.png';
-  await Promise.all([...[800, 700, 400].map((w) => document.fonts.load(font(w, 14), words)), logo.decode().catch(() => {})]);
+  const lock = icon('lock', v('dolphin'));
+  await Promise.all([...[800, 700, 600, 500, 400].map((w) => document.fonts.load(font(w, 16), words)),
+    ...[logo, lock].map((img) => img.decode().catch(() => {}))]);
 
   const pages: PdfPage[] = [];
   for (const [label, list] of byClass(students)) {
     for (const s of list) {
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = v('surface-raised');
       ctx.fillRect(0, 0, W, A4.height);
 
-      // Header: the brand's blue with a scalloped cloud edge, as in the logo.
-      const sky = ctx.createLinearGradient(0, 0, W, 200);
-      sky.addColorStop(0, c.dolphin);
-      sky.addColorStop(1, c.deep);
+      // LoginPage hero: sea-soft → cloud-100 at 160°, the logo in its rings, the name, then the waves.
+      const hero = 200;
+      const sky = ctx.createLinearGradient(W / 2 - 0.17 * hero, 0, W / 2 + 0.17 * hero, hero);
+      sky.addColorStop(0, v('sea-soft'));
+      sky.addColorStop(0.6, v('cloud-100'));
       ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, W, 200);
-      for (const [y, color, shift] of [[196, c.cloud, 0], [214, '#fff', 30]] as const) {
-        ctx.fillStyle = color;
-        for (let x = -60 + shift; x < W + 60; x += 60) { ctx.beginPath(); ctx.arc(x, y, 32, Math.PI, 0); ctx.fill(); }
-        ctx.fillRect(0, y, W, 40);
-      }
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(96, 96, 40, 0, Math.PI * 2);
-      ctx.fill();
-      if (logo.naturalWidth) ctx.drawImage(logo, 62, 62, 68, 68);
-      text('海豚云', 152, 84, 700, 18, c.cloudSoft);
-      text('开户通知', 152, 124, 800, 36, '#fff');
-      text(day, W - 56, 84, 400, 12, c.cloudSoft, 'right');
-      text(label, W - 56, 104, 700, 14, '#fff', 'right');
-
-      text(`${s.name}同学，你好！`, 56, 282, 800, 26, c.ink);
-      text('你的海豚银行账户已经开好，下面是登录需要的信息。', 56, 308, 400, 13, c.muted);
-
-      box(56, 330, W - 112, 92, c.surface, c.line);
-      ([['姓名', s.name, 80], ['班级', label, 220], ['学号', s.student_no, 400]] as const).forEach(([key, value, x]) => {
-        text(key, x, 362, 400, 12, c.muted);
-        text(value, x, 394, 700, 19, c.ink);
-      });
-
-      box(56, 440, W - 112, 112, c.coinSoft, c.coin);
-      text('初始密码', 80, 474, 700, 13, c.coinInk);
-      ctx.letterSpacing = '8px';
-      text(s.password, 78, 530, 800, 46, c.ink);
-      ctx.letterSpacing = '0px';
-      text('请在首次登录时修改', W - 80, 474, 400, 12, c.coinInk, 'right');
-
-      text('怎样登录', 56, 598, 700, 16, c.ink);
-      steps.forEach((step, i) => {
-        const y = 636 + i * 36;
-        ctx.fillStyle = c.dolphin;
+      ctx.fillRect(0, 0, W, hero);
+      for (const [ring, alpha] of [[46, 0.16], [26, 0.32], [10, 0.6], [0, 1]] as const) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.beginPath();
-        ctx.arc(68, y - 5, 12, 0, Math.PI * 2);
+        ctx.arc(W / 2, 58, 40 + ring, 0, Math.PI * 2);
         ctx.fill();
-        text(String(i + 1), 68, y, 700, 13, '#fff', 'center');
-        const w = text(step, 92, y, 400, 14, c.ink);
-        if (!i) text(origin, 92 + w, y, 700, 14, c.dolphin);
+      }
+      if (logo.naturalWidth) ctx.drawImage(logo, W / 2 - 38, 20, 76, 76);
+      ctx.letterSpacing = '2.4px'; // .08em
+      text('海豚云', W / 2, 132, 800, 30, v('ink'), 'center');
+      ctx.letterSpacing = '0px';
+      text(`明德实验学校海豚银行 · 开户通知 · ${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`, W / 2, 154, 600, 14, v('ink-muted'), 'center');
+      // WaveDivider is-shore, 45 high: cloud-200, cloud-300, then white meeting the page.
+      ([[45, 288, 16, 0, 'cloud-200'], [30, 224, 13, 88, 'cloud-300'], [16, 176, 10, 40, 'surface-raised']] as const)
+        .forEach(([h, period, tile, shift, color]) => {
+          const top = hero - h;
+          ctx.fillStyle = v(color);
+          for (let x = shift - period; x < W; x += period) {
+            ctx.save();
+            ctx.translate(x, top);
+            ctx.scale(period / 240, tile / 24);
+            ctx.fill(new Path2D(WAVE));
+            ctx.restore();
+          }
+          ctx.fillRect(0, top + tile - 1, W, h - tile + 1);
+        });
+
+      text(`${s.name}同学，你好`, X, 252, 800, 36, v('ink'));
+      text('你的海豚银行账户已经开通，请按下面的步骤登录。', X, 282, 400, 16, v('ink-muted'));
+
+      // dc-card with a SummaryList; the initial password is its total row.
+      block(X, 304, W - 2 * X, 250, 28, v('surface-raised'), v('line'));
+      text('登录信息', X + 24, 349, 700, 20, v('ink'));
+      ([['班级', label, 50], ['学号', s.student_no, 50], ['初始密码', s.password, 64]] as const).reduce((y, [key, value, h], i) => {
+        const base = y + h / 2 + (i === 2 ? 12 : 5);
+        text(key, X + 24, base, i === 2 ? 700 : 500, 16, i === 2 ? v('ink') : v('ink-muted'));
+        text(value, W - X - 24, base, i === 2 ? 800 : 600, i === 2 ? 32 : 16, v('ink'), 'right');
+        if (i < 2) {
+          ctx.strokeStyle = v('line');
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 6]);
+          ctx.beginPath();
+          ctx.moveTo(X + 24, y + h);
+          ctx.lineTo(W - X - 24, y + h);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        return y + h;
+      }, 366);
+
+      // Steps: three dots joined by cloud-200 bars, each with its name and what to do.
+      text('怎样登录', X, 596, 700, 20, v('ink'));
+      const col = (W - 2 * X) / 3;
+      steps.forEach(([name, ...lines], i) => {
+        const cx = X + col * i + col / 2;
+        if (i) block(cx - col + 28, 629, col - 56, 6, 3, v('cloud-200'));
+        ctx.beginPath();
+        ctx.arc(cx, 632, 18.5, 0, Math.PI * 2);
+        ctx.fillStyle = v('surface-raised');
+        ctx.fill();
+        ctx.strokeStyle = v('line-strong');
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        text(String(i + 1), cx, 638, 700, 16, v('ink-muted'), 'center');
+        text(name, cx, 676, 700, 14, v('ink'), 'center');
+        lines.forEach((line, j) => line && text(line, cx, 696 + j * 20, 500, 14, v('ink-muted'), 'center'));
       });
 
-      box(56, 738, W - 112, 58, c.rose);
-      notes.forEach((note, i) => text(note, 76, 762 + i * 20, 400, 12, c.roseInk));
-      text('海豚银行', 56, 820, 700, 10, c.muted);
-      text(`${label} · 学号 ${s.student_no}`, W - 56, 820, 400, 10, c.muted, 'right');
+      // Notice (default): cloud-100, line border, the lock icon, a title and one sentence.
+      block(X, 740, W - 2 * X, 84, 20, v('cloud-100'), v('line'));
+      if (lock.naturalWidth) ctx.drawImage(lock, X + 24, 756, 36, 36);
+      text('请妥善保管本通知单', X + 72, 775, 700, 16, v('ink'));
+      text('设置新密码后初始密码失效，不要把密码告诉他人。', X + 72, 801, 400, 16, v('ink'));
 
       const jpeg = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('canvas'))), 'image/jpeg', 0.8));
       pages.push({ jpeg: new Uint8Array(await jpeg.arrayBuffer()), width: canvas.width, height: canvas.height });

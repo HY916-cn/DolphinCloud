@@ -176,7 +176,7 @@ test('reprinting the notices gives the waiting students new initial passwords', 
   const download = page.waitForEvent('download');
   await confirmIn(page, '生成并下载');
   expect(await noticePages(await download)).toBeGreaterThan(0);
-  expect(await page.evaluate(() => (window as unknown as { notices: string[] }).notices)).toContain('王小雨');
+  expect(await page.evaluate(() => (window as unknown as { notices: string[] }).notices)).toContain('王小雨同学，你好');
   reissued = await noticePassword(page, '20260003');
   expect(reissued).toMatch(/^\d{8}$/);
 });
