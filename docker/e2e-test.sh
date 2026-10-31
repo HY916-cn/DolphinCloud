@@ -8,6 +8,7 @@ shift $(( $# > 0 ? 1 : 0 ))
 NAME=dolphin-e2e
 PORT=18445
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MIGRATIONS=$(ls "$ROOT"/supabase/migrations/*.sql | wc -l | tr -d ' ') # the seed needs every migration applied
 
 remove() { docker rm -f "$NAME" >/dev/null 2>&1 || true; docker volume rm "$NAME-data" >/dev/null 2>&1 || true; }
 trap remove EXIT
@@ -15,7 +16,7 @@ remove
 docker run -d --name "$NAME" -p "$PORT:443" -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$IMAGE" >/dev/null
 for _ in $(seq 1 90); do
   [ "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost:$PORT/auth/v1/health")" = 200 ] \
-    && docker exec "$NAME" psql -U postgres -qAt -c "select 1 from public.settings limit 1" >/dev/null 2>&1 && break
+    && [ "$(docker exec "$NAME" psql -U postgres -qAt -c "select count(*) from public.app_migrations" 2>/dev/null)" = "$MIGRATIONS" ] && break
   sleep 2
 done
 docker exec -i "$NAME" psql -U postgres -v ON_ERROR_STOP=1 -q < "$ROOT/supabase/seed.sql"

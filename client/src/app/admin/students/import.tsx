@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { AccountNotices, Desk, Icon, Notice, Summary, type NoticeAccount } from '@/components';
+import { Desk, downloadNotices, Icon, Notice, Summary, type NoticeAccount } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
 import { checkRoster, HEADER, type RosterProblem, type RosterRow } from '@/lib/roster';
@@ -27,10 +27,11 @@ function downloadTemplate() {
 }
 
 // 导入名册 (PHASE-1.md §6.5): read the teacher's Excel, show every problem with its row, import in batches of 100,
-// then print the account notices of the new students.
+// then download the account notices of the new students as a PDF.
 export default function ImportRoster() {
   const queryClient = useQueryClient();
   const [stage, setStage] = useState<Stage>({ kind: 'pick' });
+  const [saving, setSaving] = useState(false);
   const promotion = useQuery({
     queryKey: ['setting', 'promotion_date'],
     queryFn: async () => {
@@ -150,17 +151,17 @@ export default function ImportRoster() {
               新开户 <b>{stage.created.length}</b> 人，更新 <b>{stage.updated}</b> 人
             </p>
             {stage.created.length > 0 && (
-              <p className="dc-top-sub dc-enter" style={{ '--i': 3 } as React.CSSProperties}>请打印开户通知单按班发放，提醒学生尽快登录并设置新密码。</p>
+              <p className="dc-top-sub dc-enter" style={{ '--i': 3 } as React.CSSProperties}>请下载开户通知单（每人一页的 PDF），打印后发给学生本人，提醒尽快登录并设置新密码。</p>
             )}
             <p className="dc-top-sub dc-enter" style={{ '--i': 4 } as React.CSSProperties}>回到学生页可打印期初余额核对表，与原账本逐人核对。</p>
           </section>
           <div className="dc-actions">
             <button className="dc-btn dc-btn-secondary" type="button" onClick={() => router.navigate('/admin/students')}>返回学生</button>
             {stage.created.length > 0 && (
-              <button className="dc-btn dc-btn-primary" type="button" autoFocus onClick={() => print()}>打印开户通知单</button>
+              <button className={`dc-btn dc-btn-primary ${saving ? 'is-loading' : ''}`} type="button" autoFocus
+                onClick={() => { setSaving(true); downloadNotices(stage.created).finally(() => setSaving(false)); }}>下载开户通知单</button>
             )}
           </div>
-          {stage.created.length > 0 && <AccountNotices students={stage.created} />}
         </>
       )}
     </Desk>

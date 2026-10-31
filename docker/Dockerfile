@@ -48,9 +48,11 @@ COPY docker/bin/ /usr/local/bin/
 COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=client /client/dist/ /srv/www/
-# Every service but Postgres runs as dolphin (supervisord.conf); Caddy still binds 80/443.
+# Every service but Postgres runs as dolphin (supervisord.conf); Caddy still binds 80/443 and must read every site file,
+# whatever mode it had in the build context.
 RUN useradd --system --user-group --no-create-home --home-dir /nonexistent dolphin \
- && setcap cap_net_bind_service=+ep /usr/local/bin/caddy
+ && setcap cap_net_bind_service=+ep /usr/local/bin/caddy \
+ && chmod -R a+rX /srv/www
 
 ENV DOLPHIN_VERSION=${DOLPHIN_VERSION} \
     PGDATA=/data/postgres \

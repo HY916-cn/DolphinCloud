@@ -1,5 +1,6 @@
 /// <reference types="node" />
-import { expect, test, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { expect, test, type Download, type Page } from '@playwright/test';
 import { confirmIn, signIn } from './helpers';
 
 // The back office's logins (M4, PHASE-1.md §6.4–6.5): the teacher imports a roster and a new student signs in for the
@@ -7,9 +8,23 @@ import { confirmIn, signIn } from './helpers';
 // that run after these rely on the seed's balances.
 test.describe.configure({ mode: 'serial' });
 
-// The initial password printed on a student's 开户通知单 (hidden on screen, printed by window.print()).
-const noticePassword = async (page: Page, no: string) =>
-  (await page.locator('#dc-notices article', { hasText: no }).locator('dd').nth(3).textContent()) ?? '';
+// The 开户通知单 PDF is drawn on a canvas: record every text drawn, before the page loads.
+const recordNotices = (page: Page) => page.addInitScript(() => {
+  const drawn: string[] = ((window as unknown as { notices: string[] }).notices = []);
+  const fill = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+    drawn.push(String(text));
+    return fill.call(this, text, ...rest);
+  };
+});
+// The initial password on a student's notice: the text after the first 初始密码 label that follows their number.
+const noticePassword = (page: Page, no: string) =>
+  page.evaluate((no) => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('初始密码', t.indexOf(no)) + 1] ?? ''; }, no);
+// The downloaded PDF has one page per notice.
+async function noticePages(download: Download) {
+  expect(download.suggestedFilename()).toMatch(/^开户通知单-\d{4}-\d{2}-\d{2}-\d+人\.pdf$/);
+  return (await readFile(await download.path())).toString('latin1').match(/\/Type \/Page /g)?.length ?? 0;
+}
 let reissued = ''; // 20260003's password from the reprinted notices, for the lockout test
 
 const now = new Date();
@@ -33,6 +48,7 @@ test('a roster with problems is shown row by row and nothing is imported', async
 });
 
 test('the teacher imports a roster, the new student signs in and must set a new password', async ({ page }) => {
+  await recordNotices(page);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students/import');
@@ -44,8 +60,10 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await expect(page.locator('.dc-kv')).toContainText('期初余额合计');
   await page.getByRole('button', { name: '确认导入' }).click();
   await expect(page.locator('.dc-result')).toContainText('新开户 2 人，更新 1 人');
-  await expect(page.locator('#dc-notices')).toContainText('四年级(1)班');
-  await expect(page.locator('#dc-notices article')).toHaveCount(2);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下载开户通知单' }).click();
+  expect(await noticePages(await download)).toBe(2);
+  expect(await page.evaluate(() => (window as unknown as { notices: string[] }).notices)).toContain('四年级(1)班');
   const password = await noticePassword(page, '20269001');
   expect(password).toMatch(/^\d{8}$/);
   expect(await noticePassword(page, '20269002')).not.toBe(password);
@@ -149,14 +167,16 @@ test('学生 → 查看全部流水 shows only that student, and the teacher rev
 });
 
 test('reprinting the notices gives the waiting students new initial passwords', async ({ page }) => {
-  await page.addInitScript(() => { window.print = () => {}; });
+  await recordNotices(page);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students');
-  await page.getByRole('button', { name: '打印开户通知单' }).click();
+  await page.getByRole('button', { name: '下载开户通知单' }).click();
   await expect(page.locator('.dc-sheet')).toContainText('之前发出的通知单随即失效');
-  await confirmIn(page, '生成并打印');
-  await expect(page.locator('#dc-notices article', { hasText: '王小雨' })).toHaveCount(1);
+  const download = page.waitForEvent('download');
+  await confirmIn(page, '生成并下载');
+  expect(await noticePages(await download)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => (window as unknown as { notices: string[] }).notices)).toContain('王小雨');
   reissued = await noticePassword(page, '20260003');
   expect(reissued).toMatch(/^\d{8}$/);
 });
