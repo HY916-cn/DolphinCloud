@@ -115,7 +115,7 @@ case "${1:-}" in
   backups) ls -1t "$BACKUPS" | grep -E '^dolphin-.*\.tar\.gz(\.age)?$' || true ;;
   restore) restore "${2:-}" ;;
   status)  supervisorctl status || true; echo "version: $DOLPHIN_VERSION"; echo "latest backup: $(ls -1t "$BACKUPS" | head -1)"
-           echo "backups encrypted: ${BACKUP_RECIPIENT:+yes, to $BACKUP_RECIPIENT}${BACKUP_RECIPIENT:-no (set BACKUP_RECIPIENT)}" ;;
+           if [ -n "${BACKUP_RECIPIENT:-}" ]; then echo "backups encrypted to: $BACKUP_RECIPIENT"; else echo "backups encrypted: no (set BACKUP_RECIPIENT)"; fi ;;
   health)  health ;;
   *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | status | health" >&2; exit 2 ;;
 esac
