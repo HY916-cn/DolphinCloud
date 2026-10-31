@@ -2,6 +2,8 @@ import { createPortal } from 'react-dom';
 import { formatAmount } from '@/lib/format';
 
 export type NoticeStudent = { student_no: string; name: string; class_label: string | null; cohort: number; class_no: number };
+// A student with the initial password the server gave them (import_roster, reissue_passwords).
+export type NoticeAccount = NoticeStudent & { password: string };
 
 // Print-only CSS: the page prints just the notices, one class per sheet, never splitting a notice.
 const PRINT = `
@@ -25,9 +27,9 @@ const PRINT = `
 const classOf = (s: NoticeStudent) => s.class_label ?? `${s.cohort} 届 ${s.class_no} 班`;
 
 // The students by class (newest cohort first), each class in student-number order.
-function byClass(students: NoticeStudent[]) {
+function byClass<T extends NoticeStudent>(students: T[]) {
   const sorted = [...students].sort((a, b) => b.cohort - a.cohort || a.class_no - b.class_no || a.student_no.localeCompare(b.student_no));
-  const classes = new Map<string, NoticeStudent[]>();
+  const classes = new Map<string, T[]>();
   for (const s of sorted) classes.set(classOf(s), [...(classes.get(classOf(s)) ?? []), s]);
   return [...classes];
 }
@@ -59,8 +61,9 @@ export function OpeningSheet({ students, openings }: { students: NoticeStudent[]
   );
 }
 
-// 开户通知单 (PHASE-1.md §6.5): by class, each with the name, class, number, default password and address. window.print() prints it.
-export function AccountNotices({ students }: { students: NoticeStudent[] }) {
+// 开户通知单 (PHASE-1.md §6.5): by class, each with the name, class, number, own initial password and address.
+// window.print() prints it.
+export function AccountNotices({ students }: { students: NoticeAccount[] }) {
   return createPortal(
     <div id="dc-notices">
       <style>{PRINT}</style>
@@ -74,7 +77,7 @@ export function AccountNotices({ students }: { students: NoticeStudent[] }) {
                 <dt>姓名</dt><dd>{s.name}</dd>
                 <dt>班级</dt><dd>{label}</dd>
                 <dt>学号</dt><dd>{s.student_no}</dd>
-                <dt>初始密码</dt><dd>a12345678</dd>
+                <dt>初始密码</dt><dd>{s.password}</dd>
                 <dt>登录网址</dt><dd>{location.origin}</dd>
               </dl>
               用学号和初始密码登录，首次登录后请立即设置新密码。

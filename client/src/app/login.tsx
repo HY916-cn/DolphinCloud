@@ -15,6 +15,7 @@ function message(code?: string) {
   if (code === 'user_banned') return { title: '账号已停用', text: '请联系银行管理员。' };
   if (code === 'over_request_rate_limit') return { title: '尝试次数过多', text: '请稍后再登录。' };
   if (code === 'invalid_credentials') return { title: '账号或密码不正确', text: '请核对后重新输入。' };
+  if (code === 'LOGIN_LOCKED') return { title: '密码错误次数过多', text: '请 15 分钟后再试，或请银行管理员重置密码。' };
   return { title: '暂时无法登录', text: '请检查网络后重试。' };
 }
 
@@ -36,7 +37,12 @@ export default function Login() {
     setBusy(true);
     const { error: e } = await supabase.auth.signInWithPassword({ email: loginEmail(kind, loginId), password });
     setBusy(false);
-    if (e) return setError({ ...message(e.code), n: (error?.n ?? 0) + 1 });
+    if (e) {
+      // The lockout (5 wrong passwords in 15 minutes) comes from the database's password check hook: code
+      // invalid_credentials with the message LOGIN_LOCKED.
+      const locked = e.message.includes('LOGIN_LOCKED');
+      return setError({ ...message(locked ? 'LOGIN_LOCKED' : e.code), n: (error?.n ?? 0) + 1 });
+    }
     queryClient.clear();
     router.replace('/');
   }
@@ -67,13 +73,13 @@ export default function Login() {
       </label>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
       <button className={`dc-btn dc-btn-primary dc-btn-block ${busy ? 'is-loading' : ''}`} type="submit"
-        disabled={!busy && (!loginId.trim() || !password)}>
+        disabled={busy || !loginId.trim() || !password}>
         {busy ? '正在登录' : '登录'}
       </button>
       {adding && session ? (
         <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/accounts')}>返回本机账号</a>
       ) : (
-        <p className="dc-login-help">首次登录请使用默认密码，登录后设置新密码<br />忘记密码请联系银行管理员</p>
+        <p className="dc-login-help">首次登录请使用初始密码，登录后设置新密码<br />忘记密码请联系银行管理员</p>
       )}
     </Welcome>
   );

@@ -32,7 +32,7 @@ RUN npm run build
 FROM postgres:${POSTGRES_MAJOR}-bookworm
 ARG DOLPHIN_VERSION=dev
 RUN apt-get update \
- && apt-get install -y --no-install-recommends supervisor curl ca-certificates "postgresql-$PG_MAJOR-pgtap" \
+ && apt-get install -y --no-install-recommends supervisor curl ca-certificates libcap2-bin "postgresql-$PG_MAJOR-pgtap" \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=auth /usr/local/bin/auth /usr/local/bin/auth
@@ -48,6 +48,9 @@ COPY docker/bin/ /usr/local/bin/
 COPY docker/supervisord.conf /etc/supervisor/supervisord.conf
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=client /client/dist/ /srv/www/
+# Every service but Postgres runs as dolphin (supervisord.conf); Caddy still binds 80/443.
+RUN useradd --system --user-group --no-create-home --home-dir /nonexistent dolphin \
+ && setcap cap_net_bind_service=+ep /usr/local/bin/caddy
 
 ENV DOLPHIN_VERSION=${DOLPHIN_VERSION} \
     PGDATA=/data/postgres \

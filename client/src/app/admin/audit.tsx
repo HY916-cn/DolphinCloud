@@ -18,6 +18,8 @@ type People = { names: Map<string, string>; staff: Set<string> };
 // Function logs (PHASE-1.md §5.5) and the trigger rows "<table>.<insert|update|delete>" (app_private.audit_row).
 const ACTIONS: Record<string, string> = {
   'roster.import': '名册导入', 'user.reset_password': '重置密码', 'txn.reverse': '冲正', 'check.mismatch': '余额自检不一致',
+  'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
+  'backup.create': '创建备份', 'backup.restore': '恢复备份',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
@@ -34,6 +36,7 @@ const COLUMNS: Record<string, string> = {
   batch_no: '批次号', issued_on: '发行日期', denominations: '面额', total: '总额', purpose: '用途', approver_name: '审批人',
   value: '取值', type: '类型', amount: '金额', balance_delta: '余额变动', balance_after: '办理后余额', reason: '原因',
   txn_no: '交易号', created: '新开账户', updated: '更新学生',
+  failures: '15 分钟内密码错误次数', locked_until: '锁定到', valid: '密码正确', student_nos: '学号', file: '备份文件',
 };
 // Columns that change on every write and say nothing to the reader.
 const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id']);
@@ -65,10 +68,12 @@ function targetOf(e: Entry, staff: Set<string>): Target {
 }
 
 // What the entry is about, in the row's own words: the batch, student, product, login or setting; for a reversal the
-// original transaction, for a password reset the login.
+// original transaction, for a password reset or a sign-in the login, for a backup its file.
 function subject(e: Entry, names: Map<string, string>) {
   const r = e.action === 'txn.reverse' ? asRow(e.before) : { ...asRow(e.before), ...asRow(e.after) };
-  if (e.action === 'user.reset_password') return names.get(profileOf(e) ?? '') ?? '';
+  if (e.action === 'user.reset_password' || e.action.startsWith('login.')) return names.get(profileOf(e) ?? '') ?? '';
+  if (e.action === 'user.reissue_passwords') return `${Array.isArray(r.student_nos) ? r.student_nos.length : 0} 名学生`;
+  if (e.action.startsWith('backup.')) return String(r.file ?? '');
   if (e.action.startsWith('settings.')) return SETTINGS[String(r.key)] ?? String(r.key ?? '');
   if (e.action === 'check.mismatch') return `${Array.isArray(e.after) ? e.after.length : 0} 处不一致`;
   return [...new Set([r.batch_no, r.txn_no, r.name ?? r.display_name, r.student_no ?? r.login_id])].filter((v) => v != null && v !== '').join(' · ');

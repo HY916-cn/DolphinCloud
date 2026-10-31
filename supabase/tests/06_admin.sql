@@ -21,8 +21,8 @@ select tests.roster(:'teacher', $$[
 select is((:'roster'::jsonb -> 'accounts' -> 2) - 'password', jsonb_build_object('name', '王五', 'cohort', :j7, 'class_no', 1,
   'division', 'junior', 'student_no', '20260003', 'class_label', '七年级(1)班'), 'the result shows grade and class from the cohort');
 select is((:'roster'::jsonb - 'accounts'), '{"created":3,"updated":0}', 'three new accounts');
-select ok((select bool_and(a ->> 'password' = 'a12345678') from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a),
-  'new accounts get the default password');
+select ok((select bool_and(a ->> 'password' ~ '^[0-9]{8}$') and count(distinct a ->> 'password') = 3
+  from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a), 'each new student gets their own random 8-digit password');
 select ok((select bool_and(u.encrypted_password = crypt(a ->> 'password', u.encrypted_password))
   from jsonb_array_elements(:'roster'::jsonb -> 'accounts') a
   join auth.users u on u.email = (a ->> 'student_no') || '@student.dolphin.internal'), 'each password is the login''s password');
@@ -67,7 +67,9 @@ select is(tests.call(:'teacher', $$select jsonb_agg(jsonb_build_array(student_no
 
 -- Staff logins and roles
 select tests.call(:'ops', $$select create_staff('Teller02', '柜员二', 'teller')$$) as staff \gset
-select is(:'staff'::jsonb ->> 'password', 'a12345678', 'staff logins get the default password too');
+select matches(:'staff'::jsonb ->> 'password', '^[a-hjkmnp-z2-9]{8}$', 'staff logins get 8 random characters without look-alikes');
+select ok((select encrypted_password = crypt(:'staff'::jsonb ->> 'password', encrypted_password) and p.must_change_password
+  from auth.users u join profiles p using (id) where p.login_id = 'teller02'), 'which the login uses until it sets its own');
 select is(:'staff'::jsonb ->> 'login_id', 'teller02', 'login ids are lower case');
 select is(:'staff'::jsonb ->> 'role', 'teller', 'a staff login has one role');
 select is(tests.err(:'ops', $$select create_staff('teller02', '重复', 'teller')$$), 'ALREADY_EXISTS', 'duplicate login');
@@ -95,22 +97,43 @@ select throws_ok($$insert into user_roles select id, 'teller' from profiles wher
 -- Passwords
 select id as stu from profiles where login_id = '20260002' \gset
 insert into auth.sessions (id, user_id) values (gen_random_uuid(), :'stu');
-select tests.call(:'ops', format($$select reset_password(%L)$$, :'stu')) ->> 'password' as pw \gset
-select is(:'pw'::text, 'a12345678', 'reset returns the default password');
-select ok((select encrypted_password = crypt('a12345678', encrypted_password) from auth.users where id = :'stu'), 'the login now uses it');
+select tests.call(:'ops', format($$select reset_password(%L)$$, :'stu')) as reset \gset
+select is(:'reset'::jsonb - 'password', jsonb_build_object('user_id', :'stu', 'login_id', '20260002'), 'reset returns the login');
+select matches(:'reset'::jsonb ->> 'password', '^[0-9]{8}$', 'and a new random 8-digit password');
+select ok((select encrypted_password = crypt(:'reset'::jsonb ->> 'password', encrypted_password) from auth.users where id = :'stu'),
+  'the login now uses it');
 select ok((select must_change_password from profiles where id = :'stu'), 'and must change it at the next sign-in');
 select is((select count(*)::int from auth.sessions where user_id = :'stu'), 0, 'existing sessions are ended');
+select is((select count(*)::int from audit_log where action = 'user.reset_password' and target = 'profiles:' || :'stu'), 1, 'resets are audited');
 select is(tests.err(:'ops', format($$select reset_password(%L)$$, :'teacher')), 'FORBIDDEN', 'a sysadmin cannot reset a teacher''s password');
-select throws_ok(format($$update auth.users set encrypted_password = crypt('a12345678', gen_salt('bf', 4)) where id = %L$$, :'stu'),
-  'P0001', 'PASSWORD_UNCHANGED', 'the new password cannot be the default');
 update auth.users set encrypted_password = crypt('my-own-pass', gen_salt('bf', 4)) where id = :'stu';
-select ok(not (select must_change_password from profiles where id = :'stu'), 'replacing the default clears must_change_password');
+select ok(not (select must_change_password from profiles where id = :'stu'), 'setting their own password clears must_change_password');
 select throws_ok(format($$update auth.users set encrypted_password = crypt('another-pass', gen_salt('bf', 4)) where id = %L$$, :'stu'),
   '42501', 'PASSWORD_CHANGE_FORBIDDEN', 'after that the user cannot change it again');
 select tests.call(:'ops', format($$select reset_password(%L)$$, :'stu'));
-select ok((select must_change_password from profiles where id = :'stu'), 'an admin reset brings back the default');
+select ok((select must_change_password from profiles where id = :'stu'), 'after an admin reset the user sets a password once more');
 update auth.users set encrypted_password = crypt('my-new-pass', gen_salt('bf', 4)) where id = :'stu';
 select ok(not (select must_change_password from profiles where id = :'stu'), 'which the user replaces once more');
+
+-- Reprinting notices: new passwords only for students still on their initial one
+select id as s3 from profiles where login_id = '20260003' \gset
+select id as s4 from profiles where login_id = '20260004' \gset
+update profiles set must_change_password = false where id = :'s4';
+insert into auth.sessions (id, user_id) values (gen_random_uuid(), :'s3');
+insert into app_private.login_attempts (user_id, locked_until) values (:'s3', now() + interval '10 minutes');
+select is(tests.err(:'keeper', $$select reissue_passwords('{20260003}')$$), 'FORBIDDEN', 'only a teacher or sysadmin reissues passwords');
+select encrypted_password as s4hash from auth.users where id = :'s4' \gset
+select tests.call(:'ops', $$select reissue_passwords('{20260004,20260003,nobody}')$$) as reissue \gset
+select is((:'reissue'::jsonb -> 'accounts' -> 0) - 'password', jsonb_build_object('student_no', '20260003', 'name', '王五', 'division', 'junior',
+  'cohort', :j7, 'class_no', 1, 'class_label', '七年级(1)班'), 'the notice fields of import_roster');
+select is(jsonb_array_length(:'reissue'::jsonb -> 'accounts'), 1, 'students who set their own password, and unknown ones, are skipped');
+select ok((select encrypted_password = crypt(:'reissue'::jsonb -> 'accounts' -> 0 ->> 'password', encrypted_password) from auth.users where id = :'s3'),
+  'the reissued password is the login''s password');
+select is((select encrypted_password from auth.users where id = :'s4'), :'s4hash', 'a skipped student keeps their password');
+select is((select count(*)::int from auth.sessions where user_id = :'s3'), 0, 'sessions are ended');
+select is((select count(*)::int from app_private.login_attempts where user_id = :'s3'), 0, 'and a sign-in lock is cleared');
+select is((select after from audit_log where action = 'user.reissue_passwords' and actor_id = :'ops'), '{"student_nos":["20260003"]}',
+  'one audit entry names the students');
 
 -- Until the default is replaced the login holds no role and sees no account data
 select tests.staff('fresh', 'teller') as fresh \gset
@@ -128,18 +151,19 @@ select tests.call(:'teacher', format($$select set_user_disabled(%L, false)$$, :'
 select is((select row(p.disabled, u.banned_until)::text from profiles p join auth.users u using (id) where id = :'stu'), '(f,)', 'enable again');
 
 -- Products and issues
-select tests.call(:'keeper', $$select upsert_product(null, '书签', 5)$$) ->> 'id' as prod \gset
+select is(tests.call(:'keeper', $$select upsert_product(null, '书签', 5)$$) ->> 'detail', '{"field": "listed"}', 'listed must be given');
+select tests.call(:'keeper', $$select upsert_product(null, '书签', 5, p_listed => false)$$) ->> 'id' as prod \gset
 select is(tests.call(:'keeper', format($$select upsert_product(%L, '海豚书签', 6, 3, '文具', 'p/1.jpg', true)$$, :'prod')) - 'id' - 'updated_at',
   '{"cost":3,"name":"海豚书签","price":6,"stock":0,"listed":true,"category":"文具","image_path":"p/1.jpg","safety_stock":null}', 'edit product');
 select is(tests.err(:'t1', $$select upsert_product(null, 'x', 5)$$), 'FORBIDDEN', 'only storekeepers and teachers edit products');
 select is(tests.err(:'keeper', $$select upsert_product(null, 'x', 0)$$), 'INVALID_INPUT', 'price must be positive');
-select is(tests.err(:'keeper', $$select upsert_product(gen_random_uuid(), 'x', 5)$$), 'PRODUCT_NOT_FOUND', 'unknown product');
+select is(tests.err(:'keeper', $$select upsert_product(gen_random_uuid(), 'x', 5, p_listed => true)$$), 'PRODUCT_NOT_FOUND', 'unknown product');
 select is(tests.err(:'keeper', format($$select stock_in(%L, 0)$$, :'prod')), 'INVALID_INPUT', 'stock in must be positive');
 select is(tests.call(:'keeper', format($$select stock_in(%L, 7, '首批')$$, :'prod')) ->> 'stock', '7', 'stock in');
 select is((select count(*)::int from audit_log where target = 'products:' || :'prod'), 2, 'product edits are audited, stock changes are not');
 
 -- 出入库 in one call: several products, all or nothing; 出库 needs a reason and never goes below 0.
-select tests.call(:'keeper', $$select upsert_product(null, '贴纸', 2)$$) ->> 'id' as prod2 \gset
+select tests.call(:'keeper', $$select upsert_product(null, '贴纸', 2, p_listed => false)$$) ->> 'id' as prod2 \gset
 select is(tests.call(:'keeper', format($$select stock_move('stock_in', '[{"product_id":"%s","qty":3},{"product_id":"%s","qty":2},{"product_id":"%s","qty":10}]')$$,
   :'prod', :'prod', :'prod2')), '{"qty": 15, "count": 2}', 'stock in several products, one product in two lines merged');
 select is((select stock from products where id = :'prod'), 12, 'stock after stock in');
@@ -193,13 +217,19 @@ update auth.users set encrypted_password = crypt('Forgot-it-1', gen_salt('bf', 4
 where id = :'teacher';
 select set_config('dolphin.password_reset', '', false);
 update profiles set must_change_password = false where id = :'teacher';
-select is(app_private.reset_admin(), 'teacher', 'reset_admin resets the teacher');
-select ok((select encrypted_password = crypt('a12345678', encrypted_password) and banned_until is null from auth.users where id = :'teacher'),
-  'back on the default password and able to sign in');
+select app_private.reset_admin() as radmin \gset
+select is(:'radmin'::jsonb ->> 'login_id', 'teacher', 'reset_admin resets the teacher');
+select ok((select encrypted_password = crypt(:'radmin'::jsonb ->> 'password', encrypted_password) and banned_until is null
+  from auth.users where id = :'teacher'), 'on the returned random password and able to sign in');
 select ok((select must_change_password from profiles where id = :'teacher'), 'and must change it at the next sign-in');
 delete from user_roles where role = 'teacher';
-select ok(app_private.create_admin('Head') is not null, 'create_admin');
-select ok((select must_change_password from profiles where login_id = 'head'), 'the admin starts on the default password');
+select app_private.create_admin('Head') as cadmin \gset
+select is(:'cadmin'::jsonb - 'user_id' - 'password', '{"login_id":"head"}', 'create_admin');
+select ok((select encrypted_password = crypt(:'cadmin'::jsonb ->> 'password', encrypted_password) and p.must_change_password
+  from auth.users u join profiles p using (id) where p.id = (:'cadmin'::jsonb ->> 'user_id')::uuid),
+  'the admin starts on the returned random password and must replace it');
+select ok(not has_function_privilege('authenticated', 'app_private.create_admin(text)', 'execute')
+  and not has_function_privilege('authenticated', 'app_private.reset_admin()', 'execute'), 'only the CLI creates and resets the admin');
 select is((select array_agg(role order by role)::text from user_roles r join profiles p on p.id = r.user_id where p.login_id = 'head'),
   '{teacher}', 'as a teacher');
 select throws_ok($$select app_private.create_admin('head')$$, 'P0001', 'ALREADY_EXISTS', 'create_admin refuses an existing login');

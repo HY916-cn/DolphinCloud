@@ -14,7 +14,8 @@ export function BalanceCard({ amount, label = '我的海豚币' }: { amount: num
   );
 }
 
-// TxnList: icon, "业务 · 详情", time, and the signed amount with a word (存入 / 支出), never colour alone.
+// TxnList: icon, "业务 · 详情", time, and the signed amount with a word (存入 / 支出), never colour alone; a cash
+// business shows its amount unsigned, as it leaves the balance as it is.
 export function TxnList({ items }: { items: Txn[] }) {
   return (
     <ul className="dc-txns dc-stagger">
@@ -25,7 +26,7 @@ export function TxnList({ items }: { items: Txn[] }) {
             <div className="dc-txn-title">{t.title}</div>
             <div className="dc-txn-time">{t.time}</div>
           </div>
-          <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>{formatSigned(t.amount)}<small>{t.note}</small></div>
+          <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>{t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small></div>
         </li>
       ))}
     </ul>

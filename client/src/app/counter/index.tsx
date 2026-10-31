@@ -38,9 +38,10 @@ export default function Serve() {
   useEffect(() => {
     if (online && student && student.balance === null) refresh(student.student_no);
   }, [online, student]);
+  // The preset opens once the counter is online; a visit already open (or ended, which drops ?s=) is left alone.
   useEffect(() => {
-    if (preset && online) lookupStudent(preset).then(begin, () => {});
-  }, [preset]);
+    if (preset && online && !student) lookupStudent(preset).then(begin, () => {});
+  }, [preset, online]);
 
   // Today's students, newest first, for a second visit without searching.
   const recent = useMemo(() => {

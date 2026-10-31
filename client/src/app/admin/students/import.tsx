@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { AccountNotices, Desk, Icon, Notice, Summary, type NoticeStudent } from '@/components';
+import { AccountNotices, Desk, Icon, Notice, Summary, type NoticeAccount } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
 import { checkRoster, HEADER, type RosterProblem, type RosterRow } from '@/lib/roster';
@@ -12,8 +12,8 @@ type Stage =
   | { kind: 'pick'; error?: { title: string; text: string } }
   | { kind: 'checked'; file: string; rows: RosterRow[]; problems: RosterProblem[] }
   | { kind: 'importing'; done: number; total: number }
-  | { kind: 'done'; created: NoticeStudent[]; updated: number };
-type Imported = { created: number; updated: number; accounts: NoticeStudent[] };
+  | { kind: 'done'; created: NoticeAccount[]; updated: number };
+type Imported = { created: number; updated: number; accounts: NoticeAccount[] };
 
 const BATCH = 100;
 const xlsx = () => import('xlsx'); // SheetJS loads only on this page
@@ -53,7 +53,7 @@ export default function ImportRoster() {
   }
 
   async function run(rows: RosterRow[]) {
-    const created: NoticeStudent[] = [];
+    const created: NoticeAccount[] = [];
     let updated = 0;
     for (let i = 0; i < rows.length; i += BATCH) {
       setStage({ kind: 'importing', done: i, total: rows.length });
@@ -69,6 +69,7 @@ export default function ImportRoster() {
         return;
       } finally {
         queryClient.invalidateQueries({ queryKey: ['admin-students'] });
+        queryClient.invalidateQueries({ queryKey: ['roster'] }); // the counter on this device finds the new students at once
       }
     }
     setStage({ kind: 'done', created, updated });
@@ -93,7 +94,7 @@ export default function ImportRoster() {
               ['学号', '必填，不能重复'], ['姓名', '必填'], ['学部', '小学部或初中部'],
               ['学届', '入学年份，如 2023'], ['班号', '1–99 的整数'], ['期初余额', '可空，非负整数'],
             ]} />
-            <p className="dc-top-sub">已有的学号只更新姓名、学部、学届和班号，不改密码和余额。新学生的初始密码为 a12345678。</p>
+            <p className="dc-top-sub">已有的学号只更新姓名、学部、学届和班号，不改密码和余额。每个新学生有各自的初始密码，印在开户通知单上。</p>
             <button className="dc-btn dc-btn-secondary" type="button" onClick={downloadTemplate}>下载模板</button>
           </section>
         </div>

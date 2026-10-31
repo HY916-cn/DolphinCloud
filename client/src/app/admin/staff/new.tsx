@@ -8,7 +8,7 @@ import { ROLES, type Role } from '@/lib/session';
 
 const LOGIN = /^[a-z0-9][a-z0-9_.-]{1,31}$/;
 
-// 新增账号: one staff login with one role, on the default password (create_staff). The one 银行管理员 already exists.
+// 新增账号: one staff login with one role, on an initial password the server makes up and shows once (create_staff). The one 银行管理员 already exists.
 export default function NewStaff() {
   const queryClient = useQueryClient();
   const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
@@ -29,9 +29,9 @@ export default function NewStaff() {
     setBusy(true);
     setError(null);
     try {
-      await call('create_staff', { p_login_id: id, p_name: name.trim(), p_role: role });
+      const r = await call<{ password: string }>('create_staff', { p_login_id: id, p_name: name.trim(), p_role: role });
       queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
-      setCreated(`${name.trim()}（${ROLES[role]}）的账号 ${id} 已创建，初始密码 a12345678，首次登录后需要设置新密码。`);
+      setCreated(`${name.trim()}（${ROLES[role]}）的账号 ${id} 已创建，初始密码 ${r.password}。请转交本人，首次登录后需要设置新密码；这个密码只显示这一次。`);
       setLogin('');
       setName('');
       setTried(false);

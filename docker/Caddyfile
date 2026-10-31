@@ -11,6 +11,7 @@
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
@@ -22,6 +23,8 @@
 		reverse_proxy 127.0.0.1:3000
 	}
 	handle_path /storage/v1/* {
+		# Uploads are served from the app's origin: an uploaded HTML or SVG file must never run script.
+		header Content-Security-Policy "default-src 'none'; sandbox"
 		reverse_proxy 127.0.0.1:5000
 	}
 	handle /config.js {
@@ -30,7 +33,7 @@
 		file_server
 	}
 	handle {
-		header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'"
+		header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
 		# Bundles carry a content hash in their names and never change; everything else (index.html, sw.js, the
 		# manifest, fonts) is checked with the server on every load so a deploy shows at once.
 		@hashed path /_expo/static/*

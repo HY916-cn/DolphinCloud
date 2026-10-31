@@ -27,7 +27,8 @@ function byDay(rows: TxnRow[]) {
   return days;
 }
 
-// 明细: every movement of the account, newest first, 30 at a time (cash purchases do not touch it), and this month's totals.
+// 明细: every business of the account, newest first, 30 at a time (全部 includes cash exchanges; 存入 and 支出 are the
+// changes to the balance), and this month's totals of those changes.
 export default function StudentTxns() {
   const student = useMe().data!.student!;
   const [tab, setTab] = useState<Tab>('all');
@@ -39,7 +40,7 @@ export default function StudentTxns() {
     queryFn: async ({ pageParam }) => {
       const q = supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
         .eq('student_no', student.student_no);
-      const { data, error } = await (tab === 'in' ? q.gt('balance_delta', 0) : tab === 'out' ? q.lt('balance_delta', 0) : q.neq('balance_delta', 0))
+      const { data, error } = await (tab === 'in' ? q.gt('balance_delta', 0) : tab === 'out' ? q.lt('balance_delta', 0) : q)
         .order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
       if (error) throw error;
       return data as TxnRow[];

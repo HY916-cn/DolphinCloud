@@ -4,8 +4,20 @@ set -euo pipefail
 BACKUPS=/data/backups
 psql_() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 
+# audit <action> <file>: one audit_log row; skipped while the database predates app_private.log_system
+# (the backup before an upgrade migrates, or restoring an old backup).
+audit() {
+  psql_ -qAt -v action="$1" -v file="$2" >/dev/null <<'SQL'
+select to_regprocedure('app_private.log_system(text,jsonb)') is not null as has_log \gset
+\if :has_log
+select app_private.log_system(:'action', jsonb_build_object('file', :'file'));
+\endif
+SQL
+}
+
 backup() {
   local name tmp
+  umask 077
   name="dolphin-$(date +%Y%m%d-%H%M%S).tar.gz"
   tmp=$(mktemp -d)
   pg_dump -h /var/run/postgresql -U postgres -d postgres -Fc -f "$tmp/db.dump"
@@ -13,6 +25,7 @@ backup() {
   mv "$BACKUPS/$name.part" "$BACKUPS/$name"
   rm -rf "$tmp"
   find "$BACKUPS" -name 'dolphin-*.tar.gz' -mtime +"$BACKUP_RETENTION_DAYS" -delete
+  audit backup.create "$name"
   echo "$BACKUPS/$name"
 }
 
@@ -27,9 +40,13 @@ restore() {
   trap 'supervisorctl start auth rest storage caddy backup-schedule >/dev/null' EXIT
   psql_ -qc "select pg_terminate_backend(pid) from pg_stat_activity where datname = 'postgres' and pid <> pg_backend_pid()" >/dev/null
   pg_restore -h /var/run/postgresql -U postgres -d postgres --clean --if-exists --single-transaction --exit-on-error "$tmp/db.dump"
-  rm -rf /data/storage && mv "$tmp/storage" /data/storage
+  # /data/storage may be a mount point of its own: replace its contents, not the directory.
+  find /data/storage -mindepth 1 -delete
+  cp -a "$tmp/storage/." /data/storage/
+  chown -R dolphin: /data/storage
   rm -rf "$tmp"
   psql_ -qc "notify pgrst, 'reload schema'"
+  audit backup.restore "$(basename "$file")"
   echo "Restored $file"
 }
 
@@ -48,17 +65,19 @@ create_admin() {
   local login="${1:?usage: dolphin create-admin <login>}"
   ready
   psql_ -qAt -v login="$login" <<'SQL'
-select 'Created ' || lower(:'login') || ' (teacher): ' || app_private.create_admin(:'login')
-  || E'\nSign in with the default password ' || app_private.default_password() || ' and set a new one.';
+select 'Created ' || (r ->> 'login_id') || ' (bank admin). Initial password: ' || (r ->> 'password')
+  || E'\nSign in with it and set a new one.'
+from app_private.create_admin(:'login') r;
 SQL
 }
 
-# The 银行管理员 forgot its password: back to the default one, to be changed at the next sign-in.
+# The 银行管理员 forgot its password: a new random one, to be changed at the next sign-in.
 reset_admin() {
   ready
   psql_ -qAt <<'SQL'
-select 'Reset ' || app_private.reset_admin() || ' (teacher) to the default password ' || app_private.default_password()
-  || E'.\nSign in with it and set a new one.';
+select 'Reset ' || (r ->> 'login_id') || ' (bank admin). New password: ' || (r ->> 'password')
+  || E'\nSign in with it and set a new one.'
+from app_private.reset_admin() r;
 SQL
 }
 

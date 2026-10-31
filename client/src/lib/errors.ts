@@ -38,7 +38,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'INVALID_INPUT':
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };
     case 'ALREADY_EXISTS': return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
-    case 'USER_NOT_FOUND': case 'PRODUCT_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
+    case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
+    case 'PRODUCT_NOT_FOUND': return { title: '商品不存在', text: '请刷新后重新选择商品。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }

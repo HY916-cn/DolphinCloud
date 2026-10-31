@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Counts } from './cash';
 import { formatAmount } from './format';
 import { cachedRoster, saveRoster } from './offline-queue';
-import { call } from './rpc';
+import { call, timeoutSignal } from './rpc';
 import { indexRoster } from './search';
 import { readAll, supabase } from './supabase';
 
@@ -59,13 +59,15 @@ export function useSettings() {
 }
 
 // The roster the counter searches (lib/search.ts). Each read is kept on this device; offline, or when the read gets
-// no answer, the counter searches the copy kept there (§7.7).
+// no answer, the counter searches the copy kept there (§7.7). Read again whenever the counter comes back into view,
+// so students imported meanwhile can be found; an import on this device invalidates ['roster'] at once.
 export function useRoster(accountId: string) {
   return useQuery({
     queryKey: ['roster', accountId],
     staleTime: 10 * 60_000,
+    refetchOnWindowFocus: 'always',
     queryFn: async () => {
-      const signal = AbortSignal.timeout(5000);
+      const signal = timeoutSignal(5000);
       const data = await readAll((from, to) => supabase.from('students').select('student_no,name,class_no,class_label,status')
         .order('student_no').range(from, to).abortSignal(signal)).catch(() => null);
       if (data) await saveRoster(accountId, data);

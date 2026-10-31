@@ -12,8 +12,8 @@
 
 | 模块 | 交付内容 |
 | --- | --- |
-| 登录 | 学生用学号 + 密码登录；工作人员用账号 + 密码登录；用默认密码登录后必须设置新密码 |
-| 开户 | 银行管理员按模板导入名册，批量开户并迁入期初余额；新账号使用默认密码，按班打印开户通知单 |
+| 登录 | 学生用学号 + 密码登录；工作人员用账号 + 密码登录；用初始密码登录后必须设置新密码；连续输错 5 次锁定 15 分钟 |
+| 开户 | 银行管理员按模板导入名册，批量开户并迁入期初余额；每人一个随机初始密码，按班打印开户通知单 |
 | 学生端 | 余额、最近 10 笔交易、全部明细（分页）、存款排名（按学部分开排，默认匿名） |
 | 柜台 | 办理、今日业务：按姓名、拼音、班级或学号找到学生，在一次办理里连续办理存款、取款、兑换，办理单记下每一笔并可就地冲正 |
 | 离线登记 | 断网时只允许登记存款，本机暂存，恢复后补传；纸质凭条兜底 |
@@ -46,7 +46,7 @@
 | 离线 | 只允许存款 | 存款不会透支，补传后服务端照常校验 |
 | 对账 | 本阶段不设班次、不做轧账 | 流水记录柜员、设备和时间，并预留 `cash_delta` 字段，便于以后按柜员汇总现金 |
 | 更正 | 冲正 | 柜员可冲正本人当天办理的业务；银行管理员可冲正任意业务；原流水保留并标记「已冲正」 |
-| 密码 | 新账号和重置后的密码均为默认密码 `a12345678` | 用默认密码登录后必须设置新密码，这是本人唯一一次改密码；之后只能由银行管理员或运维员重置回默认密码 |
+| 密码 | 新账号和重置后的账号各得一个随机初始密码（学生 8 位数字，工作人员 8 位字母数字），只在开户通知单或操作结果里出现一次 | 用初始密码登录后必须设置新密码，这是本人唯一一次改密码；之后只能由银行管理员或运维员重置，重置后得到新的随机初始密码 |
 | 规模 | 学生 500–2000 人，柜台窗口 3–5 个 | 2 核 4 GB、40 GB 磁盘的服务器即可 |
 
 ---
@@ -122,7 +122,7 @@
 | 运维员 | `sysadmin` | 同上 |
 
 - 学生账号由名册导入产生，不带任何角色。
-- 银行管理员全系统只有一个（`user_roles` 上 `role = 'teacher'` 的唯一索引）：由 `dolphin create-admin` 创建，不能新增第二个，也不能把其他账号改成银行管理员或改掉它的身份；忘记密码时用 `dolphin reset-admin` 恢复默认密码。其他身份可以有多个账号。
+- 银行管理员全系统只有一个（`user_roles` 上 `role = 'teacher'` 的唯一索引）：由 `dolphin create-admin` 创建，不能新增第二个，也不能把其他账号改成银行管理员或改掉它的身份；忘记密码时用 `dolphin reset-admin` 生成新的初始密码。其他身份可以有多个账号。
 - 工作账号恰好有一个角色；`user_roles` 每个账号最多一行，学生账号不能写入。
 
 ### 4.2 权限矩阵
@@ -320,7 +320,7 @@ create table audit_log (
 ### 5.4 数据不变式
 
 1. `accounts.balance = sum(txns.balance_delta)`（按学生），由函数在同一事务内维护；`app_private.check_balances()` 每天复核一次。
-2. `products.stock = sum(stock_movements.qty_delta)`（按商品），同样由函数维护并每日复核。
+2. `products.stock = sum(stock_movements.qty_delta)`（按商品），同样由函数维护并每日复核。每日复核还检查每笔的办理后余额前后衔接、累计存入 / 取出 / 消费与流水一致、兑换明细合计等于兑换金额。
 3. `txns` 只能新增；唯一允许的更新是冲正时把原流水 `status` 改为 `reversed`。触发器拒绝其他 `update` 与所有 `delete`。
 4. 每笔冲正指向唯一一笔原流水（`reversal_of` 唯一），冲正流水本身不能再被冲正。
 
@@ -369,17 +369,20 @@ create table audit_log (
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `import_roster(p_rows)` | teacher | 见 6.5 |
-| `create_staff(p_login_id, p_name, p_role)` | teacher / sysadmin | 创建一个角色的工作账号，密码为默认密码；不能创建 `teacher`（只有一个，`ONE_BANK_ADMIN`） |
+| `create_staff(p_login_id, p_name, p_role)` | teacher / sysadmin | 创建一个角色的工作账号，返回随机初始密码；不能创建 `teacher`（只有一个，`ONE_BANK_ADMIN`） |
 | `set_role(p_user_id, p_role)` | teacher / sysadmin | 更正工作账号的角色（仍只有一个）；学生账号不能设置角色；不能改成或改掉 `teacher`（`ONE_BANK_ADMIN`） |
-| `reset_password(p_user_id)` | teacher / sysadmin | 把密码恢复为默认密码（`must_change_password` 随之为 `true`），并结束该账号的所有会话 |
+| `reset_password(p_user_id)` | teacher / sysadmin | 生成新的随机初始密码并返回（`must_change_password` 随之为 `true`），结束该账号的所有会话并解除登录锁定 |
+| `reissue_passwords(p_student_nos)` | teacher / sysadmin | 重印开户通知单：为其中还未设置新密码的学生各生成新的初始密码并返回（同 `import_roster` 的 `accounts`），旧通知单随即失效 |
+| `set_student_status(p_student_no, p_status)` | teacher | 账户状态改为 `normal`（在读）、`frozen`（冻结）或 `graduated`（毕业）；非在读账户不能办理业务（`STUDENT_INACTIVE`） |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`） |
 | `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 单件商品入库 |
 | `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
-| `app_private.check_balances()` | 定时任务、`dolphin check` | 返回余额、库存与流水汇总不一致的记录，并写 `audit_log`；不经 API 开放 |
-| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，显示名为「银行管理员」，密码为默认密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
+| `app_private.check_balances()` | 定时任务、`dolphin check` | 返回与流水不一致的记录（`kind`：余额、库存、办理后余额衔接 `balance_after`、累计 `total_in` / `total_out` / `total_spent`、兑换明细合计 `txn_items`），并写 `audit_log`；不经 API 开放 |
+| `public.hook_password_verification_attempt(event)` | Auth 登录钩子 | 每次密码校验后调用：同一账号 15 分钟内输错 5 次即锁定 15 分钟（期间密码正确也拒绝，返回 `LOGIN_LOCKED`），登录成败记入 `audit_log`（`login.ok` / `login.failed` / `login.locked`）；只授予 `supabase_auth_admin` |
+| `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，显示名为「银行管理员」，返回随机初始密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
 
 ### 6.5 名册导入与账号创建
 
@@ -393,23 +396,24 @@ create table audit_log (
 
 1. 前端用 SheetJS 读取文件，校验表头、必填项、学号重复、学部（「小学部」「初中部」，提交时转为 `primary` / `junior`）、余额格式，错误行标出行号，全部通过才允许导入。
 2. 每 100 行调用一次 `import_roster`，界面显示进度；每批一个事务。函数声明 `set statement_timeout = '60s'`。
-3. 新学号：创建 `auth.users` + `auth.identities`、`profiles`、`students`、`accounts`；期初余额 > 0 时写一笔 `opening` 流水；密码为默认密码。
+3. 新学号：创建 `auth.users` + `auth.identities`、`profiles`、`students`、`accounts`；期初余额 > 0 时写一笔 `opening` 流水；每人生成随机初始密码，随结果返回一次。
 4. 已存在的学号：只更新姓名、学部、学届、班号，不改密码、不重复写期初流水。
-5. 导入结束显示「新开户 N 人、更新 M 人」，并提供「打印开户通知单」：按班分页，每张含姓名、班级、学号、默认密码、登录网址，并提示「首次登录后请立即设置新密码」。
+5. 导入结束显示「新开户 N 人、更新 M 人」，并提供「打印开户通知单」：按班分页，每张含姓名、班级、学号、本人的初始密码、登录网址，并提示「首次登录后请立即设置新密码」。
 
 账号写入方式：Supabase Auth 不开放注册（`GOTRUE_DISABLE_SIGNUP=true`），账号由 `security definer` 函数直接写入 `auth` schema：
 
 - 登录名映射为内部邮箱：学生 `<学号>@student.dolphin.internal`，工作人员 `<账号>@staff.dolphin.internal`；`email_confirmed_at = now()`。
 - 密码 `crypt(p, gen_salt('bf', 10))`；`aud`、`role` 为 `authenticated`；令牌类字段写空串。
 - 同时写入 `auth.identities`（`provider = 'email'`）。
-- 字段以锁定版本的 Auth 表结构为准，集成测试覆盖「导入 → 默认密码登录 → 设置新密码 → 重置 → 默认密码再登录」。
+- 字段以锁定版本的 Auth 表结构为准，集成测试覆盖「导入 → 初始密码登录 → 设置新密码 → 重置 → 新初始密码再登录」。
 
 密码规则：
 
-- 默认密码为 `a12345678`（`app_private.default_password()`）。新账号、`dolphin create-admin` 建的账号、重置后的账号都使用它，`must_change_password` 为 `true`。
+- 初始密码由 `app_private.new_password(login_kind)` 随机生成：学生 8 位数字，工作人员 8 位（小写字母与数字，去掉易混的 `i l o 0 1`）。新账号、`dolphin create-admin` 建的账号、重置后的账号各得一个，`must_change_password` 为 `true`；密码只在开户通知单或操作结果里出现一次，系统不保存明文。
 - `must_change_password` 为 `true` 时，该账号不具备任何角色，也看不到本人的学生账户，只能读到自己的 `profiles`；前端据此直接进入「设置新密码」页。
-- 设置新密码：前端调用 `supabase.auth.updateUser({ password })`。`auth.users` 上的触发器只在 `must_change_password` 为 `true` 时允许修改，且新密码不能是默认密码；修改后 `must_change_password` 变为 `false`。此后本人无法再改密码（Auth 返回错误），忘记或需要更换时由银行管理员或运维员 `reset_password` 恢复为默认密码。
-- 新密码至少 8 位，必须同时包含英文字母和数字，所有账号相同。由 Auth 校验（`GOTRUE_PASSWORD_MIN_LENGTH=8`、`GOTRUE_PASSWORD_REQUIRED_CHARACTERS` 要求字母与数字各至少一个），不符合时返回 `weak_password`；前端在提交前给出同样的提示。默认密码 `a12345678` 本身符合这条规则。
+- 设置新密码：前端调用 `supabase.auth.updateUser({ password })`。`auth.users` 上的触发器只在 `must_change_password` 为 `true` 时允许修改；新密码与初始密码相同时 Auth 返回 `same_password`。修改后 `must_change_password` 变为 `false`。此后本人无法再改密码（Auth 返回错误），忘记或需要更换时由银行管理员或运维员 `reset_password` 生成新的初始密码。
+- 登录锁定：同一账号 15 分钟内输错 5 次即锁定 15 分钟，由 Auth 的密码校验钩子实现（按账号计算，不按 IP，校内共用出口 IP 不受影响）；重置密码同时解除锁定。
+- 新密码至少 8 位，必须同时包含英文字母和数字，所有账号相同。由 Auth 校验（`GOTRUE_PASSWORD_MIN_LENGTH=8`、`GOTRUE_PASSWORD_REQUIRED_CHARACTERS` 要求字母与数字各至少一个），不符合时返回 `weak_password`；前端在提交前给出同样的提示。
 
 ### 6.6 读取与 RLS
 
@@ -418,15 +422,17 @@ create table audit_log (
 | `students` | 本人 | 全部 | 全部 | — |
 | `accounts` | 本人 | 全部 | 全部 | — |
 | `txns`、`txn_items` | 本人 | 本人办理的当天流水 | 全部 | — |
-| `products` | 已上架 | 已上架 | 全部 | 全部 |
+| `products`（不含 `cost`） | 已上架 | 已上架 | 全部 | 全部 |
 | `currency_issues` | — | — | 全部 | — |
 | `audit_log` | — | — | 银行管理员 | — |
+
+`products.cost` 不对 `authenticated` 开放；成本经视图 `product_costs (id, cost)` 读取，只有库管、会计、银行管理员能读到数据。
 
 柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、学届、班号、年级、班级名称、余额，以及该生当天已取款合计。运维员可读 `profiles`、`user_roles`、`audit_log` 和 `students`（为学生重置密码时查找学生，不含余额）；会计可读工作账号的 `profiles` 和 `user_roles`（流水里的柜员姓名，按柜员筛选）。
 
 ### 6.7 图片存储
 
-- 桶 `product-images`，公开读；写入策略：`storage.objects` 上仅 `storekeeper`、`teacher` 可上传与删除。
+- 桶 `product-images`，公开读，只接受 jpeg / png / webp、单个不超过 5 MB；写入策略：`storage.objects` 上仅 `storekeeper`、`teacher` 可上传与删除。
 - 前端上传前用浏览器自带的 `canvas` 缩放到最长边 800px、JPEG 质量 0.8，文件名为随机 UUID。
 
 ---
@@ -454,7 +460,7 @@ client/
     _layout.tsx               设计系统样式、React Query、会话
     index.tsx                 按账号去向跳转（见下）
     login.tsx                 登录页（LoginPage）：学生 / 工作人员分段切换
-    change-password.tsx       默认密码登录后设置新密码
+    change-password.tsx       初始密码登录后设置新密码
     accounts.tsx              本机账号：切换、添加、退出
     student/                  学生端（AppShell）
       index.tsx               问候、余额卡、最近 10 笔
@@ -502,7 +508,7 @@ client/
 
 `src/lib` 只放数据与业务逻辑，不引用 DOM、CSS 和组件，原生客户端可以直接复用。
 
-页面准入（`Gate`）：未登录去登录页，默认密码去设置新密码，无权限回首页。登录后按身份进入：还在用默认密码 → 设置新密码；学生 → 学生端，柜员 → 柜台，会计 / 库管 / 银行管理员 / 运维员 → 后台。每种身份都有一个总览页作为第一项导航：学生是「首页」（余额与最近交易），柜员是柜台「办理」（搜索框和今天办理过的学生），后台身份是后台「总览」（本身份的今日数据、待办和管理入口）。
+页面准入（`Gate`）：未登录去登录页，初始密码去设置新密码，无权限回首页。登录后按身份进入：还在用初始密码 → 设置新密码；学生 → 学生端，柜员 → 柜台，会计 / 库管 / 银行管理员 / 运维员 → 后台。每种身份都有一个总览页作为第一项导航：学生是「首页」（余额与最近交易），柜员是柜台「办理」（搜索框和今天办理过的学生），后台身份是后台「总览」（本身份的今日数据、待办和管理入口）。
 
 ### 7.3 设计系统落地
 
@@ -538,7 +544,7 @@ client/
    - `Segmented` 选择 存款 / 取款 / 兑换，切换只换下方录入区。
    - 左栏录入：存款每个面额一行「− 张数 +」；取款输入金额，显示配钞方案（如「10 元 × 2 张、5 元 × 1 张」），超出余额、单笔或今日限额时提示原因；兑换选商品（库存为 0 置灰）、调整数量、选付款方式，现金支付时录入收到的各面额张数，显示找零方案。
    - 右栏「办理单」：本次已办的每一笔（名称、面额或付款方式、交易号，金额 `+22` / `−10`，现金兑换写「现金」）和它的「冲正」按钮，正在录入的这笔和办理后余额，底部「结束办理（已办 N 笔）」。手机上办理单在录入区下方。
-   - 贴底操作栏只有当前业务的合计和主按钮，主按钮写明金额（「确认取款 25 HTB」），点一下即办理，不再二次确认；超出可取范围时主按钮写明原因并禁用。录错时在办理单这一笔上点「冲正」改正。
+   - 贴底操作栏只有当前业务的合计和主按钮，主按钮写明金额（「确认存款 22 HTB」）。存款点一下即办理；取款和兑换会付出现金或扣减余额，点主按钮后在确认框里核对金额、配钞或商品、付款方式与办理后余额，再确认办理。超出可取范围时主按钮写明原因并禁用。录错时在办理单这一笔上点「冲正」改正。
    - 办完一笔：这笔进入办理单，录入区清空，余额重新读取，可以接着办下一项。
 3. **结束**：点「结束办理」（或标题行返回）回到搜索框，上方提示「张小明：办理完成」，逐笔写出业务和金额与当前余额，光标已在搜索框，可以直接查找下一位。
 
@@ -582,7 +588,7 @@ client/
 - 离线时只开放存款：「办理」里取款、兑换置灰，「冲正」页显示「需要联网」并提供「去登记存款」。存款记录（含客户端 UUID、面额、学号、柜员 id、设备号、本机时间）写入 IndexedDB，结果页显示「已登记存款 15 HTB，联网后入账」，不显示余额。柜员同时按 SOP 填写纸质凭条。
 - 恢复联网后，柜台各页顶部提示「有 N 笔离线存款待上传」，点「上传」按本机时间顺序逐笔调用 `deposit`（`p_offline = true`）。成功一笔删一笔；因幂等，中途断开重传不会重复记账。
 - 队列记录了柜员 id：只有同一柜员登录时才能上传，其他人登录时只显示待上传数量和柜员姓名。
-- 服务端拒绝的记录（如学号已不存在）保留在队列中并标红，由银行管理员核对纸质凭条后处理。
+- 服务端拒绝的记录（如学号已不存在）保留在队列中并标红，不再重传；由银行管理员核对纸质凭条后，柜员点「已核对，移除」清除。
 - 断网时重新打开柜台：Service Worker 提供应用外壳和 `/config.js`，本人资料、柜台参数（面额、限额）和名册都有本机副本，仍可登记存款。前提是这台设备联网打开过一次柜台。
 
 ### 7.8 浏览器支持
@@ -598,7 +604,7 @@ client/
 
 - **总览**：自检不一致提示、管理入口宫格，然后按身份显示：会计、银行管理员看今日存款、取款、兑换的笔数和金额（不含已冲正）、账户余额合计和最近 8 笔流水；银行管理员、运维员看待办（未设置新密码的学生、已停用的工作人员账号）；库管、银行管理员看库存 ≤ 5 件的已上架商品（0 件标「缺货」）和最近库存变动。每一项都点进对应页面，并已带好筛选条件。
 - **页面互通**：流水的筛选条件可以写在地址里（`student`、`operator`、`from`、`to`、`type`），其他页面据此直接打开筛选好的流水。学生详情有「查看全部流水」；人员详情里柜员账号有「查看他办理的流水」，所有账号有「操作日志」（日志按操作人筛选，可取消）；日志条目链到它涉及的工作人员账号、学生、商品，冲正记录链到该学生的流水，只显示本身份能打开的页面。
-- **学生**（银行管理员、运维员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业；可一次打印所有还未设置新密码的学生的开户通知单；银行管理员还可打印期初余额核对表。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认；银行管理员另见余额和最近 10 笔交易。运维员看不到余额。
+- **学生**（银行管理员、运维员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业；可一次为所有还未设置新密码的学生重新生成初始密码并打印开户通知单（`reissue_passwords`，确认后旧通知单失效）；银行管理员还可打印期初余额核对表。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认，新初始密码只显示一次；银行管理员另见余额和最近 10 笔交易（含现金兑换），并可冻结、解冻、标记毕业或恢复为在读（`set_student_status`，均经确认）。运维员看不到余额。
 - **导入名册**（银行管理员）：选择 Excel 或 CSV → 逐行校验（`lib/roster.ts`，问题按行号列出，全部改好才能导入）→「核对名册」显示各学部人数与期初余额合计 →「确认导入」每 100 人一批并显示进度 → 「导入完成：新开户 N 人，更新 M 人」→「打印开户通知单」。页面提供「下载模板」。某一批被拒绝时，说明哪个学号有问题、前面已导入多少人；改好后重新导入整个名册即可。
 - **开户通知单**：浏览器打印，只打印通知单本身；按班分页，每张含姓名、班级、学号、初始密码、登录网址和「首次登录后请立即设置新密码」。
 - **期初余额核对表**：同样按班分页，每班一张表，列出学号、姓名、系统期初余额（`opening` 流水金额，没有则为 0），留空「原账本余额」和「一致」两栏，表头写本班人数与合计，表尾留核对人和日期。
@@ -632,7 +638,7 @@ client/                 Expo 前端
 supabase/
   migrations/           数据库迁移（开发与生产共用）
   tests/                pgTAP 测试（`helpers/setup.psql` 为公用辅助）
-  seed.sql              开发种子数据（银行管理员、柜员、三名学生、商品与几笔交易；密码均为默认密码）
+  seed.sql              开发种子数据（银行管理员、柜员、三名学生、商品与几笔交易；密码均为固定测试密码 `a12345678`）
 docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）
@@ -715,7 +721,7 @@ docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 
 2. 每次启动：若数据库已有数据且镜像版本变化，先做一次升级前备份；Postgres 就绪后依次启动 Auth、Storage（各自执行内置迁移），执行 `supabase/migrations/` 中未应用的迁移（记录在 `app_migrations` 表），再启动 PostgREST 与 Caddy。
 3. 生成 `/config.js`，内容为站点地址与 anon key。
 
-首次启动后创建第一个银行管理员账号（默认密码登录后设置新密码）：
+首次启动后创建第一个银行管理员账号（命令打印初始密码，登录后设置新密码）：
 
 ```bash
 docker exec -it dolphin-cloud dolphin create-admin admin
@@ -725,8 +731,8 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 | 命令 | 作用 |
 | --- | --- |
-| `dolphin create-admin <账号>` | 创建银行管理员账号（全系统一个），密码为默认密码 |
-| `dolphin reset-admin` | 银行管理员忘记密码时，把它恢复为默认密码并解除停用，下次登录设置新密码 |
+| `dolphin create-admin <账号>` | 创建银行管理员账号（全系统一个），打印随机初始密码 |
+| `dolphin reset-admin` | 银行管理员忘记密码时，生成并打印新的初始密码，解除停用和登录锁定，下次登录设置新密码 |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
 | `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据 |
@@ -735,6 +741,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 ### 9.4 备份
 
+- 备份目录权限 700、备份文件 600；备份与恢复都写入 `audit_log`（`backup.create` / `backup.restore`）。
 - 每天 `BACKUP_TIME` 执行：`pg_dump -Fc` 全库 + `/data/storage` 打包为 `/data/backups/dolphin-YYYYMMDD-HHMM.tar.gz`，保留 `BACKUP_RETENTION_DAYS` 天。
 - 备份后运行 `dolphin check`；发现不一致时写入 `audit_log`，后台首页对银行管理员显示提示。
 - 建议把 `/data/backups` 单独挂载到另一块磁盘或 NAS：`-v /mnt/nas/dolphin-backups:/data/backups`。
@@ -752,10 +759,12 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 ### 9.6 安全
 
 - 只开放 80/443；Postgres、各 API 端口只监听 `127.0.0.1`。
-- Caddy 设置 HSTS、`X-Content-Type-Options`、`Referrer-Policy`、CSP（只允许同源脚本）。
+- Caddy 设置 HSTS、`X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options DENY`、CSP（只允许同源脚本，`frame-ancestors 'none'`）；`/storage/v1/*` 的响应另加 `default-src 'none'; sandbox`，上传的文件不能在本站执行脚本。
+- 图片桶只接受 `image/jpeg`、`image/png`、`image/webp`，单个文件不超过 5 MB。
+- 除 Postgres（自行降权）和证书监视外，各服务以低权限用户 `dolphin` 运行；Caddy 通过 `cap_net_bind_service` 监听 80/443。入口脚本每次启动把 `/data/run`、`/data/storage`、`/data/caddy`、`/data/backups` 交给 `dolphin`。
 - Auth 关闭注册与邮件发送；访问令牌有效期 1 小时，刷新令牌 7 天未使用即失效。
 - 学校出口 NAT 时所有校内设备共用一个公网 IP：Auth 的登录限速按 IP 计算，需将 `GOTRUE_RATE_LIMIT_TOKEN_REFRESH`、`GOTRUE_RATE_LIMIT_VERIFY` 等调到能容纳全校同时登录的水平，并让 Auth 信任 Caddy 传入的 `X-Forwarded-For`。
-- 默认密码人人知道：开户或重置后，知道学号的人可能抢先登录并设置密码，因此通知学生尽快登录；本人发现无法登录时由银行管理员重置。服务在公网可访问，上线后关注 `audit_log` 与 Auth 日志中的连续登录失败，必要时在 Caddy 前加 IP 黑名单。
+- 初始密码每人不同，只印在本人的开户通知单上，通知单当面发放；本人发现无法登录时由银行管理员重置。登录成败都记入 `audit_log`，后台「日志」可查连续失败与锁定。
 - 不采集身份证号、家庭住址、家长信息。
 
 ---
@@ -801,7 +810,7 @@ M0 是后续工作的前提，先完成并确认单容器方案可行，再进�
 
 ### 12.2 验收标准
 
-- [ ] 柜员登录后直接是搜索框；找到学生点一下即进入办理，选好业务后点一下主按钮即办完；余额与今日还可取金额一直可见。
+- [ ] 柜员登录后直接是搜索框；找到学生点一下即进入办理；存款点一下主按钮即办完，取款和兑换再确认一次；余额与今日还可取金额一直可见。
 - [ ] 找到一位学生后，可以连续办理多项业务，不用重新查找；结束后回到搜索框并写明本次办理的业务与当前余额。
 - [ ] 按姓名、拼音首字母、班级或学号都能搜到学生；选中后大字显示姓名、班级、学号和余额供当面核对。
 - [ ] 余额不足时取款和账户兑换无法提交，并显示可用余额与差额。
@@ -816,7 +825,8 @@ M0 是后续工作的前提，先完成并确认单容器方案可行，再进�
 - [ ] 每种身份登录后先看到自己的总览页。
 - [ ] 断网时柜台可登记存款，其他业务禁用并说明原因；恢复网络后上传，系统流水与纸质凭条一致。
 - [ ] 学生登录后 2 秒内看到余额和最近 10 笔交易；只能看到本人数据。
-- [ ] 名册导入后每位学生可用默认密码登录，登录后必须设置新密码；之后本人无法再改，重置后恢复默认密码。
+- [ ] 名册导入后每位学生可用通知单上的初始密码登录，登录后必须设置新密码；之后本人无法再改，重置后得到新的初始密码。
+- [ ] 同一账号连续输错 5 次密码后 15 分钟内无法登录，重置密码后立即可登录。
 - [ ] 现有 Excel 账本余额迁入后，与原账本逐人核对一致。
 - [ ] 任何角色都无法直接修改余额、库存或删除流水（通过 API 直接请求也被拒绝）。
 - [ ] 所有业务与管理操作在操作日志中可查到操作人、时间、设备。

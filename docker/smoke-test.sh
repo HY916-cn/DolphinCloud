@@ -1,6 +1,7 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
-# login, password rule, RPC, image upload and public read, backup → change → restore, container restart.
+# security headers, non-root services, login, password rule, create-admin, RPC, image upload and public read,
+# backup → change → restore, container restart.
 # Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes its own container and volume.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -15,7 +16,7 @@ trap 'remove; rm -rf "$WORK"' EXIT
 fail() { echo "FAIL: $*" >&2; docker logs --tail 40 "$NAME" >&2 || true; exit 1; }
 pass() { echo "PASS: $*"; }
 sql() { docker exec "$NAME" psql -U postgres -d postgres -qAt -v ON_ERROR_STOP=1 -c "$1"; }
-http() { curl -sS --cacert "$WORK/root.crt" -o "$WORK/body" -w '%{http_code}' "$@"; }
+http() { curl -sS --cacert "$WORK/root.crt" -o "$WORK/body" -D "$WORK/headers" -w '%{http_code}' "$@"; }
 wait_ready() {
   for _ in $(seq 1 90); do
     if docker exec "$NAME" test -f /data/caddy/caddy/pki/authorities/local/root.crt 2>/dev/null; then
@@ -44,11 +45,24 @@ SERVICE=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$SERVICE_ROLE_
 [ "$(http "$BASE/config.js")" = 200 ] && grep -q "$ANON" "$WORK/body" && ! grep -q "$SERVICE" "$WORK/body" || fail "config.js"
 pass "HTTPS static site and config.js (anon key only)"
 
+http "$BASE/" >/dev/null
+grep -qi '^x-frame-options: DENY' "$WORK/headers" && grep -qi "^content-security-policy:.*frame-ancestors 'none'" "$WORK/headers" \
+  || fail "site headers: $(cat "$WORK/headers")"
+for p in auth rest storage caddy migrate backup-schedule; do
+  pid=$(docker exec "$NAME" supervisorctl pid "$p" || true) # 0 and exit 1 once migrate has finished
+  [ "$pid" = 0 ] || [ "$(docker exec "$NAME" stat -c %U "/proc/$pid")" = dolphin ] || fail "$p does not run as dolphin"
+done
+pass "the site cannot be framed; services run as dolphin"
+
 USER_ID=$(sql "select app_private.create_login('admin@staff.dolphin.internal', 'Smoke-pass-1')")
 TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
 [ -n "$TOKEN" ] || fail "login: $(cat "$WORK/body")"
 [ -z "$(login admin@staff.dolphin.internal wrong-password)" ] || fail "wrong password accepted"
 pass "login with SQL-created account; wrong password rejected"
+
+ADMIN_PW=$(docker exec "$NAME" dolphin create-admin smokeadmin | sed -n 's/.*Initial password: //p')
+[ -n "$ADMIN_PW" ] && [ -n "$(login smokeadmin@staff.dolphin.internal "$ADMIN_PW")" ] || fail "create-admin password: $(cat "$WORK/body")"
+pass "create-admin prints a working initial password"
 
 set_password() { http -X PUT "$BASE/auth/v1/user" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "{\"password\":\"$1\"}"; }
@@ -70,15 +84,21 @@ code=$(http -X POST "$OBJ" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" 
 [ "$code" -ge 400 ] || fail "user without upload policy could upload ($code)"
 [ "$(http -X POST "$OBJ" -H "apikey: $ANON" -H "Authorization: Bearer $SERVICE" -H 'Content-Type: image/png' --data-binary @"$LOGO")" = 200 ] || fail "upload: $(cat "$WORK/body")"
 [ "$(http "$BASE/storage/v1/object/public/product-images/smoke/logo.png")" = 200 ] && cmp -s "$WORK/body" "$LOGO" || fail "public read"
-pass "image upload (RLS blocks users without a policy) and public read"
+grep -qi "^content-security-policy: default-src 'none'; sandbox" "$WORK/headers" && grep -qi '^x-content-type-options: nosniff' "$WORK/headers" \
+  || fail "storage headers: $(cat "$WORK/headers")"
+pass "image upload (RLS blocks users without a policy) and public read, sandboxed by CSP"
 
 BACKUP=$(docker exec "$NAME" dolphin backup | tail -1)
+[ "$(docker exec "$NAME" stat -c %a /data/backups "$BACKUP" | tr '\n' ' ')" = '700 600 ' ] || fail "backup permissions"
+[ "$(sql "select count(*) from public.audit_log where action = 'backup.create' and after ->> 'file' = '$(basename "$BACKUP")'")" = 1 ] \
+  || fail "backup not in audit_log"
 sql "select app_private.create_login('after@staff.dolphin.internal', 'Smoke-pass-2')" >/dev/null
 [ "$(http -X DELETE "$OBJ" -H "apikey: $ANON" -H "Authorization: Bearer $SERVICE")" = 200 ] || fail "delete object"
 docker exec "$NAME" dolphin restore "$(basename "$BACKUP")" >/dev/null
 wait_ready
 [ -z "$(login after@staff.dolphin.internal Smoke-pass-2)" ] || fail "account created after backup survived restore"
 [ -n "$(login admin@staff.dolphin.internal Smoke-pass-1)" ] || fail "account lost in restore"
+[ "$(sql "select count(*) from public.audit_log where action = 'backup.restore'")" = 1 ] || fail "restore not in audit_log"
 [ "$(http "$BASE/storage/v1/object/public/product-images/smoke/logo.png")" = 200 ] && cmp -s "$WORK/body" "$LOGO" || fail "image lost in restore"
 pass "backup → change → restore brings back the backed-up state"
 

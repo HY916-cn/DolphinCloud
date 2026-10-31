@@ -9,13 +9,15 @@ import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { CashCounter, Summary } from './Counter';
+import { ConfirmSheet } from './Sheet';
 import { TilesLoading } from './Skeleton';
 import { Icon, Notice } from './ui';
 
 // The counter's businesses for one student (PHASE-1.md §7.5, design system CounterServicePage). Each panel is the
 // entry on the left and the 办理单 on the right: the businesses already done in this visit, the one being entered,
-// and the balance after it. The main button does the business at once (no second confirmation): a mistake is put
-// right with 冲正 on its line in the 办理单. A finished business goes to onDone and the panel starts again empty;
+// and the balance after it. A deposit is done at once with the main button; a withdrawal or an exchange is checked
+// once more in a sheet first, since its notes or goods leave the counter. A mistake is put right with 冲正 on its
+// line in the 办理单. A finished business goes to onDone and the panel starts again empty;
 // onEnd ends the visit. `amount` is the change to the account (null when it is untouched: a cash exchange, an
 // offline deposit's balance); `txnId` is null until an offline deposit is uploaded.
 export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean };
@@ -33,7 +35,7 @@ export const servedAmount = (s: Served) => (s.amount === null ? '现金' : forma
 // 办理单: what this visit has done (newest last, popping in, each with its 冲正), the business being entered, the
 // balance after it, and the one way to end the visit.
 function Receipt({ served, current, after, onEnd, onReverse }: {
-  served: Served[]; current: Current; after: number | null; onEnd: () => void; onReverse: (s: Served) => void;
+  served: Served[]; current: Current; after: number | string | null; onEnd: () => void; onReverse: (s: Served) => void;
 }) {
   return (
     <aside className="dc-card is-sticky" aria-label="办理单">
@@ -53,7 +55,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
           </div>
         ))}
         {current && <div><dt>{current.label}（正在办理）<small className="dc-top-sub">{current.detail}</small></dt><dd>{current.amount}</dd></div>}
-        {current && after !== null && <div><dt>办理后余额</dt><dd>{formatAmount(after)} HTB</dd></div>}
+        {current && after !== null && <div><dt>办理后余额</dt><dd>{typeof after === 'number' ? `${formatAmount(after)} HTB` : after}</dd></div>}
         {!served.length && !current && <div><dt>还没有办理业务</dt><dd /></div>}
       </dl>
       {served.length > 0 && (
@@ -94,7 +96,8 @@ export function DepositPanel({ student, served, onDone, onEnd, onReverse }: Prop
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const amount = cashTotal(counts);
-  const after = student.balance === null ? null : student.balance + amount;
+  // Offline the deposit is only registered, so there is no balance after it to show yet.
+  const after = !online || student.balance === null ? null : student.balance + amount;
 
   function finish(result: TxnResult | null) {
     onDone(result
@@ -139,7 +142,7 @@ export function DepositPanel({ student, served, onDone, onEnd, onReverse }: Prop
           <h2 className="heading">按面额录入张数</h2>
           <CashCounter faces={denominations} counts={counts} onChange={setCounts} kind="dc-kind-save" />
         </section>
-        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={after}
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={online ? after : '待上传'}
           current={amount > 0 ? { label: '存款', detail: describeCash(counts), amount: formatSigned(amount) } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
@@ -156,6 +159,7 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
   const [text, setText] = useState('');
   const [id, setId] = useState(newId);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const amount = Number(text) || 0;
 
@@ -185,6 +189,7 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
       setError(failure(e).problem);
     } finally {
       setBusy(false);
+      setConfirming(false);
     }
   }
 
@@ -208,9 +213,18 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
           current={amount ? { label: '取款', detail: `配钞 ${payout}`, amount: formatSigned(-amount) } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar busy={busy} ready={!!amount && !problem} onClick={submit}
+      <Bar busy={busy} ready={!!amount && !problem} onClick={() => setConfirming(true)}
         label={busy ? '正在取款' : !amount ? '请输入金额' : problem ? '金额超出可取范围' : `确认取款 ${formatAmount(amount)} HTB`}
         totalLabel="合计取款" total={amount} note={`取款后余额 ${formatAmount(Math.max(balance - amount, 0))} HTB`} />
+      {confirming && (
+        <ConfirmSheet title={`为${student.name}取款 ${formatAmount(amount)} HTB？`} text="请核对金额，确认后按下面的配钞付给学生。"
+          confirm="确认取款" busy={busy} onConfirm={submit} onClose={() => setConfirming(false)}>
+          <Summary rows={[
+            ['学生', `${student.name} · 学号 ${student.student_no}`], ['取款金额', `${formatAmount(amount)} HTB`], ['配钞', payout],
+            ['取款后余额', `${formatAmount(Math.max(balance - amount, 0))} HTB`],
+          ]} />
+        </ConfirmSheet>
+      )}
     </>
   );
 }
@@ -235,6 +249,7 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
   const [received, setReceived] = useState<Counts>({});
   const [id, setId] = useState(newId);
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<Problem>(null);
 
   const list = products.data ?? [];
@@ -269,9 +284,10 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
     } catch (e) {
       const { err, problem } = failure(e);
       setError(problem);
-      if (err.code === 'OUT_OF_STOCK' || err.code === 'PRODUCT_UNLISTED') products.refetch();
+      if (err.code === 'OUT_OF_STOCK' || err.code === 'PRODUCT_UNLISTED' || err.code === 'PRODUCT_NOT_FOUND') products.refetch();
     } finally {
       setBusy(false);
+      setConfirming(false);
       products.refetch();
     }
   }
@@ -344,9 +360,21 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
           } : null} />
       </div>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <Bar busy={busy} ready={!problem} onClick={submit}
+      <Bar busy={busy} ready={!problem} onClick={() => setConfirming(true)}
         label={busy ? '正在兑换' : problem ?? `确认兑换 ${formatAmount(due)} HTB`}
         totalLabel="应付" total={due} note={payment === 'cash' && change > 0 && `找零 ${formatAmount(change)} HTB`} />
+      {confirming && (
+        <ConfirmSheet title={`为${student.name}兑换 ${formatAmount(due)} HTB 的商品？`} text="请核对商品和付款方式，确认后把商品交给学生。"
+          confirm="确认兑换" busy={busy} onConfirm={submit} onClose={() => setConfirming(false)}>
+          <Summary rows={[
+            ['学生', `${student.name} · 学号 ${student.student_no}`], ['商品', items], ['应付', `${formatAmount(due)} HTB`],
+            ...(payment === 'account'
+              ? [['付款方式', '账户扣款'], ['扣款后余额', `${formatAmount(Math.max(balance - due, 0))} HTB`]] as [string, string][]
+              : [['付款方式', '现金支付'], ['收款', `${formatAmount(paid)} HTB`],
+                  ['找零', change ? `${formatAmount(change)} HTB（${describeCash(makeChange(change, denominations))}）` : '不用找零']] as [string, string][]),
+          ]} />
+        </ConfirmSheet>
+      )}
     </>
   );
 }

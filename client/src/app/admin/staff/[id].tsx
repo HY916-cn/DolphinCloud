@@ -29,8 +29,9 @@ export default function StaffLogin() {
   async function run(a: Action) {
     setAction(null);
     try {
-      await call(a.fn, a.args);
-      setResult({ tone: 'success', title: a.done, text: '' });
+      const r = await call<{ password?: string } | null>(a.fn, a.args);
+      // reset_password answers with the new initial password, shown this once.
+      setResult({ tone: 'success', title: a.done, text: r?.password ? `新的初始密码：${r.password}。请转交本人，下次登录时需要设置新密码；这个密码只显示这一次。` : '' });
       setRole(null);
       queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
     } catch (err) {
@@ -93,8 +94,8 @@ export default function StaffLogin() {
               </button>
               <button className="dc-btn dc-btn-secondary" type="button"
                 onClick={() => setAction({ title: `重置 ${p.display_name} 的密码？`,
-                  text: '密码恢复为 a12345678，下次登录时需要设置新密码；已登录的设备会退出登录。',
-                  confirm: '重置密码', fn: 'reset_password', args: { p_user_id: p.id }, done: '密码已重置为 a12345678' })}>
+                  text: '将生成新的初始密码，只在这里显示一次；下次登录时需要设置新密码，已登录的设备会退出登录。',
+                  confirm: '重置密码', fn: 'reset_password', args: { p_user_id: p.id }, done: '密码已重置' })}>
                 重置密码
               </button>
               {p.id !== me.profile.id && (
@@ -109,7 +110,7 @@ export default function StaffLogin() {
               )}
             </div>
           ) : (
-            <Notice title="银行管理员只有一个">这个账号的身份不能更改，也不能停用。忘记密码时，由服务器维护人员运行 dolphin reset-admin 恢复为默认密码。</Notice>
+            <Notice title="银行管理员只有一个">这个账号的身份不能更改，也不能停用。忘记密码时，由服务器维护人员运行 dolphin reset-admin 重置密码。</Notice>
           )}
         </div>
       )}

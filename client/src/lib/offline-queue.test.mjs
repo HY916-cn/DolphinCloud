@@ -24,4 +24,11 @@ const again = await q.upload('t2', async () => { throw new AppError('NETWORK'); 
 assert.equal(again, 0);
 assert.equal((await q.list()).length, 2, 'a network failure keeps the entry unmarked for the next try');
 assert.equal((await q.list()).find((e) => e.id === '3').error, undefined);
+
+const resent = [];
+await q.add(entry('5', 't1', '2026-10-28T09:04:00Z'));
+assert.equal(await q.upload('t1', async (e) => void resent.push(e.id)), 1);
+assert.deepEqual(resent, ['5'], 'a rejected entry is not sent again');
+await q.remove('2');
+assert.deepEqual((await q.list()).map((e) => e.id), ['3'], 'remove takes out only that entry');
 console.log('offline queue ok');

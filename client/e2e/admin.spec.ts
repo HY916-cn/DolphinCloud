@@ -1,11 +1,16 @@
 /// <reference types="node" />
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, signIn } from './helpers';
 
 // The back office's logins (M4, PHASE-1.md §6.4–6.5): the teacher imports a roster and a new student signs in for the
 // first time; staff logins are created and managed. Only new students and logins are touched: the counter tests
 // that run after these rely on the seed's balances.
 test.describe.configure({ mode: 'serial' });
+
+// The initial password printed on a student's 开户通知单 (hidden on screen, printed by window.print()).
+const noticePassword = async (page: Page, no: string) =>
+  (await page.locator('#dc-notices article', { hasText: no }).locator('dd').nth(3).textContent()) ?? '';
+let reissued = ''; // 20260003's password from the reprinted notices, for the lockout test
 
 const now = new Date();
 const schoolYear = now.getFullYear() - (now.getMonth() < 8 ? 1 : 0); // promotion_date 09-01
@@ -41,6 +46,9 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await expect(page.locator('.dc-result')).toContainText('新开户 2 人，更新 1 人');
   await expect(page.locator('#dc-notices')).toContainText('四年级(1)班');
   await expect(page.locator('#dc-notices article')).toHaveCount(2);
+  const password = await noticePassword(page, '20269001');
+  expect(password).toMatch(/^\d{8}$/);
+  expect(await noticePassword(page, '20269002')).not.toBe(password);
 
   await page.getByRole('button', { name: '返回学生' }).click();
   await page.getByRole('searchbox', { name: '搜索学生' }).fill('zym');
@@ -48,8 +56,8 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await expect(page.locator('.dc-person')).toContainText('30');
   await expect(page.locator('.dc-kv')).toContainText('还未设置新密码');
 
-  // The student signs in on this device too (it becomes a second account here).
-  await signIn(page, '学生', '20269001', '/login?add=1');
+  // The student signs in on this device too (it becomes a second account here), with the password on their notice.
+  await signIn(page, '学生', '20269001', '/login?add=1', password);
   await expect(page).toHaveURL(/\/change-password$/);
   await page.getByPlaceholder('至少 8 位，含英文字母和数字').fill('zhou2026a');
   await page.getByPlaceholder('再次输入新密码').fill('zhou2026a');
@@ -57,7 +65,7 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await expect(page.locator('.dc-balance-amount')).toContainText('30');
 });
 
-test('the teacher resets a student password back to the default', async ({ page }) => {
+test('the teacher resets a student password to a new initial one, shown once', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students/20269001');
@@ -66,6 +74,10 @@ test('the teacher resets a student password back to the default', async ({ page 
   await confirmIn(page, '重置密码');
   await expect(page.locator('.dc-notice-success')).toContainText('密码已重置');
   await expect(page.locator('.dc-kv')).toContainText('还未设置新密码');
+  const password = (await page.locator('.dc-notice-success').innerText()).match(/新的初始密码：(\d{8})/)?.[1];
+  expect(password).toBeTruthy();
+  await signIn(page, '学生', '20269001', '/login?add=1', password);
+  await expect(page).toHaveURL(/\/change-password$/);
 });
 
 test('staff logins: create one, change its role, stop it; a sysadmin cannot touch a teacher', async ({ page }) => {
@@ -76,6 +88,7 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await page.getByPlaceholder('如 柜员小王').fill('柜员小周');
   await page.getByRole('button', { name: '创建账号' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('teller09 已创建');
+  await expect(page.locator('.dc-notice-success')).toContainText(/初始密码 [A-Za-z0-9]{8}。/);
 
   await page.goto('/admin/staff');
   await page.locator('.dc-list-link', { hasText: '柜员小周' }).click();
@@ -133,4 +146,29 @@ test('学生 → 查看全部流水 shows only that student, and the teacher rev
   const original = list.locator('details', { has: page.locator('.dc-txn-title', { hasText: '期初余额（已冲正）' }) });
   await expect(original.locator('.dc-kv')).toContainText('已冲正 · 金额录错');
   await expect(original.getByRole('button', { name: '冲正', exact: true })).toHaveCount(0);
+});
+
+test('reprinting the notices gives the waiting students new initial passwords', async ({ page }) => {
+  await page.addInitScript(() => { window.print = () => {}; });
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/students');
+  await page.getByRole('button', { name: '打印开户通知单' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('之前发出的通知单随即失效');
+  await confirmIn(page, '生成并打印');
+  await expect(page.locator('#dc-notices article', { hasText: '王小雨' })).toHaveCount(1);
+  reissued = await noticePassword(page, '20260003');
+  expect(reissued).toMatch(/^\d{8}$/);
+});
+
+// 20260003 is not used after this: five wrong passwords lock the login for 15 minutes, even with the right one.
+test('five wrong passwords lock a login', async ({ page }) => {
+  for (let i = 0; i < 5; i++) {
+    await signIn(page, '学生', '20260003', '/login', 'wrong0000');
+    await expect(page.locator('.dc-notice-danger')).toBeVisible();
+  }
+  await signIn(page, '学生', '20260003', '/login', reissued);
+  await expect(page.locator('.dc-notice-danger')).toContainText('密码错误次数过多');
+  await expect(page.locator('.dc-notice-danger')).toContainText('请 15 分钟后再试，或请银行管理员重置密码。');
+  await expect(page).toHaveURL(/\/login$/);
 });

@@ -35,6 +35,8 @@ test('one visit: deposit, then an exchange from the account, then back to the se
   await pick(page, '兑换');
   await page.locator('.dc-tile', { hasText: '海豚书签' }).click();
   await page.getByRole('button', { name: '确认兑换 10 HTB' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('扣款后余额120 HTB');
+  await confirmIn(page, '确认兑换');
   await expect(page.locator('.dc-person')).toContainText('120');
 
   await receipt(page).getByRole('button', { name: '结束办理（已办 2 笔）' }).click();
@@ -56,6 +58,8 @@ test('one visit: withdraw within the limits, a cash exchange, and 冲正 from th
   await amount.fill('28');
   await expect(page.locator('.dc-field-hint')).toContainText('10 元 × 2 张、5 元 × 1 张、2 元 × 1 张、1 元 × 1 张');
   await page.getByRole('button', { name: '确认取款 28 HTB' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('10 元 × 2 张、5 元 × 1 张、2 元 × 1 张、1 元 × 1 张');
+  await confirmIn(page, '确认取款');
   await expect(receipt(page)).toContainText('取款');
   await expect(page.locator('.dc-person')).toContainText('42');
 
@@ -65,6 +69,9 @@ test('one visit: withdraw within the limits, a cash exchange, and 冲正 from th
   await expect(page.getByRole('button', { name: '收款不足，还差 6 HTB' })).toBeDisabled();
   await page.getByLabel('增加一张 10 元').click();
   await page.getByRole('button', { name: '确认兑换 6 HTB' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('现金支付');
+  await expect(page.locator('.dc-sheet')).toContainText('找零4 HTB（2 元 × 2 张）');
+  await confirmIn(page, '确认兑换');
   await expect(receipt(page)).toContainText('现金收 10 HTB，找零 4 HTB（2 元 × 2 张）');
 
   // A wrong exchange is put right where it shows: the pen goes back to stock, the balance stays.
@@ -106,6 +113,7 @@ test('offline deposit is registered, then uploaded once online', async ({ page, 
   await findStudent(page, '20260002', '李思远');
   await expect(page.getByRole('radio', { name: '取款' })).toBeDisabled();
   await page.getByLabel('增加一张 5 元').click();
+  await expect(receipt(page)).toContainText('办理后余额待上传');
   await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
   await expect(receipt(page)).toContainText('存款（离线登记）');
   await expect(receipt(page)).toContainText('联网后入账');

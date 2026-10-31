@@ -3,7 +3,8 @@ import type { Counts } from './cash';
 
 // Offline deposits (PHASE-1.md §7.7), kept on this device until uploaded. Each entry belongs to the teller account
 // that took it; only that account uploads it. Uploads go in the order taken; a rejected entry stays, marked with
-// the error code, for the teacher to settle against the paper slip. Re-sending is safe: deposit is idempotent on id.
+// the error code and is not sent again; once the teacher has settled it against the paper slip, the teller removes it.
+// Re-sending is safe: deposit is idempotent on id.
 export type OfflineDeposit = {
   id: string; student_no: string; name: string; class: string; cash: Counts; amount: number;
   operator_id: string; operator_name: string; created_at: string; error?: string;
@@ -17,10 +18,12 @@ export function createQueue(store: Store) {
   return {
     list,
     add: async (entry: OfflineDeposit) => store.set(KEY, [...(await list()), entry]),
-    // Sends this teller's entries oldest first; stops at the first network failure. Returns how many were booked.
+    remove: async (id: string) => store.set(KEY, (await list()).filter((e) => e.id !== id)),
+    // Sends this teller's unrejected entries oldest first; stops at the first network failure. Returns how many were booked.
     async upload(operatorId: string, send: (e: OfflineDeposit) => Promise<unknown>) {
       let booked = 0;
-      const mine = (await list()).filter((e) => e.operator_id === operatorId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+      const mine = (await list()).filter((e) => e.operator_id === operatorId && !e.error)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
       for (const entry of mine) {
         try {
           await send(entry);

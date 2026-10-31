@@ -4,10 +4,11 @@ import { describeCash, type Counts } from '@/lib/cash';
 import { classOf, deposit, lookupStudent, useRoster, type Student } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
-import { offlineQueue, type RosterEntry } from '@/lib/offline-queue';
+import { offlineQueue, type OfflineDeposit, type RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { searchRoster } from '@/lib/search';
 import { useMe } from '@/lib/session';
+import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
 import { ListLoading } from './Skeleton';
 import { Icon, link, Notice } from './ui';
@@ -147,6 +148,7 @@ export function CounterPage({ title, onBack, children }: { title: string; onBack
 function PendingUploads({ operatorId }: { operatorId: string }) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<OfflineDeposit | null>(null);
   const queue = useQuery({ queryKey: ['offline-deposits'], queryFn: offlineQueue.list });
   const all = queue.data ?? [];
   if (!all.length) return null;
@@ -158,6 +160,11 @@ function PendingUploads({ operatorId }: { operatorId: string }) {
     setBusy(true);
     await offlineQueue.upload(operatorId, (e) => deposit(e.id, e.student_no, e.cash, true, e.created_at));
     setBusy(false);
+    queryClient.invalidateQueries({ queryKey: ['offline-deposits'] });
+  }
+  async function remove(e: OfflineDeposit) {
+    await offlineQueue.remove(e.id);
+    setRemoving(null);
     queryClient.invalidateQueries({ queryKey: ['offline-deposits'] });
   }
 
@@ -178,8 +185,15 @@ function PendingUploads({ operatorId }: { operatorId: string }) {
       {mine.filter((e) => e.error).map((e) => (
         <Notice key={e.id} tone="danger" title={`离线存款未能入账：${e.name} ${formatAmount(e.amount)} HTB`}>
           {explain(e.error!).title}。{describeCash(e.cash)}，{new Date(e.created_at).toLocaleString('zh-CN', { hour12: false })} 登记，请交银行管理员核对纸质凭条。
+          <br />
+          <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" style={{ marginTop: 'var(--space-2)' }}
+            onClick={() => setRemoving(e)}>已核对，移除</button>
         </Notice>
       ))}
+      {removing && (
+        <ConfirmSheet title="移除这笔离线存款？" confirm="移除" onClose={() => setRemoving(null)} onConfirm={() => remove(removing)}
+          text={`请先和银行管理员核对 ${removing.name} ${formatAmount(removing.amount)} HTB 的纸质凭条。移除后这笔存款不会再上传，也不能恢复。`} />
+      )}
       {others.length > 0 && (
         <Notice title={`本机另有 ${others.length} 笔离线存款`}>
           由 {[...new Set(others.map((e) => e.operator_name))].join('、')} 登记，需要该柜员登录后上传。

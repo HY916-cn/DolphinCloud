@@ -14,7 +14,7 @@ select tests.call(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":1}')$$
 select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000041', 's2', '{"10":1}')$$);
 select tests.call(:'t2', $$select deposit(gen_random_uuid(), 's2', '{"5":1}')$$);
 select tests.call(:'keeper', $$select upsert_product(null, '上架', 10, p_listed => true)$$);
-select tests.call(:'keeper', $$select upsert_product(null, '未上架', 10)$$);
+select tests.call(:'keeper', $$select upsert_product(null, '未上架', 10, 4, p_listed => false)$$);
 select tests.call(:'teacher', $$select register_issue('B1', current_date, '{"10":10}', '开学发行', '王老师')$$);
 set local session_replication_role = replica;
 update txns set created_at = created_at - interval '1 day' where id = '00000000-0000-4000-8000-000000000041';
@@ -45,7 +45,21 @@ select is(tests.err(:'t2', $$insert into students (student_no, name, division, c
   'permission denied for table students', 'no direct inserts');
 select is(tests.err(:'teacher', $$update accounts set balance = 1000$$), 'permission denied for table accounts', 'no direct balance edits');
 
+-- Purchase cost: only the storekeeper, accountant and teacher read it, through product_costs
+select is(tests.err(:'s1', $$select to_jsonb(array_agg(cost)) from products$$), 'permission denied for table products',
+  'a student cannot read products.cost');
+select is(tests.err(:'t1', $$select to_jsonb(array_agg(cost)) from products$$), 'permission denied for table products', 'nor can a teller');
+select is(tests.call(:'s1', $$select jsonb_agg(name) from products$$), '["上架"]', 'the other columns stay readable');
+select is(tests.call(:'s1', $$select count(*) from product_costs$$), '0', 'product_costs shows a student nothing');
+select is(tests.call(:'ops', $$select count(*) from product_costs$$), '0', 'nor a sysadmin');
+select is(tests.call(:'keeper', $$select jsonb_agg(c.cost order by c.cost nulls first) from product_costs c$$), '[null, 4]',
+  'the storekeeper reads every product''s cost');
+select is(tests.call(:'acc', $$select count(*) from product_costs$$), '2', 'so does the accountant');
+select is(tests.call(:'teacher', $$select count(*) from product_costs$$), '2', 'and the teacher');
+
 -- Product images
+select is((select row(allowed_mime_types, file_size_limit)::text from storage.buckets where id = 'product-images'),
+  '("{image/jpeg,image/png,image/webp}",5242880)', 'the image bucket takes JPEG, PNG and WebP up to 5 MB');
 select is(tests.err(:'keeper', $$insert into storage.objects (bucket_id, name) values ('product-images', 'a.jpg') returning to_jsonb(name)$$), null,
   'a storekeeper can upload product images');
 select is(tests.err(:'teacher', $$insert into storage.objects (bucket_id, name) values ('product-images', 'b.jpg') returning to_jsonb(name)$$), null, 'so can a teacher');

@@ -103,6 +103,7 @@ function IssueForm() {
       setBatchNo('');
       setCounts({});
       setPurpose('');
+      setApprover('');
       queryClient.invalidateQueries({ queryKey: ['issues'] });
     } catch (err) {
       setError(failure(err));
@@ -118,7 +119,7 @@ function IssueForm() {
       <Field icon="passbook" label="批次号">
         <input className="dc-input" value={batchNo} maxLength={40} placeholder="例如 2026-01" onChange={(e) => setBatchNo(e.target.value)} />
       </Field>
-      <DatePicker label="发行日期" value={issuedOn} onChange={setIssuedOn} rule="选这批钞票交给柜台的日期" />
+      <DatePicker label="发行日期" value={issuedOn} onChange={setIssuedOn} max={today()} rule="选这批钞票交给柜台的日期，不能晚于今天" />
       <div className="dc-field">
         <span className="dc-field-label"><Icon name="coin" />面额张数</span>
         <CashCounter faces={faces} counts={counts} onChange={setCounts} kind="dc-kind-reward" />

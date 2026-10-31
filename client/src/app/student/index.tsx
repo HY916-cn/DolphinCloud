@@ -11,7 +11,7 @@ function greeting(now = new Date()) {
   return h < 12 ? '上午好' : h < 18 ? '下午好' : '晚上好';
 }
 
-// 学生首页: balance and the ten latest movements of the account (cash purchases do not touch it).
+// 学生首页: balance and the ten latest businesses of the account, cash exchanges included.
 export default function StudentHome() {
   const student = useMe().data!.student!;
   const home = useQuery({
@@ -20,7 +20,7 @@ export default function StudentHome() {
       const [account, txns] = await Promise.all([
         supabase.from('accounts').select('balance').eq('student_no', student.student_no).single(),
         supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
-          .eq('student_no', student.student_no).neq('balance_delta', 0).order('seq', { ascending: false }).limit(10),
+          .eq('student_no', student.student_no).order('seq', { ascending: false }).limit(10),
       ]);
       if (account.error) throw account.error;
       if (txns.error) throw txns.error;

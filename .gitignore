@@ -31,3 +31,6 @@ out/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Class rosters hold real names; keep them out of the repository.
+*.xlsx

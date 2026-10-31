@@ -8,7 +8,7 @@ select tests.student('s2', 20) as s2 \gset
 
 select tests.call(:'keeper', $$select upsert_product(null, '海豚书签', 10, p_listed => true)$$) ->> 'id' as a \gset
 select tests.call(:'keeper', $$select upsert_product(null, '贴纸', 3, p_listed => true)$$) ->> 'id' as b \gset
-select tests.call(:'keeper', $$select upsert_product(null, '下架商品', 5)$$) ->> 'id' as c \gset
+select tests.call(:'keeper', $$select upsert_product(null, '下架商品', 5, p_listed => false)$$) ->> 'id' as c \gset
 select tests.call(:'keeper', format($$select stock_in(%L, 5)$$, :'a'));
 select tests.call(:'keeper', format($$select stock_in(%L, 1)$$, :'b'));
 select tests.call(:'keeper', format($$select stock_in(%L, 5)$$, :'c'));
@@ -36,7 +36,7 @@ select is(tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's1', %L
 select is(tests.err(:'t1', format($$select purchase(gen_random_uuid(), 's1', %L, 'account')$$,
   jsonb_build_array(jsonb_build_object('product_id', :'c', 'qty', 1)))), 'PRODUCT_UNLISTED', 'unlisted product');
 select is(tests.err(:'t1', format($$select purchase(gen_random_uuid(), 's1', %L, 'account')$$,
-  jsonb_build_array(jsonb_build_object('product_id', gen_random_uuid(), 'qty', 1)))), 'PRODUCT_UNLISTED', 'unknown product');
+  jsonb_build_array(jsonb_build_object('product_id', gen_random_uuid(), 'qty', 1)))), 'PRODUCT_NOT_FOUND', 'unknown product');
 select is(tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's2', %L, 'account')$$,
   jsonb_build_array(jsonb_build_object('product_id', :'a', 'qty', 3)))) ->> 'detail', '{"short": 10, "balance": 20}', 'insufficient balance');
 select is((select stock from products where id = :'a'), 3, 'a refused purchase takes no stock');

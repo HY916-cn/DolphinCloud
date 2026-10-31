@@ -11,4 +11,4 @@ export { CashCounter, CounterPage, FindStudent, NeedsNetwork, Summary } from './
 export { DepositPanel, ShopPanel, WithdrawPanel, servedAmount, type Served } from './Business';
 export { ReversalSheet } from './Reversal';
 export { MoveList, type Move } from './Stock';
-export { AccountNotices, OpeningSheet, type NoticeStudent } from './Notices';
+export { AccountNotices, OpeningSheet, type NoticeAccount, type NoticeStudent } from './Notices';

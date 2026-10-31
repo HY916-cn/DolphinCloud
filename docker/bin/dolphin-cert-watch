@@ -7,7 +7,8 @@ last=$(sum)
 while sleep 10; do
   now=$(sum)
   [ "$now" = "$last" ] && continue
-  if caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --force; then
+  if install -m 600 -o dolphin -g dolphin /certs/fullchain.pem /certs/privkey.pem /data/run/ \
+     && caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --force; then
     echo "dolphin-cert-watch: certificate changed, Caddy reloaded"
     last=$now
   fi

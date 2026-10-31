@@ -109,10 +109,12 @@ test('发行: register a batch and see it in the list', async ({ page }) => {
   await expect(row).toContainText('10 元 × 2 张、5 元 × 1 张');
   await expect(row.locator('.dc-txn-amount')).toHaveText('25HTB');
 
-  // The same batch number again is refused.
+  // The form starts empty again, approver included; the same batch number again is refused.
+  await expect(page.getByLabel('审批人')).toHaveValue('');
   await page.getByLabel('批次号').fill(batch);
   await page.getByLabel('增加一张 1 元').click();
   await page.getByLabel('用途').fill('测试发行');
+  await page.getByLabel('审批人').fill('王老师');
   await page.getByRole('button', { name: '登记发行' }).click();
   await expect(page.locator('.dc-notice-danger')).toContainText('批次号已被使用');
 });

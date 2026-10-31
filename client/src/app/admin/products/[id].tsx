@@ -16,6 +16,8 @@ type Problem = { title: string; text: string } | null;
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, 6);
+// The picture types the product-images bucket accepts.
+const IMAGE_TYPES = 'image/jpeg,image/png,image/webp';
 
 // Scales a picture to at most 800px on its longest side as a JPEG at quality 0.8 (PHASE-1.md §6.7), on a white ground
 // so transparent PNGs do not turn black.
@@ -50,11 +52,15 @@ export default function ProductPage() {
   const product = useQuery({
     queryKey: ['products', id],
     enabled: !isNew,
+    // The cost is kept from students: only product_costs (storekeeper, accountant, teacher) has it.
     queryFn: async () => {
-      const { data, error } = await supabase.from('products').select('id,name,price,cost,category,image_path,listed,stock')
-        .eq('id', id).maybeSingle();
-      if (error) throw error;
-      return data as Product | null;
+      const [product, cost] = await Promise.all([
+        supabase.from('products').select('id,name,price,category,image_path,listed,stock').eq('id', id).maybeSingle(),
+        supabase.from('product_costs').select('cost').eq('id', id).maybeSingle(),
+      ]);
+      if (product.error) throw product.error;
+      if (cost.error) throw cost.error;
+      return product.data && ({ ...product.data, cost: cost.data?.cost ?? null } as Product);
     },
   });
   const back = () => router.navigate('/admin/products' as Href);
@@ -94,17 +100,22 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
 
   async function pick(file: File | undefined) {
     if (!file) return;
-    setUploading(true);
     setError(null);
+    if (!IMAGE_TYPES.split(',').includes(file.type)) return setError({ title: '不支持这种图片格式', text: '请选择 JPG、PNG 或 WebP 图片。' });
+    setUploading(true);
     try {
       let blob: Blob;
       try {
         blob = await shrink(file);
       } catch {
-        return setError({ title: '无法读取这张图片', text: '请换一张 JPG 或 PNG 图片。' });
+        return setError({ title: '无法读取这张图片', text: '请换一张 JPG、PNG 或 WebP 图片。' });
       }
       const path = `${crypto.randomUUID()}.jpg`;
       const { error: e } = await supabase.storage.from('product-images').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      // The bucket refuses other types and pictures over 5 MB (HTTP 415 / 413).
+      const status = e?.statusCode;
+      if (status === '415') return setError({ title: '服务器不接受这种图片格式', text: '请选择 JPG、PNG 或 WebP 图片。' });
+      if (status === '413') return setError({ title: '图片太大', text: '请换一张小一些的图片。' });
       if (e) return setError({ title: '图片未能上传', text: '请检查网络后重新选择图片。' });
       setImagePath(path);
     } finally {
@@ -162,10 +173,10 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
             onClick={() => fileInput.current?.click()}>
             {uploading ? '正在上传' : imagePath ? '更换图片' : '选择图片'}
           </button>
-          <input ref={fileInput} type="file" accept="image/*" hidden aria-label="选择商品图片"
+          <input ref={fileInput} type="file" accept={IMAGE_TYPES} hidden aria-label="选择商品图片"
             onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
-        <span className="dc-field-hint">上传前自动缩小到最长边 800 像素</span>
+        <span className="dc-field-hint">JPG、PNG 或 WebP，上传前自动缩小到最长边 800 像素</span>
       </div>
       <label className="dc-switch">
         <span className="dc-switch-text"><b>上架</b><small>上架后柜台可以兑换这件商品，保存后生效</small></span>

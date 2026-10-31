@@ -36,6 +36,22 @@ select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":0}')
 select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '[10]')$$), 'INVALID_AMOUNT', 'not an object');
 select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 'nobody', '{"10":1}')$$), 'STUDENT_NOT_FOUND', 'unknown student');
 select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 'frozen', '{"10":1}')$$), 'STUDENT_INACTIVE', 'frozen account');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":100001}')$$), 'INVALID_AMOUNT', 'a count over 100000');
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"10":1e30}')$$), 'INVALID_AMOUNT', 'a huge count is not an overflow');
+update settings set value = '[1,2,5,10,1000]' where key = 'denominations';
+select is(tests.err(:'t1', $$select deposit(gen_random_uuid(), 's1', '{"1000":10001}')$$), 'INVALID_AMOUNT', 'a total over 10000000');
+update settings set value = '[1,2,5,10]' where key = 'denominations';
+
+-- Student status: the teacher freezes, graduates and restores a student
+select tests.staff('teacher', 'teacher') as teacher \gset
+select is(tests.err(:'t1', $$select set_student_status('s3', 'frozen')$$), 'FORBIDDEN', 'only the teacher sets a student''s status');
+select is(tests.call(:'teacher', $$select set_student_status('s3', 'frozen')$$), '{"status":"frozen","student_no":"s3"}', 'freeze');
+select is(tests.err(:'t1', $$select withdraw(gen_random_uuid(), 's3', 1)$$), 'STUDENT_INACTIVE', 'a frozen student cannot be served');
+select is((select after ->> 'status' from audit_log where action = 'students.update' and target = 'students:s3' and actor_id = :'teacher'),
+  'frozen', 'the change is audited');
+select is(tests.call(:'teacher', $$select set_student_status('s3', 'normal')$$) ->> 'status', 'normal', 'and back to normal');
+select is(tests.err(:'teacher', $$select set_student_status('s3', 'left')$$), 'INVALID_INPUT', 'status is normal, frozen or graduated');
+select is(tests.err(:'teacher', $$select set_student_status('nobody', 'graduated')$$), 'STUDENT_NOT_FOUND', 'unknown student');
 
 -- Withdraw
 select is(tests.err(:'t1', $$select withdraw(gen_random_uuid(), 's4', 201)$$), 'WITHDRAW_SINGLE_LIMIT', 'over the single limit');

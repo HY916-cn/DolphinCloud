@@ -1,26 +1,30 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { AccountNotices, Desk, Icon, link, ListLoading, Notice, OpeningSheet } from '@/components';
+import { AccountNotices, ConfirmSheet, Desk, Icon, link, ListLoading, Notice, OpeningSheet, type NoticeAccount } from '@/components';
 import { classOf } from '@/lib/counter';
+import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
+import { call } from '@/lib/rpc';
 import { searchRoster } from '@/lib/search';
 import { useMe } from '@/lib/session';
 import { STATUS, useStudents, type AdminStudent } from '@/lib/students';
 import { readAll, supabase } from '@/lib/supabase';
 
 const SHOWN = 100;
+const BATCH = 100; // passwords are hashed one by one on the server, as in import_roster
 
 // 学生: find any student by name, pinyin, class or number, or only those who have not set a new password
 // (?filter=waiting, linked from 总览); import the roster and print the opening balance check sheet (teacher); print the
-// notices of the students who have not signed in yet.
+// notices of the students who have not signed in yet, with new initial passwords (the old notices stop working).
 export default function Students() {
   const me = useMe().data!;
   const students = useStudents();
   const [query, setQuery] = useState('');
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [onlyWaiting, setOnlyWaiting] = useState(filter === 'waiting');
-  const [printing, setPrinting] = useState<'notices' | Map<string, number> | null>(null);
+  const [printing, setPrinting] = useState<NoticeAccount[] | Map<string, number> | null>(null);
   const [opening, setOpening] = useState<'loading' | 'failed' | null>(null);
+  const [reissue, setReissue] = useState<'confirm' | 'busy' | { title: string; text: string } | null>(null);
   const all = students.data?.rows ?? [];
   const waiting = all.filter((s) => s.profiles?.must_change_password);
   const list = useMemo(() => {
@@ -29,6 +33,26 @@ export default function Students() {
   }, [students.data, query, onlyWaiting]);
   const shown = onlyWaiting ? waiting : all;
   const teacher = me.roles.includes('teacher');
+
+  async function reprint() {
+    setReissue('busy');
+    const nos = waiting.map((s) => s.student_no);
+    const accounts: NoticeAccount[] = [];
+    try {
+      for (let i = 0; i < nos.length; i += BATCH) {
+        accounts.push(...(await call<{ accounts: NoticeAccount[] }>('reissue_passwords', { p_student_nos: nos.slice(i, i + BATCH) }, 60_000)).accounts);
+      }
+    } catch (err) {
+      const e = err instanceof AppError ? err : new AppError('');
+      const { title, text } = explain(e.code, e.detail);
+      // Passwords already reissued in earlier batches are printed anyway, so those notices are not lost.
+      setReissue({ title, text: accounts.length ? `${text}已为前 ${accounts.length} 人生成新密码，正在打印他们的通知单。` : text });
+      if (!accounts.length) return;
+    }
+    if (accounts.length === nos.length) setReissue(null);
+    setPrinting(accounts);
+    setTimeout(print);
+  }
 
   // Each student's 'opening' transaction (at most one, txns_one_opening); a student without one opened at 0.
   async function printOpenings() {
@@ -61,11 +85,13 @@ export default function Students() {
       </div>
       {students.isError && <Notice tone="danger" title="暂时无法读取名册">请检查网络后刷新页面。</Notice>}
       {opening === 'failed' && <Notice tone="danger" title="暂时无法读取期初余额">请检查网络后再打印。</Notice>}
+      {typeof reissue === 'object' && reissue && <Notice tone="danger" title={reissue.title}>{reissue.text}</Notice>}
       <div className="dc-section-head">
         <p className="dc-top-sub">{students.data && <>共 {all.length} 名学生{waiting.length > 0 && `，${waiting.length} 人还未设置新密码`}</>}</p>
         <span style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {waiting.length > 0 && (
-            <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { setPrinting('notices'); setTimeout(print); }}>
+            <button className={`dc-btn dc-btn-ghost dc-btn-sm ${reissue === 'busy' ? 'is-loading' : ''}`} type="button"
+              onClick={() => setReissue('confirm')}>
               打印开户通知单
             </button>
           )}
@@ -90,7 +116,12 @@ export default function Students() {
           </div>
         )}
       {!query && shown.length > SHOWN && <p className="dc-top-sub">只列出前 {SHOWN} 人，输入姓名、班级或学号查找其余学生。</p>}
-      {printing === 'notices' && <AccountNotices students={waiting} />}
+      {Array.isArray(printing) && <AccountNotices students={printing} />}
+      {reissue === 'confirm' && (
+        <ConfirmSheet title={`为 ${waiting.length} 名学生重新生成初始密码？`} confirm="生成并打印"
+          onClose={() => setReissue(null)} onConfirm={reprint}
+          text="这些学生还未设置新密码。打印的开户通知单上是新的初始密码，之前发出的通知单随即失效。" />
+      )}
       {printing instanceof Map && <OpeningSheet students={all} openings={printing} />}
     </Desk>
   );
