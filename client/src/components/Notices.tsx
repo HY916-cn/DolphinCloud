@@ -68,6 +68,7 @@ const WAVE = 'M0 12C40 0 80 0 120 12S200 24 240 12V24H0Z';
 // rings, sea-soft → cloud-100, WaveDivider with a white shore), a display greeting, a dc-card with a SummaryList
 // (class, number, the initial password as its total), Steps for signing in, and a Notice to keep the page safe.
 export async function downloadNotices(students: NoticeAccount[]) {
+  if (!students.length) return;
   // shortcut: about 140 KB a page at 144 dpi (a 2000-student import is ~280 MB); split the download by class if that
   // becomes a problem.
   const scale = 2; // canvas pixels per point

@@ -5,11 +5,12 @@ import { Desk, FormLoading, SkeletonGroup, Icon, link, MoveList, Notice, TxnList
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
 import { call } from '@/lib/rpc';
+import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
 type Product = {
   id: string; name: string; price: number; cost: number | null; category: string | null;
-  image_path: string | null; listed: boolean; stock: number;
+  image_path: string | null; listed: boolean; stock: number; safety_stock: number;
 };
 type Problem = { title: string; text: string } | null;
 
@@ -45,17 +46,18 @@ function Field({ icon, label, error, hint, children }: { icon: IconName; label: 
   );
 }
 
-// 新增商品 (id "new") or 编辑商品 with its stock and the latest stock movements.
+// 新增商品 (id "new") or 编辑商品 with its stock and the latest stock movements; the accountant reads 商品详情.
 export default function ProductPage() {
   const { id, saved } = useLocalSearchParams<{ id: string; saved?: string }>();
-  const isNew = id === 'new';
+  const editor = useMe().data!.roles.some((r) => r === 'storekeeper' || r === 'teacher');
+  const isNew = id === 'new' && editor;
   const product = useQuery({
     queryKey: ['products', id],
     enabled: !isNew,
     // The cost is kept from students: only product_costs (storekeeper, accountant, teacher) has it.
     queryFn: async () => {
       const [product, cost] = await Promise.all([
-        supabase.from('products').select('id,name,price,category,image_path,listed,stock').eq('id', id).maybeSingle(),
+        supabase.from('products').select('id,name,price,category,image_path,listed,stock,safety_stock').eq('id', id).maybeSingle(),
         supabase.from('product_costs').select('cost').eq('id', id).maybeSingle(),
       ]);
       if (product.error) throw product.error;
@@ -65,14 +67,14 @@ export default function ProductPage() {
   });
   const back = () => router.navigate('/admin/products' as Href);
   return (
-    <Desk title={isNew ? '新增商品' : '编辑商品'} back={back}>
+    <Desk title={isNew ? '新增商品' : editor ? '编辑商品' : '商品详情'} back={back}>
       {isNew ? <ProductForm product={null} /> : product.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
         : product.isPending ? <SkeletonGroup className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></SkeletonGroup>
         : !product.data ? <Notice tone="danger" title="未找到这件商品">请返回商品列表重新选择。</Notice>
         : (
           <div className="dc-split">
-            <ProductForm key={product.data.id} product={product.data} savedBefore={!!saved} />
-            <StockHistory product={product.data} />
+            {editor ? <ProductForm key={product.data.id} product={product.data} savedBefore={!!saved} /> : <ProductInfo product={product.data} />}
+            <StockHistory product={product.data} editor={editor} />
           </div>
         )}
     </Desk>
@@ -85,6 +87,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   const [price, setPrice] = useState(product ? String(product.price) : '');
   const [cost, setCost] = useState(product?.cost == null ? '' : String(product.cost));
   const [category, setCategory] = useState(product?.category ?? '');
+  const [safety, setSafety] = useState(String(product?.safety_stock ?? 5));
   const [listed, setListed] = useState(product?.listed ?? false);
   const [imagePath, setImagePath] = useState(product?.image_path ?? null);
   const [uploading, setUploading] = useState(false);
@@ -134,6 +137,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
       const row = await call<Product>('upsert_product', {
         p_id: product?.id ?? null, p_name: name.trim(), p_price: Number(price), p_cost: cost ? Number(cost) : null,
         p_category: category.trim() || null, p_image_path: imagePath, p_listed: listed,
+        p_safety_stock: safety ? Number(safety) : null,
       });
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       if (!product) return router.replace(`/admin/products/${row.id}?saved=1` as Href);
@@ -161,6 +165,10 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
       </Field>
       <Field icon="passbook" label="分类" hint="选填，柜台按分类排列商品">
         <input className="dc-input" value={category} maxLength={20} placeholder="例如 文具" onChange={(e) => setCategory(e.target.value)} />
+      </Field>
+      <Field icon="inbox" label="安全库存" hint="库存不多于这个数时，总览提示入库">
+        <input className="dc-input" inputMode="numeric" value={safety} placeholder="5" onChange={(e) => setSafety(digits(e.target.value))} />
+        <span className="dc-input-unit">件</span>
       </Field>
       <div className="dc-field">
         <span className="dc-field-label"><Icon name="star" />商品图片</span>
@@ -194,8 +202,29 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   );
 }
 
+function ProductInfo({ product: p }: { product: Product }) {
+  return (
+    <section className="dc-card dc-stack" aria-label="商品信息">
+      <h2 className="heading">商品信息</h2>
+      {p.image_path && (
+        <span className="dc-tile-icon dc-kind-exchange" style={{ width: 96, height: 96, overflow: 'hidden' }}>
+          <img src={imageUrl(p.image_path)} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </span>
+      )}
+      <dl className="dc-kv">
+        <div><dt>商品名称</dt><dd>{p.name}</dd></div>
+        <div><dt>价格</dt><dd>{formatAmount(p.price)}<small>HTB</small></dd></div>
+        <div><dt>成本</dt><dd>{p.cost == null ? '未填写' : <>{formatAmount(p.cost)}<small>HTB</small></>}</dd></div>
+        <div><dt>分类</dt><dd>{p.category ?? '未分类'}</dd></div>
+        <div><dt>安全库存</dt><dd>{formatAmount(p.safety_stock)}<small>件</small></dd></div>
+        <div><dt>状态</dt><dd>{p.listed ? '已上架' : '已下架'}</dd></div>
+      </dl>
+    </section>
+  );
+}
+
 // The stock and its latest movements; stock in and out is done on 出入库, which opens with this product picked.
-function StockHistory({ product }: { product: Product }) {
+function StockHistory({ product, editor }: { product: Product; editor: boolean }) {
   const moves = useQuery({
     queryKey: ['stock_movements', product.id],
     queryFn: async () => {
@@ -212,7 +241,7 @@ function StockHistory({ product }: { product: Product }) {
         <dl className="dc-kv">
           <div className="is-total"><dt>当前库存</dt><dd>{formatAmount(product.stock)}<small>件</small></dd></div>
         </dl>
-        <div><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link(`/admin/stock?product=${product.id}`)}><Icon name="inbox" />去出入库</a></div>
+        {editor && <div><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link(`/admin/stock?product=${product.id}`)}><Icon name="inbox" />去出入库</a></div>}
       </div>
       <h2 className="heading">库存变动</h2>
       {moves.error ? <Notice tone="danger" title="暂时无法读取库存变动">请检查网络后刷新页面。</Notice>

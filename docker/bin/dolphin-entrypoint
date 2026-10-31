@@ -44,6 +44,8 @@ SECRETS
 fi
 set -a; . /data/secrets/env; set +a
 
+# The public address is always https://$DOLPHIN_DOMAIN; DOLPHIN_PORT is only the port Caddy listens on in the
+# container, behind whatever forwards 443 to it.
 export SITE_URL="https://$DOLPHIN_DOMAIN"
 export DOLPHIN_PORT="${DOLPHIN_PORT:-443}"
 printf 'window.__DOLPHIN_CONFIG__ = %s;\n' "{\"supabaseUrl\":\"$SITE_URL\",\"anonKey\":\"$ANON_KEY\"}" > /data/run/config.js

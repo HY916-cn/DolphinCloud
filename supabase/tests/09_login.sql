@@ -14,6 +14,8 @@ select ok(has_function_privilege('supabase_auth_admin', 'public.hook_password_ve
 select ok(not has_function_privilege('authenticated', 'public.hook_password_verification_attempt(jsonb)', 'execute')
   and not has_function_privilege('anon', 'public.hook_password_verification_attempt(jsonb)', 'execute'), 'the API cannot');
 
+select is(public.hook_password_verification_attempt('{"valid": false}'), '{"decision":"continue"}',
+  'an attempt without a user is left to Auth');
 select is(tests.attempt(:'s1', true), 'continue', 'a right password signs in');
 select is((select row(actor_id, action, target)::text from audit_log order by id desc limit 1), row(:'s1'::uuid, 'login.ok', 'profiles:' || :'s1')::text,
   'and is audited as the user');

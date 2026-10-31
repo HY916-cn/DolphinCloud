@@ -33,7 +33,7 @@ test('明细: the history grouped by day, filtered by tab, with this month’s t
   await expect(panel).not.toContainText('取款');
 });
 
-test('明细: a cash exchange shows under 全部 without changing the balance', async ({ page }) => {
+test('明细: a cash exchange shows under 全部 and 支出 without changing the balance, and in its own monthly total', async ({ page }) => {
   await signIn(page, '学生', '20260002'); // the seed's cash exchange of 海浪中性笔
   await expect(page.locator('.dc-txns')).toContainText('现金支付，余额不变');
   await open(page, '明细', 'txns');
@@ -41,7 +41,8 @@ test('明细: a cash exchange shows under 全部 without changing the balance', 
   await expect(panel.locator('.dc-txn', { hasText: '兑换 · 海浪中性笔' }).first()).toContainText('现金支付，余额不变');
   await page.getByRole('tab', { name: '支出' }).click();
   await expect(page.getByRole('tab', { name: '支出' })).toHaveAttribute('aria-selected', 'true');
-  await expect(panel).not.toContainText('余额不变');
+  await expect(panel.locator('.dc-txn', { hasText: '兑换 · 海浪中性笔' }).first()).toContainText('现金支付，余额不变');
+  await expect(page.locator('.dc-card', { hasText: '本月收支' })).toContainText(/现金兑换[1-9]/);
 });
 
 test('排名: my place first, then the division’s list with my row tagged and names masked', async ({ page }) => {

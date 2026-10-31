@@ -95,10 +95,11 @@
 | --- | --- | --- | --- |
 | `DOLPHIN_DOMAIN` | 是 | — | 用户访问的域名，不含端口，如 `bank.example.edu.cn`；本地测试用 `localhost` |
 | `ACME_EMAIL` | 由 Let's Encrypt 签发时必填 | — | 证书到期通知邮箱 |
-| `DOLPHIN_PORT` | 否 | `443` | 容器内 HTTPS 监听端口；放在端口转发或隧道后面时使用 |
+| `DOLPHIN_PORT` | 否 | `443` | 容器内 HTTPS 监听端口；放在端口转发或隧道后面时使用。对外地址始终是 `https://$DOLPHIN_DOMAIN` |
 | `TZ` | 否 | `Asia/Shanghai` | 容器时区；数据库内时间统一存 `timestamptz` |
 | `BACKUP_TIME` | 否 | `02:00` | 每日备份时间 |
 | `BACKUP_RETENTION_DAYS` | 否 | `30` | 备份保留天数 |
+| `BACKUP_RECIPIENT` | 生产环境应设置 | — | age 公钥（`age1…`）；设置后备份加密为 `.tar.gz.age`，见 9.4 |
 
 证书三种来源：挂载了 `/certs/fullchain.pem` 与 `/certs/privkey.pem` 时使用这两个文件（如 Certd 推送的证书），文件变化后 10 秒内自动重载；`DOLPHIN_DOMAIN=localhost` 时使用 Caddy 本地 CA；其余情况由 Caddy 向 Let's Encrypt 自动申请和续期。
 
@@ -135,6 +136,7 @@
 | 冲正本人当天业务 | | ✓ | | | | |
 | 冲正任意业务 | | | | | ✓ | |
 | 查看全部流水 | | | ✓ | | ✓ | |
+| 查看商品与成本 | | | ✓ | ✓ | ✓ | |
 | 商品管理、出入库 | | | | ✓ | ✓ | |
 | 发行登记 | | | | | ✓ | |
 | 导入名册、开户 | | | | | ✓ | |
@@ -242,7 +244,8 @@ create table products (
   category     text,
   listed       boolean not null default false,
   stock        integer not null default 0 check (stock >= 0),
-  safety_stock integer,                        -- 阶段二库存预警使用
+  safety_stock integer not null default 5 check (safety_stock >= 0), -- 安全库存
+  low          boolean generated always as (stock <= safety_stock) stored, -- 总览「库存不足」按它筛选
   updated_at   timestamptz not null default now()
 );
 
@@ -375,13 +378,13 @@ create table audit_log (
 | `reissue_passwords(p_student_nos)` | teacher / sysadmin | 重印开户通知单：为其中还未设置新密码的学生各生成新的初始密码并返回（同 `import_roster` 的 `accounts`），旧通知单随即失效 |
 | `set_student_status(p_student_no, p_status)` | teacher | 账户状态改为 `normal`（在读）、`frozen`（冻结）或 `graduated`（毕业）；非在读账户不能办理业务（`STUDENT_INACTIVE`） |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`） |
-| `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 单件商品入库 |
+| `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 新增或编辑商品（`p_listed` 必填；`p_safety_stock` 新商品默认 5，编辑时不传则保持原值）；单件商品入库 |
 | `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
 | `register_issue(...)` | teacher | 总额由函数按面额计算 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回与流水不一致的记录（`kind`：余额、库存、办理后余额衔接 `balance_after`、累计 `total_in` / `total_out` / `total_spent`、兑换明细合计 `txn_items`），并写 `audit_log`；不经 API 开放 |
-| `public.hook_password_verification_attempt(event)` | Auth 登录钩子 | 每次密码校验后调用：同一账号 15 分钟内输错 5 次即锁定 15 分钟（期间密码正确也拒绝，返回 `LOGIN_LOCKED`），登录成败记入 `audit_log`（`login.ok` / `login.failed` / `login.locked`）；只授予 `supabase_auth_admin` |
+| `public.hook_password_verification_attempt(event)` | Auth 登录钩子 | 每次密码校验后调用：同一账号 15 分钟内输错 5 次即锁定 15 分钟（期间密码正确也拒绝，返回 `LOGIN_LOCKED`），登录成败记入 `audit_log`（`login.ok` / `login.failed` / `login.locked`）；只授予 `supabase_auth_admin`；事件里没有 `user_id` 时交给 Auth 自行处理 |
 | `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，显示名为「银行管理员」，返回随机初始密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
 
 ### 6.5 名册导入与账号创建
@@ -412,7 +415,7 @@ create table audit_log (
 - 初始密码由 `app_private.new_password(login_kind)` 随机生成：学生 8 位数字，工作人员 8 位（小写字母与数字，去掉易混的 `i l o 0 1`）。新账号、`dolphin create-admin` 建的账号、重置后的账号各得一个，`must_change_password` 为 `true`；密码只在开户通知单或操作结果里出现一次，系统不保存明文。
 - `must_change_password` 为 `true` 时，该账号不具备任何角色，也看不到本人的学生账户，只能读到自己的 `profiles`；前端据此直接进入「设置新密码」页。
 - 设置新密码：前端调用 `supabase.auth.updateUser({ password })`。`auth.users` 上的触发器只在 `must_change_password` 为 `true` 时允许修改；新密码与初始密码相同时 Auth 返回 `same_password`。修改后 `must_change_password` 变为 `false`。此后本人无法再改密码（Auth 返回错误），忘记或需要更换时由银行管理员或运维员 `reset_password` 生成新的初始密码。
-- 登录锁定：同一账号 15 分钟内输错 5 次即锁定 15 分钟，由 Auth 的密码校验钩子实现（按账号计算，不按 IP，校内共用出口 IP 不受影响）；重置密码同时解除锁定。
+- 登录锁定：同一账号 15 分钟内输错 5 次即锁定 15 分钟，由 Auth 的密码校验钩子实现（按账号计算，不按 IP，校内共用出口 IP 不受影响）；重置密码同时解除锁定。按账号锁定意味着知道学号的人可以故意输错把对方锁 15 分钟，`login.locked` 在日志里集中出现时由银行管理员核查；`smoke-test.sh` 经 HTTPS 调 Auth 验证锁定。
 - 新密码至少 8 位，必须同时包含英文字母和数字，所有账号相同。由 Auth 校验（`GOTRUE_PASSWORD_MIN_LENGTH=8`、`GOTRUE_PASSWORD_REQUIRED_CHARACTERS` 要求字母与数字各至少一个），不符合时返回 `weak_password`；前端在提交前给出同样的提示。
 
 ### 6.6 读取与 RLS
@@ -603,14 +606,14 @@ client/
 
 后台导航为「总览」和本身份可用的各项管理（4.2）；手机底部 `TabBar` 最多 5 项，其余从总览宫格进入。每页标题行下写当前账号的显示名（银行管理员显示「银行管理员」），右侧只放切换账号；页面自己的操作（导入名册、新增账号、新增商品）放在内容第一行，左边是这一页的计数。数据加载时各页显示与真实布局同形的骨架屏（`components/Skeleton.tsx`），超过 10 秒换成「加载时间比平时长」提示，一页只出一条。读取整个名册时按每页 1000 行分页读取（接口单次最多返回 1000 行，`lib/supabase.ts` 的 `readAll`）。
 
-- **总览**：自检不一致提示、管理入口宫格，然后按身份显示：会计、银行管理员看今日存款、取款、兑换的笔数和金额（不含已冲正）、账户余额合计和最近 8 笔流水；银行管理员、运维员看待办（未设置新密码的学生、已停用的工作人员账号）；库管、银行管理员看库存 ≤ 5 件的已上架商品（0 件标「缺货」）和最近库存变动。每一项都点进对应页面，并已带好筛选条件。
+- **总览**：自检不一致提示、管理入口宫格，然后按身份显示：会计、银行管理员看今日存款、取款、兑换的笔数和金额（不含已冲正）、账户余额合计和最近 8 笔流水；银行管理员、运维员看待办（未设置新密码的学生、已停用的工作人员账号）；库管、银行管理员看库存不多于安全库存的已上架商品（`products.low`，0 件标「缺货」）和最近库存变动。每一项都点进对应页面，并已带好筛选条件。
 - **页面互通**：流水的筛选条件可以写在地址里（`student`、`operator`、`from`、`to`、`type`），其他页面据此直接打开筛选好的流水。学生详情有「查看全部流水」；人员详情里柜员账号有「查看他办理的流水」，所有账号有「操作日志」（日志按操作人筛选，可取消）；日志条目链到它涉及的工作人员账号、学生、商品，冲正记录链到该学生的流水，只显示本身份能打开的页面。
 - **学生**（银行管理员、运维员）：按姓名、拼音、班级或学号查找（同柜台的 `lib/search.ts`），列表注明「未设置密码」和冻结、毕业；可一次为所有还未设置新密码的学生重新生成初始密码并下载开户通知单（`reissue_passwords`，确认后旧通知单失效）；银行管理员还可打印期初余额核对表。学生详情显示班级、学届、学号、学部、账户状态、登录状态，「重置密码」经 `Sheet` 确认，新初始密码只显示一次；银行管理员另见余额和最近 10 笔交易（含现金兑换），并可冻结、解冻、标记毕业或恢复为在读（`set_student_status`，均经确认）。运维员看不到余额。
 - **导入名册**（银行管理员）：选择 Excel 或 CSV → 逐行校验（`lib/roster.ts`，问题按行号列出，全部改好才能导入）→「核对名册」显示各学部人数与期初余额合计 →「确认导入」每 100 人一批并显示进度 → 「导入完成：新开户 N 人，更新 M 人」→「下载开户通知单」。页面提供「下载模板」。某一批被拒绝时，说明哪个学号有问题、前面已导入多少人；改好后重新导入整个名册即可。
 - **开户通知单**：在浏览器里生成 PDF 直接下载（`开户通知单-日期-N人.pdf`），每人一页 A4，按班、按学号排列。每页由设计系统的部件组成，尺寸和颜色与界面一致：顶部是登录页头图（标志与波纹、「海豚云」、学校与日期、`WaveDivider`），下面依次是 `display` 问候语、`dc-card` 里的核对清单（班级、学号，初始密码作为合计行）、`Steps` 三步登录说明（含登录网址和新密码规则；网址取服务器配置的正式地址 `https://$DOLPHIN_DOMAIN`，与打开后台用的地址无关）和默认 `Notice` 保管提醒。页面用设计系统的 token、字体和图标画在 canvas 上再存为 JPEG（`lib/pdf.ts` 写出 PDF），不嵌入字体，约 140 KB 一页。
 - **期初余额核对表**：同样按班分页，每班一张表，列出学号、姓名、系统期初余额（`opening` 流水金额，没有则为 0），留空「原账本余额」和「一致」两栏，表头写本班人数与合计，表尾留核对人和日期。
 - **工作人员**（银行管理员、运维员）：列表显示姓名、身份、账号和停用、未设置密码状态。「新增账号」填写账号、姓名、身份，创建后提示初始密码。账号详情可改身份、重置密码、停用或启用（不能停用自己）。运维员不能创建银行管理员，也不能修改银行管理员的账号，页面显示「由银行管理员管理」。
-- **商品**（库管、银行管理员）：列表显示图片、名称、价格、库存和上架状态，缺货的标「缺货」，内容第一行有「出入库」。编辑页填写名称、价格、成本、分类、图片和是否上架；已有商品另显示当前库存、最近 10 次库存变动和「去出入库」。
+- **商品**（库管、银行管理员；会计只读）：列表显示图片、名称、价格、库存和上架状态，缺货的标「缺货」，内容第一行有「出入库」。编辑页填写名称、价格、成本、分类、安全库存（默认 5 件）、图片和是否上架；已有商品另显示当前库存、最近 10 次库存变动和「去出入库」。会计打开的是「商品详情」：名称、价格、成本、分类、安全库存、上架状态和库存变动，没有编辑、新增和出入库入口。
 - **出入库**（库管、银行管理员）：可带商品打开（`?product=`，预填入库 1 件），卡片和库存变动里的商品名链到商品页；`Segmented` 切换入库 / 出库；每件商品一张 `QtyStepper` 卡片（名称、当前库存、加减数量），出库数量不超过库存；入库可写备注，出库须写原因；下方合计后「确认入库 / 确认出库」一次提交（`stock_move`）。右栏（手机在下方）是全部商品最近 20 次库存变动，写明商品与备注。
 - **流水**（会计、银行管理员）：每一行可以展开看完整信息，已冲正的写明原因和冲正交易号；银行管理员从展开处进入学生和经办人页面，并可直接冲正正常状态的期初、存款、取款、兑换（`ReversalSheet`）。按学号、日期范围（开始、结束日期用 `DatePicker` 月历选择，留空为不限，今天之后不能选）、类型、柜员组合筛选，最新的在前，每次加载 50 笔，显示符合条件的总笔数；每笔写明业务、学生、柜员、交易号、时间和金额，已冲正的注明。
 - **发行**（银行管理员）：登记批次号、发行日期（`DatePicker`，默认今天）、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
@@ -621,7 +624,7 @@ client/
 
 学生导航四项：**首页**、**明细**、**排名**、**我的**。
 
-- **明细**：`Tabs` 全部 / 存入 / 支出，按天分组，每次加载 30 笔，「加载更早的交易」继续；右栏（手机在下方）是本月存入与支出合计。现金兑换不影响余额，不列入明细。
+- **明细**：`Tabs` 全部 / 存入 / 支出，按天分组，每次加载 30 笔，「加载更早的交易」继续；「支出」包括取款、账户兑换和现金兑换（注明「现金支付，余额不变」）。右栏（手机在下方）是本月存入、支出（余额的变动）和现金兑换（不含已冲正）三项合计。
 - **排名**：先显示本人名次与余额，再列出本学部前 N 名（名次、姓名、班级、余额），本人一行标「我」；`ranking_anonymous` 为真时姓名显示为「张*明」。
 
 ---
@@ -643,6 +646,7 @@ supabase/
 docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）
+  upgrade-test.sh       从指定的旧提交升级到新镜像：迁移、升级前备份、余额与库存不变、自检
   db-test.sh            在镜像上运行 supabase/tests 的 pgTAP 测试（M1）
   perf-test.sh          全校规模（2000 名学生、10 万笔流水）的性能与越权修改检查
   Caddyfile
@@ -683,6 +687,10 @@ docker/smoke-test.sh
 
 ```bash
 docker/e2e-test.sh
+```
+
+```bash
+docker/upgrade-test.sh <生产环境当前的提交>
 ```
 
 `e2e-test.sh` 用镜像起一个新容器（`https://localhost:18445`），导入种子数据后运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷；首次运行前执行一次 `npx --prefix client playwright install chromium`。
@@ -736,14 +744,16 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin reset-admin` | 银行管理员忘记密码时，生成并打印新的初始密码，解除停用和登录锁定，下次登录设置新密码 |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
-| `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据 |
+| `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据。加密备份从标准输入读私钥：`docker exec -i dolphin-cloud dolphin restore <文件名> < backup-key.txt` |
 | `dolphin check` | 运行 `app_private.check_balances()` 并输出结果；有不一致时退出码为 1 |
-| `dolphin status` | 各进程状态、版本、最近一次备份时间 |
+| `dolphin status` | 各进程状态、版本、最近一次备份时间、备份是否加密 |
+| `dolphin health` | 镜像的 `HEALTHCHECK`：Auth、PostgREST、Storage 各自应答且 Caddy 在运行 |
 
 ### 9.4 备份
 
 - 备份目录权限 700、备份文件 600；备份与恢复都写入 `audit_log`（`backup.create` / `backup.restore`）。
 - 每天 `BACKUP_TIME` 执行：`pg_dump -Fc` 全库 + `/data/storage` 打包为 `/data/backups/dolphin-YYYYMMDD-HHMM.tar.gz`，保留 `BACKUP_RETENTION_DAYS` 天。
+- 设置 `BACKUP_RECIPIENT` 后备份用 [age](https://age-encryption.org) 加密为 `.tar.gz.age`，容器里只有公钥，没有私钥的人打不开备份。生成密钥：`docker run --rm --entrypoint age-keygen dolphin-cloud > backup-key.txt`，文件里 `# public key:` 后面就是公钥；`backup-key.txt` 离线保管（密码管理器或加密 U 盘），丢失后加密备份无法恢复。未设置时备份不加密，`dolphin backup` 会提示。
 - 备份后运行 `dolphin check`；发现不一致时写入 `audit_log`，后台首页对银行管理员显示提示。
 - 建议把 `/data/backups` 单独挂载到另一块磁盘或 NAS：`-v /mnt/nas/dolphin-backups:/data/backups`。
 - 每学期末把当期备份复制归档一次，并在测试机上演练一次 `dolphin restore`。

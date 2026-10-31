@@ -177,7 +177,7 @@ function PendingUploads({ operatorId }: { operatorId: string }) {
             <p className="dc-notice-title">有 {waiting.length} 笔离线存款待上传</p>
             <p className="dc-notice-text">共 {formatAmount(waiting.reduce((s, e) => s + e.amount, 0))} HTB，按登记时间顺序入账。</p>
           </div>
-          <button className={`dc-btn dc-btn-primary dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" onClick={upload}>
+          <button className={`dc-btn dc-btn-primary dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy} onClick={upload}>
             {busy ? '正在上传' : '上传'}
           </button>
         </div>

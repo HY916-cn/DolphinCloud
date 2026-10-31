@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Counts } from './cash';
 import { formatAmount } from './format';
 import { cachedRoster, saveRoster } from './offline-queue';
-import { call, timeoutSignal } from './rpc';
+import { call, withTimeout } from './rpc';
 import { indexRoster } from './search';
 import { readAll, supabase } from './supabase';
 
@@ -67,9 +67,8 @@ export function useRoster(accountId: string) {
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: 'always',
     queryFn: async () => {
-      const signal = timeoutSignal(5000);
-      const data = await readAll((from, to) => supabase.from('students').select('student_no,name,class_no,class_label,status')
-        .order('student_no').range(from, to).abortSignal(signal)).catch(() => null);
+      const data = await withTimeout(5000, (signal) => readAll((from, to) => supabase.from('students')
+        .select('student_no,name,class_no,class_label,status').order('student_no').range(from, to).abortSignal(signal))).catch(() => null);
       if (data) await saveRoster(accountId, data);
       return indexRoster(data ?? await cachedRoster(accountId));
     },

@@ -9,7 +9,6 @@ import { readAll, supabase } from '@/lib/supabase';
 import { KINDS } from '@/lib/txns';
 
 const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
-const LOW = 5; // a listed product with this many pieces or fewer needs stocking in
 
 // 总览: the sections this login may open (on phones the tiles are the way to the sections the TabBar has no room
 // for), then what each role looks after, every item a link to the page that handles it: today's business, the bank's
@@ -77,7 +76,7 @@ export default function Admin() {
     queryKey: ['products', 'low'],
     enabled: goods,
     queryFn: async () => {
-      const { data, error } = await supabase.from('products').select('id,name,stock').eq('listed', true).lte('stock', LOW)
+      const { data, error } = await supabase.from('products').select('id,name,stock,safety_stock').eq('listed', true).eq('low', true)
         .order('stock').order('name').limit(10);
       if (error) throw error;
       return data;
@@ -169,7 +168,7 @@ export default function Admin() {
             </div>
             {low.isError ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
               : !low.data ? <ListLoading rows={2} label="正在加载商品" />
-              : !low.data.length ? <div className="dc-card"><p className="dc-top-sub">已上架的商品库存都在 {LOW} 件以上。</p></div>
+              : !low.data.length ? <div className="dc-card"><p className="dc-top-sub">已上架的商品库存都在安全库存以上。</p></div>
               : (
                 <ul className="dc-list" aria-label="库存不足的商品">
                   {low.data.map((p) => (
@@ -179,7 +178,7 @@ export default function Admin() {
                         <span>
                           {p.name}
                           {!p.stock && <> <span className="dc-tag dc-tag-danger"><Icon name="warning" />缺货</span></>}
-                          <small className="dc-top-sub">库存 {p.stock} 件 · 去入库</small>
+                          <small className="dc-top-sub">库存 {p.stock} 件 · 安全库存 {p.safety_stock} 件 · 去入库</small>
                         </span>
                         <Icon name="next" />
                       </a>

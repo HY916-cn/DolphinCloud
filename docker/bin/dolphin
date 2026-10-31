@@ -1,5 +1,7 @@
 #!/bin/bash
-# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | status
+# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | status | health
+# With BACKUP_RECIPIENT (an age public key) backups are encrypted to it (.tar.gz.age); restoring one reads the
+# matching private key from stdin: docker exec -i dolphincloud dolphin restore <file> < backup-key.txt
 set -euo pipefail
 BACKUPS=/data/backups
 psql_() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
@@ -18,13 +20,18 @@ SQL
 backup() {
   local name tmp
   umask 077
-  name="dolphin-$(date +%Y%m%d-%H%M%S).tar.gz"
+  name="dolphin-$(date +%Y%m%d-%H%M%S).tar.gz${BACKUP_RECIPIENT:+.age}"
   tmp=$(mktemp -d)
   pg_dump -h /var/run/postgresql -U postgres -d postgres -Fc -f "$tmp/db.dump"
-  tar -czf "$BACKUPS/$name.part" -C "$tmp" db.dump -C /data storage
+  if [ -n "${BACKUP_RECIPIENT:-}" ]; then
+    tar -cz -C "$tmp" db.dump -C /data storage | age -r "$BACKUP_RECIPIENT" -o "$BACKUPS/$name.part"
+  else
+    echo "BACKUP_RECIPIENT is not set: $name is not encrypted" >&2
+    tar -czf "$BACKUPS/$name.part" -C "$tmp" db.dump -C /data storage
+  fi
   mv "$BACKUPS/$name.part" "$BACKUPS/$name"
   rm -rf "$tmp"
-  find "$BACKUPS" -name 'dolphin-*.tar.gz' -mtime +"$BACKUP_RETENTION_DAYS" -delete
+  find "$BACKUPS" -name 'dolphin-*.tar.gz*' ! -name '*.part' -mtime +"$BACKUP_RETENTION_DAYS" -delete
   audit backup.create "$name"
   echo "$BACKUPS/$name"
 }
@@ -33,7 +40,10 @@ restore() {
   local file="$BACKUPS/$(basename "${1:?usage: dolphin restore <file>}")" tmp
   [ -f "$file" ] || { echo "No such backup: $file" >&2; exit 1; }
   tmp=$(mktemp -d)
-  tar -xzf "$file" -C "$tmp"
+  case "$file" in
+    *.age) age -d -i - "$file" | tar -xz -C "$tmp" ;;
+    *) tar -xzf "$file" -C "$tmp" ;;
+  esac
   [ -f "$tmp/db.dump" ] || { echo "Not a dolphin backup: $file" >&2; exit 1; }
   echo "Backing up current data first: $(backup)"
   supervisorctl stop caddy auth rest storage backup-schedule >/dev/null
@@ -89,13 +99,23 @@ check() {
   echo "Balances and stock match the ledger"
 }
 
+# The container's HEALTHCHECK: every service answers on its own port and Caddy is running.
+health() {
+  curl -fsS -o /dev/null http://127.0.0.1:9999/health
+  curl -fsS -o /dev/null http://127.0.0.1:3000/
+  curl -fsS -o /dev/null http://127.0.0.1:5000/status
+  supervisorctl status caddy | grep -q RUNNING
+}
+
 case "${1:-}" in
   create-admin) create_admin "${2:-}" ;;
   reset-admin) reset_admin ;;
   check)   check ;;
   backup)  backup ;;
-  backups) ls -1t "$BACKUPS" | grep '^dolphin-.*\.tar\.gz$' || true ;;
+  backups) ls -1t "$BACKUPS" | grep -E '^dolphin-.*\.tar\.gz(\.age)?$' || true ;;
   restore) restore "${2:-}" ;;
-  status)  supervisorctl status || true; echo "version: $DOLPHIN_VERSION"; echo "latest backup: $(ls -1t "$BACKUPS" | head -1)" ;;
-  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | status" >&2; exit 2 ;;
+  status)  supervisorctl status || true; echo "version: $DOLPHIN_VERSION"; echo "latest backup: $(ls -1t "$BACKUPS" | head -1)"
+           echo "backups encrypted: ${BACKUP_RECIPIENT:+yes, to $BACKUP_RECIPIENT}${BACKUP_RECIPIENT:-no (set BACKUP_RECIPIENT)}" ;;
+  health)  health ;;
+  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | status | health" >&2; exit 2 ;;
 esac

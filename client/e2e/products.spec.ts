@@ -62,3 +62,29 @@ test('add a product, stock it in and out, then unlist it', async ({ page }) => {
   await page.getByRole('button', { name: '返回' }).click();
   await expect(row).toContainText('已下架');
 });
+
+test('the accountant reads products with their cost, without editing them', async ({ page }) => {
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/staff/new');
+  await page.getByPlaceholder('如 teller02').fill('acct09');
+  await page.getByPlaceholder('如 柜员小王').fill('会计小陈');
+  await page.getByRole('combobox').selectOption({ label: '会计' });
+  await page.getByRole('button', { name: '创建账号' }).click();
+  const password = (await page.locator('.dc-notice-success').innerText()).match(/初始密码 ([A-Za-z0-9]{8})。/)?.[1];
+
+  await signIn(page, '工作人员', 'acct09', '/login?add=1', password);
+  await expect(page).toHaveURL(/\/change-password$/);
+  await page.getByPlaceholder('至少 8 位，含英文字母和数字').fill('chen2026a');
+  await page.getByPlaceholder('再次输入新密码').fill('chen2026a');
+  await page.getByRole('button', { name: '设置密码' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+
+  await page.locator('.dc-nav-item', { hasText: '商品' }).click();
+  await expect(page.getByRole('link', { name: '新增商品' })).toHaveCount(0);
+  await page.locator('.dc-list-link', { hasText: '海豚书签' }).click();
+  await expect(page.locator('.dc-top-title')).toContainText('商品详情');
+  await expect(page.locator('section[aria-label="商品信息"] .dc-kv')).toContainText(/成本\s*\d/);
+  await expect(page.getByRole('button', { name: '保存商品' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '去出入库' })).toHaveCount(0);
+});

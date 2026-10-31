@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Icon, Notice, Page, TxnList, TxnListLoading } from '@/components';
-import { formatSigned, formatTime } from '@/lib/format';
+import { formatAmount, formatSigned, formatTime } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type Txn, type TxnRow } from '@/lib/txns';
@@ -11,7 +11,7 @@ const PAGE = 30;
 const TABS = {
   all: { label: '全部', empty: '还没有交易记录', hint: '在柜台办理存款后，这里会显示每一笔交易。' },
   in: { label: '存入', empty: '还没有存入记录', hint: '在柜台存款后，这里会显示每一笔存入。' },
-  out: { label: '支出', empty: '还没有支出记录', hint: '取款或用账户兑换后，这里会显示每一笔支出。' },
+  out: { label: '支出', empty: '还没有支出记录', hint: '取款或兑换后，这里会显示每一笔支出。' },
 } as const;
 type Tab = keyof typeof TABS;
 
@@ -27,8 +27,10 @@ function byDay(rows: TxnRow[]) {
   return days;
 }
 
-// 明细: every business of the account, newest first, 30 at a time (全部 includes cash exchanges; 存入 and 支出 are the
-// changes to the balance), and this month's totals of those changes.
+// 明细: every business of the account, newest first, 30 at a time (存入 is the money put into the balance; 支出 is the
+// money taken out of it and the exchanges paid in cash), and this month's totals: 存入 and 支出 of the balance, and
+// 现金兑换 apart, since it leaves the balance as it was.
+const CASH_PURCHASE = 'and(type.eq.purchase,payment.eq.cash)';
 export default function StudentTxns() {
   const student = useMe().data!.student!;
   const [tab, setTab] = useState<Tab>('all');
@@ -40,7 +42,7 @@ export default function StudentTxns() {
     queryFn: async ({ pageParam }) => {
       const q = supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
         .eq('student_no', student.student_no);
-      const { data, error } = await (tab === 'in' ? q.gt('balance_delta', 0) : tab === 'out' ? q.lt('balance_delta', 0) : q)
+      const { data, error } = await (tab === 'in' ? q.gt('balance_delta', 0) : tab === 'out' ? q.or(`balance_delta.lt.0,${CASH_PURCHASE}`) : q)
         .order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
       if (error) throw error;
       return data as TxnRow[];
@@ -52,10 +54,12 @@ export default function StudentTxns() {
   const totals = useQuery({
     queryKey: ['student-month', student.student_no, month],
     queryFn: async () => {
-      const { data, error } = await supabase.from('txns').select('balance_delta').eq('student_no', student.student_no)
-        .neq('balance_delta', 0).gte('created_at', `${month}-01T00:00:00+08:00`);
+      const { data, error } = await supabase.from('txns').select('balance_delta,amount,status').eq('student_no', student.student_no)
+        .or(`balance_delta.neq.0,${CASH_PURCHASE}`).gte('created_at', `${month}-01T00:00:00+08:00`);
       if (error) throw error;
-      return data.reduce((s, { balance_delta: d }) => (d > 0 ? { ...s, in: s.in + d } : { ...s, out: s.out + d }), { in: 0, out: 0 });
+      return data.reduce((s, { balance_delta: d, amount, status }) =>
+        d > 0 ? { ...s, in: s.in + d } : d < 0 ? { ...s, out: s.out + d } : status === 'normal' ? { ...s, cash: s.cash + amount } : s,
+      { in: 0, out: 0, cash: 0 });
     },
   });
 
@@ -104,6 +108,7 @@ export default function StudentTxns() {
               <dl className="dc-kv">
                 <div><dt>存入</dt><dd>{amount(totals.data?.in)}</dd></div>
                 <div><dt>支出</dt><dd>{amount(totals.data?.out)}</dd></div>
+                <div><dt>现金兑换</dt><dd>{totals.data ? formatAmount(totals.data.cash) : amount(undefined)}</dd></div>
               </dl>
             </div>
           </div>

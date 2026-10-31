@@ -73,7 +73,7 @@ function Bar({ busy, ready, label, onClick, totalLabel, total, note }: {
 }) {
   return (
     <div className="dc-actions">
-      <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!busy && !ready} onClick={onClick}>
+      <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={busy || !ready} onClick={onClick}>
         {label}
       </button>
       <div className="dc-actions-total">

@@ -154,13 +154,19 @@ select is((select row(p.disabled, u.banned_until)::text from profiles p join aut
 select is(tests.call(:'keeper', $$select upsert_product(null, '书签', 5)$$) ->> 'detail', '{"field": "listed"}', 'listed must be given');
 select tests.call(:'keeper', $$select upsert_product(null, '书签', 5, p_listed => false)$$) ->> 'id' as prod \gset
 select is(tests.call(:'keeper', format($$select upsert_product(%L, '海豚书签', 6, 3, '文具', 'p/1.jpg', true)$$, :'prod')) - 'id' - 'updated_at',
-  '{"cost":3,"name":"海豚书签","price":6,"stock":0,"listed":true,"category":"文具","image_path":"p/1.jpg","safety_stock":null}', 'edit product');
+  '{"cost":3,"name":"海豚书签","price":6,"stock":0,"listed":true,"category":"文具","image_path":"p/1.jpg","safety_stock":5,"low":true}', 'edit product; a new product has a safety stock of 5');
+select is(tests.call(:'keeper', format($$select upsert_product(%L, '海豚书签', 6, 3, '文具', 'p/1.jpg', true, 3)$$, :'prod')) ->> 'safety_stock', '3', 'set the safety stock');
+select is(tests.call(:'keeper', format($$select upsert_product(%L, '海豚书签', 6, 3, '文具', 'p/1.jpg', true)$$, :'prod')) ->> 'safety_stock', '3',
+  'an edit without it keeps the safety stock');
+select is(tests.err(:'keeper', format($$select upsert_product(%L, '海豚书签', 6, p_listed => true, p_safety_stock => -1)$$, :'prod')), 'INVALID_INPUT',
+  'the safety stock is 0 or more');
 select is(tests.err(:'t1', $$select upsert_product(null, 'x', 5)$$), 'FORBIDDEN', 'only storekeepers and teachers edit products');
 select is(tests.err(:'keeper', $$select upsert_product(null, 'x', 0)$$), 'INVALID_INPUT', 'price must be positive');
 select is(tests.err(:'keeper', $$select upsert_product(gen_random_uuid(), 'x', 5, p_listed => true)$$), 'PRODUCT_NOT_FOUND', 'unknown product');
 select is(tests.err(:'keeper', format($$select stock_in(%L, 0)$$, :'prod')), 'INVALID_INPUT', 'stock in must be positive');
 select is(tests.call(:'keeper', format($$select stock_in(%L, 7, '首批')$$, :'prod')) ->> 'stock', '7', 'stock in');
-select is((select count(*)::int from audit_log where target = 'products:' || :'prod'), 2, 'product edits are audited, stock changes are not');
+select is((select low from products where id = :'prod'), false, 'above the safety stock the product is no longer low');
+select is((select count(*)::int from audit_log where target = 'products:' || :'prod'), 3, 'product edits are audited, stock changes are not');
 
 -- 出入库 in one call: several products, all or nothing; 出库 needs a reason and never goes below 0.
 select tests.call(:'keeper', $$select upsert_product(null, '贴纸', 2, p_listed => false)$$) ->> 'id' as prod2 \gset

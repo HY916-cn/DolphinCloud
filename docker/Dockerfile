@@ -32,7 +32,7 @@ RUN npm run build
 FROM postgres:${POSTGRES_MAJOR}-bookworm
 ARG DOLPHIN_VERSION=dev
 RUN apt-get update \
- && apt-get install -y --no-install-recommends supervisor curl ca-certificates libcap2-bin "postgresql-$PG_MAJOR-pgtap" \
+ && apt-get install -y --no-install-recommends supervisor curl ca-certificates libcap2-bin age "postgresql-$PG_MAJOR-pgtap" \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=auth /usr/local/bin/auth /usr/local/bin/auth
@@ -64,4 +64,5 @@ ENV DOLPHIN_VERSION=${DOLPHIN_VERSION} \
 
 VOLUME /data
 EXPOSE 80 443
+HEALTHCHECK --interval=30s --timeout=10s --start-period=3m --retries=3 CMD ["dolphin", "health"]
 ENTRYPOINT ["dolphin-entrypoint"]

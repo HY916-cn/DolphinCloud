@@ -1,7 +1,7 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
-# security headers, non-root services, login, password rule, create-admin, RPC, image upload and public read,
-# backup → change → restore, container restart.
+# security headers, non-root services, health check, login, lockout, password rule, create-admin, RPC, image upload
+# and public read, encrypted backup → change → restore, container restart.
 # Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes its own container and volume.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -36,7 +36,10 @@ login() { # login <email> <password> → prints access token, empty on failure
 }
 
 remove
-docker run -d --name "$NAME" -p "$PORT:443" -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com "$IMAGE" >/dev/null
+docker run --rm --entrypoint age-keygen "$IMAGE" > "$WORK/backup-key.txt" 2>/dev/null
+RECIPIENT=$(sed -n 's/^# public key: //p' "$WORK/backup-key.txt")
+docker run -d --name "$NAME" -p "$PORT:443" -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com \
+  -e BACKUP_RECIPIENT="$RECIPIENT" "$IMAGE" >/dev/null
 wait_ready
 ANON=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$ANON_KEY"')
 SERVICE=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$SERVICE_ROLE_KEY"')
@@ -54,11 +57,22 @@ for p in auth rest storage caddy migrate backup-schedule; do
 done
 pass "the site cannot be framed; services run as dolphin"
 
+docker exec "$NAME" dolphin health || fail "dolphin health"
+[ "$(docker inspect -f '{{.Config.Healthcheck.Test}}' "$NAME")" = '[CMD dolphin health]' ] || fail "image has no HEALTHCHECK"
+pass "the image's health check passes"
+
 USER_ID=$(sql "select app_private.create_login('admin@staff.dolphin.internal', 'Smoke-pass-1')")
 TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
 [ -n "$TOKEN" ] || fail "login: $(cat "$WORK/body")"
 [ -z "$(login admin@staff.dolphin.internal wrong-password)" ] || fail "wrong password accepted"
 pass "login with SQL-created account; wrong password rejected"
+
+sql "select app_private.create_login('locked@staff.dolphin.internal', 'Smoke-pass-3')" >/dev/null
+for _ in 1 2 3 4 5; do login locked@staff.dolphin.internal wrong-password >/dev/null; done
+grep -q LOGIN_LOCKED "$WORK/body" || fail "fifth wrong password: $(cat "$WORK/body")"
+[ -z "$(login locked@staff.dolphin.internal Smoke-pass-3)" ] && grep -q LOGIN_LOCKED "$WORK/body" || fail "locked login signed in"
+[ "$(sql "select count(*) from public.audit_log where action = 'login.locked'")" = 1 ] || fail "refused attempt not audited"
+pass "five wrong passwords through Auth lock the login, even against the right password"
 
 ADMIN_PW=$(docker exec "$NAME" dolphin create-admin smokeadmin | sed -n 's/.*Initial password: //p')
 [ -n "$ADMIN_PW" ] && [ -n "$(login smokeadmin@staff.dolphin.internal "$ADMIN_PW")" ] || fail "create-admin password: $(cat "$WORK/body")"
@@ -94,13 +108,15 @@ BACKUP=$(docker exec "$NAME" dolphin backup | tail -1)
   || fail "backup not in audit_log"
 sql "select app_private.create_login('after@staff.dolphin.internal', 'Smoke-pass-2')" >/dev/null
 [ "$(http -X DELETE "$OBJ" -H "apikey: $ANON" -H "Authorization: Bearer $SERVICE")" = 200 ] || fail "delete object"
-docker exec "$NAME" dolphin restore "$(basename "$BACKUP")" >/dev/null
+[ "${BACKUP##*.}" = age ] && [ "$(docker exec "$NAME" head -c 21 "$BACKUP")" = age-encryption.org/v1 ] || fail "backup not encrypted: $BACKUP"
+! docker exec "$NAME" dolphin restore "$(basename "$BACKUP")" </dev/null >/dev/null 2>&1 || fail "restored without the key"
+docker exec -i "$NAME" dolphin restore "$(basename "$BACKUP")" < "$WORK/backup-key.txt" >/dev/null
 wait_ready
 [ -z "$(login after@staff.dolphin.internal Smoke-pass-2)" ] || fail "account created after backup survived restore"
 [ -n "$(login admin@staff.dolphin.internal Smoke-pass-1)" ] || fail "account lost in restore"
 [ "$(sql "select count(*) from public.audit_log where action = 'backup.restore'")" = 1 ] || fail "restore not in audit_log"
 [ "$(http "$BASE/storage/v1/object/public/product-images/smoke/logo.png")" = 200 ] && cmp -s "$WORK/body" "$LOGO" || fail "image lost in restore"
-pass "backup → change → restore brings back the backed-up state"
+pass "encrypted backup → change → restore with the key brings back the backed-up state"
 
 docker restart "$NAME" >/dev/null
 wait_ready

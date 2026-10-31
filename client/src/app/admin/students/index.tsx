@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ConfirmSheet, Desk, downloadNotices, Icon, link, ListLoading, Notice, OpeningSheet, type NoticeAccount } from '@/components';
@@ -19,6 +20,7 @@ const BATCH = 100; // passwords are hashed one by one on the server, as in impor
 export default function Students() {
   const me = useMe().data!;
   const students = useStudents();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [onlyWaiting, setOnlyWaiting] = useState(filter === 'waiting');
@@ -34,23 +36,29 @@ export default function Students() {
   const shown = onlyWaiting ? waiting : all;
   const teacher = me.roles.includes('teacher');
 
+  // Students who set their own password meanwhile are skipped by the server, so fewer notices than `nos` is normal.
   async function reprint() {
     setReissue('busy');
     const nos = waiting.map((s) => s.student_no);
     const accounts: NoticeAccount[] = [];
+    let problem: { title: string; text: string } | null = null;
     try {
       for (let i = 0; i < nos.length; i += BATCH) {
         accounts.push(...(await call<{ accounts: NoticeAccount[] }>('reissue_passwords', { p_student_nos: nos.slice(i, i + BATCH) }, 60_000)).accounts);
       }
     } catch (err) {
       const e = err instanceof AppError ? err : new AppError('');
-      const { title, text } = explain(e.code, e.detail);
+      problem = explain(e.code, e.detail);
       // Passwords already reissued in earlier batches are downloaded anyway, so those notices are not lost.
-      setReissue({ title, text: accounts.length ? `${text}已为前 ${accounts.length} 人生成新密码，正在下载他们的通知单。` : text });
-      if (!accounts.length) return;
+      if (accounts.length) problem.text += `已为前 ${accounts.length} 人生成新密码，已下载他们的通知单。`;
     }
-    await downloadNotices(accounts);
-    if (accounts.length === nos.length) setReissue(null);
+    try {
+      await downloadNotices(accounts);
+    } catch {
+      problem = { title: '开户通知单未能生成', text: '请再下载一次：会重新生成初始密码，只发新下载的通知单。' };
+    }
+    queryClient.invalidateQueries({ queryKey: ['admin-students'] });
+    setReissue(problem);
   }
 
   // Each student's 'opening' transaction (at most one, txns_one_opening); a student without one opened at 0.
@@ -90,7 +98,7 @@ export default function Students() {
         <span style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {waiting.length > 0 && (
             <button className={`dc-btn dc-btn-ghost dc-btn-sm ${reissue === 'busy' ? 'is-loading' : ''}`} type="button"
-              onClick={() => setReissue('confirm')}>
+              disabled={reissue === 'busy'} onClick={() => setReissue('confirm')}>
               下载开户通知单
             </button>
           )}
