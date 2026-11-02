@@ -33,6 +33,6 @@ export function maskName(name: string) {
   return c.length < 2 ? name : c.length === 2 ? `${c[0]}*` : `${c[0]}${'*'.repeat(c.length - 2)}${c[c.length - 1]}`;
 }
 
-// 考勤: 上午班 before 13:30 Asia/Shanghai, 下午班 from 13:30 (app_private.shift_of).
+// 考勤: 中午班 before 13:30 Asia/Shanghai, 下午班 from 13:30 (app_private.shift_of).
 export const shiftAt = (at: Date) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at) < '13:30' ? 'am' : 'pm';

@@ -21,7 +21,7 @@
 | 货币发行 | 发行批次登记 |
 | 流水查询 | 会计与银行管理员按学生、班级或学部（同柜台的搜索）、日期、每天的时段、类型、柜员、交易号、支付方式、状态、金额组合查询全部流水，并导出 Excel |
 | 报表 | 会计与银行管理员按日、周、月或任意日期（最长一年）和每天的时段，看全行、学部、班级或一位学生的营业、账户、财务、商品报表（图表与表格），导出 Excel 或打印 / 存为 PDF；导出的学生姓名默认脱敏 |
-| 考勤与工资 | 银行管理员设置哪些柜员参与考勤；柜员每天按上午班（13:30 前）、下午班（13:30 起）签到，在考勤日历里看每个班次和有效班次数；银行管理员确认或驳回、补签；每个有效班次的工资由参数设定，每周发放到柜员用密码绑定的学生账户 |
+| 考勤与工资 | 银行管理员设置哪些柜员参与考勤；柜员每天按中午班（13:30 前）、下午班（13:30 起）签到，在考勤日历里看每个班次和有效班次数；银行管理员确认或驳回、补签；中午班、下午班的工资由参数分别设定，每周发放到柜员用密码绑定的学生账户 |
 | 系统 | 账号与角色、参数设置、操作日志、每日自动备份与命令行恢复、余额自检 |
 | 部署 | 单个 Docker 镜像，一条 `docker run` 启动，自动申请 HTTPS 证书 |
 
@@ -316,7 +316,7 @@ create table attendance (                      -- 每个柜员每个班次一行
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references profiles(id),
   day         date not null,
-  shift       text not null check (shift in ('am','pm')),   -- 上午班 13:30 前，下午班 13:30 起（上海时间）
+  shift       text not null check (shift in ('am','pm')),   -- 中午班 13:30 前，下午班 13:30 起（上海时间）
   status      text not null default 'pending' check (status in ('pending','confirmed','rejected')),
   signed_at   timestamptz not null default now(),
   signed_by   uuid not null references profiles(id),       -- 柜员本人，补签时为银行管理员
@@ -324,7 +324,7 @@ create table attendance (                      -- 每个柜员每个班次一行
   reviewed_by uuid references profiles(id),
   reviewed_at timestamptz,
   salary_txn  uuid references txns(id),                     -- 发放这个班次工资的 salary 流水
-  pay         integer,                                      -- 发放时的每班次工资
+  pay         integer,                                      -- 发放时这种班次的工资
   unique (user_id, day, shift)
 );
 ```
@@ -346,7 +346,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 | `ranking_anonymous` | `true` | 排名是否隐藏姓名（显示为「张*明」） |
 | `ranking_size` | `10` | 排名显示前几名（每个学部） |
 | `promotion_date` | `"09-01"` | 每年升年级的日期（月-日），从这天起所有学生的年级加一 |
-| `salary_per_shift` | `10` | 柜员每个有效班次的工资（HTB，1～10000），发放时按当时的金额计算 |
+| `salary_per_shift` | `{"am":10,"pm":10}` | 柜员每个有效班次的工资（HTB，1～10000），中午班、下午班分别设置，发放时按当时的金额计算 |
 
 ### 5.4 数据不变式
 
@@ -479,12 +479,12 @@ create table attendance (                      -- 每个柜员每个班次一行
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `set_attendance(p_user_id, p_on)` | teacher | 设置柜员是否参与考勤 |
-| `sign_attendance()` | teller | 签到当前班次（上海时间 13:30 前为上午班 `am`，13:30 起为下午班 `pm`），状态为待审；同一班次再签返回已有的记录；未参与考勤时 `ATTENDANCE_OFF` |
+| `sign_attendance()` | teller | 签到当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审；同一班次再签返回已有的记录；未参与考勤时 `ATTENDANCE_OFF` |
 | `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 补签：今天已开始的班次或以前的班次，须写说明，直接计为有效；已有记录时 `ALREADY_EXISTS` |
 | `review_attendance(p_ids, p_status, p_note)` | teacher | 把班次设为有效（`confirmed`）或未通过（`rejected`），可改回，直到发放工资；已发放的 `ATTENDANCE_PAID` |
 | `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`） |
 | `unbind_salary_account(p_user_id)` | teller（本人）/ teacher / sysadmin | 解除绑定 |
-| `pay_salaries(p_week)` | teacher | 发放 `p_week` 所在一周（周一至周日）及以前所有有效、未发放的班次：每个柜员一笔 `salary` 流水存入其工资账户（金额 = 班次数 × `salary_per_shift`，`cash_delta` 为 0，原因写日期和班次数），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的柜员这次跳过，下次发放时补发；重复发放不会重复付。返回发放和跳过的名单 |
+| `pay_salaries(p_week)` | teacher | 发放 `p_week` 所在一周（周一至周日）及以前所有有效、未发放的班次：每个柜员一笔 `salary` 流水存入其工资账户（金额 = 中午班数 × 中午班工资 + 下午班数 × 下午班工资，`cash_delta` 为 0，原因写日期和两种班次各几个，如「10月27日至11月1日，中午班 3 个、下午班 2 个」），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的柜员这次跳过，下次发放时补发；重复发放不会重复付。返回发放和跳过的名单 |
 
 - 柜员不能为本人的工资账户办理业务（`SELF_SERVICE_FORBIDDEN`，与本人的学生账户相同）。
 - `salary` 流水不能冲正；报表的余额核对把它列为「工资」，不计入营业笔数。
@@ -550,7 +550,7 @@ client/
   src/lib/accounts.ts         本机记住的账号与会话、切换
   src/lib/format.ts           千分位、带符号金额、时间（当年不写年份）、报表期间、姓名脱敏
   src/lib/reports.ts          报表数据类型、流水筛选查询、Excel 导出
-  src/lib/attendance.ts       考勤与工资：班次、工资账户、每班次工资的读取，绑定工资账户
+  src/lib/attendance.ts       考勤与工资：班次、工资账户、中午班与下午班工资的读取，绑定工资账户
   src/lib/txns.ts             流水 → TxnList 的标题、图标与方向
   src/lib/cash.ts             面额合计、配钞与找零（贪心）、「10 元 × 2 张」文字
   src/lib/rpc.ts              调用数据库函数：超时（默认 5 秒）视为离线，错误码转为 AppError
@@ -695,7 +695,7 @@ client/
   - 「导出 Excel」见 6.8；「打印 / 存为 PDF」把四个标签页的图表和表格一起交给浏览器打印，可在打印对话框里存为 PDF。
 - **考勤**（银行管理员）：一周一页（「上一周 / 下一周 / 本周」），每个参与考勤（或这周有记录）的柜员一行，周一到周日每天两个班次标记，后面是有效班次数和工资，姓名下注明工资账户。点一个班次：待审或已审的选「有效 / 未通过」并可写说明；未签到的「补签」须写说明；已发工资的只能查看。「确认待审（N）」一次确认这一周全部待审班次；「发放工资」先列出每位柜员到这周日为止有效、未发放的班次数、金额和工资账户（未绑定的注明本次不发放），确认后发放并显示结果。下方「参与考勤」每位柜员一个开关。
 - **发行**（银行管理员）：登记批次号、发行日期（`DatePicker`，默认今天）、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
-- **参数**（银行管理员）：面额用 `FilterChips` 勾选（1、2、5、10、20、50、100 元，1 元必选）；两个学部的单笔与单日取款上限用 `QtyStepper`（每次 ±10，也可直接输入）；排名人数用 `QtyStepper`（1～100）；升年级日期用月、日两个 `Select`；每班次工资用 `QtyStepper`（1～10000）。「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
+- **参数**（银行管理员）：面额用 `FilterChips` 勾选（1、2、5、10、20、50、100 元，1 元必选）；两个学部的单笔与单日取款上限用 `QtyStepper`（每次 ±10，也可直接输入）；排名人数用 `QtyStepper`（1～100）；升年级日期用月、日两个 `Select`；中午班、下午班的工资各一个 `QtyStepper`（1～10000）。「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
 - **日志**（银行管理员、运维员）：最新的在前，每次加载 50 条；每条写明操作、操作人、时间、设备与 IP，展开后列出改动的字段（旧值 → 新值）。
 
 ### 7.10 学生端

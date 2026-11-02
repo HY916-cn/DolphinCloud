@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet, DayShifts, Desk, Icon, link, ListLoading, Notice, ShiftLegend, ShiftMark, shiftWords, Stats, today } from '@/components';
-import { earned, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf, type Shift, type ShiftRow } from '@/lib/attendance';
+import { earned, NO_RATES, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf, type Shift, type ShiftRow } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, shiftAt, shiftDay } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -27,14 +27,14 @@ export default function AttendanceDesk() {
   const days = Array.from({ length: 7 }, (_, i) => shiftDay(monday, i));
   const staff = useStaff();
   const payroll = usePayroll();
-  const rate = useSalaryRate().data ?? 0;
+  const rates = useSalaryRate().data ?? NO_RATES;
   const shifts = useShifts(monday, sunday);
   const unpaid = useQuery({
     queryKey: ['attendance', 'unpaid', sunday],
     queryFn: async () => {
-      const { data, error } = await supabase.from('attendance').select('user_id').eq('status', 'confirmed').is('salary_txn', null).lte('day', sunday);
+      const { data, error } = await supabase.from('attendance').select('user_id,shift').eq('status', 'confirmed').is('salary_txn', null).lte('day', sunday);
       if (error) throw error;
-      return data as { user_id: string }[];
+      return data as { user_id: string; shift: Shift }[];
     },
   });
   const [cell, setCell] = useState<Cell | null>(null);
@@ -50,8 +50,9 @@ export default function AttendanceDesk() {
   const listed = tellers.filter((t) => counted(t.id)?.attendance || rows.some((r) => r.user_id === t.id));
   const pending = rows.filter((r) => r.status === 'pending');
   const toPay = tellers.flatMap((t) => {
-    const n = (unpaid.data ?? []).filter((u) => u.user_id === t.id).length;
-    return n ? [{ name: t.display_name, shifts: n, amount: n * rate, account: counted(t.id)?.account ?? undefined }] : [];
+    const mine = (unpaid.data ?? []).filter((u) => u.user_id === t.id);
+    const amount = mine.reduce((s, u) => s + rates[u.shift], 0);
+    return mine.length ? [{ name: t.display_name, shifts: mine.length, amount, account: counted(t.id)?.account ?? undefined }] : [];
   });
   const later = (day: string, shift: Shift) => day > now || (day === now && shift === 'pm' && shiftAt(new Date()) === 'am');
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['attendance'] }), queryClient.invalidateQueries({ queryKey: ['payroll'] })]);
@@ -96,8 +97,8 @@ export default function AttendanceDesk() {
         <Stats items={[
           ['本周有效', rows.filter((r) => r.status === 'confirmed').length, '个班次'],
           ['待审', pending.length, '个班次'],
-          ['本周工资', formatAmount(earned(rows, rate)), 'HTB'],
-          ['每班次', rate, 'HTB'],
+          ['本周工资', formatAmount(earned(rows, rates)), 'HTB'],
+          ['中午班 / 下午班', `${rates.am} / ${rates.pm}`, 'HTB'],
         ]} />
         {shifts.error || staff.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
           : shifts.isPending || staff.isPending ? <ListLoading rows={3} label="正在加载考勤" />
@@ -137,7 +138,7 @@ export default function AttendanceDesk() {
                             </td>
                           ))}
                           <td className="n">{mine.filter((r) => r.status === 'confirmed').length}</td>
-                          <td className="n">{formatAmount(earned(mine, rate))}</td>
+                          <td className="n">{formatAmount(earned(mine, rates))}</td>
                         </tr>
                       );
                     })}
@@ -161,7 +162,7 @@ export default function AttendanceDesk() {
         <ConfirmSheet title={`发放截至 ${md(sunday)} 的工资？`} busy={busy} onClose={() => setPaying(false)} onConfirm={pay}
           confirm={`发放 ${formatAmount(toPay.filter((p) => p.account).reduce((s, p) => s + p.amount, 0))} HTB`}
           ready={toPay.some((p) => p.account)}
-          text={`有效但还没发工资的班次，每个班次 ${rate} HTB，存入各自的工资账户；发放后不能撤回。`}>
+          text={`有效但还没发工资的班次，中午班每个 ${rates.am} HTB、下午班每个 ${rates.pm} HTB，存入各自的工资账户；发放后不能撤回。`}>
           <ul className="dc-list" aria-label="本次发放">
             {toPay.map((p) => (
               <li key={p.name} className="at-shift">

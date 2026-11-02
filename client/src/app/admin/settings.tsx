@@ -105,7 +105,9 @@ function SettingsForm({ saved }: { saved: Values }) {
   const [dailyPrimary, setDailyPrimary] = useState(String(daily.primary));
   const [dailyJunior, setDailyJunior] = useState(String(daily.junior));
   const [rankingSize, setRankingSize] = useState(String(saved.ranking_size));
-  const [salary, setSalary] = useState(String(saved.salary_per_shift));
+  const pay = saved.salary_per_shift as { am: number; pm: number };
+  const [payAm, setPayAm] = useState(String(pay.am));
+  const [payPm, setPayPm] = useState(String(pay.pm));
   const [promoMonth, promoDay] = String(saved.promotion_date).split('-').map(Number);
   const [month, setMonth] = useState(promoMonth);
   const [day, setDay] = useState(promoDay);
@@ -122,7 +124,7 @@ function SettingsForm({ saved }: { saved: Values }) {
     withdraw_single_limit: { junior: Number(singleJunior), primary: Number(singlePrimary) },
     withdraw_daily_limit: { junior: Number(dailyJunior), primary: Number(dailyPrimary) },
     ranking_size: Number(rankingSize),
-    salary_per_shift: Number(salary),
+    salary_per_shift: { am: Number(payAm), pm: Number(payPm) },
     promotion_date: `${pad(month)}-${pad(Math.min(day, days))}`,
   };
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
@@ -207,10 +209,12 @@ function SettingsForm({ saved }: { saved: Values }) {
           </div>
           <div>
             <p className="dc-list-title">考勤</p>
-            <div className="dc-card">
-              <Field icon="coin" label="每班次工资（HTB）" hint="柜员每个有效班次的工资，1 到 10000；发放时按当时的金额计算">
-                <Stepper label="每班次工资" value={salary} onChange={(v) => setSalary(v.slice(0, 5))} step={1} min={1} max={10000} />
-              </Field>
+            <div className="dc-card dc-stack">
+              {([['中午班', '13:30 之前', payAm, setPayAm], ['下午班', '13:30 起', payPm, setPayPm]] as const).map(([name, when, value, set]) => (
+                <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB；发放时按当时的金额计算`}>
+                  <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} min={1} max={10000} />
+                </Field>
+              ))}
             </div>
           </div>
           <div>

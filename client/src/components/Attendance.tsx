@@ -13,9 +13,9 @@ const WEEK = '一二三四五六日';
 const ORDER: Shift[] = ['am', 'pm'];
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 
-// A shift's state as a small mark: 上 / 下, coloured by its status, with the words for screen readers beside it.
+// A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it.
 export function ShiftMark({ shift, row }: { shift: Shift; row?: ShiftRow }) {
-  return <i className={`at-mark is-${row?.status ?? 'none'}`}>{shift === 'am' ? '上' : '下'}</i>;
+  return <i className={`at-mark is-${row?.status ?? 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
 }
 export const shiftWords = (shift: Shift, row?: ShiftRow) => `${SHIFTS[shift]}${row ? SHIFT_STATUS[row.status] : '未签到'}`;
 
@@ -23,13 +23,13 @@ export function ShiftLegend() {
   return (
     <p className="at-legend" aria-hidden="true">
       {(['confirmed', 'pending', 'rejected', 'none'] as const).map((s) => (
-        <span key={s}><i className={`at-mark is-${s}`}>上</i>{s === 'none' ? '未签到' : SHIFT_STATUS[s]}</span>
+        <span key={s}><i className={`at-mark is-${s}`}>中</i>{s === 'none' ? '未签到' : SHIFT_STATUS[s]}</span>
       ))}
     </p>
   );
 }
 
-// 考勤日历: a month, Monday first, each day with its 上午班 and 下午班. Days after `max` cannot be picked.
+// 考勤日历: a month, Monday first, each day with its 中午班 and 下午班. Days after `max` cannot be picked.
 export function ShiftCalendar({ month, onMonth, rows, max, picked, onPick }: {
   month: string; onMonth: (m: string) => void; rows: ShiftRow[]; max: string; picked: string; onPick: (day: string) => void;
 }) {

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CounterPage, DayShifts, formatDate, Icon, ListLoading, Notice, SalaryAccount, ShiftCalendar, ShiftMark, Stats, today } from '@/components';
-import { earned, SHIFT_STATUS, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
+import { earned, NO_RATES, SHIFT_STATUS, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime, shiftAt, shiftDay } from '@/lib/format';
 import { useOnline } from '@/lib/online';
@@ -44,7 +44,7 @@ export default function Attendance() {
 
   const rows = shifts.data ?? [];
   const valid = (list = rows) => list.filter((r) => r.status === 'confirmed').length;
-  const r = rate.data ?? 0;
+  const r = rate.data ?? NO_RATES;
   return (
     <CounterPage title="考勤">
       {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
@@ -57,7 +57,7 @@ export default function Attendance() {
               <span className="at-sign-main">
                 <b>{formatDate(now)} · {SHIFTS[shift]}</b>
                 <small className="dc-top-sub">
-                  {current ? `已签到 ${formatTime(current.signed_at)} · ${SHIFT_STATUS[current.status]}` : '13:30 之前为上午班，13:30 起为下午班'}
+                  {current ? `已签到 ${formatTime(current.signed_at)} · ${SHIFT_STATUS[current.status]}` : '13:30 之前为中午班，13:30 起为下午班'}
                 </small>
               </span>
               {current ? <ShiftMark shift={shift} row={current} />
@@ -75,7 +75,7 @@ export default function Attendance() {
           {shifts.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
             : <ShiftCalendar month={month} rows={rows} max={now} picked={picked} onPick={setPicked}
                 onMonth={(m) => { setMonth(m); setPicked(m === now.slice(0, 7) ? now : `${m}-01`); }} />}
-          <p className="dc-top-sub">每个班次由银行管理员确认后计为有效，每班次工资 {r} HTB，每周发放到工资账户。</p>
+          <p className="dc-top-sub">每个班次由银行管理员确认后计为有效；工资中午班每个 {r.am} HTB、下午班每个 {r.pm} HTB，每周发放到工资账户。</p>
         </div>
         <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
           {shifts.isPending ? <ListLoading rows={2} label="正在加载考勤" /> : <DayShifts day={picked} rows={rows} />}

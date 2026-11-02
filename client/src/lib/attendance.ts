@@ -13,7 +13,7 @@ export type ShiftRow = {
 };
 export type Payroll = { user_id: string; attendance: boolean; account: string | null; students: { name: string } | null };
 
-export const SHIFTS: Record<Shift, string> = { am: '上午班', pm: '下午班' };
+export const SHIFTS: Record<Shift, string> = { am: '中午班', pm: '下午班' };
 export const SHIFT_STATUS: Record<ShiftStatus, string> = { pending: '待审', confirmed: '有效', rejected: '未通过' };
 
 // The Monday of the week holding a day, and its Sunday.
@@ -48,20 +48,22 @@ export function usePayroll() {
   });
 }
 
+// The pay of a 中午班 and of a 下午班.
 export function useSalaryRate() {
   return useQuery({
     queryKey: ['settings', 'salary_per_shift'],
     queryFn: async () => {
       const { data, error } = await supabase.from('settings').select('value').eq('key', 'salary_per_shift').single();
       if (error) throw error;
-      return data.value as number;
+      return data.value as Record<Shift, number>;
     },
   });
 }
 
-// What confirmed shifts pay: their own pay once paid, the current rate until then.
-export const earned = (rows: ShiftRow[], rate: number) =>
-  rows.filter((r) => r.status === 'confirmed').reduce((s, r) => s + (r.pay ?? rate), 0);
+// What confirmed shifts pay: their own pay once paid, the current pay of their kind until then.
+export const earned = (rows: ShiftRow[], rates: Record<Shift, number>) =>
+  rows.filter((r) => r.status === 'confirmed').reduce((s, r) => s + (r.pay ?? rates[r.shift]), 0);
+export const NO_RATES: Record<Shift, number> = { am: 0, pm: 0 };
 
 // bind_salary_account answers a wrong password instead of raising it (the lockout count must stay).
 export async function bindSalaryAccount(userId: string, studentNo: string, password: string) {

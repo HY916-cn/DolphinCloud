@@ -28,7 +28,7 @@ const TABLES: Record<string, string> = {
 const OPS: Record<string, string> = { insert: '新增', update: '修改', delete: '删除' };
 const SETTINGS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限',
-  ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期', salary_per_shift: '每班次工资',
+  ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期', salary_per_shift: '班次工资',
 };
 const COLUMNS: Record<string, string> = {
   name: '名称', display_name: '姓名', login_id: '账号', disabled: '停用', must_change_password: '需要修改密码', role: '身份',
@@ -39,7 +39,7 @@ const COLUMNS: Record<string, string> = {
   txn_no: '交易号', created: '新开账户', updated: '更新学生',
   failures: '15 分钟内密码错误次数', locked_until: '锁定到', valid: '密码正确', student_nos: '学号', file: '备份文件',
   attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '签到时间',
-  from: '起', to: '止', rate: '每班次工资', paid: '发放',
+  from: '起', to: '止', rates: '班次工资', paid: '发放',
 };
 // Columns that change on every write and say nothing to the reader.
 const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id',
@@ -47,7 +47,7 @@ const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'c
 const WORDS: Record<string, string> = {
   primary: '小学部', junior: '初中部', normal: '正常', frozen: '冻结', graduated: '毕业', reversed: '已冲正',
   teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '银行管理员', sysadmin: '运维员',
-  am: '上午班', pm: '下午班', pending: '待审', confirmed: '有效', rejected: '未通过',
+  am: '中午班', pm: '下午班', pending: '待审', confirmed: '有效', rejected: '未通过',
 };
 
 const asRow = (v: unknown): Row => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Row) : {});

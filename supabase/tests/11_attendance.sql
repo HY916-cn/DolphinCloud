@@ -26,7 +26,7 @@ select is(row(:'signed'::jsonb ->> 'day', :'signed'::jsonb ->> 'shift', :'signed
   row(:'d', :'now_shift', 'pending')::text, 'the teller signs in for the shift of now, waiting for the bank admin');
 select is(tests.call(:'t1', $$select sign_attendance()$$) ->> 'id', :'signed'::jsonb ->> 'id', 'signing in again answers the same shift');
 select is((select count(*)::int from attendance), 1, 'one row per shift');
-select is(app_private.shift_of('2026-11-02 13:29:59+08'), 'am', '上午班 before 13:30');
+select is(app_private.shift_of('2026-11-02 13:29:59+08'), 'am', '中午班 before 13:30');
 select is(app_private.shift_of('2026-11-02 13:30:00+08'), 'pm', '下午班 from 13:30');
 select is((select count(*)::int from jsonb_array_elements(tests.call(:'t2', $$select coalesce(jsonb_agg(a), '[]') from attendance a$$))), 0,
   'a teller reads only their own shifts');
@@ -60,33 +60,38 @@ select tests.call(:'t2', $$select unbind_salary_account(auth.uid())$$);
 select is((select account from staff_payroll where user_id = :'t2'), null, 'a teller unbinds their account');
 
 -- 参数
-select is(tests.err(:'teacher', $$select set_setting('salary_per_shift', '0')$$), 'INVALID_INPUT', 'a shift pays at least 1');
-select tests.call(:'teacher', $$select set_setting('salary_per_shift', '15')$$);
+select is(tests.err(:'teacher', $$select set_setting('salary_per_shift', '{"am": 0, "pm": 10}')$$), 'INVALID_INPUT', 'a shift pays at least 1');
+select is(tests.err(:'teacher', $$select set_setting('salary_per_shift', '15')$$), 'INVALID_INPUT', '中午班 and 下午班 each have their pay');
+select tests.call(:'teacher', $$select set_setting('salary_per_shift', '{"am": 15, "pm": 20}')$$);
+select case when :'now_shift' = 'am' then 15 else 20 end as now_pay \gset
 
 -- 发放工资
 select is(tests.err(:'acct', format($$select pay_salaries(%L)$$, :'d')), 'FORBIDDEN', 'only the bank admin pays');
 select is(tests.err(:'teacher', format($$select pay_salaries(%L::date + 7)$$, :'monday')), 'INVALID_INPUT', 'not a week to come');
 select tests.call(:'teacher', format($$select pay_salaries(%L::date - 7)$$, :'monday')) as last_week \gset
-select is(:'last_week'::jsonb -> 'paid' -> 0 -> 'amount', '15', 'last week''s payout pays only last week''s shift');
+select is(:'last_week'::jsonb -> 'paid' -> 0 -> 'amount', '20', 'last week''s payout pays only last week''s shift, a 下午班');
+select is((select reason from txns where type = 'salary'), format('%s月%s日，下午班 1 个', extract(month from :'monday'::date - 7), extract(day from :'monday'::date - 7)),
+  'the salary says which days and shifts it pays');
 select tests.call(:'teacher', format($$select pay_salaries(%L)$$, :'d')) as week \gset
 select is(row(:'week'::jsonb -> 'paid' -> 0 ->> 'name', :'week'::jsonb -> 'paid' -> 0 -> 'shifts', :'week'::jsonb -> 'paid' -> 0 -> 'amount')::text,
-  row('t1', '1'::jsonb, '15'::jsonb)::text, 'this week''s confirmed shift of t1, at the rate set');
+  row('t1', '1'::jsonb, to_jsonb(:now_pay))::text, 'this week''s confirmed shift of t1, at the pay of its kind');
 select is(:'week'::jsonb -> 'skipped', jsonb_build_array(jsonb_build_object('user_id', :'t2', 'name', 't2', 'shifts', 1, 'reason', 'unbound')),
   'a teller with no bound account waits for a later payout');
-select is((select balance from accounts where student_no = 's1'), 50, 'the pay goes into the bound account (10 + 10 deposited + 15 + 15)');
+select is((select balance from accounts where student_no = 's1'), 40 + :now_pay, 'the pay goes into the bound account (10 + 10 deposited + 20 + this week''s)');
 select is((select count(*)::int from txns where type = 'salary' and student_no = 's1' and balance_delta = amount and cash_delta = 0), 2,
   'as salary transactions that bring no cash');
 select is(tests.call(:'teacher', format($$select pay_salaries(%L)$$, :'d')) -> 'paid', '[]', 'paying again pays nothing twice');
 select is(tests.err(:'teacher', format($$select review_attendance(array[%L]::uuid[], 'rejected')$$, :'signed'::jsonb ->> 'id')), 'ATTENDANCE_PAID', 'a paid shift stays');
 select is(tests.err(:'teacher', format($$select reverse_txn(gen_random_uuid(), (select id from txns where type = 'salary' limit 1), '业务选错')$$)),
   'REVERSAL_NOT_ALLOWED', 'a salary is not reversed');
-select is(tests.call(:'t1', $$select jsonb_agg(pay) from attendance where salary_txn is not null$$), '[15, 15]', 'the teller sees what each shift paid');
+select is(tests.call(:'t1', $$select jsonb_agg(pay order by day) from attendance where salary_txn is not null$$), jsonb_build_array(20, :now_pay),
+  'the teller sees what each shift paid');
 select is((select count(*)::int from app_private.check_balances()), 0, 'the ledger self-check still holds');
 select is((select count(*)::int from audit_log where action = 'salary.pay'), 2, 'each payout is logged once');
 
 -- 报表 counts the pay as a change to the balance, not as a business
 select tests.call(:'acct', format($$select bank_report(%L, %L)$$, :'d', :'d')) as r \gset
-select is(:'r'::jsonb -> 'balance' -> 'changes' -> 'salary', '30', 'the balance check has the salaries');
+select is(:'r'::jsonb -> 'balance' -> 'changes' -> 'salary', to_jsonb(20 + :now_pay), 'the balance check has the salaries');
 select is(:'r'::jsonb -> 'business' -> 'deposit', '{"count": 1, "amount": 10}', 'and the businesses do not');
 
 select * from finish();
