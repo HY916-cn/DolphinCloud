@@ -176,16 +176,20 @@ test('切换账号 lists this device’s accounts and 添加账号; 退出账号
   await confirmIn(page, '切换');
   await expect(page).toHaveURL(/\/student$/);
 
-  // Turning saving off asks for the password.
+  // Turning saving off takes a tap; turning it on asks for the password.
   await page.goto('/login?switch=1');
   await accounts.locator('.dc-list-link', { hasText: '柜员小林' }).click();
   await confirmIn(page, '是，切换');
   await expect(page).toHaveURL(/\/counter$/);
   await page.goto('/login?switch=1');
-  await accounts.getByRole('button', { name: '保存登录' }).click();
+  const keep = accounts.getByRole('button', { name: '保存登录' });
+  await keep.click();
+  await expect(keep).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.dc-sheet')).toHaveCount(0);
+  await keep.click();
   await page.locator('.dc-sheet input[type="password"]').fill('a12345678');
-  await confirmIn(page, '确认关闭');
-  await expect(accounts.getByRole('button', { name: '保存登录' })).toHaveAttribute('aria-pressed', 'false');
+  await confirmIn(page, '确认保存');
+  await expect(keep).toHaveAttribute('aria-pressed', 'true');
 
   // 退出账号 comes back to 切换账号, where the other account is a tap and its password away.
   await page.goto('/counter/me');

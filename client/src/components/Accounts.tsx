@@ -11,7 +11,7 @@ const SWITCH_ERRORS: Record<string, string> = {
   LOGIN_LOCKED: '密码错误次数过多，请 15 分钟后再试。',
 };
 
-// A password asked in a sheet: switching to an account not saved on this device, or turning saving off.
+// A password asked in a sheet: switching to an account not saved on this device, or turning saving on.
 function PasswordSheet({ title, text, confirm, onClose, onPassword }: {
   title: string; text: string; confirm: string; onClose: () => void; onPassword: (password: string) => Promise<string | null>;
 }) {
@@ -40,13 +40,13 @@ function PasswordSheet({ title, text, confirm, onClose, onPassword }: {
 
 // 切换账号 (the login page while this device has accounts): the accounts on this device, then 添加账号, which opens the
 // sign-in form. Tap one to switch: a saved one asks only who you are, another its password. The signed-in one
-// (`current`) turns 在此设备保存登录 on or off (off asks its password); 退出全部账号 signs every one out.
+// (`current`) turns 在此设备保存登录 on (asking its password) or off; 退出全部账号 signs every one out.
 export function DeviceAccounts({ current }: { current?: string }) {
   const queryClient = useQueryClient();
   const [, refresh] = useState(0);
   const [ask, setAsk] = useState<SavedAccount | null>(null);
   const [password, setPassword] = useState<SavedAccount | null>(null);
-  const [unsave, setUnsave] = useState(false);
+  const [keep, setKeep] = useState(false);
   const [confirmAll, setConfirmAll] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const accounts = savedAccounts();
@@ -79,7 +79,7 @@ export function DeviceAccounts({ current }: { current?: string }) {
                 <div className="dc-list-link" aria-current="true">
                   {body}
                   <button className="dc-chip lg-keep" type="button" aria-pressed={!!mine?.saved}
-                    onClick={() => (mine?.saved ? setUnsave(true) : (setSaved(a.id, true), refresh((n) => n + 1)))}>
+                    onClick={() => (mine?.saved ? (setSaved(a.id, false), refresh((n) => n + 1)) : setKeep(true))}>
                     <Icon name="check" />保存登录
                   </button>
                 </div>
@@ -118,13 +118,13 @@ export function DeviceAccounts({ current }: { current?: string }) {
             return SWITCH_ERRORS[r] ?? (r === 'invalid_credentials' ? '密码不正确，请重新输入。' : '暂时无法切换，请检查网络后重试。');
           }} />
       )}
-      {unsave && current && (
-        <PasswordSheet title="不再在此设备保存登录？" confirm="确认关闭" onClose={() => setUnsave(false)}
-          text="关闭后，从其他账号切换回这个账号时需要输入密码。请输入当前账号的密码确认。"
+      {keep && current && (
+        <PasswordSheet title="在此设备保存登录？" confirm="确认保存" onClose={() => setKeep(false)}
+          text="保存后，从其他账号切换回这个账号不用再输入密码；公用设备请不要保存。请输入当前账号的密码确认。"
           onPassword={async (pw) => {
             if (!(await checkPassword(current, pw))) return '密码不正确，请重新输入。';
-            setSaved(current, false);
-            setUnsave(false);
+            setSaved(current, true);
+            setKeep(false);
             return null;
           }} />
       )}
