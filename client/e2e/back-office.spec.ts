@@ -16,18 +16,33 @@ async function open(page: Page, label: string, path: string) {
   await expect(page.locator('.dc-top-title')).toContainText(label);
 }
 
-test('流水: filter by student number', async ({ page }) => {
+test('流水: filter by a student found as at the counter, by class, 时段 and status', async ({ page }) => {
   await open(page, '流水', 'txns');
-  await page.getByPlaceholder('全部学生').fill('20260001');
-  await page.getByRole('button', { name: '查询', exact: true }).click();
+  const scope = page.getByRole('searchbox', { name: '搜索学生范围' });
   const rows = page.locator('section[aria-label="流水"] .dc-txn');
+  const search = () => page.getByRole('button', { name: '查询', exact: true }).click();
+  await scope.fill('zxm');
+  await page.getByRole('list', { name: '学生范围搜索结果' }).locator('.dc-list-link', { hasText: '张小明' }).click();
+  await search();
   await expect(page.locator('.dc-list-title', { hasText: /^共 \d+ 笔$/ })).toBeVisible();
   await expect(rows.filter({ has: page.locator('.dc-txn-title', { hasText: /^期初余额/ }) })).toContainText('+120');
   await expect(rows.filter({ has: page.locator('.dc-txn-title', { hasText: /^存款/ }) }).first()).toContainText('学号 20260001');
   await expect(rows.filter({ hasNotText: '学号 20260001' })).toHaveCount(0);
 
-  await page.getByPlaceholder('全部学生').fill('20269999');
-  await page.getByRole('button', { name: '查询', exact: true }).click();
+  // A whole class: 八年级(3)班 is 李思远's.
+  await page.getByRole('button', { name: /^清除学生范围/ }).click();
+  await scope.fill('八年级3班');
+  await page.locator('.dc-list-link', { hasText: '整个班级：八年级(3)班' }).click();
+  await search();
+  await expect(page.locator('.dc-list-title')).toHaveText('共 3 笔');
+  await expect(rows.filter({ hasNotText: '学号 20260002' })).toHaveCount(0);
+
+  // Cash only, then a 时段 that ends before any business of the day.
+  await page.getByLabel('支付方式').selectOption({ label: '现金' });
+  await search();
+  await expect(page.locator('.dc-list-title')).toHaveText('共 1 笔');
+  await page.getByLabel('时段结束').fill('00:01');
+  await search();
   await expect(page.locator('.dc-empty')).toContainText('没有符合条件的流水');
 });
 

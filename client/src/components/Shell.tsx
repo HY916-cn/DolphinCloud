@@ -7,6 +7,7 @@ import { Icon, link, type IconName } from './ui';
 export const SECTIONS: { href: string; icon: IconName; label: string; roles: Role[]; kind?: string }[] = [
   { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'sysadmin'] },
   { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher'] },
+  { href: '/admin/reports', icon: 'ranking', label: '报表', roles: ['accountant', 'teacher'] },
   { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher'], kind: 'dc-kind-exchange' },
   { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher'], kind: 'dc-kind-exchange' },
   { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },

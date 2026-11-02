@@ -151,7 +151,7 @@ test('学生 → 查看全部流水 shows only that student, and the teacher rev
   await page.goto('/admin/students/20269001');
   await page.getByRole('link', { name: '查看全部流水' }).click();
   await expect(page).toHaveURL(/\/admin\/txns\?student=20269001$/);
-  await expect(page.getByPlaceholder('全部学生')).toHaveValue('20269001');
+  await expect(page.getByRole('button', { name: /^清除学生范围：周一鸣 · .* · 学号 20269001$/ })).toBeVisible();
   const list = page.locator('section[aria-label="流水"]');
   const rows = list.locator('.dc-txn');
   await expect(rows).toHaveCount(1);

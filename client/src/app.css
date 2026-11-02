@@ -1,4 +1,68 @@
-/* The bank admin's sidebar has 9 items (总览 and 8 sections); the design system's indicator rules go up to 8.
-   shortcut: drop this file once design-system/project/bundle.css covers a ninth .dc-nav-item. */
+/* The bank admin's sidebar has 10 items (总览 and 9 sections); the design system's indicator rules go up to 8.
+   shortcut: drop these two lines each once design-system/project/bundle.css covers a ninth and tenth .dc-nav-item. */
 .dc-nav nav:has(> .dc-nav-item:nth-child(9)) { --nav-count: 9; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(9)[aria-current="page"]) { --nav-index: 8; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(10)) { --nav-count: 10; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(10)[aria-current="page"]) { --nav-index: 9; }
+
+/* 报表 (rp-): figures, charts and tables the design system has no component for, built from its tokens. A chart has
+   one series in one colour (the section's kind ink, or dolphin blue), thin marks from one baseline, a hairline axis,
+   and the value on hover; every chart's numbers are also in a table. */
+.rp-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+.rp-stat { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4); }
+.rp-stat span { font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.rp-stat b { font: 800 28px/36px var(--font-sans); color: var(--ink); }
+.rp-stat b small { margin-left: var(--space-1); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); }
+
+.rp-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-5); }
+.rp-chart { margin: 0; min-width: 0; }
+.rp-chart figcaption { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); font: 600 16px/26px var(--font-sans); }
+.rp-chart figcaption small { font: 500 14px/20px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.rp-cols { display: flex; align-items: flex-end; gap: 2px; height: 140px; padding-top: var(--space-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-strong); }
+.rp-col { position: relative; display: flex; flex: 1; justify-content: center; align-items: flex-end; height: 100%; min-width: 0; }
+.rp-col i { display: block; width: min(24px, 100%); height: calc(var(--v, 0) * 100%); border-radius: 4px 4px 0 0; background: var(--hue-ink, var(--dolphin)); }
+.rp-col:hover i { opacity: 0.75; }
+.rp-col:hover::after { content: attr(data-tip); position: absolute; bottom: calc(var(--v, 0) * 100% + var(--space-2)); left: 50%; z-index: 2; padding: var(--space-1) var(--space-2); border-radius: var(--radius-xs); background: var(--ink); color: var(--surface-raised); font: 600 14px/20px var(--font-sans); white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
+.rp-col:first-child:hover::after { left: 0; transform: none; }
+.rp-col:last-child:hover::after { left: auto; right: 0; transform: none; }
+.rp-axis { display: flex; gap: 2px; margin-top: var(--space-1); }
+.rp-axis span { flex: 1; min-width: 0; overflow: visible; text-align: center; white-space: nowrap; font: 500 12px/16px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.rp-bars { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: var(--space-2) var(--space-3); align-items: center; margin: 0; }
+.rp-bars > div { display: contents; }
+.rp-bars dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 14px/20px var(--font-sans); color: var(--ink); }
+.rp-bars dd { display: flex; align-items: center; gap: var(--space-2); margin: 0; min-width: 0; }
+.rp-bars dd i { display: block; flex: none; width: calc(var(--v, 0) * (100% - 72px)); min-width: 2px; height: 16px; border-radius: 0 4px 4px 0; background: var(--hue-ink, var(--dolphin)); }
+.rp-bars dd b { flex: none; font: 600 14px/20px var(--font-sans); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.rp-scroll { overflow-x: auto; }
+.rp-table { width: 100%; border-collapse: collapse; font: 500 15px/24px var(--font-sans); font-variant-numeric: tabular-nums; }
+.rp-table th { padding: var(--space-2) var(--space-3); border-bottom: 2px solid var(--line); text-align: left; white-space: nowrap; font: 600 14px/20px var(--font-sans); color: var(--ink-muted); }
+.rp-table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.rp-table .n { text-align: right; }
+.rp-table tfoot td { border-bottom: 0; font-weight: 700; }
+.rp-table tr > :first-child { padding-left: 0; }
+.rp-table tr > :last-child { padding-right: 0; }
+
+.rp-line { position: relative; }
+.rp-line svg { position: absolute; inset: var(--space-2) 0 0; width: 100%; height: calc(100% - var(--space-2)); overflow: visible; }
+.rp-line polygon { fill: var(--dolphin); opacity: 0.1; }
+.rp-line polyline { fill: none; stroke: var(--dolphin); stroke-width: 2px; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rp-line .rp-col i { position: absolute; bottom: calc(var(--v, 0) * 100% - 4px); width: 8px; height: 8px; border-radius: 50%; background: transparent; }
+.rp-line .rp-col:hover i, .rp-line .rp-col.is-end i { background: var(--dolphin); box-shadow: 0 0 0 2px var(--surface-raised); opacity: 1; }
+
+/* 打印 / 存为 PDF on 报表: every tab, charts and tables, without the navigation and the conditions. */
+.rp-print-only { display: none; }
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff; }
+  .dc-nav, .dc-tabbar, .dc-top .dc-icon-btn, .rp-no-print { display: none !important; }
+  .rp-print-only { display: block; }
+  .dc-app, .dc-shell, .dc-main { display: block !important; }
+  .rp-chart, .rp-table tr, .rp-stat { break-inside: avoid; }
+  .dc-card { box-shadow: none; }
+  .rp-col i, .rp-bars dd i, .rp-line polygon, .rp-line polyline { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .rp-scroll { overflow: visible; }
+  details > :not(summary) { display: block; }
+  details > summary { display: none; }
+}

@@ -15,3 +15,20 @@ export function formatTime(iso: string, now = new Date()) {
   const year = t.year === part(now).year ? '' : `${t.year}年`;
   return `${year}${t.month}月${t.day}日 ${t.hour}:${t.minute}`;
 }
+
+// Periods ending today (Asia/Shanghai), as [from, to] YYYY-MM-DD; a week starts on Monday.
+const shiftDay = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+export const PERIODS = [['day', '今天'], ['week', '本周'], ['month', '本月'], ['last-month', '上月']] as const;
+export function periodOf(kind: (typeof PERIODS)[number][0], now: string): [string, string] {
+  if (kind === 'day') return [now, now];
+  if (kind === 'week') return [shiftDay(now, -((new Date(`${now}T00:00:00Z`).getUTCDay() + 6) % 7)), now];
+  if (kind === 'month') return [`${now.slice(0, 8)}01`, now];
+  const end = shiftDay(`${now.slice(0, 8)}01`, -1);
+  return [`${end.slice(0, 8)}01`, end];
+}
+
+// 张小明 → 张*明, 李四 → 李*.
+export function maskName(name: string) {
+  const c = [...name];
+  return c.length < 2 ? name : c.length === 2 ? `${c[0]}*` : `${c[0]}${'*'.repeat(c.length - 2)}${c[c.length - 1]}`;
+}
