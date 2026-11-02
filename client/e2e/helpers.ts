@@ -31,7 +31,7 @@ export async function endDuty(page: Page) {
   await confirmIn(page, '下载 PDF');
   expect((await download).suggestedFilename()).toMatch(/^下班总结-.*\.pdf$/);
   await confirmIn(page, '已签字，确认下班');
-  await expect(page.locator('.at-sign')).toContainText('未上班');
+  await expect(page.locator('section[aria-label="上下班"]')).toContainText('未上班');
 }
 
 export const confirmIn = (page: Page, name: string) => page.locator('.dc-sheet').getByRole('button', { name }).click();

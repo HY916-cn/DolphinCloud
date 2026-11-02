@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams, usePathname, type Href } from 'expo-router';
+import { useState, type ReactNode } from 'react';
 import { checkPassword, savedAccounts, setSaved, signOutAll, switchAccount, type SavedAccount } from '@/lib/accounts';
-import { ROLES, type Me } from '@/lib/session';
+import { ROLES, useMe, type Me } from '@/lib/session';
 import { ConfirmSheet, SignOut } from './Sheet';
 import { Icon, link, Notice } from './ui';
 
@@ -39,9 +39,56 @@ function PasswordSheet({ title, text, confirm, onClose, onPassword }: {
   );
 }
 
-// 我的 (every login): who is signed in, the accounts on this device and switching between them, 在此设备保存登录,
-// adding an account and signing out.
-export function MeView({ me }: { me: Me }) {
+// 我的 (every login): who is signed in, 切换账号 and 退出账号. 切换账号 (?switch=1) opens the accounts on this device:
+// switching between them, 在此设备保存登录, adding an account and signing them all out. `frame` puts the title (and
+// back, on 切换账号) in the page frame of each part.
+export function MeScreen({ frame }: { frame: (title: string, back: (() => void) | undefined, body: ReactNode) => ReactNode }) {
+  const me = useMe().data!;
+  const path = usePathname();
+  const switching = !!useLocalSearchParams().switch;
+  return switching
+    ? frame('切换账号', () => router.replace(path as Href), <Accounts me={me} />)
+    : frame('我的', undefined, <MeView me={me} path={path} />);
+}
+
+function MeView({ me, path }: { me: Me; path: string }) {
+  const s = me.student;
+  const others = savedAccounts().filter((a) => a.id !== me.profile.id).length;
+  return (
+    <div className="dc-stack dc-enter">
+      <div className="dc-person">
+        <span className="dc-person-avatar"><Icon name={s ? 'me' : 'teacher'} /></span>
+        <div className="dc-person-main">
+          <div className="dc-person-name">{s?.name ?? me.profile.display_name}</div>
+          <div className="dc-person-meta">
+            {s ? <><span>{s.class_label ?? `${s.class_no} 班`}</span> · <span>{s.cohort} 届</span> · <span>学号 {s.student_no}</span></>
+              : <><span>{me.roles.map((r) => ROLES[r]).join('、') || '未分配身份'}</span> · <span>账号 {me.profile.login_id}</span></>}
+          </div>
+        </div>
+      </div>
+      <ul className="dc-list">
+        <li>
+          <a className="dc-list-link" {...link(`${path}?switch=1`)}>
+            <span className="dc-list-icon"><Icon name="me" /></span>
+            <span>切换账号<small className="dc-top-sub">{others ? `这台设备上还有 ${others} 个账号` : '添加账号、在此设备保存登录'}</small></span>
+            <Icon name="next" />
+          </a>
+        </li>
+        <li>
+          <SignOut trigger={(open) => (
+            <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); open(); }}>
+              <span className="dc-list-icon"><Icon name="logout" /></span><span>退出账号</span><Icon name="next" />
+            </a>
+          )} />
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+// 切换账号: the accounts on this device and switching between them, 在此设备保存登录 for this one, adding an account,
+// and 退出全部账号.
+function Accounts({ me }: { me: Me }) {
   const queryClient = useQueryClient();
   const [, refresh] = useState(0);
   const [ask, setAsk] = useState<SavedAccount | null>(null);
@@ -51,7 +98,6 @@ export function MeView({ me }: { me: Me }) {
   const [problem, setProblem] = useState<string | null>(null);
   const accounts = savedAccounts();
   const mine = accounts.find((a) => a.id === me.profile.id);
-  const s = me.student;
 
   const switched = () => { queryClient.clear(); router.replace('/'); };
   async function trySwitch(a: SavedAccount) {
@@ -65,30 +111,6 @@ export function MeView({ me }: { me: Me }) {
   return (
     <div className="dc-split">
       <div className="dc-stack dc-enter">
-        <div className="dc-person">
-          <span className="dc-person-avatar"><Icon name={s ? 'me' : 'teacher'} /></span>
-          <div className="dc-person-main">
-            <div className="dc-person-name">{s?.name ?? me.profile.display_name}</div>
-            <div className="dc-person-meta">
-              {s ? <><span>{s.class_label ?? `${s.class_no} 班`}</span> · <span>{s.cohort} 届</span> · <span>学号 {s.student_no}</span></>
-                : <><span>{me.roles.map((r) => ROLES[r]).join('、') || '未分配身份'}</span> · <span>账号 {me.profile.login_id}</span></>}
-            </div>
-          </div>
-        </div>
-        <ul className="dc-list">
-          <li>
-            <label className="dc-switch">
-              <span className="dc-switch-text"><b>在此设备保存登录</b>
-                <small>{mine?.saved ? '在这台设备上切换回这个账号不用输入密码' : '切换回这个账号时需要输入密码'}</small></span>
-              <input type="checkbox" role="switch" checked={!!mine?.saved}
-                onChange={(e) => (e.target.checked ? (setSaved(me.profile.id, true), refresh((n) => n + 1)) : setUnsave(true))} />
-              <span className="dc-switch-track" />
-            </label>
-          </li>
-        </ul>
-        <p className="dc-top-sub" style={{ margin: '0 var(--space-2)' }}>需要更换密码时，请联系银行管理员重置。</p>
-      </div>
-      <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
         <div>
           <p className="dc-list-title">本机账号</p>
           {problem && <Notice tone="danger" title="无法切换">{problem}</Notice>}
@@ -122,22 +144,28 @@ export function MeView({ me }: { me: Me }) {
             </li>
           </ul>
         </div>
+      </div>
+      <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
         <ul className="dc-list">
           <li>
-            <SignOut trigger={(open) => (
-              <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); open(); }}>
-                <span className="dc-list-icon"><Icon name="logout" /></span><span>退出当前账号</span><Icon name="next" />
-              </a>
-            )} />
+            <label className="dc-switch">
+              <span className="dc-switch-text"><b>在此设备保存登录</b>
+                <small>{mine?.saved ? '在这台设备上切换回这个账号不用输入密码' : '切换回这个账号时需要输入密码'}</small></span>
+              <input type="checkbox" role="switch" checked={!!mine?.saved}
+                onChange={(e) => (e.target.checked ? (setSaved(me.profile.id, true), refresh((n) => n + 1)) : setUnsave(true))} />
+              <span className="dc-switch-track" />
+            </label>
           </li>
-          {accounts.length > 1 && (
+        </ul>
+        {accounts.length > 1 && (
+          <ul className="dc-list">
             <li>
               <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); setConfirmAll(true); }}>
                 <span className="dc-list-icon"><Icon name="logout" /></span><span>退出全部账号</span><Icon name="next" />
               </a>
             </li>
-          )}
-        </ul>
+          </ul>
+        )}
       </div>
 
       {ask && (

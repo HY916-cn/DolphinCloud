@@ -527,7 +527,7 @@ client/
       index.tsx               问候、余额卡、最近 10 笔
       txns.tsx                明细：全部 / 存款 / 取款 / 兑换 / 工资，搜索与日期筛选，按天分组，分页加载；本月合计
       ranking.tsx             存款排名：本人名次，本学部前 N 名（按参数匿名）
-      me.tsx                  我的：本机账号、在此设备保存登录、切换与退出（三端共用 MeView）
+      me.tsx                  我的：切换账号、退出账号；?switch=1 为本机账号、在此设备保存登录（三端共用 MeScreen）
     counter/                  柜台（AppShell，导航：办理 今日业务 考勤 我的；进入时打开办理）
       _layout.tsx             柜员准入；联网时把名册缓存到本机
       index.tsx  today.tsx    办理（找学生、一位学生连续办理多笔和查询、就地冲正）、今日业务（合计与冲正）
@@ -545,7 +545,7 @@ client/
       settings.tsx  audit.tsx  me.tsx   参数、操作日志、我的
   src/components/             设计系统结构的 React 写法：Shell / Page（AppShell）、Welcome（登录页外观）、
                               Gate（页面准入）、ConfirmSheet / SignOut、BalanceCard、TxnList、Notice、Icon、
-                              Desk（后台页面框架）、DatePicker / TimePicker（月历选日期、24 小时选时间）、FilterBar（筛选栏）、ScopePicker / TimeRange（学生范围、时段）、Stats / Columns / Line / Bars / Table（报表的数字、图表与表格）、WeekBar / WeekShifts / DayShifts / SalaryAccount（考勤的一周、班次、工资账户）、DutyCard（上班 / 下班）、MeView（我的）、OutputSheet（打印或下载 PDF）、Pick / BatchBar（批量选择）、CloseSheet（注销）、MoveList（库存变动）、LedgerLine（流水一行）、ReversalSheet（冲正）、noticePages / openingPages（开户通知单、期初余额核对表）
+                              Desk（后台页面框架）、DatePicker / TimePicker（月历选日期、24 小时选时间）、FilterBar（筛选栏）、ScopePicker / TimeRange（学生范围、时段）、Stats / Columns / Line / Bars / Table（报表的数字、图表与表格）、WeekBar / WeekShifts / DayShifts / SalaryAccount（考勤的一周、班次、工资账户）、DutyCard（上班 / 下班）、MeScreen（我的与切换账号）、OutputSheet（打印或下载 PDF）、Pick / BatchBar（批量选择）、CloseSheet（注销）、MoveList（库存变动）、LedgerLine（流水一行）、ReversalSheet（冲正）、noticePages / openingPages（开户通知单、期初余额核对表）
   src/theme/                  tokens.css、bundle.css、icons.ts，均由 npm run tokens 生成
   src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
   src/lib/session.tsx         会话、本人资料与角色、去向
@@ -585,6 +585,7 @@ client/
 - `npm run tokens` 从 `design-system/project` 生成三个文件：`tokens.json` → `src/theme/tokens.css`（同名 CSS 变量，以及与字号样式同名的类 `.display`、`.title`、`.heading`、`.amount`、`.body-lg`、`.body`、`.caption`），`components/bundle.css` → `src/theme/bundle.css`（去掉 Google Fonts 引用，其余原样），`assets/Icons/*.svg` → `src/theme/icons.ts`。设计系统改动后重新运行并提交生成的文件。
 - 页面按设计系统 README 与页面示例写出相同的 HTML 结构和 `dc-` 类名，外观、动效、三种屏宽的布局都由 `bundle.css` 负责，组件里不写颜色和尺寸。断点用 `.dc-app` 的容器查询。
 - 登录、设置新密码、账号状态提示都用登录页外观（`Welcome`）；登录后的页面都在 `AppShell` 里：手机底部 `TabBar`，平板图标导航，电脑侧边导航。导航只列出本身份的页面，只有一项时手机上不显示 `TabBar`。
+- 空状态（还没有数据、没有符合条件的结果、柜员未上班）都是居中的大卡片：图标、标题、说明和需要时的按钮。
 - 退出登录先经 `Sheet` 确认。弹层渲染在 `body` 末尾一个占满视口的 `.dc-app` 里，不受页面容器和进入动画影响。
 - 字体：`tokens.json` 的字体顺序不变，前两项换成同一字体的可变字体名（`Nunito Sans Variable`、`Noto Sans SC Variable`），由站点自己提供。
 - 金额统一经 `lib/format.ts` 格式化：千分位、单位 `HTB`；收入 `+50`、支出 `−20`（减号 −）；金额字用 Nunito Sans 800、等宽数字。
@@ -594,11 +595,11 @@ client/
 
 一台设备可以登录多个账号并随时切换，例如担任柜员的学生在同一部手机上登录自己的学生账号和柜员账号。
 
-- 每个账号都有「我的」页（学生 `/student/me`、柜员 `/counter/me`、后台 `/admin/me`；工作人员也可点标题行右侧进入）：本人信息、「在此设备保存登录」开关、本机账号列表、添加账号和退出。
+- 每个账号都有「我的」页（学生 `/student/me`、柜员 `/counter/me`、后台 `/admin/me`，都在导航里，后台手机底部导航的最后一项）：本人信息下只有「切换账号」和「退出账号」。「切换账号」（`?switch=1`）里是本机账号列表（点一个切换）、添加账号、当前账号的「在此设备保存登录」开关和「退出全部账号」。
 - 在一台设备上首次登录时，登录页有「在此设备保存登录」勾选（默认不勾）。保存的账号连同会话记在本机 `localStorage`，切换回它不用再输密码：当前账号的会话由 supabase-js 保存和续期，切换前把最新会话写回列表，再用目标账号的会话恢复登录。不保存的账号只记显示名和账号，切换离开时丢弃会话，下次切换回来须重新输入密码。
 - 「我的」里关闭「在此设备保存登录」须输入本账号密码确认；打开不需要。
 - 本机账号列表里当前账号标「当前」；点已保存的账号先弹出「你是 柜员小林 吗？」，确认后切换；点未保存的账号弹出密码框；「添加账号」打开登录页，登录后加入列表。
-- 退出登录只结束本机这个会话（`signOut({ scope: 'local' })`），并从列表移除；本机还有其他账号时切换到下一个，没有时回到登录页。
+- 退出登录只结束本机这个会话（`signOut({ scope: 'local' })`），并从列表移除；本机还有已保存登录的账号时切换到下一个并打开它的「切换账号」；否则回到登录页，登录页标题为「切换账号」，上方列出这台设备上的其他账号，点一个即填好身份和账号，输入密码登录。
 - 「退出全部账号」（本机记住两个以上账号时显示）逐个结束本机所有账号的会话并清空列表，回到登录页；先经 `Sheet` 确认。
 - 某个账号的会话已失效（密码被重置、账号被停用，或 7 天未使用）时，切换会失败：该账号从列表移除，提示重新登录；账号被停用时明确提示「账号已停用」。
 - 离线队列按柜员账号保存，切换账号不会混用（见 7.7）。

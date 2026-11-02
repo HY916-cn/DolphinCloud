@@ -14,7 +14,7 @@ export { MoveList, type Move } from './Stock';
 export { noticePages, openingPages, type NoticeAccount, type NoticeStudent } from './Notices';
 export { Bars, Columns, Line, SCOPE_ICON, ScopePicker, Stats, Table, TimeRange } from './Report';
 export { DayShifts, SalaryAccount, ShiftLegend, ShiftMark, shiftWords, WeekBar, WeekShifts } from './Attendance';
-export { MeView } from './Me';
+export { MeScreen } from './Me';
 export { OutputSheet } from './Output';
 export { TimePicker } from './TimePicker';
 export { DutyCard } from './Duty';

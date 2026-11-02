@@ -33,6 +33,8 @@ export default function Login() {
   const [save, setSave] = useState(false);
   if (ready && session && !adding) return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
+  // The accounts still on this device (after 退出账号, those that need their password): tap one to sign in as it.
+  const others = adding ? [] : savedAccounts();
   // 在此设备保存登录 is asked the first time an account signs in on this device.
   const known = savedAccounts().some((a) => a.kind === kind && a.loginId === loginId.trim().toLowerCase() && a.saved);
 
@@ -54,7 +56,17 @@ export default function Login() {
 
   return (
     <Welcome label="登录" onSubmit={signIn}>
-      <h2 className="dc-login-title">{adding ? '添加账号' : '欢迎登录'}</h2>
+      <h2 className="dc-login-title">{adding ? '添加账号' : others.length ? '切换账号' : '欢迎登录'}</h2>
+      {others.length > 0 && (
+        <div className="dc-chips" role="group" aria-label="本机账号">
+          {others.map((a) => (
+            <button key={a.id} className="dc-chip" type="button" aria-pressed={kind === a.kind && loginId === a.loginId}
+              onClick={() => { setKind(a.kind); setLoginId(a.loginId); setPassword(''); setError(null); }}>
+              <Icon name={a.kind === 'student' ? 'me' : 'teacher'} />{a.name}
+            </button>
+          ))}
+        </div>
+      )}
       <fieldset className="dc-seg" aria-label="身份">
         {KINDS.map((k) => (
           <label key={k.kind}>
@@ -77,10 +89,10 @@ export default function Login() {
           autoComplete="current-password" placeholder="请输入密码" />
       </label>
       {!known && (
-        <label className="dc-check">
+        <label className="dc-check lg-save" title="保存后，在这台设备上切换回这个账号不用再输入密码">
           <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
           <span className="dc-check-box" />
-          <span>在此设备保存登录<small>保存后，在这台设备上切换回这个账号不用再输入密码；公用设备请不要勾选</small></span>
+          <span>在此设备保存登录<small>公用设备请不要勾选</small></span>
         </label>
       )}
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}

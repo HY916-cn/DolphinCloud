@@ -129,15 +129,13 @@ export function FindStudent({ onFound, offline, recent = [] }: { onFound: (s: St
   );
 }
 
-// Every counter page: the title row with back (when a flow is under way) and the account switcher, the
-// offline bar, and the offline deposits waiting to be uploaded.
+// Every counter page: the title row with back (when a flow is under way), the offline bar, and the offline deposits
+// waiting to be uploaded.
 export function CounterPage({ title, onBack, children }: { title: string; onBack?: () => void; children: ReactNode }) {
   const me = useMe().data!;
   const online = useOnline();
   return (
-    <Page title={title} sub={me.profile.display_name} back={onBack} actions={
-      <a className="dc-icon-btn" aria-label="我的" {...link('/counter/me')}><Icon name="me" /></a>
-    }>
+    <Page title={title} sub={me.profile.display_name} back={onBack}>
       {!online && <Notice tone="danger" title="离线登记">网络已断开，现在只能登记存款，联网后上传。请同时填写纸质凭条。</Notice>}
       {online && <PendingUploads operatorId={me.profile.id} />}
       {children}

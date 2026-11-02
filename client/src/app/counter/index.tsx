@@ -84,7 +84,7 @@ export default function Serve() {
   }
 
   if (!student && duty.data === null) {
-    return <CounterPage title="办理"><DutyCard me={me} /></CounterPage>;
+    return <CounterPage title="办理"><DutyCard me={me} whole /></CounterPage>;
   }
   if (!student) {
     return (

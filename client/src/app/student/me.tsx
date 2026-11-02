@@ -1,6 +1,5 @@
-import { MeView, Page } from '@/components';
-import { useMe } from '@/lib/session';
+import { Page, MeScreen } from '@/components';
 
 export default function StudentMe() {
-  return <Page title="我的"><MeView me={useMe().data!} /></Page>;
+  return <MeScreen frame={(title, back, body) => <Page title={title} back={back}>{body}</Page>} />;
 }

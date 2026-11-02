@@ -12,8 +12,9 @@ import { ConfirmSheet } from './Sheet';
 import { Icon, Notice } from './ui';
 
 // 上班 / 下班 (PHASE-1.md §7.5): 上班 opens the counter (and signs the shift for a counted teller); 下班 first prints
-// the summary of every transaction since 上班, then, once it is signed, closes the duty.
-export function DutyCard({ me }: { me: Me }) {
+// the summary of every transaction since 上班, then, once it is signed, closes the duty. `whole`: the card is all the
+// page has (办理 before 上班), so it is drawn large.
+export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
   const queryClient = useQueryClient();
   const online = useOnline();
   const duty = useDuty(me.profile.id);
@@ -38,23 +39,34 @@ export function DutyCard({ me }: { me: Me }) {
     }
   }
 
+  const start = (
+    <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!online || busy || duty.isPending}
+      onClick={() => run('start_duty', {})}><Icon name="check" />上班</button>
+  );
+
   return (
     <section className="dc-stack" aria-label="上下班">
       {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
-      <div className="dc-card at-sign">
-        <span className="at-sign-main">
-          <b>{d ? `已上班 · ${formatTime(d.started_at)} 起` : '未上班'}</b>
-          <small className="dc-top-sub">{d ? `现在是${SHIFTS[shiftAt(new Date())]}；下班前先打印本次的业务总结，签字留存` : '上班后才能办理业务；13:30 之前为中午班，13:30 起为下午班'}</small>
-        </span>
-        {d ? (
-          <button className="dc-btn dc-btn-secondary" type="button" disabled={!online || busy} onClick={() => setStep('print')}>
-            <Icon name="logout" />下班
-          </button>
-        ) : (
-          <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!online || busy || duty.isPending}
-            onClick={() => run('start_duty', {})}><Icon name="check" />上班</button>
-        )}
-      </div>
+      {whole && !d ? (
+        <div className="dc-card dc-empty">
+          <span className="dc-empty-icon"><Icon name="clock" /></span>
+          <h3>未上班</h3>
+          <p>上班后才能办理业务。13:30 之前为中午班，13:30 起为下午班。</p>
+          {start}
+        </div>
+      ) : (
+        <div className="dc-card at-sign">
+          <span className="at-sign-main">
+            <b>{d ? `已上班 · ${formatTime(d.started_at)} 起` : '未上班'}</b>
+            <small className="dc-top-sub">{d ? `现在是${SHIFTS[shiftAt(new Date())]}；下班前先打印本次的业务总结，签字留存` : '上班后才能办理业务；13:30 之前为中午班，13:30 起为下午班'}</small>
+          </span>
+          {d ? (
+            <button className="dc-btn dc-btn-secondary" type="button" disabled={!online || busy} onClick={() => setStep('print')}>
+              <Icon name="logout" />下班
+            </button>
+          ) : start}
+        </div>
+      )}
       {step === 'print' && d && (
         <OutputSheet title="打印下班总结" name={`下班总结-${me.profile.display_name}-${formatTime(new Date().toISOString(), new Date(0))}.pdf`}
           text="总结列出本次上班以来你办理的全部业务。打印后核对、签字留存，再确认下班。"

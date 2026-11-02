@@ -138,3 +138,14 @@ span.at-cell-btn { cursor: default; }
 .fl-row > .dc-field { flex: 1 1 320px; max-width: 480px; margin: 0; }
 .fl-found { max-height: 320px; overflow-y: auto; }
 .fl-bar .dc-chip .dc-icon + .dc-icon { margin-left: var(--space-1); }
+
+/* 登录页「在此设备保存登录」: one quiet line under the fields. */
+.lg-save { align-items: center; gap: var(--space-2); padding: 0; font: 600 15px/22px var(--font-sans); color: var(--ink-muted); }
+.lg-save .dc-check-box { width: 22px; height: 22px; border-width: 2px; }
+.lg-save .dc-check-box::after { width: 14px; height: 14px; }
+.lg-save small { display: inline; margin-left: var(--space-2); font: 500 13px/20px var(--font-sans); }
+
+/* Empty states fill the space they stand for: a large card, centred, never a small line. */
+.dc-empty { min-height: 360px; justify-content: center; }
+.dc-empty:not(.dc-card .dc-empty) { box-sizing: border-box; background: var(--surface-raised); border: 2px solid var(--line); border-radius: var(--radius-lg); }
+.dc-empty .dc-btn { min-width: 200px; }

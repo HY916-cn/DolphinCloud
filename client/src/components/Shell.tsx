@@ -45,7 +45,8 @@ const InFlow = createContext<(on: boolean) => void>(() => {});
 export function Shell({ me, children }: { me: Me; children: ReactNode }) {
   const path = usePathname();
   const items = navItems(me);
-  const tabs = items.slice(0, 5); // the phone TabBar holds five; every section is also a tile on 总览
+  // The phone TabBar holds five, the last one 我的; every section is also a tile on 总览.
+  const tabs = items.length > 5 ? [...items.slice(0, 4), items[items.length - 1]] : items;
   const [inFlow, setInFlow] = useState(false);
   const current = (i: (typeof items)[number]) => (i.exact ? path === i.href : path.startsWith(i.href)) ? ('page' as const) : undefined;
   return (
