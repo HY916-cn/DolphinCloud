@@ -11,6 +11,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher'], kind: 'dc-kind-exchange' },
   { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher'], kind: 'dc-kind-exchange' },
   { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },
+  { href: '/admin/attendance', icon: 'calendar', label: '考勤', roles: ['teacher'] },
   { href: '/admin/issues', icon: 'coin', label: '发行', roles: ['teacher'], kind: 'dc-kind-reward' },
   { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher'] },
   { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'sysadmin'] },
@@ -31,6 +32,7 @@ function navItems(me: Me): { href: string; icon: IconName; label: string; exact?
     return [
       { href: '/counter', icon: 'coin', label: '办理', exact: true },
       { href: '/counter/today', icon: 'passbook', label: '今日业务' },
+      { href: '/counter/attendance', icon: 'calendar', label: '考勤' },
     ];
   }
   return [{ href: '/admin', icon: 'home', label: '总览', exact: true }, ...sectionsFor(me)];

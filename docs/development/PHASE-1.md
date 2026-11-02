@@ -21,6 +21,7 @@
 | 货币发行 | 发行批次登记 |
 | 流水查询 | 会计与银行管理员按学生、班级或学部（同柜台的搜索）、日期、每天的时段、类型、柜员、交易号、支付方式、状态、金额组合查询全部流水，并导出 Excel |
 | 报表 | 会计与银行管理员按日、周、月或任意日期（最长一年）和每天的时段，看全行、学部、班级或一位学生的营业、账户、财务、商品报表（图表与表格），导出 Excel 或打印 / 存为 PDF；导出的学生姓名默认脱敏 |
+| 考勤与工资 | 银行管理员设置哪些柜员参与考勤；柜员每天按上午班（13:30 前）、下午班（13:30 起）签到，在考勤日历里看每个班次和有效班次数；银行管理员确认或驳回、补签；每个有效班次的工资由参数设定，每周发放到柜员用密码绑定的学生账户 |
 | 系统 | 账号与角色、参数设置、操作日志、每日自动备份与命令行恢复、余额自检 |
 | 部署 | 单个 Docker 镜像，一条 `docker run` 启动，自动申请 HTTPS 证书 |
 
@@ -29,7 +30,7 @@
 以下内容在后续阶段实现，本阶段的数据结构为它们预留字段，但不实现功能：
 
 - 二维码胸卡扫码识别（扫码枪与摄像头）
-- 凭条打印、经营看板、盘点、贷款、工资发放、学期结转
+- 凭条打印、经营看板、盘点、贷款、学期结转
 - 家长端、教师端、存折、利息与定期、积分转海豚币
 
 ---
@@ -135,11 +136,14 @@
 | 首次登录设置新密码（仅此一次） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 存款、取款、兑换、查询学生（含该生全部交易记录） | | ✓ | | | | |
 | 冲正本人当天业务 | | ✓ | | | | |
+| 签到、查看本人考勤 | | ✓ | | | | |
+| 绑定工资账户（须输入该学生账户的密码） | | 本人 | | | ✓ | ✓ |
 | 冲正任意业务 | | | | | ✓ | |
 | 查看全部流水、报表与导出 | | | ✓ | | ✓ | |
 | 查看商品与成本 | | | ✓ | ✓ | ✓ | |
 | 商品管理、出入库 | | | | ✓ | ✓ | |
 | 发行登记 | | | | | ✓ | |
+| 设置参与考勤、审核与补签、发放工资 | | | | | ✓ | |
 | 导入名册、开户 | | | | | ✓ | |
 | 管理工作账号 | | | | | ✓ | ✓ |
 | 重置学生密码 | | | | | ✓ | ✓ |
@@ -206,7 +210,7 @@ create table accounts (
   updated_at   timestamptz not null default now()
 );
 
-create type txn_type as enum ('opening','deposit','withdraw','purchase','reversal');
+create type txn_type as enum ('opening','deposit','withdraw','purchase','reversal','salary');
 
 create table txns (
   id                uuid primary key,          -- 客户端生成，作幂等键
@@ -301,6 +305,28 @@ create table audit_log (
   device_id  text,
   user_agent text
 );
+
+create table staff_payroll (                   -- 考勤与工资（6.9），每个柜员一行
+  user_id    uuid primary key references profiles(id),
+  attendance boolean not null default false,  -- 参与考勤
+  account    text unique references students(student_no)  -- 工资账户，一个学生账户只绑定一个工作人员
+);
+
+create table attendance (                      -- 每个柜员每个班次一行
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references profiles(id),
+  day         date not null,
+  shift       text not null check (shift in ('am','pm')),   -- 上午班 13:30 前，下午班 13:30 起（上海时间）
+  status      text not null default 'pending' check (status in ('pending','confirmed','rejected')),
+  signed_at   timestamptz not null default now(),
+  signed_by   uuid not null references profiles(id),       -- 柜员本人，补签时为银行管理员
+  note        text,                                         -- 补签说明或审核说明
+  reviewed_by uuid references profiles(id),
+  reviewed_at timestamptz,
+  salary_txn  uuid references txns(id),                     -- 发放这个班次工资的 salary 流水
+  pay         integer,                                      -- 发放时的每班次工资
+  unique (user_id, day, shift)
+);
 ```
 
 年级与班级：
@@ -320,6 +346,7 @@ create table audit_log (
 | `ranking_anonymous` | `true` | 排名是否隐藏姓名（显示为「张*明」） |
 | `ranking_size` | `10` | 排名显示前几名（每个学部） |
 | `promotion_date` | `"09-01"` | 每年升年级的日期（月-日），从这天起所有学生的年级加一 |
+| `salary_per_shift` | `10` | 柜员每个有效班次的工资（HTB，1～10000），发放时按当时的金额计算 |
 
 ### 5.4 数据不变式
 
@@ -330,7 +357,7 @@ create table audit_log (
 
 ### 5.5 审计
 
-- 触发器记录 `profiles`、`user_roles`、`students`、`products`、`currency_issues`、`settings` 的每次变更（前后值）。
+- 触发器记录 `profiles`、`user_roles`、`students`、`products`、`currency_issues`、`settings`、`staff_payroll`、`attendance` 的每次变更（前后值）；班次被发放工资时不逐条记录，每次发放另写一条 `salary.pay`。
 - 流水本身即账务审计；导入名册、重置密码、冲正等函数另写一条 `audit_log`。
 - IP、设备号、User-Agent 取自 PostgREST 传入的请求头：`current_setting('request.headers', true)::json`，其中 IP 取 Caddy 写入的 `X-Forwarded-For`，设备号取前端发送的 `X-Device-Id`。
 
@@ -447,6 +474,21 @@ create table audit_log (
 - 库存与货币发行是全行数据，不按学生范围筛选。
 - 导出在浏览器里用 SheetJS 生成 `.xlsx`（`lib/reports.ts`）。报表文件含汇总、按日（含日终账面余额）、按时段、按柜员、按班级、余额分布、商品兑换、库存、货币发行和流水明细；流水页导出当前筛选的流水明细。学生姓名默认写作「张*明」，勾选「导出完整姓名」才写全名。
 
+### 6.9 考勤与工资
+
+| 函数 | 角色 | 说明 |
+| --- | --- | --- |
+| `set_attendance(p_user_id, p_on)` | teacher | 设置柜员是否参与考勤 |
+| `sign_attendance()` | teller | 签到当前班次（上海时间 13:30 前为上午班 `am`，13:30 起为下午班 `pm`），状态为待审；同一班次再签返回已有的记录；未参与考勤时 `ATTENDANCE_OFF` |
+| `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 补签：今天已开始的班次或以前的班次，须写说明，直接计为有效；已有记录时 `ALREADY_EXISTS` |
+| `review_attendance(p_ids, p_status, p_note)` | teacher | 把班次设为有效（`confirmed`）或未通过（`rejected`），可改回，直到发放工资；已发放的 `ATTENDANCE_PAID` |
+| `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`） |
+| `unbind_salary_account(p_user_id)` | teller（本人）/ teacher / sysadmin | 解除绑定 |
+| `pay_salaries(p_week)` | teacher | 发放 `p_week` 所在一周（周一至周日）及以前所有有效、未发放的班次：每个柜员一笔 `salary` 流水存入其工资账户（金额 = 班次数 × `salary_per_shift`，`cash_delta` 为 0，原因写日期和班次数），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的柜员这次跳过，下次发放时补发；重复发放不会重复付。返回发放和跳过的名单 |
+
+- 柜员不能为本人的工资账户办理业务（`SELF_SERVICE_FORBIDDEN`，与本人的学生账户相同）。
+- `salary` 流水不能冲正；报表的余额核对把它列为「工资」，不计入营业笔数。
+
 ### 6.7 图片存储
 
 - 桶 `product-images`，公开读，只接受 jpeg / png / webp、单个不超过 5 MB；写入策略：`storage.objects` 上仅 `storekeeper`、`teacher` 可上传与删除。
@@ -485,9 +527,10 @@ client/
       txns.tsx                明细：全部 / 存入 / 支出，按天分组，分页加载；本月收支
       ranking.tsx             存款排名：本人名次，本学部前 N 名（按参数匿名）
       me.tsx                  我的：年级班级、学届、退出
-    counter/                  柜台（AppShell，导航：办理 今日业务；进入时打开办理）
+    counter/                  柜台（AppShell，导航：办理 今日业务 考勤；进入时打开办理）
       _layout.tsx             柜员准入；联网时把名册缓存到本机
       index.tsx  today.tsx    办理（找学生、一位学生连续办理多笔和查询、就地冲正）、今日业务（合计与冲正）
+      attendance.tsx          考勤：签到、考勤日历、有效班次与工资、工资账户
     admin/                    后台（AppShell，导航为总览和本身份可用的各项管理，见 7.9）
       _layout.tsx             后台准入，每项管理只对 4.2 中有权限的身份开放
       index.tsx               总览：按身份显示今日业务、待办、库存不足和管理入口；银行管理员另见最近的余额自检不一致
@@ -495,17 +538,19 @@ client/
       staff/                  工作人员：列表、新增账号（new）、身份 / 重置密码 / 停用（[id]）
       products/               商品：列表、新增与编辑、图片、上架、库存变动（index、[id]）
       stock.tsx               出入库：多件商品一次入库或出库，最近 20 次库存变动
+      attendance.tsx          考勤：一周的班次、审核与补签、发放工资、参与考勤
       txns.tsx  reports.tsx  流水查询与导出、报表（图表、表格、Excel、打印）
       issues.tsx  settings.tsx  audit.tsx   发行登记、参数、操作日志
   src/components/             设计系统结构的 React 写法：Shell / Page（AppShell）、Welcome（登录页外观）、
                               Gate（页面准入）、ConfirmSheet / SignOut、BalanceCard、TxnList、Notice、Icon、
-                              Desk（后台页面框架）、DatePicker（月历选日期）、ScopePicker / TimeRange（学生范围、时段）、Stats / Columns / Line / Bars / Table（报表的数字、图表与表格）、MoveList（库存变动）、LedgerLine（流水一行）、ReversalSheet（冲正）、downloadNotices（开户通知单 PDF）/ OpeningSheet（期初余额核对表的打印内容）
+                              Desk（后台页面框架）、DatePicker（月历选日期）、ScopePicker / TimeRange（学生范围、时段）、Stats / Columns / Line / Bars / Table（报表的数字、图表与表格）、ShiftCalendar / DayShifts / SalaryAccount（考勤日历、一天的班次、工资账户）、MoveList（库存变动）、LedgerLine（流水一行）、ReversalSheet（冲正）、downloadNotices（开户通知单 PDF）/ OpeningSheet（期初余额核对表的打印内容）
   src/theme/                  tokens.css、bundle.css、icons.ts，均由 npm run tokens 生成
   src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
   src/lib/session.tsx         会话、本人资料与角色、去向
   src/lib/accounts.ts         本机记住的账号与会话、切换
   src/lib/format.ts           千分位、带符号金额、时间（当年不写年份）、报表期间、姓名脱敏
   src/lib/reports.ts          报表数据类型、流水筛选查询、Excel 导出
+  src/lib/attendance.ts       考勤与工资：班次、工资账户、每班次工资的读取，绑定工资账户
   src/lib/txns.ts             流水 → TxnList 的标题、图标与方向
   src/lib/cash.ts             面额合计、配钞与找零（贪心）、「10 元 × 2 张」文字
   src/lib/rpc.ts              调用数据库函数：超时（默认 5 秒）视为离线，错误码转为 AppError
@@ -518,7 +563,7 @@ client/
   src/lib/pdf.ts              把每页一张 JPEG 写成 A4 PDF（开户通知单）
   src/lib/*.test.mjs          单元测试：npm --prefix client test
   e2e/*.spec.ts               端到端测试（Playwright）：admin（名册与账号）、back-office（流水、发行、参数、日志）、
-                              counter（柜台）、products（商品与出入库）、reports（报表、导出与柜台查询）、student（学生端）；helpers.ts 为登录等公用步骤
+                              counter（柜台）、products（商品与出入库）、reports（报表、导出与柜台查询）、attendance（考勤与工资）、student（学生端）；helpers.ts 为登录等公用步骤
   workbox-config.cjs          Service Worker 配置
   public/index.html           页面模板，先加载 /config.js 和 /fonts/fonts.css
   public/logo.png             海豚云标志
@@ -554,7 +599,7 @@ client/
 
 ### 7.5 柜台交互
 
-柜员导航两项：**办理**、**今日业务**。柜员登录后直接进入「办理」，光标在搜索框里。
+柜员导航三项：**办理**、**今日业务**、**考勤**。柜员登录后直接进入「办理」，光标在搜索框里。
 
 **办理**：一位学生到柜台办理的全过程，版式按设计系统页面示例 `CounterServicePage`（柜台办理），整个过程不跳页。
 
@@ -570,6 +615,8 @@ client/
 3. **结束**：点「结束办理」（或标题行返回）回到搜索框，上方提示「张小明：办理完成」，逐笔写出业务和金额与当前余额，光标已在搜索框，可以直接查找下一位。
 
 查询：学生条里一直显示余额与今日还可取金额。`Segmented` 的第四项「查询」列出该生的累计存入、累计取出、累计兑换（账户支付）、当前余额和全部交易记录（含其他柜员办理的和以前的，`student_txns`），每笔写明时间、经办人、交易号和办理后余额，每次 10 笔、「加载更多」继续；办理单留在右栏，本次办了业务后记录随之更新。需要联网。
+
+**考勤**：顶部是今天和当前班次，「签到」后显示签到时间和审核状态（未参与考勤时提示由银行管理员设置）；下面是本周有效、本月有效、本月待审班次和本月工资（含已发放）；考勤日历按月显示，每天两个标记「上」「下」，颜色和文字表示有效、待审、未通过、未签到，点一天在右栏看两个班次的签到时间、补签与审核说明、已发工资；右栏下方是「工资账户」：已绑定时显示学生姓名和学号，可更换或解除，未绑定时输入学号和该学生账户的密码绑定。签到需要联网。
 
 **冲正**：一个 `Sheet` 里写明业务和交易号，选择原因（「其他」须写说明）后「确认冲正」。入口有三处：办理单上的每一笔、「今日业务」的每一行（柜员只能冲正本人今天的业务），以及后台「流水」的每一行（银行管理员）。
 
@@ -600,6 +647,11 @@ client/
 | `ALREADY_EXISTS` | 已存在 | {field} 已被使用。 |
 | `ONE_BANK_ADMIN` | 银行管理员只有一个 | 不能新增银行管理员，也不能更改银行管理员的身份。 |
 | `USER_NOT_FOUND`、`PRODUCT_NOT_FOUND` | 未找到 | 请刷新后重试。 |
+| `SELF_SERVICE_FORBIDDEN` | 不能为自己办理 | 这是你本人或你的工资账户，请由其他柜员办理。 |
+| `ATTENDANCE_OFF` | 还没有参与考勤 | 请联系银行管理员开启后再签到。 |
+| `ATTENDANCE_PAID` | 工资已发放 | 已发工资的班次不能再修改。 |
+| `WRONG_PASSWORD` | 密码不对 | 请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。 |
+| `LOGIN_LOCKED` | 该学生账号已锁定 | 密码错误次数过多，请 15 分钟后再试。 |
 | 网络中断（存款以外） | 网络已断开 | 联网后再办理这项业务；存款可以继续离线登记。 |
 
 ### 7.7 离线存款
@@ -629,7 +681,7 @@ client/
 - **导入名册**（银行管理员）：选择 Excel 或 CSV → 逐行校验（`lib/roster.ts`，问题按行号列出，全部改好才能导入）→「核对名册」显示各学部人数与期初余额合计 →「确认导入」每 100 人一批并显示进度 → 「导入完成：新开户 N 人，更新 M 人」→「下载开户通知单」。页面提供「下载模板」。某一批被拒绝时，说明哪个学号有问题、前面已导入多少人；改好后重新导入整个名册即可。
 - **开户通知单**：在浏览器里生成 PDF 直接下载（`开户通知单-日期-N人.pdf`），每人一页 A4，按班、按学号排列。每页由设计系统的部件组成，尺寸和颜色与界面一致：顶部是登录页头图（标志与波纹、「海豚云」、学校与日期、`WaveDivider`），下面依次是 `display` 问候语、`dc-card` 里的核对清单（班级、学号，初始密码作为合计行）、`Steps` 三步登录说明（含登录网址和新密码规则；网址取服务器配置的正式地址 `https://$DOLPHIN_DOMAIN`，与打开后台用的地址无关）和默认 `Notice` 保管提醒。页面用设计系统的 token、字体和图标画在 canvas 上再存为 JPEG（`lib/pdf.ts` 写出 PDF），不嵌入字体，约 140 KB 一页。
 - **期初余额核对表**：同样按班分页，每班一张表，列出学号、姓名、系统期初余额（`opening` 流水金额，没有则为 0），留空「原账本余额」和「一致」两栏，表头写本班人数与合计，表尾留核对人和日期。
-- **工作人员**（银行管理员、运维员）：列表显示姓名、身份、账号和停用、未设置密码状态。「新增账号」填写账号、姓名、身份，创建后提示初始密码。账号详情可改身份、重置密码、停用或启用（不能停用自己）。运维员不能创建银行管理员，也不能修改银行管理员的账号，页面显示「由银行管理员管理」。
+- **工作人员**（银行管理员、运维员）：列表显示姓名、身份、账号和停用、未设置密码状态。「新增账号」填写账号、姓名、身份，创建后提示初始密码。账号详情可改身份、重置密码、停用或启用（不能停用自己）；柜员账号另有「参与考勤」开关（银行管理员）和工资账户的绑定、更换、解除（银行管理员、运维员，须输入该学生账户的密码）。运维员不能创建银行管理员，也不能修改银行管理员的账号，页面显示「由银行管理员管理」。
 - **商品**（库管、银行管理员；会计只读）：列表显示图片、名称、价格、库存和上架状态，缺货的标「缺货」，内容第一行有「出入库」。编辑页填写名称、价格、成本、分类、安全库存（默认 5 件）、图片（可更换、移除）和是否上架；已有商品另显示当前库存、最近 10 次库存变动和「去出入库」。会计打开的是「商品详情」：名称、价格、成本、分类、安全库存、上架状态和库存变动，没有编辑、新增和出入库入口。
 - **出入库**（库管、银行管理员）：可带商品打开（`?product=`，预填入库 1 件），卡片和库存变动里的商品名链到商品页；`Segmented` 切换入库 / 出库；每件商品一张 `QtyStepper` 卡片（名称、当前库存、加减数量），出库数量不超过库存；入库可写备注，出库须写原因；下方合计后「确认入库 / 确认出库」一次提交（`stock_move`）。右栏（手机在下方）是全部商品最近 20 次库存变动，写明商品与备注。
 - **学生范围**（流水、报表）：与柜台相同的搜索（姓名、拼音全拼或首字母、班级、学号），结果里除了学生，还有名称匹配的整个班级和整个学部（各注明人数）；选中后显示为一个标签，点一下或「全部学生」取消。
@@ -641,8 +693,9 @@ client/
   - 商品：兑换数量条形图，兑换金额、账户 / 现金支付、成本、毛利表；库存期初、入库、出库、兑出、期末表。
   - 图表每张只有一个系列（存款、取款、兑换用各自的类别色，其余用海豚蓝），悬停显示数值；样式在 `app.css` 的 `rp-` 类里，用设计系统的 token。
   - 「导出 Excel」见 6.8；「打印 / 存为 PDF」把四个标签页的图表和表格一起交给浏览器打印，可在打印对话框里存为 PDF。
+- **考勤**（银行管理员）：一周一页（「上一周 / 下一周 / 本周」），每个参与考勤（或这周有记录）的柜员一行，周一到周日每天两个班次标记，后面是有效班次数和工资，姓名下注明工资账户。点一个班次：待审或已审的选「有效 / 未通过」并可写说明；未签到的「补签」须写说明；已发工资的只能查看。「确认待审（N）」一次确认这一周全部待审班次；「发放工资」先列出每位柜员到这周日为止有效、未发放的班次数、金额和工资账户（未绑定的注明本次不发放），确认后发放并显示结果。下方「参与考勤」每位柜员一个开关。
 - **发行**（银行管理员）：登记批次号、发行日期（`DatePicker`，默认今天）、各面额张数（总额自动合计）、用途、审批人；下方列出已登记的批次。
-- **参数**（银行管理员）：面额用 `FilterChips` 勾选（1、2、5、10、20、50、100 元，1 元必选）；两个学部的单笔与单日取款上限用 `QtyStepper`（每次 ±10，也可直接输入）；排名人数用 `QtyStepper`（1～100）；升年级日期用月、日两个 `Select`。「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
+- **参数**（银行管理员）：面额用 `FilterChips` 勾选（1、2、5、10、20、50、100 元，1 元必选）；两个学部的单笔与单日取款上限用 `QtyStepper`（每次 ±10，也可直接输入）；排名人数用 `QtyStepper`（1～100）；升年级日期用月、日两个 `Select`；每班次工资用 `QtyStepper`（1～10000）。「保存参数」一并保存改动的项；「排名匿名」开关切换后立即生效。
 - **日志**（银行管理员、运维员）：最新的在前，每次加载 50 条；每条写明操作、操作人、时间、设备与 IP，展开后列出改动的字段（旧值 → 新值）。
 
 ### 7.10 学生端
@@ -809,9 +862,9 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 | 层级 | 工具 | 覆盖内容 |
 | --- | --- | --- |
-| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户；柜台查询翻页与经办人，报表各项数字（不含已冲正的、期初 + 变动 = 期末、库存期初 + 入库 − 出库 − 兑出 = 期末）、时段、学部 / 班级 / 学生范围与以前的期间。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
-| 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序，学生范围里的班级与学部；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额、时间、报表期间（周一起算）与姓名脱敏；`roster.ts` 名册模板逐行校验与年级推算 |
-| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按学生范围、时段、支付方式、状态筛选与冲正、流水导出；报表数字、标签页、时段、Excel 导出（姓名脱敏）与打印；柜台查询全部交易记录；总览待办、页面间跳转、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
+| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户；柜台查询翻页与经办人，报表各项数字（不含已冲正的、期初 + 变动 = 期末、库存期初 + 入库 − 出库 − 兑出 = 期末）、时段、学部 / 班级 / 学生范围与以前的期间；考勤签到与班次分界、补签与审核的权限、工资账户的密码与锁定计数、不能为工资账户办理业务、按周发放与不重复发放、`salary` 流水不能冲正且不破坏余额自检。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
+| 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序，学生范围里的班级与学部；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额、时间、报表期间（周一起算）、姓名脱敏与班次（13:30 分界）；`roster.ts` 名册模板逐行校验与年级推算 |
+| 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按学生范围、时段、支付方式、状态筛选与冲正、流水导出；报表数字、标签页、时段、Excel 导出（姓名脱敏）与打印；柜台查询全部交易记录；银行管理员开启考勤 → 柜员签到、绑定工资账户 → 确认、补签、按周发放工资 → 柜员看到已发工资、学生明细里有工资；总览待办、页面间跳转、发行登记、参数开关、日志；学生明细与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 
 CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。

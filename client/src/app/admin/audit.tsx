@@ -19,15 +19,16 @@ type People = { names: Map<string, string>; staff: Set<string> };
 const ACTIONS: Record<string, string> = {
   'roster.import': '名册导入', 'user.reset_password': '重置密码', 'txn.reverse': '冲正', 'check.mismatch': '余额自检不一致',
   'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
-  'backup.create': '创建备份', 'backup.restore': '恢复备份',
+  'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
+  attendance: '考勤', staff_payroll: '考勤设置',
 };
 const OPS: Record<string, string> = { insert: '新增', update: '修改', delete: '删除' };
 const SETTINGS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限',
-  ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期',
+  ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期', salary_per_shift: '每班次工资',
 };
 const COLUMNS: Record<string, string> = {
   name: '名称', display_name: '姓名', login_id: '账号', disabled: '停用', must_change_password: '需要修改密码', role: '身份',
@@ -37,12 +38,16 @@ const COLUMNS: Record<string, string> = {
   value: '取值', type: '类型', amount: '金额', balance_delta: '余额变动', balance_after: '办理后余额', reason: '原因',
   txn_no: '交易号', created: '新开账户', updated: '更新学生',
   failures: '15 分钟内密码错误次数', locked_until: '锁定到', valid: '密码正确', student_nos: '学号', file: '备份文件',
+  attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '签到时间',
+  from: '起', to: '止', rate: '每班次工资', paid: '发放',
 };
 // Columns that change on every write and say nothing to the reader.
-const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id']);
+const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id',
+  'signed_by', 'reviewed_by', 'reviewed_at', 'salary_txn', 'pay']);
 const WORDS: Record<string, string> = {
   primary: '小学部', junior: '初中部', normal: '正常', frozen: '冻结', graduated: '毕业', reversed: '已冲正',
   teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '银行管理员', sysadmin: '运维员',
+  am: '上午班', pm: '下午班', pending: '待审', confirmed: '有效', rejected: '未通过',
 };
 
 const asRow = (v: unknown): Row => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Row) : {});
@@ -76,6 +81,9 @@ function subject(e: Entry, names: Map<string, string>) {
   if (e.action.startsWith('backup.')) return String(r.file ?? '');
   if (e.action.startsWith('settings.')) return SETTINGS[String(r.key)] ?? String(r.key ?? '');
   if (e.action === 'check.mismatch') return `${Array.isArray(e.after) ? e.after.length : 0} 处不一致`;
+  if (e.action === 'salary.pay') return `${r.from} 至 ${r.to}`;
+  if (e.action.startsWith('attendance.') || e.action.startsWith('staff_payroll.'))
+    return [names.get(String(r.user_id)), r.day, r.shift && WORDS[String(r.shift)]].filter(Boolean).join(' · ');
   return [...new Set([r.batch_no, r.txn_no, r.name ?? r.display_name, r.student_no ?? r.login_id])].filter((v) => v != null && v !== '').join(' · ');
 }
 

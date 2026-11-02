@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { KINDS as LOOK, toTxn } from '@/lib/txns';
 
 const PAGE = 50;
-const KINDS = [['opening', '期初'], ['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正']] as const;
+const KINDS = [['opening', '期初'], ['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资']] as const;
 type Kind = (typeof KINDS)[number][0];
 // How each row on a page was corrected: the reversal of a 已冲正 row, and the original of a 冲正 row.
 type Page = { rows: LedgerRow[]; count: number | null; reversals: Map<string, { txn_no: string; reason: string | null }>; originals: Map<string, string> };
@@ -261,7 +261,7 @@ function TxnLine({ row, page, first, teacher, onReverse }: {
       ? [['冲正原因', row.reason ?? ''], ['冲正的交易', page.originals.get(row.reversal_of ?? '') ?? '']] as [string, ReactNode][]
       : [['状态', row.status === 'normal' ? '正常' : rev ? `已冲正 · ${rev.reason ?? ''} · 冲正交易号 ${rev.txn_no}` : '已冲正']] as [string, ReactNode][]),
   ];
-  const canReverse = teacher && row.status === 'normal' && row.type !== 'reversal';
+  const canReverse = teacher && row.status === 'normal' && row.type !== 'reversal' && row.type !== 'salary';
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>

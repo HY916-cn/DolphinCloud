@@ -6,19 +6,20 @@ import { formatTime } from './format';
 export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; paid: number; note: string };
 
 export type TxnRow = {
-  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal'; amount: number; balance_delta: number;
+  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary'; amount: number; balance_delta: number;
   payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; reason: string | null; created_at: string;
   txn_items?: { name: string; qty: number }[];
 };
 
 // Icon and category colour per business (design system ColorRoles): savings, withdrawals, exchanges; a reversal is
-// a correction and keeps the account blue.
+// a correction and keeps the account blue; 工资 is the bank's pay for a teller's shifts.
 export const KINDS = {
   opening: { icon: 'savings', title: '期初余额', kind: 'dc-kind-save' },
   deposit: { icon: 'deposit', title: '存款', kind: 'dc-kind-save' },
   withdraw: { icon: 'withdraw', title: '取款', kind: 'dc-kind-withdraw' },
   purchase: { icon: 'exchange', title: '兑换', kind: 'dc-kind-exchange' },
   reversal: { icon: 'transfer', title: '冲正', kind: '' },
+  salary: { icon: 'invest', title: '工资', kind: 'dc-kind-reward' },
 } as const;
 
 // A ledger row as the account holder reads it: "业务 · 详情", time, and the change to their balance, or for cash
@@ -26,7 +27,7 @@ export const KINDS = {
 export function toTxn(t: TxnRow): Txn {
   const detail =
     t.type === 'purchase' ? t.txn_items?.map((i) => (i.qty > 1 ? `${i.name} × ${i.qty}` : i.name)).join('、')
-    : t.type === 'reversal' ? t.reason
+    : t.type === 'reversal' || t.type === 'salary' ? t.reason
     : null;
   return {
     key: t.id,

@@ -195,7 +195,7 @@ function Business({ r }: { r: Report }) {
           <>
             <Bars title="业务笔数" data={r.tellers.filter((t) => t.count).map((t) => ({ label: t.name, value: t.count, text: `${t.count} 笔` }))} />
             <Table label="按柜员" head={['经办人', '业务笔数', '存款', '取款', '兑换', '被冲正', '办理冲正']}
-              rows={r.tellers.map((t) => [t.name, t.count, t.deposit, t.withdraw, t.purchase, t.reversed, t.reversals])} />
+              rows={r.tellers.filter((t) => t.count || t.reversed || t.reversals).map((t) => [t.name, t.count, t.deposit, t.withdraw, t.purchase, t.reversed, t.reversals])} />
             <p className="dc-top-sub">存款、取款、兑换为金额（HTB）。被冲正：本人办理、之后被冲正的笔数；办理冲正：本人冲正的笔数。</p>
           </>
         ) : <p className="dc-top-sub">这段时间没有办理业务。</p>}
@@ -239,7 +239,7 @@ function Finance({ r, scoped }: { r: Report; scoped: boolean }) {
       <Section title="余额核对" sub="期初账面余额加上本期每笔余额变动，等于期末账面余额；按整天计算，不受时段影响">
         <Summary rows={[
           ['期初账面余额', `${formatAmount(r.balance.opening)} HTB`], ['期初余额导入', signed(ch.opening)], ['存款', signed(ch.deposit)],
-          ['取款', signed(ch.withdraw)], ['兑换（账户支付）', signed(ch.purchase)], ['冲正', signed(ch.reversal)],
+          ['取款', signed(ch.withdraw)], ['兑换（账户支付）', signed(ch.purchase)], ['冲正', signed(ch.reversal)], ['工资', signed(ch.salary)],
         ]} total={['期末账面余额', r.balance.closing]} />
         {sum === r.balance.closing
           ? <Notice tone="success" title="核对一致">期初 {formatAmount(r.balance.opening)} + 本期变动 {formatSigned(sum - r.balance.opening)} = 期末 {formatAmount(r.balance.closing)} HTB。</Notice>

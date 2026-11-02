@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary } from '@/components';
+import { ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SalaryAccount, SkeletonGroup, Summary } from '@/components';
+import { usePayroll } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -12,12 +13,13 @@ type Action = { title: string; text: string; confirm: string; fn: string; args: 
 
 // One staff login: correct its role, reset its password, stop or restore it. Only a teacher manages a teacher's login,
 // and nobody stops their own (PHASE-1.md §6.4). Links to the transactions a teller handled (流水 is the teacher's) and
-// to the login's 日志.
+// to the login's 日志. A teller's 考勤: whether the bank admin counts them, and their 工资账户.
 export default function StaffLogin() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe().data!;
   const queryClient = useQueryClient();
   const staff = useStaff();
+  const payroll = usePayroll();
   const p = staff.data?.find((s) => s.id === id);
   const [role, setRole] = useState<Role | null>(null);
   const [action, setAction] = useState<Action | null>(null);
@@ -34,6 +36,7 @@ export default function StaffLogin() {
       setResult({ tone: 'success', title: a.done, text: r?.password ? `新的初始密码：${r.password}。请转交本人，下次登录时需要设置新密码；这个密码只显示这一次。` : '' });
       setRole(null);
       queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
     } catch (err) {
       setResult({ tone: 'danger', ...explain(err instanceof AppError ? err.code : '', err instanceof AppError ? err.detail : {}) });
     }
@@ -62,6 +65,26 @@ export default function StaffLogin() {
                 ['创建时间', formatTime(p.created_at)],
               ]} />
             </div>
+            {p.role === 'teller' && (
+              <>
+                <div>
+                  <p className="dc-list-title">考勤</p>
+                  <ul className="dc-list">
+                    <li>
+                      <label className="dc-switch">
+                        <span className="dc-switch-text"><b>参与考勤</b><small>开启后可以签到，有效班次按周发放工资{me.roles.includes('teacher') ? '' : '；由银行管理员设置'}</small></span>
+                        <input type="checkbox" role="switch" checked={!!payroll.data?.find((x) => x.user_id === p.id)?.attendance}
+                          disabled={!me.roles.includes('teacher') || !payroll.data}
+                          onChange={(e) => run({ title: '', text: '', confirm: '', fn: 'set_attendance', args: { p_user_id: p.id, p_on: e.target.checked },
+                            done: e.target.checked ? '已参与考勤' : '已停止考勤' })} />
+                        <span className="dc-switch-track" />
+                      </label>
+                    </li>
+                  </ul>
+                </div>
+                <SalaryAccount userId={p.id} payroll={payroll.data?.find((x) => x.user_id === p.id)} />
+              </>
+            )}
             <ul className="dc-list" aria-label="相关记录">
               {p.role === 'teller' && me.roles.includes('teacher') && (
                 <li>

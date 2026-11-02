@@ -10,7 +10,7 @@ type Count = { count: number; amount: number };
 export type Report = {
   business: { deposit: Count; withdraw: Count; purchase_account: Count; purchase_cash: Count; students: number };
   reversals: Count; reversed: number; openings: Count;
-  balance: { opening: number; closing: number; changes: Partial<Record<'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal', number>> };
+  balance: { opening: number; closing: number; changes: Partial<Record<'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary', number>> };
   cash: { in: number; out: number };
   days: { day: string; deposit: number; deposit_count: number; withdraw: number; withdraw_count: number; purchase: number; purchase_count: number; students: number; change: number }[];
   hours: { hour: number; count: number }[];
@@ -64,7 +64,7 @@ export function ledgerQuery(select: string, f: LedgerFilter, count?: 'exact') {
 
 type Cell = string | number | null;
 type Sheet = [string, Cell[][]];
-const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正' } as const;
+const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', salary: '工资' } as const;
 const PAYMENT = { account: '账户', cash: '现金' } as const;
 
 // Every transaction the filters choose, oldest first, as the 流水明细 sheet.
@@ -102,7 +102,7 @@ export function reportSheets(r: Report, period: string, scope: string): Sheet[] 
       ['冲正', r.reversals.count, r.reversals.amount], ['期初余额导入', r.openings.count, r.openings.amount], ['办理业务的学生', b.students, null], [],
       ['余额核对', '金额'],
       ['期初账面余额', r.balance.opening], ['期初余额导入', ch.opening ?? 0], ['存款', ch.deposit ?? 0], ['取款', ch.withdraw ?? 0],
-      ['兑换（账户）', ch.purchase ?? 0], ['冲正', ch.reversal ?? 0], ['期末账面余额', r.balance.closing], [],
+      ['兑换（账户）', ch.purchase ?? 0], ['冲正', ch.reversal ?? 0], ['工资', ch.salary ?? 0], ['期末账面余额', r.balance.closing], [],
       ['柜面现金', '金额'], ['收入', r.cash.in], ['付出', r.cash.out], ['净额', r.cash.in - r.cash.out], [],
       ['账户', '数值'], ['学生', r.students.total], ['本期办理过业务', r.students.active], ['正常', r.students.normal],
       ['已冻结', r.students.frozen], ['已毕业', r.students.graduated], ['账面余额', r.students.balance],
@@ -114,7 +114,7 @@ export function reportSheets(r: Report, period: string, scope: string): Sheet[] 
         d.students, d.change, balance])]],
     ['按时段', [['时段', '业务笔数'], ...r.hours.map((h) => [`${h.hour}:00–${h.hour + 1}:00`, h.count])]],
     ['按柜员', [['经办人', '业务笔数', '存款笔数', '存款', '取款笔数', '取款', '兑换笔数', '兑换', '被冲正', '办理冲正'],
-      ...r.tellers.map((t) => [t.name, t.count, t.deposit_count, t.deposit, t.withdraw_count, t.withdraw, t.purchase_count, t.purchase, t.reversed, t.reversals])]],
+      ...r.tellers.filter((t) => t.count || t.reversed || t.reversals).map((t) => [t.name, t.count, t.deposit_count, t.deposit, t.withdraw_count, t.withdraw, t.purchase_count, t.purchase, t.reversed, t.reversals])]],
     ['按班级', [['学部', '班级', '学届', '学生', '办理过业务', '期末余额', '存款', '取款', '账户兑换'],
       ...r.classes.map((c) => [c.division === 'primary' ? '小学部' : '初中部', c.class_label ?? `${c.class_no}班`, c.cohort, c.students,
         c.active, c.balance, c.deposit, c.withdraw, c.spent])]],

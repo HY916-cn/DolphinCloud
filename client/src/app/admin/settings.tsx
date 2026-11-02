@@ -105,6 +105,7 @@ function SettingsForm({ saved }: { saved: Values }) {
   const [dailyPrimary, setDailyPrimary] = useState(String(daily.primary));
   const [dailyJunior, setDailyJunior] = useState(String(daily.junior));
   const [rankingSize, setRankingSize] = useState(String(saved.ranking_size));
+  const [salary, setSalary] = useState(String(saved.salary_per_shift));
   const [promoMonth, promoDay] = String(saved.promotion_date).split('-').map(Number);
   const [month, setMonth] = useState(promoMonth);
   const [day, setDay] = useState(promoDay);
@@ -121,6 +122,7 @@ function SettingsForm({ saved }: { saved: Values }) {
     withdraw_single_limit: { junior: Number(singleJunior), primary: Number(singlePrimary) },
     withdraw_daily_limit: { junior: Number(dailyJunior), primary: Number(dailyPrimary) },
     ranking_size: Number(rankingSize),
+    salary_per_shift: Number(salary),
     promotion_date: `${pad(month)}-${pad(Math.min(day, days))}`,
   };
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
@@ -202,6 +204,14 @@ function SettingsForm({ saved }: { saved: Values }) {
                 </Field>
               </li>
             </ul>
+          </div>
+          <div>
+            <p className="dc-list-title">考勤</p>
+            <div className="dc-card">
+              <Field icon="coin" label="每班次工资（HTB）" hint="柜员每个有效班次的工资，1 到 10000；发放时按当时的金额计算">
+                <Stepper label="每班次工资" value={salary} onChange={(v) => setSalary(v.slice(0, 5))} step={1} min={1} max={10000} />
+              </Field>
+            </div>
           </div>
           <div>
             <p className="dc-list-title">学年</p>

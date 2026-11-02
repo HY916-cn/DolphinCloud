@@ -15,7 +15,8 @@ const FIELDS: Record<string, string> = {
   reason: '冲正原因', items: '商品', payment: '付款方式', login_id: '账号', role: '身份', user_id: '账号',
   cohort: '学届', opening_balance: '期初余额', qty: '入库数量', product: '商品名称和价格', issue: '发行信息', batch_no: '批次号',
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限', ranking_size: '排名人数',
-  promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数',
+  promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', salary_per_shift: '每班次工资',
+  account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '补签说明', status: '审核结果', week: '发放的周',
 };
 
 export function explain(code: string, d: Detail = {}): { title: string; text: string } {
@@ -40,6 +41,11 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ALREADY_EXISTS': return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
     case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
     case 'PRODUCT_NOT_FOUND': return { title: '商品不存在', text: '请刷新后重新选择商品。' };
+    case 'SELF_SERVICE_FORBIDDEN': return { title: '不能为自己办理', text: '这是你本人或你的工资账户，请由其他柜员办理。' };
+    case 'ATTENDANCE_OFF': return { title: '还没有参与考勤', text: '请联系银行管理员开启后再签到。' };
+    case 'ATTENDANCE_PAID': return { title: '工资已发放', text: '已发工资的班次不能再修改。' };
+    case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
+    case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码错误次数过多，请 15 分钟后再试。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }

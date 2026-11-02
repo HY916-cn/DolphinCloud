@@ -1,6 +1,6 @@
 // node src/lib/format.test.mjs — checks the wording rules the screens rely on.
 import assert from 'node:assert/strict';
-const { formatAmount, formatSigned, formatTime, maskName, periodOf } = await import('./format.ts');
+const { formatAmount, formatSigned, formatTime, maskName, periodOf, shiftAt, shiftDay } = await import('./format.ts');
 assert.equal(formatAmount(1280), '1,280');
 assert.equal(formatSigned(50), '+50');
 assert.equal(formatSigned(-20), '−20');
@@ -16,4 +16,8 @@ assert.deepEqual(periodOf('week', '2026-11-08'), ['2026-11-02', '2026-11-08']); 
 assert.deepEqual(periodOf('month', '2026-11-04'), ['2026-11-01', '2026-11-04']);
 assert.deepEqual(periodOf('last-month', '2026-03-15'), ['2026-02-01', '2026-02-28']);
 assert.deepEqual(periodOf('last-month', '2026-01-10'), ['2025-12-01', '2025-12-31']);
+assert.equal(shiftDay('2026-11-01', -1), '2026-10-31');
+assert.equal(shiftAt(new Date('2026-11-02T05:29:59Z')), 'am'); // 13:29:59 in Shanghai
+assert.equal(shiftAt(new Date('2026-11-02T05:30:00Z')), 'pm');
+assert.equal(shiftAt(new Date('2026-11-02T16:00:00Z')), 'am'); // 00:00 the next day
 console.log('format ok');

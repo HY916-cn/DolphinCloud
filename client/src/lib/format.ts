@@ -17,7 +17,7 @@ export function formatTime(iso: string, now = new Date()) {
 }
 
 // Periods ending today (Asia/Shanghai), as [from, to] YYYY-MM-DD; a week starts on Monday.
-const shiftDay = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+export const shiftDay = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 export const PERIODS = [['day', '今天'], ['week', '本周'], ['month', '本月'], ['last-month', '上月']] as const;
 export function periodOf(kind: (typeof PERIODS)[number][0], now: string): [string, string] {
   if (kind === 'day') return [now, now];
@@ -32,3 +32,7 @@ export function maskName(name: string) {
   const c = [...name];
   return c.length < 2 ? name : c.length === 2 ? `${c[0]}*` : `${c[0]}${'*'.repeat(c.length - 2)}${c[c.length - 1]}`;
 }
+
+// 考勤: 上午班 before 13:30 Asia/Shanghai, 下午班 from 13:30 (app_private.shift_of).
+export const shiftAt = (at: Date) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at) < '13:30' ? 'am' : 'pm';

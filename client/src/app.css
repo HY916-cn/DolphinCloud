@@ -1,9 +1,11 @@
-/* The bank admin's sidebar has 10 items (总览 and 9 sections); the design system's indicator rules go up to 8.
-   shortcut: drop these two lines each once design-system/project/bundle.css covers a ninth and tenth .dc-nav-item. */
+/* The bank admin's sidebar has 11 items (总览 and 10 sections); the design system's indicator rules go up to 8.
+   shortcut: drop these lines once design-system/project/bundle.css covers a ninth to eleventh .dc-nav-item. */
 .dc-nav nav:has(> .dc-nav-item:nth-child(9)) { --nav-count: 9; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(9)[aria-current="page"]) { --nav-index: 8; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(10)) { --nav-count: 10; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(10)[aria-current="page"]) { --nav-index: 9; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(11)) { --nav-count: 11; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(11)[aria-current="page"]) { --nav-index: 10; }
 
 /* 报表 (rp-): figures, charts and tables the design system has no component for, built from its tokens. A chart has
    one series in one colour (the section's kind ink, or dolphin blue), thin marks from one baseline, a hairline axis,
@@ -50,6 +52,40 @@
 .rp-line polyline { fill: none; stroke: var(--dolphin); stroke-width: 2px; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .rp-line .rp-col i { position: absolute; bottom: calc(var(--v, 0) * 100% - 4px); width: 8px; height: 8px; border-radius: 50%; background: transparent; }
 .rp-line .rp-col:hover i, .rp-line .rp-col.is-end i { background: var(--dolphin); box-shadow: 0 0 0 2px var(--surface-raised); opacity: 1; }
+
+/* 考勤 (at-): a shift is a small mark, 上 or 下, coloured by its status and always written beside its words; a month
+   calendar of days with their two shifts; the bank admin's week of tellers. */
+.at-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-xs); font: 700 12px/1 var(--font-sans); font-style: normal; }
+.at-mark.is-confirmed { background: var(--success); color: var(--surface-raised); }
+.at-mark.is-pending { background: var(--coin-soft); color: var(--coin-ink); box-shadow: inset 0 0 0 1.5px var(--coin-ink); }
+.at-mark.is-rejected { background: var(--danger-soft); color: var(--danger); text-decoration: line-through; }
+.at-mark.is-none { background: var(--cloud-100); color: var(--ink-muted); }
+.at-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 0; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.at-legend span { display: inline-flex; align-items: center; gap: var(--space-1); }
+.at-cal-title { margin: 0; font: 700 18px/28px var(--font-sans); color: var(--ink); }
+.at-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); min-width: 0; min-height: 60px; padding: var(--space-1) 0; border: 0; border-radius: var(--radius-sm); background: none; font: 600 16px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; }
+.at-day:hover { background: var(--cloud-100); }
+.at-day:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.at-day.is-today { box-shadow: inset 0 0 0 2px var(--dolphin); color: var(--dolphin-deep); }
+.at-day[aria-pressed="true"] { background: var(--cloud-200); }
+.at-day:disabled { color: var(--cloud-300); cursor: not-allowed; }
+.at-day:disabled .at-mark { opacity: 0.4; }
+.at-marks { display: flex; gap: 2px; }
+.at-marks .at-mark { width: 18px; height: 18px; font-size: 11px; }
+.at-sign { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); }
+.at-sign-main, .at-shift-main { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 2px; }
+.at-sign-main b { font: 700 18px/28px var(--font-sans); }
+.at-shift { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+.at-shift-main b { font: 600 16px/24px var(--font-sans); }
+.at-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
+.at-weekbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.at-week th small, .at-week td small { display: block; font: 500 12px/16px var(--font-sans); color: var(--ink-muted); }
+.at-week th.is-today { color: var(--dolphin-deep); }
+.at-cell { display: inline-flex; gap: 2px; }
+.at-cell-btn { display: grid; place-items: center; min-width: 32px; min-height: 36px; padding: 0; border: 0; border-radius: var(--radius-xs); background: none; cursor: pointer; }
+.at-cell-btn:hover:not(:disabled) { background: var(--cloud-100); }
+.at-cell-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.at-cell-btn:disabled { cursor: default; opacity: 0.4; }
 
 /* 打印 / 存为 PDF on 报表: every tab, charts and tables, without the navigation and the conditions. */
 .rp-print-only { display: none; }
