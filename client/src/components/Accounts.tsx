@@ -38,20 +38,17 @@ function PasswordSheet({ title, text, confirm, onClose, onPassword }: {
   );
 }
 
-// 切换账号 (the login page while this device has accounts): the accounts on this device, then 添加账号, which opens the
-// sign-in form. Tap one to switch: a saved one asks only who you are, another its password. The signed-in one
-// (`current`) turns 在此设备保存登录 on (asking its password) or off; 退出全部账号 signs every one out.
+// 切换账号 (the login page while this device has accounts): the accounts on this device, the signed-in one (`current`)
+// marked 当前, then 添加账号, which opens the sign-in form. Tap one to switch: a saved one asks only who you are,
+// another its password. 退出全部账号 signs every one out.
 export function DeviceAccounts({ current }: { current?: string }) {
   const queryClient = useQueryClient();
-  const [, refresh] = useState(0);
   const [ask, setAsk] = useState<SavedAccount | null>(null);
   const [password, setPassword] = useState<SavedAccount | null>(null);
-  const [keep, setKeep] = useState(false);
   const [confirmAll, setConfirmAll] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const accounts = savedAccounts();
   if (!accounts.length) return null;
-  const mine = accounts.find((a) => a.id === current);
 
   const switched = () => { queryClient.clear(); router.replace('/'); };
   async function trySwitch(a: SavedAccount) {
@@ -78,10 +75,7 @@ export function DeviceAccounts({ current }: { current?: string }) {
               {a.id === current ? (
                 <div className="dc-list-link" aria-current="true">
                   {body}
-                  <button className="dc-chip lg-keep" type="button" aria-pressed={!!mine?.saved}
-                    onClick={() => (mine?.saved ? (setSaved(a.id, false), refresh((n) => n + 1)) : setKeep(true))}>
-                    <Icon name="check" />保存登录
-                  </button>
+                  <small className="dc-tag">当前</small>
                 </div>
               ) : (
                 <a className="dc-list-link" href="/" onClick={(e) => {
@@ -118,16 +112,6 @@ export function DeviceAccounts({ current }: { current?: string }) {
             return SWITCH_ERRORS[r] ?? (r === 'invalid_credentials' ? '密码不正确，请重新输入。' : '暂时无法切换，请检查网络后重试。');
           }} />
       )}
-      {keep && current && (
-        <PasswordSheet title="在此设备保存登录？" confirm="确认保存" onClose={() => setKeep(false)}
-          text="保存后，从其他账号切换回这个账号不用再输入密码；公用设备请不要保存。请输入当前账号的密码确认。"
-          onPassword={async (pw) => {
-            if (!(await checkPassword(current, pw))) return '密码不正确，请重新输入。';
-            setSaved(current, true);
-            setKeep(false);
-            return null;
-          }} />
-      )}
       {confirmAll && (
         <ConfirmSheet title="退出全部账号" text={`这台设备上的 ${accounts.length} 个账号都会退出，下次使用需要重新输入密码。`} confirm="退出全部"
           onClose={() => setConfirmAll(false)}
@@ -139,5 +123,32 @@ export function DeviceAccounts({ current }: { current?: string }) {
           }} />
       )}
     </div>
+  );
+}
+
+// 在此设备保存登录 (我的): a switch for the signed-in account. Turning it on asks its password; off takes a tap.
+export function SaveLogin({ id }: { id: string }) {
+  const [saved, setSavedHere] = useState(() => !!savedAccounts().find((a) => a.id === id)?.saved);
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <label className="dc-switch">
+        <span className="dc-switch-text"><b>在此设备保存登录</b><small>保存后切换回这个账号不用输入密码；公用设备请不要打开</small></span>
+        <input type="checkbox" role="switch" checked={saved}
+          onChange={(e) => { if (e.target.checked) setAsking(true); else { setSaved(id, false); setSavedHere(false); } }} />
+        <span className="dc-switch-track" />
+      </label>
+      {asking && (
+        <PasswordSheet title="在此设备保存登录？" confirm="确认保存" onClose={() => setAsking(false)}
+          text="保存后，从其他账号切换回这个账号不用再输入密码；公用设备请不要保存。请输入当前账号的密码确认。"
+          onPassword={async (pw) => {
+            if (!(await checkPassword(id, pw))) return '密码不正确，请重新输入。';
+            setSaved(id, true);
+            setSavedHere(true);
+            setAsking(false);
+            return null;
+          }} />
+      )}
+    </>
   );
 }

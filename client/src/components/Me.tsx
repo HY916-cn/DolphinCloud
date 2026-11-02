@@ -1,9 +1,10 @@
 import { savedAccounts } from '@/lib/accounts';
 import { ROLES, type Me } from '@/lib/session';
+import { SaveLogin } from './Accounts';
 import { SignOut } from './Sheet';
 import { Icon, link } from './ui';
 
-// 我的 (every login): who is signed in, 切换账号 (the login page, with this device's accounts) and 退出账号.
+// 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号.
 export function MeView({ me }: { me: Me }) {
   const s = me.student;
   const others = savedAccounts().filter((a) => a.id !== me.profile.id).length;
@@ -23,10 +24,11 @@ export function MeView({ me }: { me: Me }) {
         <li>
           <a className="dc-list-link" {...link('/login?switch=1')}>
             <span className="dc-list-icon"><Icon name="me" /></span>
-            <span>切换账号<small className="dc-top-sub">{others ? `这台设备上还有 ${others} 个账号` : '添加账号、在此设备保存登录'}</small></span>
+            <span>切换账号<small className="dc-top-sub">{others ? `这台设备上还有 ${others} 个账号` : '登录其他账号'}</small></span>
             <Icon name="next" />
           </a>
         </li>
+        <li><SaveLogin id={me.profile.id} /></li>
         <li>
           <SignOut trigger={(open) => (
             <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); open(); }}>
