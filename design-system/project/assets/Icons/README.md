@@ -14,6 +14,7 @@
 | `transfer` | 转账 | `arrow-right-left` |
 | `passbook` | 存折 | `book-open` |
 | `calendar` | 预约 | `calendar-check` |
+| `clock` | 时间 | `clock` |
 | `coin` | 海豚币 | `coins` |
 | `star` | 奖励 / 闪光点 | `star` |
 | `me` | 我的 | `user` |

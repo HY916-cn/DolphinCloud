@@ -45,6 +45,7 @@
         "transfer.svg",
         "passbook.svg",
         "calendar.svg",
+        "clock.svg",
         "star.svg",
         "me.svg",
         "parent.svg",
@@ -258,6 +259,12 @@
           "blob": "5be6bb476c5a0b429c8212f2866c9787",
           "size": 566,
           "type": "image/svg+xml"
+        },
+        "clock.svg": {
+          "name": "clock.svg",
+          "blob": "934aad5db0fef305a4bf346a5c1d3787",
+          "size": 251,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -268,8 +275,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-10-31T08:18:34Z",
+    "at": "2026-11-02T08:00:00Z",
     "via": "Claude Code",
-    "note": "DatePicker 加月份面板：点标题按年选月"
+    "note": "新增 TimePicker：24 小时制，先选时再选分"
   }
 }
