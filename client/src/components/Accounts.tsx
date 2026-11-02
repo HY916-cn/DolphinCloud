@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { checkPassword, savedAccounts, setSaved, signOutAll, switchAccount, type SavedAccount } from '@/lib/accounts';
 import { ConfirmSheet } from './Sheet';
-import { Icon, Notice } from './ui';
+import { Icon, link, Notice } from './ui';
 
 const who = (a: SavedAccount) => (a.kind === 'student' ? `学号 ${a.loginId}` : `工作账号 ${a.loginId}`);
 const SWITCH_ERRORS: Record<string, string> = {
@@ -38,9 +38,9 @@ function PasswordSheet({ title, text, confirm, onClose, onPassword }: {
   );
 }
 
-// 切换账号 (on the login page, above the form that adds one): the accounts on this device. Tap one to switch: a saved
-// one asks only who you are, another its password. The signed-in one (`current`) turns 在此设备保存登录 on or off
-// (off asks its password); 退出全部账号 signs every one out.
+// 切换账号 (the login page while this device has accounts): the accounts on this device, then 添加账号, which opens the
+// sign-in form. Tap one to switch: a saved one asks only who you are, another its password. The signed-in one
+// (`current`) turns 在此设备保存登录 on or off (off asks its password); 退出全部账号 signs every one out.
 export function DeviceAccounts({ current }: { current?: string }) {
   const queryClient = useQueryClient();
   const [, refresh] = useState(0);
@@ -94,6 +94,13 @@ export function DeviceAccounts({ current }: { current?: string }) {
             </li>
           );
         })}
+        <li>
+          <a className="dc-list-link" {...link('/login?add=1')}>
+            <span className="dc-list-icon"><Icon name="plus" /></span>
+            <span>添加账号<small className="dc-top-sub">登录其他学生或工作人员账号</small></span>
+            <Icon name="next" />
+          </a>
+        </li>
       </ul>
       {accounts.length > 1 && (
         <button className="dc-btn dc-btn-ghost dc-btn-sm is-danger lg-all" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>

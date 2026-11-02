@@ -22,9 +22,10 @@ function message(code?: string) {
 
 export default function Login() {
   const { session, ready } = useSession();
-  // ?add=1 (我的 → 切换账号): switch to or sign in another account on this device; the current one stays remembered
-  // (lib/accounts.ts).
-  const adding = useLocalSearchParams<{ add?: string }>().add === '1';
+  // ?switch=1 (我的 → 切换账号): this device's accounts while signed in. ?add=1 (添加账号): the form alone, to sign in
+  // another account; the current one stays remembered (lib/accounts.ts).
+  const params = useLocalSearchParams<{ switch?: string; add?: string }>();
+  const adding = params.add === '1';
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<LoginKind>('student');
   const [loginId, setLoginId] = useState('');
@@ -32,12 +33,11 @@ export default function Login() {
   const [error, setError] = useState<{ title: string; text: string; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [save, setSave] = useState(false);
-  if (ready && session && !adding) return <Redirect href="/" />;
+  if (ready && session && !adding && params.switch !== '1') return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
-  // 切换账号: this device's accounts above the form, also after 退出账号.
-  const switching = adding || savedAccounts().length > 0;
+  const accounts = savedAccounts();
   // 在此设备保存登录 is asked the first time an account signs in on this device.
-  const known = savedAccounts().some((a) => a.kind === kind && a.loginId === loginId.trim().toLowerCase() && a.saved);
+  const known = accounts.some((a) => a.kind === kind && a.loginId === loginId.trim().toLowerCase() && a.saved);
 
   async function signIn() {
     if (busy || !loginId.trim() || !password) return;
@@ -55,11 +55,20 @@ export default function Login() {
     router.replace('/');
   }
 
+  // 切换账号: this device's accounts, the last row 添加账号; also after 退出账号.
+  if (!adding && accounts.length > 0) {
+    return (
+      <Welcome label="切换账号">
+        <h2 className="dc-login-title">切换账号</h2>
+        <DeviceAccounts current={session?.user.id} />
+        {session && <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/')}>返回</a>}
+      </Welcome>
+    );
+  }
+
   return (
     <Welcome label="登录" onSubmit={signIn}>
-      <h2 className="dc-login-title">{switching ? '切换账号' : '欢迎登录'}</h2>
-      <DeviceAccounts current={session?.user.id} />
-      {switching && <p className="dc-login-help lg-or">或登录其他账号</p>}
+      <h2 className="dc-login-title">欢迎登录</h2>
       <fieldset className="dc-seg" aria-label="身份">
         {KINDS.map((k) => (
           <label key={k.kind}>
@@ -93,8 +102,8 @@ export default function Login() {
         disabled={busy || !loginId.trim() || !password}>
         {busy ? '正在登录' : '登录'}
       </button>
-      {adding && session ? (
-        <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/')}>返回</a>
+      {accounts.length > 0 ? (
+        <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link(session ? '/login?switch=1' : '/login')}>返回切换账号</a>
       ) : (
         <p className="dc-login-help">首次登录请使用初始密码，登录后设置新密码<br />忘记密码请联系银行管理员</p>
       )}

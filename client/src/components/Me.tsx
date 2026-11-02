@@ -21,9 +21,9 @@ export function MeView({ me }: { me: Me }) {
       </div>
       <ul className="dc-list">
         <li>
-          <a className="dc-list-link" {...link('/login?add=1')}>
+          <a className="dc-list-link" {...link('/login?switch=1')}>
             <span className="dc-list-icon"><Icon name="me" /></span>
-            <span>切换账号<small className="dc-top-sub">{others ? `这台设备上还有 ${others} 个账号` : '登录其他账号、在此设备保存登录'}</small></span>
+            <span>切换账号<small className="dc-top-sub">{others ? `这台设备上还有 ${others} 个账号` : '添加账号、在此设备保存登录'}</small></span>
             <Icon name="next" />
           </a>
         </li>

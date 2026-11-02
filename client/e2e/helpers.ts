@@ -15,7 +15,7 @@ export function resetData() {
 }
 
 // Signs in with the default password a12345678 (every seed login uses it); `save` ticks 在此设备保存登录.
-export async function signIn(page: Page, kind: '学生' | '工作人员', id: string, path = '/login', password = 'a12345678', save = false) {
+export async function signIn(page: Page, kind: '学生' | '工作人员', id: string, path = '/login?add=1', password = 'a12345678', save = false) {
   await page.goto(path);
   await page.locator('.dc-seg label', { hasText: kind }).click();
   await page.getByPlaceholder(kind === '学生' ? '请输入学号' : '请输入账号').fill(id);

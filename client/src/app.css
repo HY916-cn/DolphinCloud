@@ -158,7 +158,6 @@ span.at-cell-btn { cursor: default; }
 .dc-sheet-actions { flex-wrap: wrap; }
 .dc-sheet-actions .dc-btn { flex: 1 1 auto; padding-inline: var(--space-4); }
 
-/* 切换账号 on the login page: the signed-in account's 保存登录, 退出全部账号, and the line before the form. */
+/* 切换账号 on the login page: the signed-in account's 保存登录 and 退出全部账号. */
 .lg-keep { flex: none; min-height: 36px; padding: 0 var(--space-3); font-size: 14px; }
 .lg-all { align-self: center; }
-.lg-or { margin: 0; text-align: left; }

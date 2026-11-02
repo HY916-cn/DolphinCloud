@@ -241,11 +241,11 @@ test('reprinting the notices gives the waiting students new initial passwords', 
 // 20260003 is not used after this: five wrong passwords lock the login for 15 minutes, even with the right one.
 test('five wrong passwords lock a login', async ({ page }) => {
   for (let i = 0; i < 5; i++) {
-    await signIn(page, '学生', '20260003', '/login', 'wrong0000');
+    await signIn(page, '学生', '20260003', '/login?add=1', 'wrong0000');
     await expect(page.locator('.dc-notice-danger')).toBeVisible();
   }
-  await signIn(page, '学生', '20260003', '/login', reissued);
+  await signIn(page, '学生', '20260003', '/login?add=1', reissued);
   await expect(page.locator('.dc-notice-danger')).toContainText('密码错误次数过多');
   await expect(page.locator('.dc-notice-danger')).toContainText('请 15 分钟后再试，或请银行管理员重置密码。');
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?add=1$/);
 });

@@ -145,18 +145,24 @@ test('the counter reopens without a network once installed', async ({ page, cont
   await context.setOffline(false);
 });
 
-test('切换账号 is the login page with this device’s accounts; 退出账号 comes back to it', async ({ page }) => {
-  await signIn(page, '工作人员', 'teller01', '/login', undefined, true);
+test('切换账号 lists this device’s accounts and 添加账号; 退出账号 comes back to it', async ({ page }) => {
+  await signIn(page, '工作人员', 'teller01', '/login?add=1', undefined, true);
   await expect(page).toHaveURL(/\/counter$/);
   await signIn(page, '学生', '20260001', '/login?add=1');
   await expect(page).toHaveURL(/\/student$/);
 
-  // 我的 holds 切换账号 and 退出账号; 切换账号 opens the login page with the accounts above the form.
+  // 我的 holds 切换账号 and 退出账号; 切换账号 lists the accounts, and 添加账号 opens the sign-in form on its own.
   await page.goto('/student/me');
   await page.locator('.dc-list-link', { hasText: '切换账号' }).click();
-  await expect(page).toHaveURL(/\/login\?add=1$/);
+  await expect(page).toHaveURL(/\/login\?switch=1$/);
   await expect(page.locator('.dc-login-title')).toHaveText('切换账号');
   const accounts = page.getByRole('list', { name: '本机账号' });
+  await expect(page.getByPlaceholder('请输入密码')).toHaveCount(0);
+  await accounts.locator('.dc-list-link', { hasText: '添加账号' }).click();
+  await expect(page).toHaveURL(/\/login\?add=1$/);
+  await expect(page.locator('.dc-login-title')).toHaveText('欢迎登录');
+  await page.getByRole('link', { name: '返回切换账号' }).click();
+  await expect(page).toHaveURL(/\/login\?switch=1$/);
   await expect(accounts.getByRole('button', { name: '保存登录' })).toHaveAttribute('aria-pressed', 'false');
   await accounts.locator('.dc-list-link', { hasText: '柜员小林' }).click();
   await expect(page.locator('.dc-sheet')).toContainText('你是柜员小林吗？');
@@ -164,18 +170,18 @@ test('切换账号 is the login page with this device’s accounts; 退出账号
   await expect(page).toHaveURL(/\/counter$/);
 
   // 张小明 was not saved: switching back asks for the password.
-  await page.goto('/login?add=1');
+  await page.goto('/login?switch=1');
   await accounts.locator('.dc-list-link', { hasText: '张小明' }).click();
   await page.locator('.dc-sheet input[type="password"]').fill('a12345678');
   await confirmIn(page, '切换');
   await expect(page).toHaveURL(/\/student$/);
 
   // Turning saving off asks for the password.
-  await page.goto('/login?add=1');
+  await page.goto('/login?switch=1');
   await accounts.locator('.dc-list-link', { hasText: '柜员小林' }).click();
   await confirmIn(page, '是，切换');
   await expect(page).toHaveURL(/\/counter$/);
-  await page.goto('/login?add=1');
+  await page.goto('/login?switch=1');
   await accounts.getByRole('button', { name: '保存登录' }).click();
   await page.locator('.dc-sheet input[type="password"]').fill('a12345678');
   await confirmIn(page, '确认关闭');
