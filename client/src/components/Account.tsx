@@ -14,7 +14,7 @@ export function BalanceCard({ amount, label = '我的海豚币' }: { amount: num
   );
 }
 
-// TxnList: icon, "业务 · 详情", time, and the signed amount with a word (存入 / 支出), never colour alone; a cash
+// TxnList: icon, "业务 · 详情", time, and the signed amount with a word (存入 / 取出 / 余额支付), never colour alone; a cash
 // business shows its amount unsigned, as it leaves the balance as it is.
 export function TxnList({ items }: { items: Txn[] }) {
   return (

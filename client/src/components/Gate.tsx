@@ -21,6 +21,14 @@ export function Gate({ allow, children }: { allow: (me: Me) => boolean; children
       </Welcome>
     );
   }
+  if (me.data.profile.disabled) {
+    return (
+      <Welcome label="账号已停用">
+        <Notice tone="danger" title="这个账号已被停用">停用的账号不能使用。需要恢复时，请联系银行管理员启用。</Notice>
+        <SignOutBlock />
+      </Welcome>
+    );
+  }
   if (me.data.profile.must_change_password) return <Redirect href="/change-password" />;
   if (!allow(me.data)) return <Redirect href="/" />;
   return <>{children(me.data)}</>;

@@ -1,15 +1,16 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, niceMax } from '@/lib/format';
 import { findScopes, type Scope } from '@/lib/search';
 import { useStudents } from '@/lib/students';
 import { ListLoading } from './Skeleton';
+import { TimePicker } from './TimePicker';
 import { Icon, type IconName } from './ui';
 
-const SCOPE_ICON: Record<Scope['kind'], IconName> = { division: 'home', class: 'teacher', student: 'me' };
+export const SCOPE_ICON: Record<Scope['kind'], IconName> = { division: 'home', class: 'teacher', student: 'me' };
 
-// 学生范围 on 流水 and 报表: the counter's search (姓名、拼音首字母、班级、学号) over the whole roster, which also offers
+// 学生范围 on 报表: the counter's search (姓名、拼音首字母、班级、学号) over the whole roster, which also offers
 // a whole class or 学部. The chosen scope is a chip; clearing it is every student again. A student given only by
-// number (?student= on 流水) is named once the roster is in.
+// number is named once the roster is in.
 export function ScopePicker({ value, onChange }: { value: Scope | null; onChange: (s: Scope | null) => void }) {
   const students = useStudents();
   const [query, setQuery] = useState('');
@@ -62,30 +63,39 @@ export function TimeRange({ from, to, onChange }: { from: string; to: string; on
   const wrong = !!from && !!to && from >= to;
   return (
     <div className={`dc-field${wrong ? ' is-error' : ''}`} role="group" aria-label="每天的时段">
-      <span className="dc-field-label"><Icon name="calendar" />每天的时段</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', maxWidth: 480 }}>
-        <span className="dc-input-wrap" style={{ flex: 1, minWidth: 0 }}><input className="dc-input" type="time" style={{ minWidth: 0 }} aria-label="时段开始" value={from} onChange={(e) => onChange(e.target.value, to)} /></span>
-        至
-        <span className="dc-input-wrap" style={{ flex: 1, minWidth: 0 }}><input className="dc-input" type="time" style={{ minWidth: 0 }} aria-label="时段结束" value={to} onChange={(e) => onChange(from, e.target.value)} /></span>
+      <span className="rp-pair">
+        <TimePicker label="每天从" value={from} placeholder="0:00" rule="不填为当天开始" onChange={(f) => onChange(f, to)} />
+        <TimePicker label="每天到" value={to} placeholder="24:00" rule="不填为当天结束" onChange={(t) => onChange(from, t)} />
       </span>
       <span className="dc-field-hint" role={wrong ? 'alert' : undefined}>
         {wrong ? '结束时间要晚于开始时间' : from || to ? `每天 ${from || '0:00'} 至 ${to || '24:00'}` : '全天'}
-        {(from || to) && !wrong && (
-          <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" style={{ minHeight: 0, paddingInline: 'var(--space-2)' }}
-            onClick={() => onChange('', '')}>改为全天</button>
-        )}
       </span>
     </div>
   );
 }
 
-// A figure: what it counts, the number, and a note under it.
-export function Stats({ items }: { items: [string, ReactNode, string?][] }) {
+// Figures: what each counts, the number and its unit, and how it compares (比上期); one row, or two even rows on a
+// narrow page.
+export function Stats({ items }: { items: [string, ReactNode, string?, string?][] }) {
   return (
-    <div className="rp-stats">
-      {items.map(([label, value, unit]) => (
-        <div key={label} className="dc-card rp-stat"><span>{label}</span><b>{value}{unit && <small>{unit}</small>}</b></div>
-      ))}
+    <div className="rp-stats-box">
+      <div className="rp-stats" data-n={items.length} style={{ '--n': items.length } as CSSProperties}>
+        {items.map(([label, value, unit, change]) => (
+          <div key={label} className="dc-card rp-stat">
+            <span>{label}</span><b>{value}{unit && <small>{unit}</small>}</b>
+            {change && <em className={change.includes('+') ? 'is-up' : change.includes('-') ? 'is-down' : undefined}>{change}</em>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The scale beside a chart: the top (rounded, niceMax), its half and zero, with gridlines across the plot.
+function Grid({ top }: { top: number }) {
+  return (
+    <div className="rp-grid" aria-hidden="true">
+      {[top, top / 2, 0].map((t) => <span key={t}><small>{formatAmount(Math.round(t))}</small></span>)}
     </div>
   );
 }
@@ -95,13 +105,17 @@ const v = (value: number, max: number) => ({ '--v': max ? value / max : 0 }) as 
 
 // Columns over time or another order (days, hours, balance bands): one series, the title names it.
 export function Columns({ title, data, kind = '', unit }: { title: string; data: Point[]; kind?: string; unit: string }) {
-  const max = Math.max(0, ...data.map((d) => d.value));
+  const top = niceMax(Math.max(0, ...data.map((d) => d.value)));
+  const total = data.reduce((n, d) => n + d.value, 0);
   const every = Math.ceil(data.length / 7); // at most seven axis labels
   return (
     <figure className={`rp-chart ${kind}`}>
-      <figcaption>{title}<small>最高 {formatAmount(max)} {unit}</small></figcaption>
-      <div className="rp-cols" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
-        {data.map((d) => <span key={d.label} className="rp-col" data-tip={d.tip} style={v(d.value, max)}><i /></span>)}
+      <figcaption>{title}<small>合计 {formatAmount(total)} {unit}</small></figcaption>
+      <div className="rp-plot">
+        <Grid top={top} />
+        <div className="rp-cols" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
+          {data.map((d) => <span key={d.label} className="rp-col" data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
+        </div>
       </div>
       <div className="rp-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
     </figure>
@@ -112,19 +126,23 @@ export function Columns({ title, data, kind = '', unit }: { title: string; data:
 // and each day's value on hover.
 export function Line({ title, data, unit }: { title: string; data: Point[]; unit: string }) {
   const max = Math.max(0, ...data.map((d) => d.value));
+  const top = niceMax(max);
   const n = data.length;
-  const y = (value: number) => 100 - (max ? (value / max) * 100 : 0);
+  const y = (value: number) => 100 - (value / top) * 100;
   const points = data.map((d, i) => `${i + 0.5},${y(d.value)}`).join(' ');
   const every = Math.ceil(n / 7);
   return (
     <figure className="rp-chart">
       <figcaption>{title}<small>期末 {formatAmount(data.at(-1)?.value ?? 0)} {unit} · 最高 {formatAmount(max)} {unit}</small></figcaption>
-      <div className="rp-cols rp-line" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
-        <svg viewBox={`0 0 ${n} 100`} preserveAspectRatio="none" aria-hidden="true">
-          <polygon points={`0.5,100 ${points} ${n - 0.5},100`} />
-          <polyline points={points} />
-        </svg>
-        {data.map((d, i) => <span key={d.label} className={`rp-col${i === n - 1 ? ' is-end' : ''}`} data-tip={d.tip} style={v(d.value, max)}><i /></span>)}
+      <div className="rp-plot">
+        <Grid top={top} />
+        <div className="rp-cols rp-line" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
+          <svg viewBox={`0 0 ${n} 100`} preserveAspectRatio="none" aria-hidden="true">
+            <polygon points={`0.5,100 ${points} ${n - 0.5},100`} />
+            <polyline points={points} />
+          </svg>
+          {data.map((d, i) => <span key={d.label} className={`rp-col${i === n - 1 ? ' is-end' : ''}`} data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
+        </div>
       </div>
       <div className="rp-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
     </figure>
@@ -132,14 +150,19 @@ export function Line({ title, data, unit }: { title: string; data: Point[]; unit
 }
 
 // Bars for named things (classes, tellers, products), longest first as given; the value is written at the bar's end.
+// Each bar also says its share of the whole.
 export function Bars({ title, data, kind = '' }: { title: string; data: { label: string; value: number; text: string }[]; kind?: string }) {
   const max = Math.max(0, ...data.map((d) => d.value));
+  const total = data.reduce((n, d) => n + Math.max(d.value, 0), 0);
   return (
     <figure className={`rp-chart ${kind}`}>
-      <figcaption>{title}</figcaption>
+      <figcaption>{title}<small>{data.length} 项</small></figcaption>
       <dl className="rp-bars">
         {data.map((d) => (
-          <div key={d.label}><dt title={d.label}>{d.label}</dt><dd><i style={v(d.value, max)} /><b>{d.text}</b></dd></div>
+          <div key={d.label}>
+            <dt title={d.label}>{d.label}</dt>
+            <dd><i style={v(d.value, max)} /><b>{d.text}</b>{total > 0 && <small>{Math.round((Math.max(d.value, 0) / total) * 100)}%</small>}</dd>
+          </div>
         ))}
       </dl>
     </figure>

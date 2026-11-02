@@ -60,8 +60,9 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await expect(page.locator('.dc-kv')).toContainText('期初余额合计');
   await page.getByRole('button', { name: '确认导入' }).click();
   await expect(page.locator('.dc-result')).toContainText('新开户 2 人，更新 1 人');
+  await page.getByRole('button', { name: '开户通知单' }).click();
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: '下载开户通知单' }).click();
+  await confirmIn(page, '下载 PDF');
   expect(await noticePages(await download)).toBe(2);
   const drawn = await page.evaluate(() => (window as unknown as { notices: string[] }).notices);
   expect(drawn).toContain('四年级(1)班');
@@ -71,6 +72,7 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   const password = await noticePassword(page, '20269001');
   expect(password).toMatch(/^\d{8}$/);
   expect(await noticePassword(page, '20269002')).not.toBe(password);
+  await confirmIn(page, '取消');
 
   await page.getByRole('button', { name: '返回学生' }).click();
   await page.getByRole('searchbox', { name: '搜索学生' }).fill('zym');
@@ -81,8 +83,8 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   // The student signs in on this device too (it becomes a second account here), with the password on their notice.
   await signIn(page, '学生', '20269001', '/login?add=1', password);
   await expect(page).toHaveURL(/\/change-password$/);
-  await page.getByPlaceholder('至少 8 位，含英文字母和数字').fill('zhou2026a');
-  await page.getByPlaceholder('再次输入新密码').fill('zhou2026a');
+  await page.getByPlaceholder('至少 8 位，可以全是数字').fill('20262026');
+  await page.getByPlaceholder('再次输入新密码').fill('20262026');
   await page.getByRole('button', { name: '设置密码' }).click();
   await expect(page.locator('.dc-balance-amount')).toContainText('30');
 });
@@ -110,7 +112,7 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await page.getByPlaceholder('如 柜员小王').fill('柜员小周');
   await page.getByRole('button', { name: '创建账号' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('teller09 已创建');
-  await expect(page.locator('.dc-notice-success')).toContainText(/初始密码 [A-Za-z0-9]{8}。/);
+  await expect(page.locator('.dc-notice-success')).toContainText(/初始密码 \d{8}。/);
 
   await page.goto('/admin/staff');
   await page.locator('.dc-list-link', { hasText: '柜员小周' }).click();
@@ -128,6 +130,56 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await page.locator('.dc-list-link', { hasText: '银行管理员' }).first().click();
   await expect(page.locator('.dc-notice')).toContainText('银行管理员只有一个');
   await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
+});
+
+test('批量: create two staff logins at once, stop one, which then cannot sign in, and close the other', async ({ page }) => {
+  await recordNotices(page);
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/staff/new');
+  await page.getByLabel('每行一个账号').fill('teller21 柜员甲\nteller22 柜员乙 柜员');
+  await page.getByRole('button', { name: '创建 2 个账号' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('2 个账号的初始密码');
+  const download = page.waitForEvent('download');
+  await confirmIn(page, '下载 PDF');
+  expect((await download).suggestedFilename()).toMatch(/^工作人员初始密码-\d{4}-\d{2}-\d{2}\.pdf$/);
+  const password = await page.evaluate(() => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('teller21') + 1]; });
+  expect(password).toMatch(/^\d{8}$/);
+  await confirmIn(page, '取消');
+
+  const pick = async (name: string) => page.locator('.bt-pick', { hasText: `选择${name}` }).click();
+  await page.goto('/admin/staff');
+  await page.getByRole('button', { name: '选择', exact: true }).click();
+  await pick('柜员甲');
+  await page.getByRole('toolbar', { name: '批量操作' }).getByRole('button', { name: '停用' }).click();
+  await confirmIn(page, '停用');
+  await expect(page.locator('.dc-notice-success')).toContainText('已停用 1 个账号');
+  await expect(page.getByRole('list', { name: '工作人员' })).not.toContainText('柜员甲');
+
+  await page.getByRole('button', { name: '选择', exact: true }).click();
+  await page.getByRole('button', { name: '选择', exact: true }).click();
+  await pick('柜员乙');
+  await page.getByRole('toolbar', { name: '批量操作' }).getByRole('button', { name: '注销' }).click();
+  await confirmIn(page, '继续');
+  await confirmIn(page, '确认注销');
+  await expect(page.locator('.dc-notice-success')).toContainText('已注销 1 个账号');
+  await expect(page.getByRole('list', { name: '工作人员' })).not.toContainText('柜员乙');
+
+  await signIn(page, '工作人员', 'teller21', '/login?add=1', password);
+  await expect(page.locator('.dc-notice-danger')).toContainText('这个账号已被停用');
+});
+
+test('注销 a student: after a second confirmation the student leaves the list', async ({ page }) => {
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/students/20269002');
+  await page.getByRole('button', { name: '注销账号' }).click();
+  await expect(page.locator('.dc-sheet')).toContainText('永久停用');
+  await confirmIn(page, '继续');
+  await confirmIn(page, '确认注销');
+  await expect(page.locator('.dc-notice-success')).toContainText('已注销 1 个账号');
+  await page.goto('/admin/students');
+  await expect(page.getByRole('list', { name: '学生' })).not.toContainText('吴二');
 });
 
 test('总览 links the students who have not set a new password to the filtered 学生 list', async ({ page }) => {
@@ -151,7 +203,7 @@ test('学生 → 查看全部流水 shows only that student, and the teacher rev
   await page.goto('/admin/students/20269001');
   await page.getByRole('link', { name: '查看全部流水' }).click();
   await expect(page).toHaveURL(/\/admin\/txns\?student=20269001$/);
-  await expect(page.getByRole('button', { name: /^清除学生范围：周一鸣 · .* · 学号 20269001$/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: '去掉条件：周一鸣 · 学号 20269001' })).toBeVisible();
   const list = page.locator('section[aria-label="流水"]');
   const rows = list.locator('.dc-txn');
   await expect(rows).toHaveCount(1);
@@ -175,10 +227,11 @@ test('reprinting the notices gives the waiting students new initial passwords', 
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students');
-  await page.getByRole('button', { name: '下载开户通知单' }).click();
+  await page.getByRole('button', { name: '开户通知单' }).click();
   await expect(page.locator('.dc-sheet')).toContainText('之前发出的通知单随即失效');
+  await confirmIn(page, '生成通知单');
   const download = page.waitForEvent('download');
-  await confirmIn(page, '生成并下载');
+  await confirmIn(page, '下载 PDF');
   expect(await noticePages(await download)).toBeGreaterThan(0);
   expect(await page.evaluate(() => (window as unknown as { notices: string[] }).notices)).toContain('王小雨同学，你好');
   reissued = await noticePassword(page, '20260003');

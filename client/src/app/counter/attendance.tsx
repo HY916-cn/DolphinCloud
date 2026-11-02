@@ -1,84 +1,58 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { CounterPage, DayShifts, formatDate, Icon, ListLoading, Notice, SalaryAccount, ShiftCalendar, ShiftMark, Stats, today } from '@/components';
-import { earned, NO_RATES, SHIFT_STATUS, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
-import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatTime, shiftAt, shiftDay } from '@/lib/format';
-import { useOnline } from '@/lib/online';
-import { call } from '@/lib/rpc';
+import { CounterPage, DutyCard, ListLoading, Notice, SalaryAccount, Stats, today, WeekBar, WeekShifts } from '@/components';
+import { earned, NO_RATES, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
+import { useDuties } from '@/lib/duty';
+import { formatAmount, formatTime, shiftDay } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
-// 考勤 (PHASE-1.md §7.5): sign in for the shift of now, the month as a calendar of shifts, this week's and this
-// month's 有效班次 and pay, and the student account the pay goes to.
+// 考勤 (PHASE-1.md §7.5): 上班 and 下班, a week of shifts (any week by its arrows or a day from the calendar), the
+// week's 有效班次 and pay, its 上下班记录, and the student account the pay goes to.
 export default function Attendance() {
   const me = useMe().data!;
-  const online = useOnline();
-  const queryClient = useQueryClient();
-  const now = today();
-  const shift = shiftAt(new Date());
-  const [month, setMonth] = useState(now.slice(0, 7));
-  const [picked, setPicked] = useState(now);
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<{ title: string; text: string } | null>(null);
+  const [monday, setMonday] = useState(weekOf(today())[0]);
+  const sunday = shiftDay(monday, 6);
   const payroll = usePayroll();
   const rate = useSalaryRate();
   const mine = payroll.data?.find((p) => p.user_id === me.profile.id);
-  const end = shiftDay(`${shiftDay(`${month}-01`, 31).slice(0, 7)}-01`, -1);
-  const shifts = useShifts(`${month}-01`, end, me.profile.id);
-  const [monday, sunday] = weekOf(now);
-  const week = useShifts(monday, sunday, me.profile.id);
-  const current = week.data?.find((r) => r.day === now && r.shift === shift);
-
-  async function sign() {
-    setBusy(true);
-    setProblem(null);
-    try {
-      await call('sign_attendance', {});
-      await queryClient.invalidateQueries({ queryKey: ['attendance'] });
-    } catch (err) {
-      setProblem(err instanceof AppError ? explain(err.code, err.detail) : explain(''));
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const shifts = useShifts(monday, sunday, me.profile.id);
+  const duties = useDuties(me.profile.id, monday, sunday);
   const rows = shifts.data ?? [];
-  const valid = (list = rows) => list.filter((r) => r.status === 'confirmed').length;
   const r = rate.data ?? NO_RATES;
   return (
     <CounterPage title="考勤">
-      {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
       <div className="dc-split">
         <div className="dc-stack dc-enter">
-          {payroll.data && !mine?.attendance ? (
-            <Notice title="还没有参与考勤">由银行管理员设置后才能签到；以前的记录仍可在下面查看。</Notice>
-          ) : (
-            <div className="dc-card at-sign">
-              <span className="at-sign-main">
-                <b>{formatDate(now)} · {SHIFTS[shift]}</b>
-                <small className="dc-top-sub">
-                  {current ? `已签到 ${formatTime(current.signed_at)} · ${SHIFT_STATUS[current.status]}` : '13:30 之前为中午班，13:30 起为下午班'}
-                </small>
-              </span>
-              {current ? <ShiftMark shift={shift} row={current} />
-                : <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={busy || !online || !payroll.data} onClick={sign}>
-                    <Icon name="check" />签到
-                  </button>}
-            </div>
+          <DutyCard me={me} />
+          {payroll.data && !mine?.attendance && (
+            <Notice title="还没有参与考勤">上下班照常，班次不计工资。由银行管理员开启；参与前需要先绑定工资账户。</Notice>
           )}
+          <WeekBar monday={monday} onMonday={setMonday} />
           <Stats items={[
-            ['本周有效', valid(week.data ?? []), '个班次'],
-            ['本月有效', valid(), '个班次'],
-            ['本月待审', rows.filter((x) => x.status === 'pending').length, '个班次'],
-            ['本月工资', formatAmount(earned(rows, r)), `HTB · 已发 ${formatAmount(rows.reduce((s, x) => s + (x.pay ?? 0), 0))}`],
+            ['有效', rows.filter((x) => x.status === 'confirmed').length, '个班次'],
+            ['待审', rows.filter((x) => x.status === 'pending').length, '个班次'],
+            ['工资', formatAmount(earned(rows, r)), 'HTB'],
+            ['已发', formatAmount(rows.reduce((s, x) => s + (x.pay ?? 0), 0)), 'HTB'],
           ]} />
           {shifts.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
-            : <ShiftCalendar month={month} rows={rows} max={now} picked={picked} onPick={setPicked}
-                onMonth={(m) => { setMonth(m); setPicked(m === now.slice(0, 7) ? now : `${m}-01`); }} />}
-          <p className="dc-top-sub">每个班次由银行管理员确认后计为有效；工资中午班每个 {r.am} HTB、下午班每个 {r.pm} HTB，每周发放到工资账户。</p>
+            : shifts.isPending ? <ListLoading rows={3} label="正在加载考勤" /> : <WeekShifts monday={monday} rows={rows} />}
+          <p className="dc-top-sub">每个班次由银行管理员审查确认后计为有效；工资中午班每个 {r.am} HTB、下午班每个 {r.pm} HTB，由银行管理员发放到工资账户。</p>
         </div>
         <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
-          {shifts.isPending ? <ListLoading rows={2} label="正在加载考勤" /> : <DayShifts day={picked} rows={rows} />}
+          <section aria-label="上下班记录">
+            <p className="dc-list-title">上下班记录</p>
+            {duties.data?.length ? (
+              <ul className="dc-list">
+                {duties.data.map((d) => (
+                  <li key={d.id} className="at-shift">
+                    <span className="at-shift-main">
+                      <b>{formatTime(d.started_at)} 上班</b>
+                      <small className="dc-top-sub">{d.ended_at ? `${formatTime(d.ended_at).split(' ')[1]} 下班 · 总结 ${d.txns} 笔业务` : '上班中'}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="dc-top-sub">{duties.isPending ? '正在加载…' : '这一周没有上班记录。'}</p>}
+          </section>
           <SalaryAccount userId={me.profile.id} payroll={mine} />
         </div>
       </div>

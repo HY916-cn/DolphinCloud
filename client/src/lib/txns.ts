@@ -6,13 +6,14 @@ import { formatTime } from './format';
 export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; paid: number; note: string };
 
 export type TxnRow = {
-  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary'; amount: number; balance_delta: number;
+  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'closing'; amount: number; balance_delta: number;
   payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; reason: string | null; created_at: string;
   txn_items?: { name: string; qty: number }[];
 };
 
 // Icon and category colour per business (design system ColorRoles): savings, withdrawals, exchanges; a reversal is
-// a correction and keeps the account blue; 工资 is the bank's pay for a teller's shifts.
+// a correction and keeps the account blue; 工资 is the bank's pay for a teller's shifts; 注销清零 clears the balance of
+// a closed account.
 export const KINDS = {
   opening: { icon: 'savings', title: '期初余额', kind: 'dc-kind-save' },
   deposit: { icon: 'deposit', title: '存款', kind: 'dc-kind-save' },
@@ -20,6 +21,7 @@ export const KINDS = {
   purchase: { icon: 'exchange', title: '兑换', kind: 'dc-kind-exchange' },
   reversal: { icon: 'transfer', title: '冲正', kind: '' },
   salary: { icon: 'invest', title: '工资', kind: 'dc-kind-reward' },
+  closing: { icon: 'close', title: '注销清零', kind: '' },
 } as const;
 
 // A ledger row as the account holder reads it: "业务 · 详情", time, and the change to their balance, or for cash
@@ -37,6 +39,6 @@ export function toTxn(t: TxnRow): Txn {
     time: formatTime(t.created_at),
     amount: t.balance_delta,
     paid: t.amount,
-    note: t.balance_delta > 0 ? '存入' : t.balance_delta < 0 ? '支出' : t.type === 'reversal' ? '退回现金，余额不变' : '现金支付，余额不变',
+    note: t.balance_delta > 0 ? '存入' : t.balance_delta < 0 ? (t.type === 'purchase' ? '余额支付' : '取出') : t.type === 'reversal' ? '退回现金，余额不变' : '现金支付，余额不变',
   };
 }

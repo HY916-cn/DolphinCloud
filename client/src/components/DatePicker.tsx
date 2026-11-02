@@ -18,12 +18,16 @@ const parts = (s: string) => s.split('-').map(Number);
 // Today in Asia/Shanghai, the school's day.
 export const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
 export const formatDate = (s: string) => { const [y, m, d] = parts(s); return `${y}年${m}月${d}日 星期${weekday(s)}`; };
+// For two pickers side by side: the year only when it is not this one, and 周 for 星期.
+const shortDate = (s: string) => { const [y, m, d] = parts(s); return `${String(y) === today().slice(0, 4) ? '' : `${y}年`}${m}月${d}日 周${weekday(s)}`; };
 
 // DatePicker (design system): a trigger that opens a month calendar, Monday first; its title opens a month panel
 // to jump by year. `min`/`max` bound the days that can be picked; `rule` says why the others cannot. With
-// `placeholder` the field may stay empty and the footer can clear it.
-export function DatePicker({ label, value, onChange, min, max, rule, placeholder }: {
+// `placeholder` the field may stay empty and the footer can clear it. `shown` replaces the date on the trigger (a
+// week), `short` shows it briefly (two pickers side by side), and `bare` leaves the label to screen readers.
+export function DatePicker({ label, value, onChange, min, max, rule, placeholder, shown, bare, short }: {
   label: string; value: string; onChange: (v: string) => void; min?: string; max?: string; rule: string; placeholder?: string;
+  shown?: string; bare?: boolean; short?: boolean;
 }) {
   const id = useId();
   const now = today();
@@ -101,11 +105,11 @@ export function DatePicker({ label, value, onChange, min, max, rule, placeholder
   }
 
   return (
-    <div className="dc-field dc-date" ref={root}>
-      <label className="dc-field-label" htmlFor={id}><Icon name="calendar" />{label}</label>
+    <div className={`dc-field dc-date${bare ? ' is-bare' : ''}`} ref={root}>
+      <label className={bare ? 'dc-sr-only' : 'dc-field-label'} htmlFor={id}>{!bare && <Icon name="calendar" />}{label}</label>
       <button ref={trigger} className="dc-date-trigger" id={id} type="button" aria-haspopup="dialog" aria-expanded={open}
         aria-controls={`${id}-cal`} onClick={() => (open ? close() : show())}>
-        <span style={value ? undefined : { color: 'var(--ink-muted)' }}>{value ? formatDate(value) : placeholder}</span>
+        <span style={value ? undefined : { color: 'var(--ink-muted)' }}>{shown ?? (value ? (short ? shortDate(value) : formatDate(value)) : placeholder)}</span>
         <Icon name="calendar" />
       </button>
       <div ref={cal} className={`dc-cal ${months ? 'is-months' : ''}`} id={`${id}-cal`} role="dialog" aria-label={`选择${label}`} hidden={!open} onKeyDown={key}

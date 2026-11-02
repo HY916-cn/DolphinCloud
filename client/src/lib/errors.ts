@@ -31,7 +31,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'REVERSAL_NOT_ALLOWED': return { title: '不能冲正这笔业务', text: '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
     case 'REVERSAL_INSUFFICIENT_BALANCE':
       return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系银行管理员。` };
-    case 'STUDENT_INACTIVE': return { title: '账户不可办理', text: '该账户已冻结或已毕业，请联系银行管理员。' };
+    case 'STUDENT_INACTIVE':
+      return { title: '账户不可办理', text: d.status === 'closed' ? '该账户已注销。' : '该账户已冻结或已毕业，请联系银行管理员。' };
     case 'INVALID_AMOUNT': return { title: '金额有误', text: '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
     case 'FORBIDDEN': return { title: '没有权限', text: '当前账号不能办理这项业务。' };
@@ -42,8 +43,13 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
     case 'PRODUCT_NOT_FOUND': return { title: '商品不存在', text: '请刷新后重新选择商品。' };
     case 'SELF_SERVICE_FORBIDDEN': return { title: '不能为自己办理', text: '这是你本人或你的工资账户，请由其他柜员办理。' };
-    case 'ATTENDANCE_OFF': return { title: '还没有参与考勤', text: '请联系银行管理员开启后再签到。' };
-    case 'ATTENDANCE_PAID': return { title: '工资已发放', text: '已发工资的班次不能再修改。' };
+    case 'ATTENDANCE_REVIEWED': return { title: '已经审查过', text: '审查过的班次不能再修改。' };
+    case 'ATTENDANCE_PENDING': return { title: '还有班次没审查', text: `截至这周日还有 ${d.count} 个待审班次，全部审查后才能发放工资。` };
+    case 'ATTENDANCE_ON': return { title: '正在参与考勤', text: '先关闭参与考勤，才能解除工资账户；更换账户可以直接绑定新的。' };
+    case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: '柜员绑定学生账户作为工资账户后，才能参与考勤。' };
+    case 'OFF_DUTY': return { title: '还没有上班', text: '请先在「考勤」点「上班」，再办理业务。' };
+    case 'SUMMARY_STALE': return { title: '总结需要重新生成', text: `上班后又办理了业务（共 ${d.txns} 笔），请重新生成并打印总结后再下班。` };
+    case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };
     case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
     case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码错误次数过多，请 15 分钟后再试。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };

@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Icon, Notice, Page, TxnList, TxnListLoading } from '@/components';
-import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, TxnList, TxnListLoading, type Filter } from '@/components';
+import { formatAmount, formatTime } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type Txn, type TxnRow } from '@/lib/txns';
@@ -10,8 +10,10 @@ const enter = (i: number, className = '') => ({ className: `dc-stack dc-enter ${
 const PAGE = 30;
 const TABS = {
   all: { label: '全部', empty: '还没有交易记录', hint: '在柜台办理存款后，这里会显示每一笔交易。' },
-  in: { label: '存入', empty: '还没有存入记录', hint: '在柜台存款后，这里会显示每一笔存入。' },
-  out: { label: '支出', empty: '还没有支出记录', hint: '取款或兑换后，这里会显示每一笔支出。' },
+  deposit: { label: '存款', empty: '还没有存款记录', hint: '在柜台存款后，这里会显示每一笔存款。' },
+  withdraw: { label: '取款', empty: '还没有取款记录', hint: '在柜台取款后，这里会显示每一笔取款。' },
+  purchase: { label: '兑换', empty: '还没有兑换记录', hint: '在柜台兑换商品后，这里会显示每一笔兑换。' },
+  salary: { label: '工资', empty: '还没有工资记录', hint: '担任柜员并参与考勤后，工资每周发到这里。' },
 } as const;
 type Tab = keyof typeof TABS;
 
@@ -27,23 +29,33 @@ function byDay(rows: TxnRow[]) {
   return days;
 }
 
-// 明细: every business of the account, newest first, 30 at a time (存入 is the money put into the balance; 支出 is the
-// money taken out of it and the exchanges paid in cash), and this month's totals: 存入 and 支出 of the balance, and
-// 现金兑换 apart, since it leaves the balance as it was.
-const CASH_PURCHASE = 'and(type.eq.purchase,payment.eq.cash)';
+// 明细: every business of the account, newest first, 30 at a time, by type (存款, 取款, 兑换, 工资), found by words of
+// a 交易号 or a product and by days; and this month's totals of each, not counting what was reversed.
 export default function StudentTxns() {
   const student = useMe().data!.student!;
   const [tab, setTab] = useState<Tab>('all');
+  const [filter, setFilter] = useState<Filter>(NO_FILTER);
 
   const list = useInfiniteQuery({
-    queryKey: ['student-txns', student.student_no, tab],
+    queryKey: ['student-txns', student.student_no, tab, filter],
     initialPageParam: 0,
     getNextPageParam: (last: TxnRow[], pages) => (last.length === PAGE ? pages.length : undefined),
     queryFn: async ({ pageParam }) => {
-      const q = supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
+      let q = supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
         .eq('student_no', student.student_no);
-      const { data, error } = await (tab === 'in' ? q.gt('balance_delta', 0) : tab === 'out' ? q.or(`balance_delta.lt.0,${CASH_PURCHASE}`) : q)
-        .order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
+      if (tab !== 'all') q = q.eq('type', tab);
+      if (filter.from) q = q.gte('created_at', `${filter.from}T00:00:00+08:00`);
+      if (filter.to) q = q.lte('created_at', `${filter.to}T23:59:59.999+08:00`);
+      if (filter.timeFrom) q = q.gte('cn_time', filter.timeFrom);
+      if (filter.timeTo) q = q.lt('cn_time', filter.timeTo);
+      const words = filter.text.trim().replace(/[%_\\,()*]/g, '');
+      if (words) {
+        // A product's name is in txn_items; the transactions holding it join the ones whose 交易号 matches.
+        const { data, error } = await supabase.from('txn_items').select('txn_id').ilike('name', `%${words}%`).limit(500);
+        if (error) throw error;
+        q = q.or([`txn_no.ilike.*${words}*`, ...(data.length ? [`id.in.(${data.map((i) => i.txn_id).join(',')})`] : [])].join(','));
+      }
+      const { data, error } = await q.order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
       if (error) throw error;
       return data as TxnRow[];
     },
@@ -54,18 +66,18 @@ export default function StudentTxns() {
   const totals = useQuery({
     queryKey: ['student-month', student.student_no, month],
     queryFn: async () => {
-      const { data, error } = await supabase.from('txns').select('balance_delta,amount,status').eq('student_no', student.student_no)
-        .or(`balance_delta.neq.0,${CASH_PURCHASE}`).gte('created_at', `${month}-01T00:00:00+08:00`);
+      const { data, error } = await supabase.from('txns').select('type,amount').eq('student_no', student.student_no).eq('status', 'normal')
+        .in('type', ['deposit', 'withdraw', 'purchase', 'salary']).gte('created_at', `${month}-01T00:00:00+08:00`);
       if (error) throw error;
-      return data.reduce((s, { balance_delta: d, amount, status }) =>
-        d > 0 ? { ...s, in: s.in + d } : d < 0 ? { ...s, out: s.out + d } : status === 'normal' ? { ...s, cash: s.cash + amount } : s,
-      { in: 0, out: 0, cash: 0 });
+      const sum = (type: string) => data.filter((t) => t.type === type).reduce((n, t) => n + t.amount, 0);
+      return { deposit: sum('deposit'), withdraw: sum('withdraw'), purchase: sum('purchase'), salary: sum('salary') };
     },
   });
 
   const rows = list.data?.pages.flat();
   const amount = (n: number | undefined) =>
-    n === undefined ? <span className="dc-skeleton" style={{ display: 'inline-block', width: 48, height: 22 }} /> : n ? formatSigned(n) : '0';
+    n === undefined ? <span className="dc-skeleton" style={{ display: 'inline-block', width: 48, height: 22 }} /> : formatAmount(n);
+  const narrowed = filtered(filter);
 
   return (
     <Page title="明细">
@@ -80,6 +92,7 @@ export default function StudentTxns() {
                   aria-controls="txns-panel" onClick={() => setTab(k)}>{TABS[k].label}</button>
               ))}
             </div>
+            <FilterBar label="筛选明细" placeholder="搜索交易号或商品" value={filter} onChange={setFilter} />
             <div id="txns-panel" className="dc-stack" role="tabpanel" aria-labelledby={`txns-tab-${tab}`}>
               {!rows ? <TxnListLoading /> : rows.length ? byDay(rows).map(({ day, items }) => (
                 <div key={day}>
@@ -90,8 +103,8 @@ export default function StudentTxns() {
                 <div className="dc-card">
                   <div className="dc-empty">
                     <span className="dc-empty-icon"><Icon name="inbox" /></span>
-                    <h3>{TABS[tab].empty}</h3>
-                    <p>{TABS[tab].hint}</p>
+                    <h3>{narrowed ? '没有符合条件的交易' : TABS[tab].empty}</h3>
+                    <p>{narrowed ? '换个搜索或日期试试。' : TABS[tab].hint}</p>
                   </div>
                 </div>
               )}
@@ -106,10 +119,12 @@ export default function StudentTxns() {
             <div className="dc-card">
               <h2 className="heading" style={{ margin: '0 0 var(--space-2)' }}>本月收支</h2>
               <dl className="dc-kv">
-                <div><dt>存入</dt><dd>{amount(totals.data?.in)}</dd></div>
-                <div><dt>支出</dt><dd>{amount(totals.data?.out)}</dd></div>
-                <div><dt>现金兑换</dt><dd>{totals.data ? formatAmount(totals.data.cash) : amount(undefined)}</dd></div>
+                <div><dt>存款</dt><dd>{amount(totals.data?.deposit)}</dd></div>
+                <div><dt>工资</dt><dd>{amount(totals.data?.salary)}</dd></div>
+                <div><dt>取款</dt><dd>{amount(totals.data?.withdraw)}</dd></div>
+                <div><dt>兑换</dt><dd>{amount(totals.data?.purchase)}</dd></div>
               </dl>
+              <p className="dc-top-sub">单位 HTB；兑换含现金支付，不含已冲正的业务。</p>
             </div>
           </div>
         </div>

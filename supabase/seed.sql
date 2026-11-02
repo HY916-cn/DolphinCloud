@@ -43,6 +43,7 @@ begin
   perform stock_in(v_pen, 50, '首批');
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_teller)::text, true);
+  perform start_duty(); -- teller01 stays on duty, so the counter opens at once
   perform deposit(gen_random_uuid(), '20260001', '{"10":2,"5":1}');
   perform withdraw(gen_random_uuid(), '20260001', 15);
   perform purchase(gen_random_uuid(), '20260001', jsonb_build_array(jsonb_build_object('product_id', v_book, 'qty', 1),

@@ -71,7 +71,7 @@ export function useRoster(accountId: string) {
     refetchOnWindowFocus: 'always',
     queryFn: async () => {
       const data = await withTimeout(5000, (signal) => readAll((from, to) => supabase.from('students')
-        .select('student_no,name,class_no,class_label,status').order('student_no').range(from, to).abortSignal(signal))).catch(() => null);
+        .select('student_no,name,class_no,class_label,status').neq('status', 'closed').order('student_no').range(from, to).abortSignal(signal))).catch(() => null);
       if (data) await saveRoster(accountId, data);
       return indexRoster(data ?? await cachedRoster(accountId));
     },

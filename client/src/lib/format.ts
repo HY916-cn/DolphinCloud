@@ -36,3 +36,10 @@ export function maskName(name: string) {
 // 考勤: 中午班 before 13:30 Asia/Shanghai, 下午班 from 13:30 (app_private.shift_of).
 export const shiftAt = (at: Date) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at) < '13:30' ? 'am' : 'pm';
+
+// The top of a chart's scale: the value rounded up to 1, 2 or 5 times a power of ten, so its gridlines read evenly.
+export function niceMax(value: number) {
+  if (value <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(value));
+  return ([1, 2, 5, 10].find((m) => m * p >= value) ?? 10) * p;
+}

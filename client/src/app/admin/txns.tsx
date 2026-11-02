@@ -1,23 +1,28 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { DatePicker, Desk, Icon, link, Notice, ReversalSheet, ScopePicker, Summary, TimeRange, TxnListLoading, today, type IconName } from '@/components';
+import { useState, type ReactNode } from 'react';
+import {
+  Desk, FilterBar, Icon, link, Notice, OutputSheet, ReversalSheet, SCOPE_ICON, Summary, TxnListLoading, today, type Chip, type Suggestion,
+} from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatSigned, formatTime } from '@/lib/format';
-import { ledgerQuery, ledgerSheet, NO_FILTER, saveWorkbook, type LedgerFilter } from '@/lib/reports';
+import { ledgerPages, ledgerQuery, ledgerSheet, NO_LEDGER, saveWorkbook, type LedgerFilter } from '@/lib/reports';
+import { findScopes } from '@/lib/search';
 import { useMe } from '@/lib/session';
+import { useStudents } from '@/lib/students';
 import { supabase } from '@/lib/supabase';
 import { KINDS as LOOK, toTxn } from '@/lib/txns';
 
 const PAGE = 50;
-const KINDS = [['opening', '期初'], ['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资']] as const;
+const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['opening', '期初'], ['closing', '注销清零']] as const;
 type Kind = (typeof KINDS)[number][0];
 // How each row on a page was corrected: the reversal of a 已冲正 row, and the original of a 冲正 row.
 type Page = { rows: LedgerRow[]; count: number | null; reversals: Map<string, { txn_no: string; reason: string | null }>; originals: Map<string, string> };
 type Staff = { id: string; display_name: string; user_roles: { role: string } | { role: string }[] | null };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const TXN_NO = /^(ht)?\d{2,}$/i;
 
 // Filters from the address, so other pages can link here: ?student=&operator=&from=&to=&type=deposit,withdraw.
 function fromParams(p: Record<string, string | string[] | undefined>): LedgerFilter {
@@ -25,22 +30,14 @@ function fromParams(p: Record<string, string | string[] | undefined>): LedgerFil
   const day = (k: string) => (DAY.test(one(k)) ? one(k) : '');
   const kinds = one('type').split(',').filter((k): k is Kind => KINDS.some(([x]) => x === k));
   const no = one('student');
-  return { ...NO_FILTER, scope: no ? { kind: 'student', student_no: no, label: `学号 ${no}`, note: '' } : null,
+  return { ...NO_LEDGER, scope: no ? { kind: 'student', student_no: no, label: `学号 ${no}`, note: '' } : null,
     operator: one('operator'), from: day('from'), to: day('to'), kinds };
 }
 
-function Field({ icon, label, children }: { icon: IconName; label: string; children: ReactNode }) {
-  return (
-    <label className="dc-field">
-      <span className="dc-field-label"><Icon name={icon} />{label}</span>
-      {children}
-    </label>
-  );
-}
-
-// 流水 (accountant, teacher): every transaction, newest first, 50 at a time, filtered by student, class or 学部 (the
-// counter's search), teller, school days and a 时段 of each day (Asia/Shanghai), type, 交易号, payment, status and amount. A new address
-// starts over with its own filters. 导出 Excel writes every transaction the filters choose.
+// 流水 (accountant, teacher): every transaction, newest first, 50 at a time. One search finds a student, a class or
+// 学部 (the counter's search), a teller or part of a 交易号; then the days, the types and, when asked for, a 时段 of
+// each day (Asia/Shanghai). A new address starts over with its own filters. 导出 prints the transactions the filters
+// choose, or keeps them as a PDF or an Excel file.
 export default function Txns() {
   const params = useLocalSearchParams();
   const init = fromParams(params);
@@ -51,29 +48,48 @@ function Ledger({ init }: { init: LedgerFilter }) {
   const me = useMe().data!;
   const teacher = me.roles.includes('teacher');
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<LedgerFilter>(init);
+  const students = useStudents();
   const [applied, setApplied] = useState<LedgerFilter>(init);
   const [fullNames, setFullNames] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
   const [problem, setProblem] = useState<{ title: string; text: string } | null>(null);
   const [reversing, setReversing] = useState<LedgerRow | null>(null);
   const [reversed, setReversed] = useState<string | null>(null);
-  const set = (patch: Partial<LedgerFilter>) => setDraft((f) => ({ ...f, ...patch }));
+  const set = (patch: Partial<LedgerFilter>) => setApplied((f) => ({ ...f, ...patch }));
   const now = today();
 
-  // Tellers for the filter.
+  // Tellers for the search; stopped and closed logins are only in the records.
   const tellers = useQuery({
     queryKey: ['admin-tellers'],
     queryFn: async () => {
       const { data, error } = await supabase.from('profiles').select('id,display_name,user_roles(role)')
-        .eq('login_kind', 'staff').order('display_name');
+        .eq('login_kind', 'staff').eq('disabled', false).is('closed_at', null).order('display_name');
       if (error) throw error;
-      return (data as Staff[]).filter((p) => {
-        const roles = [p.user_roles ?? []].flat();
-        return roles.some((r) => r.role === 'teller');
-      });
+      return (data as Staff[]).filter((p) => [p.user_roles ?? []].flat().some((r) => r.role === 'teller'));
     },
   });
+
+  function suggest(text: string): Suggestion[] {
+    const q = text.toLowerCase();
+    return [
+      ...(TXN_NO.test(text) ? [{ key: 'txn', icon: 'passbook' as const, label: `交易号含「${text.toUpperCase()}」`, pick: () => set({ txnNo: text.toUpperCase() }) }] : []),
+      ...(tellers.data ?? []).filter((t) => t.display_name.toLowerCase().includes(q)).slice(0, 4)
+        .map((t) => ({ key: `t-${t.id}`, icon: 'teacher' as const, label: t.display_name, note: '柜员', pick: () => set({ operator: t.id }) })),
+      ...findScopes(students.data?.index ?? [], text, 6).map((s) => ({
+        key: `${s.kind}-${s.label}-${s.note}`, icon: SCOPE_ICON[s.kind], note: s.note, pick: () => set({ scope: s }),
+        label: s.kind === 'student' ? s.label : `${s.kind === 'class' ? '整个班级' : '整个学部'}：${s.label}`,
+      })),
+    ];
+  }
+  const s = applied.scope;
+  const row = s?.kind === 'student' ? students.data?.rows.find((r) => r.student_no === s.student_no) : undefined;
+  const chips: Chip[] = [
+    ...(s ? [{ key: 'scope', label: row ? `${row.name} · 学号 ${row.student_no}` : s.label, clear: () => set({ scope: null }) }] : []),
+    ...(applied.operator ? [{ key: 'op', label: `柜员 ${tellers.data?.find((t) => t.id === applied.operator)?.display_name ?? ''}`, clear: () => set({ operator: '' }) }] : []),
+    ...(applied.txnNo ? [{ key: 'no', label: `交易号含 ${applied.txnNo}`, clear: () => set({ txnNo: '' }) }] : []),
+  ];
+  const about = [chips.map((c) => c.label).join(' · ') || '全部学生',
+    applied.from || applied.to ? `${applied.from || '最早'} 至 ${applied.to || now}` : `截至 ${now}`].join(' · ');
 
   const list = useInfiniteQuery({
     queryKey: ['admin-txns', applied],
@@ -102,14 +118,8 @@ function Ledger({ init }: { init: LedgerFilter }) {
   const pages = list.data?.pages;
   const rows = pages?.flatMap((p) => p.rows.map((row) => ({ row, page: p })));
   const count = pages?.[0].count;
-  const toggle = (k: Kind) => set({ kinds: draft.kinds.includes(k) ? draft.kinds.filter((x) => x !== k) : [...draft.kinds, k] });
-  const search = (e: FormEvent) => {
-    e.preventDefault();
-    if (draft.timeFrom && draft.timeTo && draft.timeFrom >= draft.timeTo) return;
-    setApplied(draft);
-  };
-  async function exportRows() {
-    setExporting(true);
+  async function exportExcel() {
+    setExporting('excel');
     setProblem(null);
     try {
       const span = applied.from || applied.to ? `-${applied.from || '最早'}至${applied.to || now}` : `-截至${now}`;
@@ -117,70 +127,16 @@ function Ledger({ init }: { init: LedgerFilter }) {
     } catch (err) {
       setProblem(err instanceof AppError ? explain(err.code, err.detail) : { title: '流水未能导出', text: '请检查网络后再导出一次。' });
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
   return (
     <Desk title="流水">
-      <form className="dc-card dc-stack dc-enter" role="search" aria-label="筛选流水" onSubmit={search}>
-        <ScopePicker value={draft.scope} onChange={(scope) => set({ scope })} />
-        <div style={{ display: 'grid', gap: 'var(--space-4)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-          <Field icon="teacher" label="柜员">
-            <span className="dc-select">
-              <select value={draft.operator} onChange={(e) => set({ operator: e.target.value })}>
-                <option value="">全部柜员</option>
-                {tellers.data?.map((t) => <option key={t.id} value={t.id}>{t.display_name}</option>)}
-              </select>
-            </span>
-          </Field>
-          <DatePicker label="开始日期" value={draft.from} placeholder="不限" max={draft.to || now} rule="今天之后的日期不能选"
-            onChange={(from) => set({ from })} />
-          <DatePicker label="结束日期" value={draft.to} placeholder="不限" min={draft.from || undefined} max={now}
-            rule={draft.from ? '不能早于开始日期' : '今天之后的日期不能选'} onChange={(to) => set({ to })} />
-          <Field icon="passbook" label="交易号">
-            <span className="dc-input-wrap">
-              <input className="dc-input" value={draft.txnNo} placeholder="全部，可只输入一部分" autoCapitalize="characters"
-                onChange={(e) => set({ txnNo: e.target.value })} />
-            </span>
-          </Field>
-          <Field icon="coin" label="金额（HTB）">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <span className="dc-input-wrap" style={{ flex: 1, minWidth: 0 }}><input className="dc-input" style={{ minWidth: 0 }} inputMode="numeric" aria-label="最低金额" placeholder="最低"
-                value={draft.min} onChange={(e) => set({ min: e.target.value.replace(/\D/g, '') })} /></span>
-              至
-              <span className="dc-input-wrap" style={{ flex: 1, minWidth: 0 }}><input className="dc-input" style={{ minWidth: 0 }} inputMode="numeric" aria-label="最高金额" placeholder="最高"
-                value={draft.max} onChange={(e) => set({ max: e.target.value.replace(/\D/g, '') })} /></span>
-            </span>
-          </Field>
-          <Field icon="exchange" label="支付方式">
-            <span className="dc-select">
-              <select value={draft.payment} onChange={(e) => set({ payment: e.target.value as LedgerFilter['payment'] })}>
-                <option value="">全部</option><option value="account">账户</option><option value="cash">现金</option>
-              </select>
-            </span>
-          </Field>
-          <Field icon="transfer" label="状态">
-            <span className="dc-select">
-              <select value={draft.status} onChange={(e) => set({ status: e.target.value as LedgerFilter['status'] })}>
-                <option value="">全部</option><option value="normal">正常</option><option value="reversed">已冲正</option>
-              </select>
-            </span>
-          </Field>
-        </div>
-        <TimeRange from={draft.timeFrom} to={draft.timeTo} onChange={(timeFrom, timeTo) => set({ timeFrom, timeTo })} />
-        <div className="dc-chips" role="group" aria-label="类型">
-          {KINDS.map(([k, label]) => (
-            <button key={k} className="dc-chip" type="button" aria-pressed={draft.kinds.includes(k)} onClick={() => toggle(k)}>
-              <Icon name="check" />{label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <button className="dc-btn dc-btn-ghost" type="button" onClick={() => { setDraft(NO_FILTER); setApplied(NO_FILTER); }}>清除条件</button>
-          <button className="dc-btn dc-btn-primary" type="submit"><Icon name="query" />查询</button>
-        </div>
-      </form>
+      <div className="dc-enter">
+        <FilterBar label="筛选流水" placeholder="搜索学生、班级、柜员或交易号" value={applied} onChange={(f) => set(f)} kinds={KINDS}
+          suggest={suggest} chips={chips} />
+      </div>
 
       <section className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties} aria-label="流水">
         {reversed && <Notice tone="success" title="冲正成功">冲正交易号 {reversed}，原交易已标记为已冲正。</Notice>}
@@ -196,10 +152,13 @@ function Ledger({ init }: { init: LedgerFilter }) {
                 <label className="dc-check">
                   <input type="checkbox" checked={fullNames} onChange={(e) => setFullNames(e.target.checked)} />
                   <span className="dc-check-box" />
-                  <span>导出完整姓名<small>不勾选时显示为「张*明」</small></span>
+                  <span>导出完整姓名<small>不勾选时为「张*明」</small></span>
                 </label>
-                <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={exporting} onClick={exportRows}>
-                  <Icon name="passbook" />{exporting ? '正在导出' : '导出 Excel'}
+                <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" disabled={!!exporting} onClick={exportExcel}>
+                  {exporting === 'excel' ? '正在导出' : 'Excel'}
+                </button>
+                <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => setExporting('pdf')}>
+                  <Icon name="passbook" />打印 / PDF
                 </button>
               </div>
             </div>
@@ -216,7 +175,7 @@ function Ledger({ init }: { init: LedgerFilter }) {
             <div className="dc-empty">
               <span className="dc-empty-icon"><Icon name="inbox" /></span>
               <h3>没有符合条件的流水</h3>
-              <p>换个学生范围、日期或类型再查询。</p>
+              <p>换个搜索、日期或类型试试。</p>
             </div>
           </div>
         )}
@@ -225,6 +184,10 @@ function Ledger({ init }: { init: LedgerFilter }) {
           <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => list.fetchNextPage()}>加载更多</button>
         )}
       </section>
+      {exporting === 'pdf' && (
+        <OutputSheet title={`导出 ${count ?? ''} 笔流水`} name={`流水-${now}.pdf`} text={about}
+          make={() => ledgerPages(LEDGER, applied, fullNames, about)} onClose={() => setExporting(null)} onDone={() => setExporting(null)} />
+      )}
       {reversing && (
         <ReversalSheet onClose={() => setReversing(null)}
           txn={{ id: reversing.id, txn_no: reversing.txn_no, what: `${reversing.students?.name} · ${toTxn(reversing).title} ${formatAmount(reversing.amount)} HTB` }}

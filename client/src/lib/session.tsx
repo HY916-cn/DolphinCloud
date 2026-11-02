@@ -6,7 +6,7 @@ import { supabase, type LoginKind } from './supabase';
 
 export type Role = 'teller' | 'accountant' | 'storekeeper' | 'teacher' | 'sysadmin';
 export const ROLES: Record<Role, string> = { teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '银行管理员', sysadmin: '运维员' };
-export type Profile = { id: string; login_kind: LoginKind; login_id: string; display_name: string; must_change_password: boolean };
+export type Profile = { id: string; login_kind: LoginKind; login_id: string; display_name: string; must_change_password: boolean; disabled: boolean };
 export type Student = { student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number; class_label: string | null };
 export type Me = { profile: Profile; roles: Role[]; student: Student | null };
 
@@ -52,7 +52,7 @@ export function useMe() {
     initialDataUpdatedAt: 0,
     queryFn: async (): Promise<Me> => {
       const [profile, roles, student] = await Promise.all([
-        supabase.from('profiles').select('id,login_kind,login_id,display_name,must_change_password').eq('id', uid!).single(),
+        supabase.from('profiles').select('id,login_kind,login_id,display_name,must_change_password,disabled').eq('id', uid!).single(),
         supabase.from('user_roles').select('role').eq('user_id', uid!),
         supabase.from('students').select('student_no,name,division,cohort,class_no,class_label').eq('user_id', uid!).maybeSingle(),
       ]);

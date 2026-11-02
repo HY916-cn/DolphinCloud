@@ -1,14 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Desk, Icon, Notice } from '@/components';
+import { Desk, eachOf, Icon, Notice, OutputSheet, passwordPages, today, type StaffPassword } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
 import { ROLES, type Role } from '@/lib/session';
 
 const LOGIN = /^[a-z0-9][a-z0-9_.-]{1,31}$/;
 
-// 新增账号: one staff login with one role, on an initial password the server makes up and shows once (create_staff). The one 银行管理员 already exists.
+// 新增账号: one staff login with one role, on an initial password the server makes up and shows once (create_staff);
+// or many at once, pasted one per line, with their passwords printed as one list. The one 银行管理员 already exists.
 export default function NewStaff() {
   const queryClient = useQueryClient();
   const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
@@ -73,6 +74,77 @@ export default function NewStaff() {
         </label>
         <button className="dc-btn dc-btn-primary dc-btn-block" type="submit" disabled={busy}>{busy ? '正在创建' : '创建账号'}</button>
       </form>
+      <Many roles={roles} />
     </Desk>
+  );
+}
+
+// One login per line: 账号, 姓名 and optionally 身份 (柜员 when left out), apart by spaces, tabs or commas, as pasted
+// from a spreadsheet.
+function parse(text: string, roles: Role[]) {
+  const rows: { login: string; name: string; role: Role }[] = [];
+  const problems: string[] = [];
+  text.split('\n').forEach((line, i) => {
+    const [login = '', name = '', title = ''] = line.trim().split(/[\s,，、]+/);
+    if (!line.trim()) return;
+    const role = title ? roles.find((r) => ROLES[r] === title) : 'teller';
+    if (!LOGIN.test(login.toLowerCase())) problems.push(`第 ${i + 1} 行：账号「${login}」不符合格式`);
+    else if (!name) problems.push(`第 ${i + 1} 行：缺少姓名`);
+    else if (!role) problems.push(`第 ${i + 1} 行：没有「${title}」这种身份`);
+    else rows.push({ login: login.toLowerCase(), name, role });
+  });
+  return { rows, problems };
+}
+
+function Many({ roles }: { roles: Role[] }) {
+  const queryClient = useQueryClient();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
+  const [created, setCreated] = useState<StaffPassword[] | null>(null);
+  const { rows, problems } = parse(text, roles);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!rows.length || problems.length || busy) return;
+    setBusy(true);
+    setResult(null);
+    const { done, failed } = await eachOf(rows, async (r): Promise<StaffPassword> => ({
+      name: r.name, login_id: r.login, role: ROLES[r.role],
+      password: (await call<{ password: string }>('create_staff', { p_login_id: r.login, p_name: r.name, p_role: r.role })).password,
+    }));
+    queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
+    setBusy(false);
+    setResult(failed.length
+      ? { tone: 'danger', title: `${failed.length} 个账号未能创建`, text: failed.map((f) => `${f.item.login}：${f.title}`).join('；') }
+      : { tone: 'success', title: `已创建 ${done.length} 个账号`, text: '' });
+    setText(failed.map((f) => `${f.item.login} ${f.item.name} ${ROLES[f.item.role]}`).join('\n'));
+    if (done.length) setCreated(done);
+  }
+
+  return (
+    <form className="dc-form dc-enter" style={{ '--i': 1 } as React.CSSProperties} onSubmit={submit} noValidate aria-label="批量新增">
+      <p className="dc-list-title">批量新增</p>
+      {result && <Notice tone={result.tone} title={result.title}>{result.text}</Notice>}
+      <label className={`dc-field ${problems.length ? 'is-error' : ''}`}>
+        <span className="dc-field-label"><Icon name="teacher" />每行一个账号</span>
+        <span className="dc-input-wrap bt-area">
+          <textarea className="dc-input" rows={6} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false}
+            placeholder={'teller03 柜员小李\nteller04 柜员小张 柜员\nstore01 库管小陈 库管'} />
+        </span>
+        <span className="dc-field-hint">
+          {problems.length ? <><Icon name="warning" />{problems.slice(0, 3).join('；')}{problems.length > 3 && ` 等 ${problems.length} 处`}</>
+            : `依次写账号、姓名、身份（${roles.map((r) => ROLES[r]).join('、')}；不写为柜员），可以从表格直接粘贴。`}
+        </span>
+      </label>
+      <button className={`dc-btn dc-btn-secondary dc-btn-block ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || !rows.length || !!problems.length}>
+        {busy ? '正在创建' : `创建 ${rows.length} 个账号`}
+      </button>
+      {created && (
+        <OutputSheet title={`${created.length} 个账号的初始密码`} name={`工作人员初始密码-${today()}.pdf`}
+          text="关闭后不能再看到这些密码。请打印或下载后转交本人签收；首次登录后需要设置新密码。"
+          make={() => passwordPages(created)} onClose={() => setCreated(null)} />
+      )}
+    </form>
   );
 }

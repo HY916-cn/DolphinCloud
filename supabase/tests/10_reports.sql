@@ -43,6 +43,10 @@ select tests.call(:'t1', $$select student_txns('s1', null, 2)$$) -> 1 ->> 'seq' 
 select is((select array_agg(t ->> 'type') from jsonb_array_elements(tests.call(:'t1', format($$select student_txns('s1', %s, 2)$$, :before))) t),
   '{opening}', 'the next page starts after the last one shown');
 select is(tests.call(:'t1', $$select student_txns('s2')$$) -> 2 ->> 'status', 'reversed', 'a reversed transaction says so');
+select is((select array_agg(t ->> 'type') from jsonb_array_elements(tests.call(:'t1', $$select student_txns('s1', p_types => '{deposit,opening}')$$)) t),
+  '{deposit,opening}', 'filtered by type');
+select is(jsonb_array_length(tests.call(:'t1', $$select student_txns('s3', p_search => '书签')$$)), 1, 'or by a product''s name');
+select is(tests.call(:'t1', $$select student_txns('s1', p_to => '2000-01-01')$$), '[]', 'or by the days');
 
 -- 报表: who and which period
 select is(tests.err(:'t1', format($$select bank_report(%L, %L)$$, :'d', :'d')), 'FORBIDDEN', 'a teller reads no reports');

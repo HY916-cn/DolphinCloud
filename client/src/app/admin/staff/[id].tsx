@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SalaryAccount, SkeletonGroup, Summary } from '@/components';
+import { CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SalaryAccount, SkeletonGroup, Summary } from '@/components';
 import { usePayroll } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
@@ -11,8 +11,8 @@ import { useStaff } from '@/lib/staff';
 
 type Action = { title: string; text: string; confirm: string; fn: string; args: Record<string, unknown>; done: string };
 
-// One staff login: correct its role, reset its password, stop or restore it. Only a teacher manages a teacher's login,
-// and nobody stops their own (PHASE-1.md §6.4). Links to the transactions a teller handled (流水 is the teacher's) and
+// One staff login: correct its role, reset its password, stop or restore it, or close it for good (注销). Only a
+// teacher manages a teacher's login, which is never closed, and nobody stops or closes their own (PHASE-1.md §6.4). Links to the transactions a teller handled (流水 is the teacher's) and
 // to the login's 日志. A teller's 考勤: whether the bank admin counts them, and their 工资账户.
 export default function StaffLogin() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +23,7 @@ export default function StaffLogin() {
   const p = staff.data?.find((s) => s.id === id);
   const [role, setRole] = useState<Role | null>(null);
   const [action, setAction] = useState<Action | null>(null);
+  const [closing, setClosing] = useState(false);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
   const canManage = !!p && p.role !== 'teacher';
   const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
@@ -72,7 +73,7 @@ export default function StaffLogin() {
                   <ul className="dc-list">
                     <li>
                       <label className="dc-switch">
-                        <span className="dc-switch-text"><b>参与考勤</b><small>开启后可以签到，有效班次按周发放工资{me.roles.includes('teacher') ? '' : '；由银行管理员设置'}</small></span>
+                        <span className="dc-switch-text"><b>参与考勤</b><small>开启后上下班计入考勤，有效班次按周发放工资{me.roles.includes('teacher') ? '' : '；由银行管理员设置'}</small></span>
                         <input type="checkbox" role="switch" checked={!!payroll.data?.find((x) => x.user_id === p.id)?.attendance}
                           disabled={!me.roles.includes('teacher') || !payroll.data}
                           onChange={(e) => run({ title: '', text: '', confirm: '', fn: 'set_attendance', args: { p_user_id: p.id, p_on: e.target.checked },
@@ -131,11 +132,23 @@ export default function StaffLogin() {
                   {p.disabled ? '启用账号' : '停用账号'}
                 </button>
               )}
+              {p.id !== me.profile.id && (
+                <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => { setResult(null); setClosing(true); }}>注销账号</button>
+              )}
             </div>
           ) : (
             <Notice title="银行管理员只有一个">这个账号的身份不能更改，也不能停用。忘记密码时，由服务器维护人员运行 dolphin reset-admin 重置密码。</Notice>
           )}
         </div>
+      )}
+      {closing && p && (
+        <CloseSheet people={[{ id: p.id, name: p.display_name }]} onClose={() => setClosing(false)}
+          onDone={(r) => {
+            setClosing(false);
+            if (r.tone === 'danger') return setResult(r);
+            queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
+            router.navigate('/admin/staff');
+          }} />
       )}
       {action && <ConfirmSheet title={action.title} text={action.text} confirm={action.confirm} onClose={() => setAction(null)} onConfirm={() => run(action)} />}
     </Desk>

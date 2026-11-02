@@ -1,27 +1,12 @@
-import { createPortal } from 'react-dom';
+import { renderDoc, type Block } from '@/lib/doc';
 import { formatAmount } from '@/lib/format';
-import { A4, jpegPdf, type PdfPage } from '@/lib/pdf';
+import { A4, type PdfPage } from '@/lib/pdf';
 import { icons, type IconName } from '@/theme/icons';
 import { today } from './DatePicker';
 
 export type NoticeStudent = { student_no: string; name: string; class_label: string | null; cohort: number; class_no: number };
-// A student with the initial password the server gave them (import_roster, reissue_passwords).
+// A student with the initial password the server gave them (import_roster, reissue_passwords, reset_password).
 export type NoticeAccount = NoticeStudent & { password: string };
-
-// Print-only CSS: the page prints just the check sheet, one class per sheet.
-const PRINT = `
-@media screen { #dc-notices { display: none; } }
-@media print {
-  body > :not(#dc-notices) { display: none !important; }
-  #dc-notices { font: 400 14px/1.6 var(--font-sans); color: #000; }
-  #dc-notices section + section { break-before: page; }
-  #dc-notices h2 { font-size: 16px; margin: 0 0 8px; }
-  #dc-notices table { width: 100%; border-collapse: collapse; }
-  #dc-notices th, #dc-notices td { border: 1px solid #666; padding: 4px 8px; text-align: left; }
-  #dc-notices tr { break-inside: avoid; }
-  #dc-notices .num { text-align: right; font-variant-numeric: tabular-nums; }
-  #dc-notices footer { margin-top: 16px; display: flex; gap: 48px; }
-}`;
 
 const classOf = (s: NoticeStudent) => s.class_label ?? `${s.cohort} 届 ${s.class_no} 班`;
 
@@ -33,42 +18,27 @@ function byClass<T extends NoticeStudent>(students: T[]) {
   return [...classes];
 }
 
-// 期初余额核对表 (PHASE-1.md §12.1): by class, each student's opening balance in the system beside a blank column for
-// the old ledger's balance, so the teacher checks them one by one and signs each class.
-export function OpeningSheet({ students, openings }: { students: NoticeStudent[]; openings: Map<string, number> }) {
-  return createPortal(
-    <div id="dc-notices">
-      <style>{PRINT}</style>
-      {byClass(students).map(([label, list]) => (
-        <section key={label}>
-          <h2>{label} · 期初余额核对表（{list.length} 人，合计 {formatAmount(list.reduce((t, s) => t + (openings.get(s.student_no) ?? 0), 0))} HTB）</h2>
-          <table>
-            <thead><tr><th>学号</th><th>姓名</th><th className="num">系统期初余额</th><th>原账本余额</th><th>一致</th></tr></thead>
-            <tbody>
-              {list.map((s) => (
-                <tr key={s.student_no}>
-                  <td>{s.student_no}</td><td>{s.name}</td><td className="num">{formatAmount(openings.get(s.student_no) ?? 0)}</td><td /><td />
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <footer><span>核对人：</span><span>日期：</span></footer>
-        </section>
-      ))}
-    </div>,
-    document.body,
-  );
+// 期初余额核对表 (PHASE-1.md §12.1): one page per class, each student's opening balance in the system beside a blank
+// column for the old ledger's balance, so the teacher checks them one by one and signs each class.
+export function openingPages(students: NoticeStudent[], openings: Map<string, number>) {
+  const date = today();
+  return renderDoc('期初余额核对表', `打印于 ${date}`, byClass(students).flatMap(([label, list]): Block[] => [
+    { kind: 'page' },
+    { kind: 'heading', text: `${label} · ${list.length} 人`, sub: `系统期初余额合计 ${formatAmount(list.reduce((t, s) => t + (openings.get(s.student_no) ?? 0), 0))} HTB；逐人与原账本核对，一致的打勾。` },
+    { kind: 'table', head: ['学号', '姓名', '系统期初余额', '原账本余额', '一致'],
+      rows: list.map((s) => [s.student_no, s.name, openings.get(s.student_no) ?? 0, '', '']) },
+    { kind: 'sign', labels: ['核对人签字', '日期'] },
+  ]));
 }
 
 // The design system's wave (WaveDivider): one period of the curve, repeated across the width.
 const WAVE = 'M0 12C40 0 80 0 120 12S200 24 240 12V24H0Z';
 
-// 开户通知单 (PHASE-1.md §6.5) as a PDF to download: one A4 page per student, by class. Each page is drawn on a canvas
+// 开户通知单 (PHASE-1.md §6.5), to print or keep as a PDF: one A4 page per student, by class. Each page is drawn on a canvas
 // from the design system's parts, at their sizes and colours (1 CSS px = 1 pt): the LoginPage hero (logo with its
 // rings, sea-soft → cloud-100, WaveDivider with a white shore), a display greeting, a dc-card with a SummaryList
 // (class, number, the initial password as its total), Steps for signing in, and a Notice to keep the page safe.
-export async function downloadNotices(students: NoticeAccount[]) {
-  if (!students.length) return;
+export async function noticePages(students: NoticeAccount[]) {
   // shortcut: about 140 KB a page at 144 dpi (a 2000-student import is ~280 MB); split the download by class if that
   // becomes a problem.
   const scale = 2; // canvas pixels per point
@@ -106,7 +76,7 @@ export async function downloadNotices(students: NoticeAccount[]) {
 
   const date = new Date();
   const origin = window.__DOLPHIN_CONFIG__?.supabaseUrl ?? location.origin; // the site's public address, whatever this page was opened at
-  const steps = [['打开网址', origin, ''], ['登录', '选「学生」', '输入学号和初始密码'], ['设新密码', '至少 8 位', '包含字母和数字']];
+  const steps = [['打开网址', origin, ''], ['登录', '选「学生」', '输入学号和初始密码'], ['设新密码', '至少 8 位', '可以全是数字']];
   const words = ['海豚云明德实验学校海豚银行开户通知年月日同学，你好你的海豚银行账户已经开通，请按下面的步骤登录。登录信息班级学号初始密码怎样登录',
     '请妥善保管本通知单设置新密码后初始密码失效，不要把密码告诉他人。', ...steps.flat(),
     ...students.map((s) => s.name + classOf(s) + s.student_no + s.password)].join('');
@@ -208,10 +178,5 @@ export async function downloadNotices(students: NoticeAccount[]) {
     }
   }
 
-  const url = URL.createObjectURL(new Blob([jpegPdf(pages) as BlobPart], { type: 'application/pdf' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `开户通知单-${today()}-${students.length}人.pdf`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return pages;
 }

@@ -11,6 +11,8 @@ import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
 import { CashCounter, Summary } from './Counter';
+import { FilterBar, filtered, NO_FILTER, type Filter } from './Filter';
+import { Stats } from './Report';
 import { ConfirmSheet } from './Sheet';
 import { TxnListLoading } from './Account';
 import { KvLoading, TilesLoading } from './Skeleton';
@@ -385,11 +387,14 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
 const HISTORY = 10;
 type HistoryRow = Omit<TxnRow, 'txn_items'> & { seq: number; txn_no: string; balance_after: number; operator: string; items: { name: string; qty: number }[] };
 
+const QUERY_KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['opening', '期初']] as const;
+
 // 查询: the student's account totals and every transaction, also other tellers' and earlier days', newest first,
-// ten at a time (student_txns); the 办理单 stays beside it so the visit can be ended here. Read again after each
-// business of the visit.
-export function QueryPanel({ student, served, onEnd, onReverse }: Props) {
+// ten at a time (student_txns), filtered as 流水 is: the days, a 时段, the types, and words of a 交易号 or a product.
+// It takes the whole width; the 办理单 is back with the next business. Read again after each business of the visit.
+export function QueryPanel({ student, served }: Props) {
   const done = served.length + served.filter((s) => s.reversed).length;
+  const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const account = useQuery({
     queryKey: ['counter-account', student.student_no, done],
     queryFn: async () => {
@@ -399,53 +404,51 @@ export function QueryPanel({ student, served, onEnd, onReverse }: Props) {
     },
   });
   const history = useInfiniteQuery({
-    queryKey: ['counter-history', student.student_no, done],
+    queryKey: ['counter-history', student.student_no, done, filter],
     initialPageParam: null as number | null,
     getNextPageParam: (last: HistoryRow[]) => (last.length === HISTORY ? last[last.length - 1].seq : undefined),
-    queryFn: ({ pageParam }) => call<HistoryRow[]>('student_txns', { p_student_no: student.student_no, p_before: pageParam, p_limit: HISTORY }),
+    queryFn: ({ pageParam }) => call<HistoryRow[]>('student_txns', {
+      p_student_no: student.student_no, p_before: pageParam, p_limit: HISTORY, p_from: filter.from || null, p_to: filter.to || null,
+      p_time_from: filter.timeFrom || null, p_time_to: filter.timeTo || null, p_types: filter.kinds.length ? filter.kinds : null,
+      p_search: filter.text.trim() || null,
+    }),
   });
   const rows = history.data?.pages.flat();
   const a = account.data;
   return (
-    <div className="dc-split">
-      <section className="dc-stack dc-enter" aria-label="账户查询">
-        <div className="dc-card">
-          <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>账户</h2>
-          {a ? (
-            <Summary rows={[['累计存入', `${formatAmount(a.total_in)} HTB`], ['累计取出', `${formatAmount(a.total_out)} HTB`],
-              ['累计兑换（账户支付）', `${formatAmount(a.total_spent)} HTB`]]} total={['当前余额', a.balance]} />
-          ) : account.error ? <Notice tone="danger" title="暂时无法读取账户">请检查网络后再试一次。</Notice> : <KvLoading rows={4} card={false} />}
-        </div>
-        <p className="dc-list-title">交易记录</p>
-        {history.error && !rows ? <Notice tone="danger" title="暂时无法读取交易记录">请检查网络后再试一次。</Notice>
-          : !rows ? <TxnListLoading />
-          : rows.length ? (
-            <ul className="dc-txns" aria-label="交易记录">
-              {rows.map((r) => {
-                const t = toTxn({ ...r, txn_items: r.items });
-                return (
-                  <li key={r.id} className={`dc-txn ${t.kind}`} style={r.status === 'reversed' ? { opacity: 0.6 } : undefined}>
-                    <span className="dc-txn-icon"><Icon name={t.icon} /></span>
-                    <div className="dc-txn-main">
-                      <div className="dc-txn-title">{t.title}</div>
-                      <div className="dc-txn-time">{t.time} · 经办人 {r.operator}</div>
-                      <div className="dc-txn-time">交易号 {r.txn_no} · 办理后余额 {formatAmount(r.balance_after)} HTB</div>
-                    </div>
-                    <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>
-                      {t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : <p className="dc-top-sub">还没有交易记录。</p>}
-        {history.isFetchingNextPage && <TxnListLoading rows={2} />}
-        {history.error && rows && <Notice tone="danger" title="暂时无法读取更多记录">请检查网络后再试一次。</Notice>}
-        {history.hasNextPage && !history.isFetchingNextPage && (
-          <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => history.fetchNextPage()}>加载更多</button>
-        )}
-      </section>
-      <Receipt served={served} current={null} after={null} onEnd={onEnd} onReverse={onReverse} />
-    </div>
+    <section className="dc-stack dc-enter" aria-label="账户查询">
+      {a ? (
+        <Stats items={[['当前余额', formatAmount(a.balance), 'HTB'], ['累计存入', formatAmount(a.total_in), 'HTB'],
+          ['累计取出', formatAmount(a.total_out), 'HTB'], ['累计账户兑换', formatAmount(a.total_spent), 'HTB']]} />
+      ) : account.error ? <Notice tone="danger" title="暂时无法读取账户">请检查网络后再试一次。</Notice> : <KvLoading rows={2} />}
+      <FilterBar label="筛选交易记录" placeholder="搜索交易号或商品" value={filter} onChange={setFilter} kinds={QUERY_KINDS} />
+      {history.error && !rows ? <Notice tone="danger" title="暂时无法读取交易记录">请检查网络后再试一次。</Notice>
+        : !rows ? <TxnListLoading />
+        : rows.length ? (
+          <ul className="dc-txns" aria-label="交易记录">
+            {rows.map((r) => {
+              const t = toTxn({ ...r, txn_items: r.items });
+              return (
+                <li key={r.id} className={`dc-txn ${t.kind}`} style={r.status === 'reversed' ? { opacity: 0.6 } : undefined}>
+                  <span className="dc-txn-icon"><Icon name={t.icon} /></span>
+                  <div className="dc-txn-main">
+                    <div className="dc-txn-title">{t.title}</div>
+                    <div className="dc-txn-time">{t.time} · 经办人 {r.operator}</div>
+                    <div className="dc-txn-time">交易号 {r.txn_no} · 办理后余额 {formatAmount(r.balance_after)} HTB</div>
+                  </div>
+                  <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>
+                    {t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : <p className="dc-top-sub">{filtered(filter) ? '没有符合条件的交易记录。' : '还没有交易记录。'}</p>}
+      {history.isFetchingNextPage && <TxnListLoading rows={2} />}
+      {history.error && rows && <Notice tone="danger" title="暂时无法读取更多记录">请检查网络后再试一次。</Notice>}
+      {history.hasNextPage && !history.isFetchingNextPage && (
+        <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => history.fetchNextPage()}>加载更多</button>
+      )}
+    </section>
   );
 }

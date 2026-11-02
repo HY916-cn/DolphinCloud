@@ -12,6 +12,7 @@ select dblink_exec('setup', $$
   begin
     insert into profiles (id, login_kind, login_id, display_name, must_change_password) values (v_teller, 'staff', 'race-teller', 'race', false);
     insert into user_roles values (v_teller, 'teller');
+    insert into duty (user_id) values (v_teller);
     foreach v_no in array array['race-1', 'race-2'] loop
       insert into students (student_no, name, division, cohort, class_no) values (v_no, v_no, 'primary', app_private.grade_of('primary', 0) - 4, 1);
       insert into accounts (student_no, balance, total_in) values (v_no, 50, 50);
@@ -59,7 +60,9 @@ select dblink_exec('setup', $$
   delete from students where student_no in ('race-1', 'race-2');
   delete from products where id = '00000000-0000-4000-8000-0000000000f1';
   delete from audit_log where target in ('students:race-1', 'students:race-2', 'products:00000000-0000-4000-8000-0000000000f1')
-     or target in (select t || id from profiles, unnest(array['profiles:', 'user_roles:']) t where login_id = 'race-teller');
+     or target in (select t || id from profiles, unnest(array['profiles:', 'user_roles:']) t where login_id = 'race-teller')
+     or target in (select 'duty:' || id from duty where user_id = (select id from profiles where login_id = 'race-teller'));
+  delete from duty where user_id = (select id from profiles where login_id = 'race-teller');
   delete from user_roles where user_id = (select id from profiles where login_id = 'race-teller');
   delete from profiles where login_id = 'race-teller';
   delete from auth.users where email = 'race-teller@staff.dolphin.internal';

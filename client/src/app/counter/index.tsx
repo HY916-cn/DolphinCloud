@@ -2,9 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CounterPage, DepositPanel, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, type IconName, type Served,
+  CounterPage, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, type IconName, type Served,
 } from '@/components';
 import { classOf, lookupStudent, useMyDay, useSettings, type Student, type TxnResult } from '@/lib/counter';
+import { useDuty } from '@/lib/duty';
 import { formatAmount } from '@/lib/format';
 import type { RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
@@ -20,13 +21,15 @@ const STATUS: Record<string, string> = { frozen: '已冻结', graduated: '已毕
 // served earlier today), then any number of deposits, withdrawals and exchanges for them, and 查询 for their account
 // and every transaction; each goes onto the 办理单
 // with its 冲正, and the balance is read again. 结束办理 comes back here with the visit summed up and the search
-// ready for the next student. Offline only 存款 is open (§7.7). `?s=<学号>` opens that student (from 今日业务).
+// ready for the next student. Offline only 存款 is open (§7.7). `?s=<学号>` opens that student (from 今日业务). The
+// counter opens once the teller is on duty (上班).
 export default function Serve() {
   const me = useMe().data!;
   const online = useOnline();
   const settings = useSettings();
   const queryClient = useQueryClient();
   const day = useMyDay(me.profile.id, online);
+  const duty = useDuty(me.profile.id);
   const { s: preset } = useLocalSearchParams<{ s?: string }>();
   const [student, setStudent] = useState<Student | null>(null);
   const [business, setBusiness] = useState<Business>('deposit');
@@ -80,6 +83,9 @@ export default function Serve() {
     changed();
   }
 
+  if (!student && duty.data === null) {
+    return <CounterPage title="办理"><DutyCard me={me} /></CounterPage>;
+  }
   if (!student) {
     return (
       <CounterPage title="办理">

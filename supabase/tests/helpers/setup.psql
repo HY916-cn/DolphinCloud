@@ -1,5 +1,6 @@
 -- Included by every test file. Opens the transaction the file rolls back, installs pgTAP and the helpers:
---   tests.staff(login, role) / tests.student(no, opening, name, division, cohort) create logins as postgres and return the user id;
+--   tests.staff(login, role) / tests.student(no, opening, name, division, cohort) create logins as postgres and return the user id
+--   (a teller starts on duty);
 --   tests.call(user, sql) runs sql as that authenticated user and returns its jsonb result, or {"error", "detail"}.
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -17,6 +18,7 @@ declare v uuid := app_private.create_login(p_login || '@staff.dolphin.internal',
 begin
   insert into profiles (id, login_kind, login_id, display_name, must_change_password) values (v, 'staff', p_login, p_login, false);
   insert into user_roles (user_id, role) select v, p_role where p_role is not null;
+  insert into duty (user_id) select v where p_role = 'teller';
   return v;
 end $$;
 

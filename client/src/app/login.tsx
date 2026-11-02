@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Icon, link, Notice, Welcome } from '@/components';
+import { savedAccounts, setSaved } from '@/lib/accounts';
 import { useSession } from '@/lib/session';
 import { loginEmail, supabase, type LoginKind } from '@/lib/supabase';
 
@@ -12,7 +13,7 @@ const KINDS = [
 
 // Auth error codes → what the person can do about it.
 function message(code?: string) {
-  if (code === 'user_banned') return { title: '账号已停用', text: '请联系银行管理员。' };
+  if (code === 'user_banned') return { title: '这个账号已被停用', text: '停用的账号不能登录。需要恢复时，请联系银行管理员启用。' };
   if (code === 'over_request_rate_limit') return { title: '尝试次数过多', text: '请稍后再登录。' };
   if (code === 'invalid_credentials') return { title: '账号或密码不正确', text: '请核对后重新输入。' };
   if (code === 'LOGIN_LOCKED') return { title: '密码错误次数过多', text: '请 15 分钟后再试，或请银行管理员重置密码。' };
@@ -29,13 +30,16 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<{ title: string; text: string; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [save, setSave] = useState(false);
   if (ready && session && !adding) return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
+  // 在此设备保存登录 is asked the first time an account signs in on this device.
+  const known = savedAccounts().some((a) => a.kind === kind && a.loginId === loginId.trim().toLowerCase() && a.saved);
 
   async function signIn() {
     if (busy || !loginId.trim() || !password) return;
     setBusy(true);
-    const { error: e } = await supabase.auth.signInWithPassword({ email: loginEmail(kind, loginId), password });
+    const { data, error: e } = await supabase.auth.signInWithPassword({ email: loginEmail(kind, loginId), password });
     setBusy(false);
     if (e) {
       // The lockout (5 wrong passwords in 15 minutes) comes from the database's password check hook: code
@@ -43,6 +47,7 @@ export default function Login() {
       const locked = e.message.includes('LOGIN_LOCKED');
       return setError({ ...message(locked ? 'LOGIN_LOCKED' : e.code), n: (error?.n ?? 0) + 1 });
     }
+    if (!known) setSaved(data.user.id, save);
     queryClient.clear();
     router.replace('/');
   }
@@ -71,13 +76,20 @@ export default function Login() {
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password" placeholder="请输入密码" />
       </label>
+      {!known && (
+        <label className="dc-check">
+          <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
+          <span className="dc-check-box" />
+          <span>在此设备保存登录<small>保存后，在这台设备上切换回这个账号不用再输入密码；公用设备请不要勾选</small></span>
+        </label>
+      )}
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
       <button className={`dc-btn dc-btn-primary dc-btn-block ${busy ? 'is-loading' : ''}`} type="submit"
         disabled={busy || !loginId.trim() || !password}>
         {busy ? '正在登录' : '登录'}
       </button>
       {adding && session ? (
-        <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/accounts')}>返回本机账号</a>
+        <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/')}>返回</a>
       ) : (
         <p className="dc-login-help">首次登录请使用初始密码，登录后设置新密码<br />忘记密码请联系银行管理员</p>
       )}

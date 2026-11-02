@@ -67,7 +67,7 @@ select is(tests.call(:'teacher', $$select jsonb_agg(jsonb_build_array(student_no
 
 -- Staff logins and roles
 select tests.call(:'ops', $$select create_staff('Teller02', '柜员二', 'teller')$$) as staff \gset
-select matches(:'staff'::jsonb ->> 'password', '^[a-hjkmnp-z2-9]{8}$', 'staff logins get 8 random characters without look-alikes');
+select matches(:'staff'::jsonb ->> 'password', '^[0-9]{8}$', 'staff logins get 8 random digits, as students do');
 select ok((select encrypted_password = crypt(:'staff'::jsonb ->> 'password', encrypted_password) and p.must_change_password
   from auth.users u join profiles p using (id) where p.login_id = 'teller02'), 'which the login uses until it sets its own');
 select is(:'staff'::jsonb ->> 'login_id', 'teller02', 'login ids are lower case');

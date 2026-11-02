@@ -1,12 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { resetData, signIn } from './helpers';
 
-// 流水, 发行, 参数 and 日志 (PHASE-1.md §4.2) as admin on the seed data. The 日志 test looks for the batch the 发行
-// test registers.
+// 流水, 参数 and 日志 (PHASE-1.md §4.2) as admin on the seed data. The 日志 test looks for the change the 参数 test
+// makes.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
-
-const batch = `E2E-${Date.now()}`;
 
 async function open(page: Page, label: string, path: string) {
   await signIn(page, '工作人员', 'admin');
@@ -16,57 +14,55 @@ async function open(page: Page, label: string, path: string) {
   await expect(page.locator('.dc-top-title')).toContainText(label);
 }
 
-test('流水: filter by a student found as at the counter, by class, 时段 and status', async ({ page }) => {
+test('流水: filter by a student found as at the counter, by class, type and 时段', async ({ page }) => {
   await open(page, '流水', 'txns');
-  const scope = page.getByRole('searchbox', { name: '搜索学生范围' });
+  const search = page.getByRole('searchbox', { name: '搜索学生、班级、柜员或交易号' });
+  const found = page.getByRole('list', { name: '搜索建议' });
   const rows = page.locator('section[aria-label="流水"] .dc-txn');
-  const search = () => page.getByRole('button', { name: '查询', exact: true }).click();
-  await scope.fill('zxm');
-  await page.getByRole('list', { name: '学生范围搜索结果' }).locator('.dc-list-link', { hasText: '张小明' }).click();
-  await search();
+  await search.fill('zxm');
+  await found.locator('.dc-list-link', { hasText: '张小明' }).click();
   await expect(page.locator('.dc-list-title', { hasText: /^共 \d+ 笔$/ })).toBeVisible();
   await expect(rows.filter({ has: page.locator('.dc-txn-title', { hasText: /^期初余额/ }) })).toContainText('+120');
   await expect(rows.filter({ has: page.locator('.dc-txn-title', { hasText: /^存款/ }) }).first()).toContainText('学号 20260001');
   await expect(rows.filter({ hasNotText: '学号 20260001' })).toHaveCount(0);
 
   // A whole class: 八年级(3)班 is 李思远's.
-  await page.getByRole('button', { name: /^清除学生范围/ }).click();
-  await scope.fill('八年级3班');
-  await page.locator('.dc-list-link', { hasText: '整个班级：八年级(3)班' }).click();
-  await search();
+  await page.getByRole('button', { name: /^去掉条件：张小明/ }).click();
+  await search.fill('八年级3班');
+  await found.locator('.dc-list-link', { hasText: '整个班级：八年级(3)班' }).click();
   await expect(page.locator('.dc-list-title')).toHaveText('共 3 笔');
   await expect(rows.filter({ hasNotText: '学号 20260002' })).toHaveCount(0);
 
-  // Cash only, then a 时段 that ends before any business of the day.
-  await page.getByLabel('支付方式').selectOption({ label: '现金' });
-  await search();
+  // 兑换 only, then a 时段 that ends before any business of the day.
+  await page.getByRole('button', { name: '兑换', exact: true }).click();
   await expect(page.locator('.dc-list-title')).toHaveText('共 1 笔');
-  await page.getByLabel('时段结束').fill('00:01');
-  await search();
+  await page.getByRole('button', { name: '按时段' }).click();
+  await page.getByRole('button', { name: '每天到', exact: true }).click();
+  await page.getByRole('button', { name: '0时', exact: true }).click();
+  await page.getByRole('button', { name: '5分', exact: true }).click();
   await expect(page.locator('.dc-empty')).toContainText('没有符合条件的流水');
 });
 
 test('流水: pick today as the start date in the calendar', async ({ page }) => {
   await open(page, '流水', 'txns');
-  const start = page.getByRole('button', { name: '开始日期' });
+  const start = page.getByRole('button', { name: '从', exact: true });
   await expect(start).toHaveText('不限');
   await start.click();
-  const calendar = page.getByRole('dialog', { name: '选择开始日期' });
+  const calendar = page.getByRole('dialog', { name: '选择从' });
   await expect(calendar.locator('.dc-cal-day.is-today')).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(calendar.locator('.dc-cal-day.is-today')).toBeFocused(); // tomorrow cannot be picked
   await page.keyboard.press('Enter');
   await expect(calendar).toBeHidden();
-  await expect(start).toHaveText(/^\d{4}年\d{1,2}月\d{1,2}日 星期[一二三四五六日]$/);
-  await page.getByRole('button', { name: '查询', exact: true }).click();
+  await expect(start).toHaveText(/^\d{1,2}月\d{1,2}日 周[一二三四五六日]$/);
   await expect(page.locator('.dc-list-title', { hasText: /^共 \d+ 笔$/ })).toBeVisible();
 });
 
 test('流水: jump to a day last year through the month panel', async ({ page }) => {
   await open(page, '流水', 'txns');
   const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()).split('-').map(Number);
-  const start = page.getByRole('button', { name: '开始日期' });
-  const calendar = page.getByRole('dialog', { name: '选择开始日期' });
+  const start = page.getByRole('button', { name: '从', exact: true });
+  const calendar = page.getByRole('dialog', { name: '选择从' });
   const title = calendar.getByRole('button', { name: '选择年月' });
 
   // Keyboard: arrows move through the months and cross into last year; Esc goes back to the days, then closes.
@@ -99,7 +95,7 @@ test('流水: jump to a day last year through the month panel', async ({ page })
   await calendar.getByRole('button', { name: `${y - 1}年3月` }).click();
   await expect(title).toHaveText(`${y - 1}年3月`);
   await calendar.getByRole('button', { name: /^3月15日/ }).click();
-  await expect(start).toHaveText(new RegExp(`^${y - 1}年3月15日 星期`));
+  await expect(start).toHaveText(new RegExp(`^${y - 1}年3月15日 周`));
 
   // A click outside closes it, even from the month panel.
   await start.click();
@@ -107,31 +103,6 @@ test('流水: jump to a day last year through the month panel', async ({ page })
   await expect(title).toHaveText(`${y - 1}年`);
   await page.locator('.dc-top-title').click();
   await expect(calendar).toBeHidden();
-});
-
-test('发行: register a batch and see it in the list', async ({ page }) => {
-  await open(page, '发行', 'issues');
-  await page.getByLabel('批次号').fill(batch);
-  await page.getByLabel('增加一张 10 元').click();
-  await page.getByLabel('增加一张 10 元').click();
-  await page.getByLabel('增加一张 5 元').click();
-  await expect(page.locator('form[aria-label="登记发行"] .dc-kv')).toContainText('发行总额25HTB');
-  await page.getByLabel('用途').fill('测试发行');
-  await page.getByLabel('审批人').fill('王老师');
-  await page.getByRole('button', { name: '登记发行' }).click();
-  await expect(page.locator('.dc-notice-success')).toContainText(`批次 ${batch}，共 25 HTB`);
-  const row = page.locator('section[aria-label="发行记录"] .dc-txn', { hasText: batch });
-  await expect(row).toContainText('10 元 × 2 张、5 元 × 1 张');
-  await expect(row.locator('.dc-txn-amount')).toHaveText('25HTB');
-
-  // The form starts empty again, approver included; the same batch number again is refused.
-  await expect(page.getByLabel('审批人')).toHaveValue('');
-  await page.getByLabel('批次号').fill(batch);
-  await page.getByLabel('增加一张 1 元').click();
-  await page.getByLabel('用途').fill('测试发行');
-  await page.getByLabel('审批人').fill('王老师');
-  await page.getByRole('button', { name: '登记发行' }).click();
-  await expect(page.locator('.dc-notice-danger')).toContainText('批次号已被使用');
 });
 
 test('参数: switch 排名匿名 off and on again', async ({ page }) => {
@@ -183,12 +154,10 @@ test('人员 → 操作日志 shows only that login, and the filter can be remov
   await expect(page).toHaveURL(/\/admin\/audit$/);
 });
 
-test('日志: the batch registered above, with its fields', async ({ page }) => {
+test('日志: the 参数 change made above, with its fields', async ({ page }) => {
   await open(page, '日志', 'audit');
-  const entry = page.locator('details', { has: page.locator('.dc-txn-title', { hasText: `新增发行 · ${batch}` }) });
+  const entry = page.locator('details', { has: page.locator('.dc-txn-title', { hasText: '修改参数 · 排名匿名' }) }).first();
   await expect(entry).toContainText('银行管理员');
   await entry.locator('summary').click();
-  await expect(entry.locator('.dc-kv')).toContainText('批次号');
-  await expect(entry.locator('.dc-kv')).toContainText('总额25');
-  await expect(page.locator('.dc-txn-title', { hasText: '修改参数 · 排名匿名' }).first()).toBeVisible();
+  await expect(entry.locator('.dc-kv')).toContainText('取值');
 });

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
+import { CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -11,7 +11,7 @@ import { DIVISION, STATUS, useStudent, type AdminStudent } from '@/lib/students'
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
 
-type Status = AdminStudent['status'];
+type Status = Exclude<AdminStudent['status'], 'closed'>;
 // The changes open from each status (set_student_status): a frozen account is unfrozen; a graduate can be restored.
 const NEXT: Record<Status, Status[]> = { normal: ['frozen', 'graduated'], frozen: ['normal'], graduated: ['normal'] };
 type Change = { label: (s: AdminStudent) => string; title: (s: AdminStudent) => string; text: (s: AdminStudent) => string; done: string };
@@ -32,7 +32,8 @@ const CHANGE: Record<Status, Change> = {
 };
 
 // One student: who they are, whether they have signed in, the latest movements with the way to all of them in 流水
-// (teacher), 重置密码, and freezing, unfreezing or marking them graduated (teacher; the counter then refuses them).
+// (teacher), 重置密码, freezing, unfreezing or marking them graduated (teacher; the counter then refuses them), and
+// 注销 (teacher, sysadmin).
 export default function Student() {
   const { no } = useLocalSearchParams<{ no: string }>();
   const me = useMe().data!;
@@ -49,7 +50,7 @@ export default function Student() {
       return (data as TxnRow[]).map(toTxn);
     },
   });
-  const [confirm, setConfirm] = useState<'reset' | Status | null>(null);
+  const [confirm, setConfirm] = useState<'reset' | 'close' | Status | null>(null);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
   const s = student.data;
 
@@ -97,11 +98,14 @@ export default function Student() {
                 ['开户时间', formatTime(s.opened_at)],
               ]} />
             </div>
-            <button className="dc-btn dc-btn-secondary" type="button" onClick={() => { setResult(null); setConfirm('reset'); }}>重置密码</button>
-            {teacher && NEXT[s.status].map((to) => (
+            {s.status !== 'closed' && <button className="dc-btn dc-btn-secondary" type="button" onClick={() => { setResult(null); setConfirm('reset'); }}>重置密码</button>}
+            {teacher && s.status !== 'closed' && NEXT[s.status].map((to) => (
               <button key={to} className={`dc-btn dc-btn-ghost ${to === 'normal' ? '' : 'is-danger'}`} type="button"
                 onClick={() => { setResult(null); setConfirm(to); }}>{CHANGE[to].label(s)}</button>
             ))}
+            {s.status !== 'closed' && (
+              <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => { setResult(null); setConfirm('close'); }}>注销账号</button>
+            )}
           </div>
           {teacher && (
             <section className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
@@ -118,7 +122,15 @@ export default function Student() {
         <ConfirmSheet title={`重置 ${s.name} 的密码？`} confirm="重置密码" onClose={() => setConfirm(null)} onConfirm={() => run('reset')}
           text={<>将生成新的初始密码，只在这里显示一次；{s.name} 下次登录时需要设置新密码，已登录的设备会退出登录。</>} />
       )}
-      {confirm && confirm !== 'reset' && s && (
+      {confirm === 'close' && s && (
+        <CloseSheet people={[{ id: s.user_id, name: s.name, balance: s.accounts?.balance }]} onClose={() => setConfirm(null)}
+          onDone={(r) => {
+            setConfirm(null);
+            setResult(r);
+            queryClient.invalidateQueries({ queryKey: ['admin-students'] });
+          }} />
+      )}
+      {confirm && confirm !== 'reset' && confirm !== 'close' && s && (
         <ConfirmSheet title={CHANGE[confirm].title(s)} confirm={CHANGE[confirm].label(s)} onClose={() => setConfirm(null)}
           onConfirm={() => run(confirm)} text={CHANGE[confirm].text(s)} />
       )}

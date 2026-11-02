@@ -145,16 +145,34 @@ test('the counter reopens without a network once installed', async ({ page, cont
   await context.setOffline(false);
 });
 
-test('switching accounts asks who you are first', async ({ page }) => {
-  await signIn(page, '工作人员', 'teller01');
+test('在此设备保存登录: a saved account switches after asking who you are; one not saved asks for its password', async ({ page }) => {
+  await signIn(page, '工作人员', 'teller01', '/login', undefined, true);
   await expect(page).toHaveURL(/\/counter$/);
   await signIn(page, '学生', '20260001', '/login?add=1');
   await expect(page).toHaveURL(/\/student$/);
-  await page.goto('/accounts');
+  await page.goto('/student/me');
+  await expect(page.getByRole('switch', { name: /在此设备保存登录/ })).not.toBeChecked();
   await page.locator('.dc-list-link', { hasText: '柜员小林' }).click();
   await expect(page.locator('.dc-sheet')).toContainText('你是柜员小林吗？');
   await confirmIn(page, '是，切换');
   await expect(page).toHaveURL(/\/counter$/);
+
+  await page.goto('/counter/me');
+  await page.locator('.dc-list-link', { hasText: '张小明' }).click();
+  await page.locator('.dc-sheet input[type="password"]').fill('a12345678');
+  await confirmIn(page, '切换');
+  await expect(page).toHaveURL(/\/student$/);
+
+  // Turning saving off asks for the password.
+  await page.goto('/student/me');
+  await page.locator('.dc-list-link', { hasText: '柜员小林' }).click();
+  await confirmIn(page, '是，切换');
+  await expect(page).toHaveURL(/\/counter$/);
+  await page.goto('/counter/me');
+  await page.locator('.dc-switch', { hasText: '在此设备保存登录' }).click();
+  await page.locator('.dc-sheet input[type="password"]').fill('a12345678');
+  await confirmIn(page, '确认关闭');
+  await expect(page.getByRole('switch', { name: /在此设备保存登录/ })).not.toBeChecked();
 });
 
 test('the student sees the counter\'s work', async ({ page }) => {

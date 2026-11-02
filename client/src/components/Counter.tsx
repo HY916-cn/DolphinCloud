@@ -136,7 +136,7 @@ export function CounterPage({ title, onBack, children }: { title: string; onBack
   const online = useOnline();
   return (
     <Page title={title} sub={me.profile.display_name} back={onBack} actions={
-      <a className="dc-icon-btn" aria-label="切换账号" {...link('/accounts')}><Icon name="me" /></a>
+      <a className="dc-icon-btn" aria-label="我的" {...link('/counter/me')}><Icon name="me" /></a>
     }>
       {!online && <Notice tone="danger" title="离线登记">网络已断开，现在只能登记存款，联网后上传。请同时填写纸质凭条。</Notice>}
       {online && <PendingUploads operatorId={me.profile.id} />}

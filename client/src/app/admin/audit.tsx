@@ -20,10 +20,11 @@ const ACTIONS: Record<string, string> = {
   'roster.import': '名册导入', 'user.reset_password': '重置密码', 'txn.reverse': '冲正', 'check.mismatch': '余额自检不一致',
   'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
   'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
+  'user.close': '注销账号',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
-  attendance: '考勤', staff_payroll: '考勤设置',
+  attendance: '考勤', staff_payroll: '考勤设置', duty: '上下班',
 };
 const OPS: Record<string, string> = { insert: '新增', update: '修改', delete: '删除' };
 const SETTINGS: Record<string, string> = {
@@ -38,7 +39,8 @@ const COLUMNS: Record<string, string> = {
   value: '取值', type: '类型', amount: '金额', balance_delta: '余额变动', balance_after: '办理后余额', reason: '原因',
   txn_no: '交易号', created: '新开账户', updated: '更新学生',
   failures: '15 分钟内密码错误次数', locked_until: '锁定到', valid: '密码正确', student_nos: '学号', file: '备份文件',
-  attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '签到时间',
+  attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '记录时间',
+  started_at: '上班时间', ended_at: '下班时间', txns: '业务笔数', closed_at: '注销时间',
   from: '起', to: '止', rates: '班次工资', paid: '发放',
 };
 // Columns that change on every write and say nothing to the reader.
