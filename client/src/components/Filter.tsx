@@ -1,20 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { DatePicker, today } from './DatePicker';
 import { TimeRange } from './Report';
 import { Icon, type IconName } from './ui';
 
 // The one filter bar of 流水, the counter's 查询 and the student's 明细 (PHASE-1.md §7.9): a search box, the days, the
 // types, and a 时段 of each day only when asked for. A search with suggestions (`suggest`) turns what is picked into
-// chips; without, the words themselves filter, a moment after typing stops.
+// chips; without, the words themselves filter, a moment after typing stops. `times={false}` leaves out 按时段.
+// `actions` (打印 / 导出) always sit at the bar's bottom right, after 清除条件.
 export type Filter = { text: string; from: string; to: string; timeFrom: string; timeTo: string; kinds: string[] };
 export const NO_FILTER: Filter = { text: '', from: '', to: '', timeFrom: '', timeTo: '', kinds: [] };
 export const filtered = (f: Filter) => !!(f.text.trim() || f.from || f.to || f.timeFrom || f.timeTo || f.kinds.length);
 export type Suggestion = { key: string; icon: IconName; label: string; note?: string; pick: () => void };
 export type Chip = { key: string; label: string; clear: () => void };
 
-export function FilterBar({ label, placeholder, value, onChange, kinds, suggest, chips = [] }: {
+export function FilterBar({ label, placeholder, value, onChange, kinds, suggest, chips = [], times = true, actions }: {
   label: string; placeholder: string; value: Filter; onChange: (f: Filter) => void; kinds?: readonly (readonly [string, string])[];
-  suggest?: (text: string) => Suggestion[]; chips?: Chip[];
+  suggest?: (text: string) => Suggestion[]; chips?: Chip[]; times?: boolean; actions?: ReactNode;
 }) {
   const [text, setText] = useState(value.text);
   const [timed, setTimed] = useState(!!(value.timeFrom || value.timeTo));
@@ -79,14 +80,21 @@ export function FilterBar({ label, placeholder, value, onChange, kinds, suggest,
               <Icon name="check" />{name}
             </button>
           ))}
-          <button className="dc-chip" type="button" aria-pressed={timed} onClick={() => { if (timed) set({ timeFrom: '', timeTo: '' }); setTimed(!timed); }}>
-            <Icon name="check" />按时段
-          </button>
+          {times && (
+            <button className="dc-chip" type="button" aria-pressed={timed} onClick={() => { if (timed) set({ timeFrom: '', timeTo: '' }); setTimed(!timed); }}>
+              <Icon name="check" />按时段
+            </button>
+          )}
         </div>
-        {busy && (
-          <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { setText(''); setTimed(false); chips.forEach((c) => c.clear()); onChange(NO_FILTER); }}>
-            清除条件
-          </button>
+        {(busy || actions) && (
+          <div className="fl-actions">
+            {busy && (
+              <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { setText(''); setTimed(false); chips.forEach((c) => c.clear()); onChange(NO_FILTER); }}>
+                清除条件
+              </button>
+            )}
+            {actions}
+          </div>
         )}
       </div>
     </form>

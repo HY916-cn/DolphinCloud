@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { SHIFTS } from '@/lib/attendance';
-import { dutySummary, useDuty } from '@/lib/duty';
+import { dutyCount, dutySummary, useDuty } from '@/lib/duty';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime, shiftAt } from '@/lib/format';
 import { useOnline } from '@/lib/online';
@@ -12,7 +12,8 @@ import { ConfirmSheet } from './Sheet';
 import { Icon, Notice } from './ui';
 
 // 上班 / 下班 (PHASE-1.md §7.5): 上班 opens the counter (and signs the shift for a counted teller); 下班 first prints
-// the summary of every transaction since 上班, then, once it is signed, closes the duty. `whole`: the card is all the
+// the summary of every transaction since 上班, then, once it is signed, closes the duty; 跳过打印 goes straight to
+// the confirmation. `whole`: the card is all the
 // page has (办理 before 上班), so it is drawn large.
 export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
   const queryClient = useQueryClient();
@@ -21,6 +22,7 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<'print' | 'confirm' | null>(null);
   const [count, setCount] = useState(0);
+  const [printed, setPrinted] = useState(true);
   const [problem, setProblem] = useState<{ title: string; text: string } | null>(null);
   const d = duty.data;
   const refresh = () => Promise.all(['duty', 'attendance'].map((k) => queryClient.invalidateQueries({ queryKey: [k] })));
@@ -71,11 +73,28 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
         <OutputSheet title="打印下班总结" name={`下班总结-${me.profile.display_name}-${formatTime(new Date().toISOString(), new Date(0))}.pdf`}
           text="总结列出本次上班以来你办理的全部业务。打印后核对、签字留存，再确认下班。"
           make={async () => { const r = await dutySummary(d, me.profile.display_name); setCount(r.count); return r.pages; }}
-          onClose={() => setStep(null)} onDone={() => setStep('confirm')} />
+          onClose={() => setStep(null)} onDone={() => { setPrinted(true); setStep('confirm'); }}
+          extra={
+            <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try {
+                setCount(await dutyCount(d));
+                setPrinted(false);
+                setStep('confirm');
+              } catch {
+                setProblem(explain(''));
+                setStep(null);
+              } finally {
+                setBusy(false);
+              }
+            }}>跳过打印</button>
+          } />
       )}
       {step === 'confirm' && (
-        <ConfirmSheet title="确认下班？" text={`总结共 ${count} 笔业务。确认已打印并签字留存；下班后不能再办理业务，需要时再点「上班」。`}
-          confirm="已签字，确认下班" busy={busy} onClose={() => setStep(null)} onConfirm={() => run('end_duty', { p_txns: count })} />
+        <ConfirmSheet title="确认下班？"
+          text={printed ? `总结共 ${count} 笔业务。确认已打印并签字留存；下班后不能再办理业务，需要时再点「上班」。`
+            : `本次上班共 ${count} 笔业务，没有打印总结。下班后不能再办理业务，需要时再点「上班」。`}
+          confirm={printed ? '已签字，确认下班' : '确认下班'} busy={busy} onClose={() => setStep(null)} onConfirm={() => run('end_duty', { p_txns: count })} />
       )}
     </section>
   );

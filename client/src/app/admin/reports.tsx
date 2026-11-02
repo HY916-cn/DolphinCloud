@@ -35,7 +35,7 @@ function delta(now: number, before: number | undefined) {
 // one 时段 of each day, for the whole bank, a 学部, a class or one student, in four tabs of charts and tables: 营业
 // (businesses by day, hour and teller), 账户 (students and balances by class), 财务 (the balance check and its
 // trend, counter cash) and 商品 (exchanges and stock). Each figure is set beside the period of the same length just
-// before. 导出 prints the report or keeps it as a PDF, one table or chart to a page.
+// before. 打印 / 导出 prints the report or keeps it as a PDF, one table or chart to a page.
 export default function Reports() {
   const now = today();
   const [[from, to], setRange] = useState(periodOf('month', now));
@@ -59,7 +59,16 @@ export default function Reports() {
 
   return (
     <Desk title="报表">
-      <form className="dc-card dc-stack dc-enter" aria-label="报表条件" onSubmit={(e) => e.preventDefault()}>
+      {/* Laid out as the FilterBar: the search, the days, then the chips with 打印 / 导出 at the bottom right. */}
+      <form className="dc-card dc-stack fl-bar dc-enter" aria-label="报表条件" onSubmit={(e) => e.preventDefault()}>
+        <ScopePicker value={scope} onChange={setScope} />
+        <div className="fl-row">
+          <span className="rp-pair fl-dates">
+            <DatePicker short label="从" value={from} max={to} rule="不能晚于结束日期" onChange={(f) => setRange([f, to])} />
+            <DatePicker short label="到" value={to} min={from} max={now} rule="不能早于开始日期，也不能晚于今天" onChange={(t) => setRange([from, t])} />
+          </span>
+          {timed && <TimeRange from={timeFrom} to={timeTo} onChange={(f, t) => setTimes([f, t])} />}
+        </div>
         <div className="fl-row">
           <div className="dc-chips" role="group" aria-label="期间">
             {PERIODS.map(([k, label]) => {
@@ -74,18 +83,12 @@ export default function Reports() {
               <Icon name="check" />按时段
             </button>
           </div>
-          <button className="dc-btn dc-btn-primary dc-btn-sm" type="button" disabled={!r} onClick={() => setOutput(true)}>
-            <Icon name="passbook" />打印 / 导出 PDF
-          </button>
+          <div className="fl-actions">
+            <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={!r} onClick={() => setOutput(true)}>
+              <Icon name="passbook" />打印 / 导出
+            </button>
+          </div>
         </div>
-        <div className="fl-row">
-          <span className="rp-pair fl-dates">
-            <DatePicker short label="从" value={from} max={to} rule="不能晚于结束日期" onChange={(f) => setRange([f, to])} />
-            <DatePicker short label="到" value={to} min={from} max={now} rule="不能早于开始日期，也不能晚于今天" onChange={(t) => setRange([from, t])} />
-          </span>
-          {timed && <TimeRange from={timeFrom} to={timeTo} onChange={(f, t) => setTimes([f, t])} />}
-        </div>
-        <ScopePicker value={scope} onChange={setScope} />
       </form>
 
       {tooLong ? <Notice tone="danger" title="期间太长">一份报表最长一年，请缩短日期范围。</Notice>

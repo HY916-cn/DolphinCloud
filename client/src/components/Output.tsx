@@ -6,9 +6,10 @@ import { ConfirmSheet } from './Sheet';
 import { Notice } from './ui';
 
 // Every printed document (PDF) is offered both ways: 打印 at once, or 下载 PDF to keep. `make` draws its pages; it
-// may fail (the network), and then says why.
-export function OutputSheet({ title, text, name, make, onClose, onDone }: {
+// may fail (the network), and then says why. `extra` goes under the text (another way on, such as 跳过打印).
+export function OutputSheet({ title, text, name, make, onClose, onDone, extra }: {
   title: string; text: ReactNode; name: string; make: () => Promise<PdfPage[]>; onClose: () => void; onDone?: (how: 'print' | 'pdf') => void;
+  extra?: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<{ title: string; text: string } | null>(null);
@@ -30,6 +31,7 @@ export function OutputSheet({ title, text, name, make, onClose, onDone }: {
     <ConfirmSheet title={title} text={text} confirm="打印" busy={busy} alt={{ label: '下载 PDF', onClick: () => go('pdf') }}
       onClose={onClose} onConfirm={() => go('print')}>
       {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
+      {extra}
     </ConfirmSheet>
   );
 }

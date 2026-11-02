@@ -21,16 +21,21 @@ export async function signIn(page: Page, kind: '学生' | '工作人员', id: st
   await page.getByPlaceholder(kind === '学生' ? '请输入学号' : '请输入账号').fill(id);
   await page.getByPlaceholder('请输入密码').fill(password);
   if (save) await page.getByText('在此设备保存登录').click();
-  await page.getByRole('button', { name: '登录' }).click();
+  await page.getByRole('button', { name: '登录', exact: true }).click();
 }
 
-// 下班: the summary is kept as a PDF, then the duty ends.
-export async function endDuty(page: Page) {
+// 下班: the summary is kept as a PDF, then the duty ends; `skip` goes on without it.
+export async function endDuty(page: Page, skip = false) {
   await page.getByRole('button', { name: '下班' }).click();
-  const download = page.waitForEvent('download');
-  await confirmIn(page, '下载 PDF');
-  expect((await download).suggestedFilename()).toMatch(/^下班总结-.*\.pdf$/);
-  await confirmIn(page, '已签字，确认下班');
+  if (skip) {
+    await page.locator('.dc-sheet').getByRole('button', { name: '跳过打印' }).click();
+    await confirmIn(page, '确认下班');
+  } else {
+    const download = page.waitForEvent('download');
+    await confirmIn(page, '下载 PDF');
+    expect((await download).suggestedFilename()).toMatch(/^下班总结-.*\.pdf$/);
+    await confirmIn(page, '已签字，确认下班');
+  }
   await expect(page.locator('section[aria-label="上下班"]')).toContainText('未上班');
 }
 

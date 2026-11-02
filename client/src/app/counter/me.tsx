@@ -1,5 +1,6 @@
-import { CounterPage, MeScreen } from '@/components';
+import { CounterPage, MeView } from '@/components';
+import { useMe } from '@/lib/session';
 
 export default function CounterMe() {
-  return <MeScreen frame={(title, back, body) => <CounterPage title={title} onBack={back}>{body}</CounterPage>} />;
+  return <CounterPage title="我的"><MeView me={useMe().data!} /></CounterPage>;
 }

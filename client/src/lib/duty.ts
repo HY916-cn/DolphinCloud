@@ -53,6 +53,14 @@ type Row = {
   status: 'normal' | 'reversed'; created_at: string; student_no: string; students: { name: string } | null;
 };
 
+// How many transactions the teller made since 上班: what end_duty checks when 下班 skips the summary.
+export async function dutyCount(duty: Duty) {
+  const { count, error } = await supabase.from('txns').select('id', { count: 'exact', head: true })
+    .eq('operator_id', duty.user_id).gte('created_at', duty.started_at);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 // 下班总结: every transaction the teller made since 上班, by time, with the totals and lines to sign. Answers the
 // pages and how many transactions they list (end_duty checks the number).
 export async function dutySummary(duty: Duty, teller: string) {

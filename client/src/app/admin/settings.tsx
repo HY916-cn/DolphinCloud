@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Desk, FormLoading, SkeletonGroup, Icon, Notice, type IconName } from '@/components';
+import { DatePicker, Desk, FormLoading, SkeletonGroup, Icon, Notice, today, type IconName } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
@@ -15,7 +15,6 @@ const digits = (v: string) => v.replace(/\D/g, '').slice(0, 7);
 
 // The notes the bank can print; 1 is always one of them (the counter makes change with it).
 const FACES = [1, 2, 5, 10, 20, 50, 100];
-const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const pad = (n: number) => String(n).padStart(2, '0');
 
 function Field({ icon, label, hint, children }: { icon: IconName; label: string; hint?: string; children: ReactNode }) {
@@ -220,20 +219,11 @@ function SettingsForm({ saved }: { saved: Values }) {
           <div>
             <p className="dc-list-title">学年</p>
             <div className="dc-card">
-              <Field icon="calendar" label="升年级日期" hint="每年从这天起，所有学生的年级加一">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-                  <span className="dc-select">
-                    <select aria-label="升年级月份" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-                      {MONTHS.map((m) => <option key={m} value={m}>{m} 月</option>)}
-                    </select>
-                  </span>
-                  <span className="dc-select">
-                    <select aria-label="升年级日" value={Math.min(day, days)} onChange={(e) => setDay(Number(e.target.value))}>
-                      {Array.from({ length: days }, (_, i) => <option key={i} value={i + 1}>{i + 1} 日</option>)}
-                    </select>
-                  </span>
-                </div>
-              </Field>
+              {/* Only the month and day count; the calendar shows them in this year, and 29 February becomes the 28th. */}
+              <DatePicker label="升年级日期" value={`${today().slice(0, 4)}-${pad(month)}-${pad(Math.min(day, days))}`}
+                shown={`${month}月${Math.min(day, days)}日`} rule="每年从这天起，所有学生的年级加一"
+                onChange={(d) => { const [m, dd] = d.slice(5).split('-').map(Number); setMonth(m); setDay(m === 2 ? Math.min(dd, 28) : dd); }} />
+              <p className="dc-top-sub" style={{ margin: 'var(--space-2) 0 0' }}>每年从这天起，所有学生的年级加一</p>
             </div>
           </div>
         </div>

@@ -20,8 +20,7 @@ export function ScopePicker({ value, onChange }: { value: Scope | null; onChange
   const shown = row ? `${row.name} · ${row.class_label ?? `${row.class_no}班`} · 学号 ${row.student_no}` : value && `${value.label} · ${value.note}`;
 
   return (
-    <div className="dc-field" role="group" aria-label="学生范围">
-      <span className="dc-field-label"><Icon name="me" />学生范围</span>
+    <div className="dc-stack" role="group" aria-label="学生范围">
       {value ? (
         <div className="dc-chips">
           <button className="dc-chip" type="button" aria-pressed="true" aria-label={`清除学生范围：${shown}`} onClick={() => pick(null)}>

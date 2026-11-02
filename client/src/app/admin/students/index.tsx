@@ -107,34 +107,34 @@ export default function Students() {
   const busy = step?.kind === 'busy';
   return (
     <Desk title="学生">
-      <form role="search" onSubmit={(e) => e.preventDefault()}>
+      <form className="dc-card dc-stack fl-bar" role="search" onSubmit={(e) => e.preventDefault()}>
         <label className="dc-search">
           <Icon name="query" />
           <input type="search" aria-label="搜索学生" placeholder="输入姓名、拼音首字母、班级或学号" autoComplete="off"
             enterKeyHint="search" value={query} onChange={(e) => setQuery(e.target.value)} />
           {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
         </label>
-      </form>
-      <div className="dc-section-head">
-        <div className="dc-chips" role="group" aria-label="筛选">
-          <button className="dc-chip" type="button" aria-pressed={onlyWaiting} onClick={() => setOnlyWaiting(!onlyWaiting)}>
-            <Icon name="check" />未设置密码{students.data && ` ${waiting.length}`}
-          </button>
-          {all.length > 0 && (
-            <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
-              <Icon name="check" />选择
+        <div className="fl-row">
+          <div className="dc-chips" role="group" aria-label="筛选">
+            <button className="dc-chip" type="button" aria-pressed={onlyWaiting} onClick={() => setOnlyWaiting(!onlyWaiting)}>
+              <Icon name="check" />未设置密码{students.data && ` ${waiting.length}`}
             </button>
-          )}
+            {all.length > 0 && (
+              <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
+                <Icon name="check" />选择
+              </button>
+            )}
+          </div>
+          <span className="fl-actions">
+            {waiting.length > 0 && (
+              <button className={`dc-btn dc-btn-ghost dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy}
+                onClick={() => setStep({ kind: 'reissue' })}>开户通知单</button>
+            )}
+            {teacher && all.length > 0 && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => setStep({ kind: 'opening' })}>期初余额核对表</button>}
+            {teacher && <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/students/import')}>导入名册</a>}
+          </span>
         </div>
-        <span className="bt-tools">
-          {waiting.length > 0 && (
-            <button className={`dc-btn dc-btn-ghost dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy}
-              onClick={() => setStep({ kind: 'reissue' })}>开户通知单</button>
-          )}
-          {teacher && all.length > 0 && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => setStep({ kind: 'opening' })}>期初余额核对表</button>}
-          {teacher && <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/students/import')}>导入名册</a>}
-        </span>
-      </div>
+      </form>
       {students.isError && <Notice tone="danger" title="暂时无法读取名册">请检查网络后刷新页面。</Notice>}
       {result && <Notice tone={result.tone} title={result.title}>{result.text}</Notice>}
       <p className="dc-top-sub">{students.data && <>共 {all.length} 名学生{waiting.length > 0 && `，${waiting.length} 人还未设置新密码`}</>}</p>

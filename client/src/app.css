@@ -111,9 +111,6 @@ span.at-cell-btn { cursor: default; }
 .bt-row { display: flex; align-items: center; gap: var(--space-3); }
 .bt-row > .dc-list-link { flex: 1; min-width: 0; }
 .bt-pick { flex: none; width: 28px; padding: 0; }
-.bt-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
-.dc-section-head:has(> .bt-tools) { flex-wrap: wrap; }
-.dc-chip { white-space: nowrap; }
 .dc-switch-text a { color: var(--dolphin-deep); font-weight: 700; }
 .bt-bar { position: sticky; bottom: var(--space-3); z-index: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-float); }
 .bt-bar > .dc-check { align-items: center; white-space: nowrap; }
@@ -123,8 +120,6 @@ span.at-cell-btn { cursor: default; }
   .bt-bar { bottom: calc(108px + env(safe-area-inset-bottom)); }
   .bt-bar-actions { flex-wrap: nowrap; width: 100%; overflow-x: auto; }
   .bt-bar-actions > .dc-btn { flex: none; }
-  .bt-tools { flex-wrap: nowrap; justify-content: flex-start; gap: var(--space-1); max-width: 100%; overflow-x: auto; }
-  .bt-tools > .dc-btn { flex: none; padding-inline: var(--space-3); }
   /* Two dates side by side: the field's label already shows the calendar. */
   .rp-pair .dc-date-trigger > .dc-icon { display: none; }
 }
@@ -134,10 +129,17 @@ span.at-cell-btn { cursor: default; }
 /* 筛选栏 (fl-): one search, the days and the types; 时段 opens beside the days when asked for. */
 .fl-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-4); }
 .fl-row > .dc-chips { flex: 1 1 auto; }
+/* The days beside 时段: their labels and fields on the same lines, 时段's hint below. */
+.fl-row:has(> .fl-dates) { align-items: flex-start; }
 .fl-dates { flex: 1 1 320px; }
 .fl-row > .dc-field { flex: 1 1 320px; max-width: 480px; margin: 0; }
 .fl-found { max-height: 320px; overflow-y: auto; }
+.fl-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-left: auto; }
 .fl-bar .dc-chip .dc-icon + .dc-icon { margin-left: var(--space-1); }
+@container app (max-width: 599px) {
+  .fl-actions { gap: var(--space-1); }
+  .fl-actions > .dc-btn { padding-inline: var(--space-3); }
+}
 
 /* 登录页「在此设备保存登录」: one quiet line under the fields. */
 .lg-save { align-items: center; gap: var(--space-2); padding: 0; font: 600 15px/22px var(--font-sans); color: var(--ink-muted); }
@@ -149,3 +151,14 @@ span.at-cell-btn { cursor: default; }
 .dc-empty { min-height: 360px; justify-content: center; }
 .dc-empty:not(.dc-card .dc-empty) { box-sizing: border-box; background: var(--surface-raised); border: 2px solid var(--line); border-radius: var(--radius-lg); }
 .dc-empty .dc-btn { min-width: 200px; }
+
+/* A button's label stays on one line; in a sheet the buttons take the room their labels need, and a row too narrow for
+   them wraps whole buttons instead of their words. */
+.dc-btn, .dc-chip { white-space: nowrap; }
+.dc-sheet-actions { flex-wrap: wrap; }
+.dc-sheet-actions .dc-btn { flex: 1 1 auto; padding-inline: var(--space-4); }
+
+/* 切换账号 on the login page: the signed-in account's 保存登录, 退出全部账号, and the line before the form. */
+.lg-keep { flex: none; min-height: 36px; padding: 0 var(--space-3); font-size: 14px; }
+.lg-all { align-self: center; }
+.lg-or { margin: 0; text-align: left; }

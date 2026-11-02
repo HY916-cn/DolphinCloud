@@ -147,11 +147,11 @@ test('人员 → 操作日志 shows only that login, and the filter can be remov
   await page.locator('.dc-list-link', { hasText: '银行管理员' }).first().click();
   await page.getByRole('link', { name: '操作日志' }).click();
   await expect(page).toHaveURL(/\/admin\/audit\?actor=[0-9a-f-]{36}$/);
-  const chip = page.getByRole('button', { name: /只看 银行管理员 的操作/ });
+  const chip = page.getByRole('button', { name: '去掉条件：操作人 银行管理员' });
   await expect(chip).toBeVisible();
   await expect(page.locator('section[aria-label="操作日志"] .dc-txn').first()).toContainText('银行管理员 · ');
   await chip.click();
-  await expect(page).toHaveURL(/\/admin\/audit$/);
+  await expect(chip).toHaveCount(0);
 });
 
 test('日志: the 参数 change made above, with its fields', async ({ page }) => {
@@ -160,4 +160,17 @@ test('日志: the 参数 change made above, with its fields', async ({ page }) =
   await expect(entry).toContainText('银行管理员');
   await entry.locator('summary').click();
   await expect(entry.locator('.dc-kv')).toContainText('取值');
+
+  // The type chips, then a student found by the search: their own entries and those about them.
+  const titles = page.locator('section[aria-label="操作日志"] .dc-txn-title');
+  await page.getByRole('button', { name: '参数', exact: true }).click();
+  await expect(titles.first()).toContainText('参数');
+  await expect(titles.filter({ hasNotText: '参数' })).toHaveCount(0);
+  await page.getByRole('button', { name: '清除条件' }).click();
+  await page.getByRole('searchbox', { name: '搜索操作人、学生或操作' }).fill('张小明');
+  await page.getByRole('list', { name: '搜索建议' }).locator('.dc-list-link', { hasText: '张小明' }).click();
+  await expect(page.getByRole('button', { name: '去掉条件：张小明 · 学号 20260001' })).toBeVisible();
+  const rows = page.locator('section[aria-label="操作日志"] .dc-txn');
+  await expect(rows.first()).toBeVisible();
+  await expect(rows.filter({ hasNotText: '张小明' })).toHaveCount(0);
 });

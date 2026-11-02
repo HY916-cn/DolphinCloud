@@ -96,16 +96,11 @@ export async function checkPassword(id: string, password: string) {
   return !error;
 }
 
-// Ends this device's session of the active account only, forgets it, and moves to the next remembered account.
-// Returns whether another account is now active.
+// Ends this device's session of the active account only and forgets it; the other accounts stay, to switch to.
 export async function signOutCurrent() {
   const { data } = await supabase.auth.getSession();
   await supabase.auth.signOut({ scope: 'local' });
   if (data.session) forgetAccount(data.session.user.id);
-  for (const next of savedAccounts()) {
-    if (next.session && (await switchAccount(next.id)) === null) return true;
-  }
-  return false;
 }
 
 // Ends this device's session of every remembered account and clears the list.

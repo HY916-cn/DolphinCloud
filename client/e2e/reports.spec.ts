@@ -45,7 +45,7 @@ test('报表: today in figures, charts and tables, the balance check, and the PD
   await page.getByRole('searchbox', { name: '搜索学生范围' }).fill('张小明');
   await page.locator('.dc-list-link', { hasText: '张小明' }).click();
   await expect(report.locator('.rp-stat', { hasText: '存款' })).toContainText('25HTB · 1 笔');
-  await page.getByRole('button', { name: '打印 / 导出 PDF' }).click();
+  await page.getByRole('button', { name: '打印 / 导出' }).click();
   const download = page.waitForEvent('download');
   await confirmIn(page, '下载 PDF');
   expect((await download).suggestedFilename()).toMatch(/^银行报表-\d{4}-\d{2}-\d{2}至\d{4}-\d{2}-\d{2}-学号20260001\.pdf$/);
@@ -71,7 +71,7 @@ test('报表: 打印 sends the pages to the print dialog', async ({ page }) => {
       if (n instanceof HTMLIFrameElement) n.contentWindow!.print = () => { (window as unknown as { printed: number }).printed = n.contentDocument!.images.length; };
     }))).observe(document.body, { childList: true });
   });
-  await page.getByRole('button', { name: '打印 / 导出 PDF' }).click();
+  await page.getByRole('button', { name: '打印 / 导出' }).click();
   await confirmIn(page, '打印');
   const printed = await page.waitForFunction(() => (window as unknown as { printed?: number }).printed).then((h) => h.jsonValue());
   expect(printed).toBeGreaterThanOrEqual(6);
@@ -91,13 +91,14 @@ test('流水: one search for a student, a teller or a 交易号, then export wha
   await expect(page.getByRole('button', { name: '去掉条件：柜员 柜员小林' })).toBeVisible();
   await expect(page.locator('.dc-list-title')).toHaveText('共 1 笔');
 
+  await page.getByRole('button', { name: '打印 / 导出' }).click();
   let download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Excel' }).click();
+  await page.getByRole('button', { name: '下载 Excel' }).click();
   expect((await download).suggestedFilename()).toMatch(/^流水-截至\d{4}-\d{2}-\d{2}\.xlsx$/);
   const rows = rowsOf(await sheets(await download), '流水明细');
   expect(rows).toHaveLength(2);
   expect(rows[1].slice(2, 8)).toEqual(['20260002', '李*远', '八年级(3)班', '兑换', 6, '现金']);
-  await page.getByRole('button', { name: '打印 / PDF' }).click();
+  await page.getByRole('button', { name: '打印 / 导出' }).click();
   download = page.waitForEvent('download');
   await confirmIn(page, '下载 PDF');
   expect((await download).suggestedFilename()).toMatch(/^流水-\d{4}-\d{2}-\d{2}\.pdf$/);

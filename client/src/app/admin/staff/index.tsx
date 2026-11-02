@@ -61,25 +61,25 @@ export default function Staff() {
   const busy = step?.kind === 'busy';
   return (
     <Desk title="工作人员">
-      <form role="search" onSubmit={(e) => e.preventDefault()}>
+      <form className="dc-card dc-stack fl-bar" role="search" onSubmit={(e) => e.preventDefault()}>
         <label className="dc-search">
           <Icon name="query" />
           <input type="search" aria-label="搜索工作人员" placeholder="输入姓名或账号" autoComplete="off" enterKeyHint="search"
             value={query} onChange={(e) => setQuery(e.target.value)} />
           {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
         </label>
-      </form>
-      <div className="dc-section-head">
-        <div className="dc-chips" role="group" aria-label="筛选">
-          <button className="dc-chip" type="button" aria-pressed={stopped} onClick={() => { setStopped(!stopped); setPicked(new Set()); }}>
-            <Icon name="check" />已停用{staff.data && ` ${disabledCount}`}
-          </button>
-          <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
-            <Icon name="check" />选择
-          </button>
+        <div className="fl-row">
+          <div className="dc-chips" role="group" aria-label="筛选">
+            <button className="dc-chip" type="button" aria-pressed={stopped} onClick={() => { setStopped(!stopped); setPicked(new Set()); }}>
+              <Icon name="check" />已停用{staff.data && ` ${disabledCount}`}
+            </button>
+            <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
+              <Icon name="check" />选择
+            </button>
+          </div>
+          <span className="fl-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>
         </div>
-        <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a>
-      </div>
+      </form>
       {staff.isError && <Notice tone="danger" title="暂时无法读取工作人员">请检查网络后刷新页面。</Notice>}
       {result && <Notice tone={result.tone} title={result.title}>{result.text}</Notice>}
       <p className="dc-top-sub">{staff.data && (stopped ? `${disabledCount} 个已停用的账号` : `共 ${all.length - disabledCount} 个账号`)}</p>

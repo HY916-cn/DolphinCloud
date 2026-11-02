@@ -36,8 +36,8 @@ function fromParams(p: Record<string, string | string[] | undefined>): LedgerFil
 
 // 流水 (accountant, teacher): every transaction, newest first, 50 at a time. One search finds a student, a class or
 // 学部 (the counter's search), a teller or part of a 交易号; then the days, the types and, when asked for, a 时段 of
-// each day (Asia/Shanghai). A new address starts over with its own filters. 导出 prints the transactions the filters
-// choose, or keeps them as a PDF or an Excel file.
+// each day (Asia/Shanghai). A new address starts over with its own filters. 打印 / 导出 prints the transactions the
+// filters choose, or keeps them as a PDF or an Excel file.
 export default function Txns() {
   const params = useLocalSearchParams();
   const init = fromParams(params);
@@ -124,10 +124,11 @@ function Ledger({ init }: { init: LedgerFilter }) {
     try {
       const span = applied.from || applied.to ? `-${applied.from || '最早'}至${applied.to || now}` : `-截至${now}`;
       await saveWorkbook(`流水${span}.xlsx`, [await ledgerSheet(LEDGER, applied, fullNames)]);
-    } catch (err) {
-      setProblem(err instanceof AppError ? explain(err.code, err.detail) : { title: '流水未能导出', text: '请检查网络后再导出一次。' });
-    } finally {
       setExporting(null);
+    } catch (err) {
+      // The sheet stays open to say why.
+      setProblem(err instanceof AppError ? explain(err.code, err.detail) : { title: '流水未能导出', text: '请检查网络后再导出一次。' });
+      setExporting('pdf');
     }
   }
 
@@ -135,7 +136,11 @@ function Ledger({ init }: { init: LedgerFilter }) {
     <Desk title="流水">
       <div className="dc-enter">
         <FilterBar label="筛选流水" placeholder="搜索学生、班级、柜员或交易号" value={applied} onChange={(f) => set(f)} kinds={KINDS}
-          suggest={suggest} chips={chips} />
+          suggest={suggest} chips={chips} actions={
+            <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={!rows?.length} onClick={() => { setProblem(null); setExporting('pdf'); }}>
+              <Icon name="passbook" />打印 / 导出
+            </button>
+          } />
       </div>
 
       <section className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties} aria-label="流水">
@@ -146,23 +151,7 @@ function Ledger({ init }: { init: LedgerFilter }) {
           <TxnListLoading />
         ) : rows.length ? (
           <>
-            <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              {count != null && <p className="dc-list-title">共 {formatAmount(count)} 笔</p>}
-              <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label className="dc-check">
-                  <input type="checkbox" checked={fullNames} onChange={(e) => setFullNames(e.target.checked)} />
-                  <span className="dc-check-box" />
-                  <span>导出完整姓名<small>不勾选时为「张*明」</small></span>
-                </label>
-                <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" disabled={!!exporting} onClick={exportExcel}>
-                  {exporting === 'excel' ? '正在导出' : 'Excel'}
-                </button>
-                <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => setExporting('pdf')}>
-                  <Icon name="passbook" />打印 / PDF
-                </button>
-              </div>
-            </div>
-            {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
+            {count != null && <p className="dc-list-title">共 {formatAmount(count)} 笔</p>}
             <ul className="dc-txns">
               {rows.map(({ row, page }, i) => (
                 <TxnLine key={row.id} first={!i} row={row} page={page} teacher={teacher} onReverse={() => { setReversed(null); setReversing(row); }} />
@@ -184,9 +173,23 @@ function Ledger({ init }: { init: LedgerFilter }) {
           <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => list.fetchNextPage()}>加载更多</button>
         )}
       </section>
-      {exporting === 'pdf' && (
+      {exporting && (
         <OutputSheet title={`导出 ${count ?? ''} 笔流水`} name={`流水-${now}.pdf`} text={about}
-          make={() => ledgerPages(LEDGER, applied, fullNames, about)} onClose={() => setExporting(null)} onDone={() => setExporting(null)} />
+          make={() => ledgerPages(LEDGER, applied, fullNames, about)} onClose={() => setExporting(null)} onDone={() => setExporting(null)}
+          extra={
+            <>
+              <label className="dc-check">
+                <input type="checkbox" checked={fullNames} onChange={(e) => setFullNames(e.target.checked)} />
+                <span className="dc-check-box" />
+                <span>导出完整姓名<small>不勾选时为「张*明」</small></span>
+              </label>
+              {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
+              <button className={`dc-btn dc-btn-ghost dc-btn-sm dc-btn-block ${exporting === 'excel' ? 'is-loading' : ''}`} type="button"
+                disabled={exporting === 'excel'} onClick={exportExcel}>
+                {exporting === 'excel' ? '正在导出' : '下载 Excel'}
+              </button>
+            </>
+          } />
       )}
       {reversing && (
         <ReversalSheet onClose={() => setReversing(null)}

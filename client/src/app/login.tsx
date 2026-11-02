@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Icon, link, Notice, Welcome } from '@/components';
+import { DeviceAccounts, Icon, link, Notice, Welcome } from '@/components';
 import { savedAccounts, setSaved } from '@/lib/accounts';
 import { useSession } from '@/lib/session';
 import { loginEmail, supabase, type LoginKind } from '@/lib/supabase';
@@ -22,7 +22,8 @@ function message(code?: string) {
 
 export default function Login() {
   const { session, ready } = useSession();
-  // ?add=1: sign in one more account on this device; the current one stays remembered (lib/accounts.ts).
+  // ?add=1 (我的 → 切换账号): switch to or sign in another account on this device; the current one stays remembered
+  // (lib/accounts.ts).
   const adding = useLocalSearchParams<{ add?: string }>().add === '1';
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<LoginKind>('student');
@@ -33,8 +34,8 @@ export default function Login() {
   const [save, setSave] = useState(false);
   if (ready && session && !adding) return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
-  // The accounts still on this device (after 退出账号, those that need their password): tap one to sign in as it.
-  const others = adding ? [] : savedAccounts();
+  // 切换账号: this device's accounts above the form, also after 退出账号.
+  const switching = adding || savedAccounts().length > 0;
   // 在此设备保存登录 is asked the first time an account signs in on this device.
   const known = savedAccounts().some((a) => a.kind === kind && a.loginId === loginId.trim().toLowerCase() && a.saved);
 
@@ -56,17 +57,9 @@ export default function Login() {
 
   return (
     <Welcome label="登录" onSubmit={signIn}>
-      <h2 className="dc-login-title">{adding ? '添加账号' : others.length ? '切换账号' : '欢迎登录'}</h2>
-      {others.length > 0 && (
-        <div className="dc-chips" role="group" aria-label="本机账号">
-          {others.map((a) => (
-            <button key={a.id} className="dc-chip" type="button" aria-pressed={kind === a.kind && loginId === a.loginId}
-              onClick={() => { setKind(a.kind); setLoginId(a.loginId); setPassword(''); setError(null); }}>
-              <Icon name={a.kind === 'student' ? 'me' : 'teacher'} />{a.name}
-            </button>
-          ))}
-        </div>
-      )}
+      <h2 className="dc-login-title">{switching ? '切换账号' : '欢迎登录'}</h2>
+      <DeviceAccounts current={session?.user.id} />
+      {switching && <p className="dc-login-help lg-or">或登录其他账号</p>}
       <fieldset className="dc-seg" aria-label="身份">
         {KINDS.map((k) => (
           <label key={k.kind}>

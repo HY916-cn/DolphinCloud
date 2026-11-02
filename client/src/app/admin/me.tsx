@@ -1,5 +1,6 @@
-import { Desk, MeScreen } from '@/components';
+import { Desk, MeView } from '@/components';
+import { useMe } from '@/lib/session';
 
 export default function AdminMe() {
-  return <MeScreen frame={(title, back, body) => <Desk title={title} back={back}>{body}</Desk>} />;
+  return <Desk title="我的"><MeView me={useMe().data!} /></Desk>;
 }
