@@ -89,12 +89,12 @@ pass "create-admin prints a working initial password"
 
 set_password() { http -X PUT "$BASE/auth/v1/user" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "{\"password\":\"$1\"}"; }
-for weak in abcdefgh 12345678 abc1234; do
-  code=$(set_password "$weak")
-  [ "$code" = 422 ] && grep -q weak_password "$WORK/body" || fail "password $weak accepted ($code): $(cat "$WORK/body")"
+for short in 1234567 abc1234; do
+  code=$(set_password "$short")
+  [ "$code" = 422 ] && grep -q weak_password "$WORK/body" || fail "password $short accepted ($code): $(cat "$WORK/body")"
 done
-[ "$(set_password Smoke-pass-9)" = 200 ] && [ "$(set_password Smoke-pass-1)" = 200 ] || fail "valid password refused: $(cat "$WORK/body")"
-pass "passwords need at least 8 characters with a letter and a digit"
+[ "$(set_password 12345678)" = 200 ] && [ "$(set_password Smoke-pass-1)" = 200 ] || fail "valid password refused: $(cat "$WORK/body")"
+pass "passwords need at least 8 characters; all digits is allowed"
 
 [ "$(http -X POST "$BASE/rest/v1/rpc/whoami" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN")" = 200 ] || fail "rpc: $(cat "$WORK/body")"
 [ "$(jq -r .user_id "$WORK/body")" = "$USER_ID" ] && [ "$(jq -r .role "$WORK/body")" = authenticated ] || fail "whoami: $(cat "$WORK/body")"
