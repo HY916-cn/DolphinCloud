@@ -1,4 +1,4 @@
--- 下班总结 across midnight, the last 运维员, the 工资账户's status (PHASE-1.md §6.4, §6.9).
+-- 下班总结 across midnight, the last 运维员, the 工资账户's status, a currency issue's date (PHASE-1.md §6.4, §6.9).
 \ir helpers/setup.psql
 
 select tests.staff('teacher', 'teacher') as teacher \gset
@@ -38,6 +38,12 @@ select tests.call(:'teacher', $$select set_student_status('s1', 'frozen')$$);
 select is(tests.err(:'t1', $$select bind_salary_account(auth.uid(), 's1', '123456')$$), 'STUDENT_INACTIVE', 'a frozen account is not bound');
 select tests.call(:'teacher', $$select set_student_status('s1', 'normal')$$);
 select is(tests.call(:'t1', $$select bind_salary_account(auth.uid(), 's1', '123456')$$) ->> 'account', 's1', 'one in use is');
+
+-- A currency issue is dated today at the latest.
+select is(tests.err(:'teacher', $$select register_issue('F1', app_private.cn_date(now()) + 1, '{"10":1}', '开学发行', '王老师')$$),
+  'INVALID_INPUT', 'a currency issue is not dated in the future');
+select is(tests.call(:'teacher', $$select register_issue('F2', app_private.cn_date(now()), '{"10":1}', '开学发行', '王老师')$$) ->> 'total',
+  '10', 'today''s is registered');
 
 select * from finish();
 rollback;
