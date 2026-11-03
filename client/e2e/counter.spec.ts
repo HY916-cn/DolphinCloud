@@ -206,6 +206,34 @@ test('切换账号 lists this device’s accounts and 添加账号; 退出账号
   await expect(page).toHaveURL(/\/student$/);
 });
 
+test('closing the app signs out an account not saved on this device; a saved one stays signed in', async ({ page: first }) => {
+  let page = first;
+  // A new tab shares localStorage but not sessionStorage: what reopening the browser or the home-screen app finds.
+  const reopen = async () => {
+    const next = await page.context().newPage();
+    await page.close();
+    page = next;
+    await page.goto('/');
+  };
+  await signIn(page, '学生', '20260001');
+  await expect(page).toHaveURL(/\/student$/);
+  await reopen();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('.dc-login-title')).toHaveText('切换账号');
+
+  await signIn(page, '学生', '20260001', '/login?add=1', undefined, true);
+  await expect(page).toHaveURL(/\/student$/);
+  await reopen();
+  await expect(page).toHaveURL(/\/student$/);
+
+  // Turning 在此设备保存登录 off signs it out at the next reopen too.
+  await page.goto('/student/me');
+  await page.locator('.dc-switch', { hasText: '在此设备保存登录' }).click();
+  await expect(page.getByRole('switch', { name: /在此设备保存登录/ })).not.toBeChecked();
+  await reopen();
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test('the student sees the counter\'s work', async ({ page }) => {
   await signIn(page, '学生', '20260001');
   await expect(page.locator('.dc-balance-amount')).toContainText('98');
