@@ -1,66 +1,43 @@
-import { useQuery } from '@tanstack/react-query';
-import { Icon, Notice, Page, TxnListLoading } from '@/components';
+import { DIVISIONS, Icon, Notice, Page, RankNext, RankRow, TxnListLoading, useRanking } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { useMe } from '@/lib/session';
-import { supabase } from '@/lib/supabase';
 
-const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': i } as React.CSSProperties });
-const DIVISIONS = { primary: '小学部', junior: '初中部' } as const;
+const enter = (i: number, className = '') => ({ className: `dc-stack dc-enter ${className}`, style: { '--i': i } as React.CSSProperties });
 
-// deposit_ranking (PHASE-1.md §6.4): the top N of the student's division, names masked when ranking_anonymous is on.
-type Ranking = {
-  division: keyof typeof DIVISIONS;
-  top: { rank: number; name: string; class_label: string | null; cohort: number; balance: number; me: boolean }[];
-  me: { rank: number; balance: number } | null;
-};
-
-// 排名: my place in the division first, then the top of the list.
+// 排名: the top of the division with each balance against the first place's, the student's own place and the students
+// right before and after it when it is below the top, and how the ranking is made; on the side, my place on the scale
+// from the last place to the first.
 export default function StudentRanking() {
   const student = useMe().data!.student!;
-  const ranking = useQuery({
-    queryKey: ['student-ranking', student.student_no],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('deposit_ranking');
-      if (error) throw error;
-      return data as Ranking;
-    },
-  });
+  const ranking = useRanking(student.student_no);
   const r = ranking.data;
+  const division = DIVISIONS[student.division];
+  const bar = (balance: number) => (r?.top[0]?.balance ? balance / r.top[0].balance : 0);
 
   return (
-    <Page title="存款排名" sub={DIVISIONS[student.division]}>
+    <Page title="存款排名" sub={division}>
       {ranking.error ? (
         <Notice tone="danger" title="暂时无法读取排名">请检查网络后刷新页面。</Notice>
       ) : (
         <div className="dc-split">
-          <div {...enter(0)}>
-            {!r ? <span className="dc-skeleton" style={{ height: 184, borderRadius: 'var(--radius-lg)' }} /> : r.me ? (
-              <div className="dc-balance">
-                <div className="dc-balance-label"><Icon name="ranking" />我的名次</div>
-                <div className="dc-balance-amount">第 {r.me.rank} 名</div>
-                <div className="dc-balance-split"><span>余额 <b>{formatAmount(r.me.balance)} HTB</b></span></div>
-                <div className="dc-waves" aria-hidden="true"><i /><i /><i /></div>
-              </div>
-            ) : (
-              <Notice title="账户暂不参加排名">账户状态正常后，会按余额参加本学部排名。</Notice>
-            )}
-          </div>
           <section {...enter(1)}>
             <div className="dc-section-head"><h2 className="heading">{r?.top.length ? `前 ${r.top.length} 名` : '排行榜'}</h2></div>
-            {!r ? <TxnListLoading label="正在加载排名" /> : r.top.length ? (
-              <ul className="dc-txns dc-stagger">
-                {r.top.map((t, i) => (
-                  <li key={i} className="dc-txn dc-kind-reward">
-                    <span className="dc-txn-icon">{t.rank}</span>
-                    <div className="dc-txn-main">
-                      <div className="dc-txn-title">{t.name}{t.me && <> <span className="dc-tag"><Icon name="me" />我</span></>}</div>
-                      <div className="dc-txn-time">{t.class_label ?? `${t.cohort} 届`}</div>
-                    </div>
-                    <div className="dc-txn-amount">{formatAmount(t.balance)}<small>HTB</small></div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
+            {!r ? <TxnListLoading label="正在加载排名" /> : r.top.length ? <>
+              <ol className="dc-ranks">{r.top.map((row) => <RankRow key={row.rank + row.name} row={row} bar={bar(row.balance)} />)}</ol>
+              {r.me && !r.top.some((t) => t.me) && <>
+                <div className="dc-section-head"><h2 className="heading">我的前后</h2></div>
+                <ol className="dc-ranks">{r.me.near.map((row) => <RankRow key={row.rank + row.name} row={row} bar={bar(row.balance)} />)}</ol>
+              </>}
+              <section className="dc-card">
+                <h2 className="heading" style={{ margin: '0 0 var(--space-3)' }}>排名怎么算</h2>
+                <dl className="dc-kv">
+                  <div><dt>排名依据</dt><dd>账户余额</dd></div>
+                  <div><dt>参加的同学</dt><dd>{division}在读 {r.total} 人</dd></div>
+                  <div><dt>余额相同</dt><dd>名次相同</dd></div>
+                  <div><dt>姓名</dt><dd>{r.anonymous ? '只显示首尾两个字' : '显示全名'}</dd></div>
+                </dl>
+              </section>
+            </> : (
               <div className="dc-card">
                 <div className="dc-empty">
                   <span className="dc-empty-icon dc-kind-reward"><Icon name="ranking" /></span>
@@ -70,6 +47,23 @@ export default function StudentRanking() {
               </div>
             )}
           </section>
+          <div {...enter(0, 'is-sticky is-lead')}>
+            {!r ? <span className="dc-skeleton" style={{ height: 320, borderRadius: 'var(--radius-lg)' }} /> : r.me ? (
+              <section className="dc-card dc-rank-card">
+                <div className="dc-rank-head"><h2 className="heading"><Icon name="ranking" />我的名次</h2></div>
+                <p className="dc-rank-place">第 {r.me.rank} 名<small>余额 {formatAmount(r.me.balance)} HTB</small></p>
+                <RankNext r={r} />
+                <div className="dc-rank-scale">
+                  <div className="dc-rank-track" role="img" aria-label={`在${division} ${r.total} 人中排第 ${r.me.rank} 名`}
+                    style={{ '--value': (r.total > 1 ? r.me.behind / (r.total - 1) : 1).toFixed(3) } as React.CSSProperties}><i /><b /></div>
+                  <div className="dc-rank-ends"><span>第 {r.total} 名</span><span>第 1 名</span></div>
+                </div>
+                <p style={{ margin: 0, font: '600 16px/24px var(--font-sans)' }}>超过了{division} {r.me.behind} 位同学</p>
+              </section>
+            ) : (
+              <Notice title="账户暂不参加排名">账户状态正常后，会按余额参加本学部排名。</Notice>
+            )}
+          </div>
         </div>
       )}
     </Page>

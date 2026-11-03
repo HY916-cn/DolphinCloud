@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, TxnList, TxnListLoading, type Filter } from '@/components';
+import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, signed, TxnList, TxnListLoading, type Filter } from '@/components';
 import { formatAmount, formatTime } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { readAll, supabase } from '@/lib/supabase';
@@ -30,7 +30,7 @@ function byDay(rows: TxnRow[]) {
 }
 
 // 明细: every business of the account, newest first, 30 at a time, by type (存款, 取款, 兑换, 工资), found by words of
-// a 交易号 or a product and by days; and this month's totals of each, not counting what was reversed.
+// a 交易号 or a product and by days; and this month's money in and out between last month's closing balance and now.
 export default function StudentTxns() {
   const student = useMe().data!.student!;
   const [tab, setTab] = useState<Tab>('all');
@@ -63,24 +63,28 @@ export default function StudentTxns() {
     },
   });
 
-  // The month as the school reads it (Asia/Shanghai): "2026-10".
+  // The month as the school reads it (Asia/Shanghai): "2026-10". Every change to the balance since it began, 冲正
+  // included, so last month's closing balance, what came in and what went out add up to the balance now.
   const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit' }).format(new Date());
+  const m = Number(month.slice(5));
   const totals = useQuery({
     queryKey: ['student-month', student.student_no, month],
     queryFn: async () => {
-      const [y, m] = month.split('-').map(Number);
-      const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
-      const data = await readAll<{ type: string; amount: number }>((from, to) => supabase.from('txns').select('type,amount')
-        .eq('student_no', student.student_no).eq('status', 'normal').in('type', ['deposit', 'withdraw', 'purchase', 'salary'])
-        .gte('created_at', `${month}-01T00:00:00+08:00`).lt('created_at', `${next}-01T00:00:00+08:00`).order('id').range(from, to));
-      const sum = (type: string) => data.filter((t) => t.type === type).reduce((n, t) => n + t.amount, 0);
-      return { deposit: sum('deposit'), withdraw: sum('withdraw'), purchase: sum('purchase'), salary: sum('salary') };
+      const [account, data] = await Promise.all([
+        supabase.from('accounts').select('balance').eq('student_no', student.student_no).single(),
+        readAll<{ balance_delta: number }>((from, to) => supabase.from('txns').select('balance_delta')
+          .eq('student_no', student.student_no).gte('created_at', `${month}-01T00:00:00+08:00`).order('seq').range(from, to)),
+      ]);
+      if (account.error) throw account.error;
+      const saved = data.reduce((n, t) => n + Math.max(t.balance_delta, 0), 0);
+      const spent = data.reduce((n, t) => n + Math.min(t.balance_delta, 0), 0);
+      return { balance: account.data.balance, saved, spent, opening: account.data.balance - saved - spent };
     },
   });
 
   const rows = list.data?.pages.flat();
-  const amount = (n: number | undefined) =>
-    n === undefined ? <span className="dc-skeleton" style={{ display: 'inline-block', width: 48, height: 22 }} /> : formatAmount(n);
+  const amount = (n: number | undefined, show = formatAmount) =>
+    n === undefined ? <span className="dc-skeleton" style={{ display: 'inline-block', width: 48, height: 22 }} /> : show(n);
   const narrowed = filtered(filter);
 
   return (
@@ -120,16 +124,15 @@ export default function StudentTxns() {
             </div>
           </section>
           <div {...enter(1, 'is-sticky')}>
-            <div className="dc-card">
-              <h2 className="heading" style={{ margin: '0 0 var(--space-2)' }}>本月收支</h2>
+            <section className="dc-card">
+              <h2 className="heading" style={{ margin: '0 0 var(--space-3)' }}>{m}月收支</h2>
               <dl className="dc-kv">
-                <div><dt>存款</dt><dd>{amount(totals.data?.deposit)}</dd></div>
-                <div><dt>工资</dt><dd>{amount(totals.data?.salary)}</dd></div>
-                <div><dt>取款</dt><dd>{amount(totals.data?.withdraw)}</dd></div>
-                <div><dt>兑换</dt><dd>{amount(totals.data?.purchase)}</dd></div>
+                <div><dt>{m === 1 ? 12 : m - 1}月底余额</dt><dd>{amount(totals.data?.opening)}</dd></div>
+                <div><dt>存入</dt><dd>{amount(totals.data?.saved, signed)}</dd></div>
+                <div><dt>支出</dt><dd>{amount(totals.data?.spent, signed)}</dd></div>
+                <div className="is-total"><dt>当前余额</dt><dd>{amount(totals.data?.balance)}<small>HTB</small></dd></div>
               </dl>
-              <p className="dc-top-sub">单位 HTB；兑换含现金支付，不含已冲正的业务。</p>
-            </div>
+            </section>
           </div>
         </div>
       )}

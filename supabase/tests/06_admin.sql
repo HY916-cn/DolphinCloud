@@ -214,10 +214,16 @@ select tests.student('r1', 900, p_name => '欧阳小明') as r1 \gset
 select tests.student('r2', 800, p_name => '陈晨');
 select tests.student('r3', 1000, p_name => '初中生', p_division => 'junior');
 select tests.call(:'teacher', $$select set_setting('ranking_size', '2')$$);
-select is(tests.call(:'r1', $$select deposit_ranking()$$),
-  ('{"division":"primary","me":{"rank":1,"balance":900},"top":[{"me":true,"name":"欧**明","rank":1,"cohort":' || :p4 || ',"balance":900,"class_label":"四年级(4)班"},
+select is(tests.call(:'r1', $$select deposit_ranking()$$) #- '{me,near}',
+  ('{"division":"primary","total":5,"anonymous":true,"me":{"rank":1,"balance":900,"above":null,"behind":4},"top":[{"me":true,"name":"欧**明","rank":1,"cohort":' || :p4 || ',"balance":900,"class_label":"四年级(4)班"},
     {"me":false,"name":"陈*","rank":2,"cohort":' || :p4 || ',"balance":800,"class_label":"四年级(4)班"}]}')::jsonb, 'top N of the caller''s division, masked names, own place');
 select is(tests.call(:'teacher', $$select deposit_ranking('junior')$$) -> 'top' -> 0 ->> 'balance', '1000', 'junior students rank separately');
+select tests.student('r4', 800, p_name => '同分') as r4 \gset
+select is((tests.call(:'r4', $$select deposit_ranking()$$) -> 'me') - 'near', '{"rank":2,"balance":800,"above":{"rank":1,"balance":900},"behind":3}'::jsonb,
+  'the place just above: a tie shares the place, so above is the nearest higher balance, and three have less');
+select is(tests.call(:'r4', $$select deposit_ranking()$$) ->> 'total', '6', 'and how many rank in the division');
+select is(jsonb_path_query_array(tests.call(:'r4', $$select deposit_ranking()$$), '$.me.near[*].name'), '["陈*", "同*", "张*明"]',
+  'the caller with the students right before and after');
 select tests.call(:'teacher', $$select set_setting('ranking_anonymous', 'false')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$) -> 'top' -> 1 ->> 'name', '陈晨', 'full names when not anonymous');
 select is(tests.call(:'t1', $$select deposit_ranking()$$) -> 'me', 'null', 'staff without an account have no place');
