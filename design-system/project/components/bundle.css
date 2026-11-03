@@ -61,6 +61,13 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-balance .dc-waves { position: absolute; left: 0; right: 0; bottom: 0; }
 /* 蓝底上的海浪用同色的浅一层（白色叠加），不用云朵色 */
 .dc-balance .dc-waves i { background: rgba(255, 255, 255, .12); }
+/* Balance tide: the real balance over the term, drawn as the card's sea. */
+.dc-balance.has-tide { padding-bottom: 0; }
+.dc-tide { position: relative; height: 112px; margin: var(--space-4) calc(-1 * var(--space-6)) 0; }
+.dc-tide svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.dc-tide-sea { fill: var(--dolphin-deep); }
+.dc-tide-axis { position: absolute; left: var(--space-6); right: var(--space-6); bottom: var(--space-3); display: flex; justify-content: space-between; font: 600 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.dc-tide-axis b { font-weight: 800; }
 
 /* TxnList */
 .dc-txns { list-style: none; margin: 0; padding: var(--space-2) var(--space-4); background: var(--surface-raised); border-radius: var(--radius-lg); border: 2px solid var(--line); }
@@ -238,6 +245,8 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-section-head > * { margin: 0; }
 .dc-stack { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .dc-split { display: grid; gap: var(--space-5); align-items: start; }
+/* A side column whose answer comes first on a phone and tablet. */
+.dc-split > .is-lead { order: -1; }
 .dc-form { flex: 1 0 auto; display: flex; flex-direction: column; gap: var(--space-5); width: 100%; max-width: var(--form-max); }
 .dc-card { box-sizing: border-box; padding: var(--space-5); background: var(--surface-raised); border: 2px solid var(--line); border-radius: var(--radius-lg); }
 .dc-app .dc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -273,6 +282,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
   .dc-content { padding: var(--space-5) var(--space-7) var(--space-7); }
   .dc-split { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-6); }
   .dc-split > .is-sticky { position: sticky; top: var(--space-6); }
+  .dc-split > .is-lead { order: 0; }
 }
 
 /* ActionBar — 页面级操作：手机贴底、整行、主按钮在上；平板一行等分；电脑靠右 */
@@ -697,3 +707,36 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
   .dc-list-link:hover > .dc-icon:last-child { transform: translateX(3px); }
   .dc-chip:hover { border-color: var(--dolphin); }
 }
+
+/* Ranking — 存款排名：名次卡、名次刻度、排行榜 */
+.dc-rank-card { display: flex; flex-direction: column; gap: var(--space-4); }
+.dc-rank-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.dc-rank-head h2 { display: flex; align-items: center; gap: var(--space-2); margin: 0; }
+.dc-rank-head h2 .dc-icon { width: 30px; height: 30px; color: var(--coin-ink); }
+.dc-rank-place { margin: 0; font: 800 40px/48px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); }
+.dc-rank-place small { margin-left: var(--space-2); font: 600 16px/26px var(--font-sans); color: var(--ink-muted); }
+.dc-rank-next { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--coin-soft); color: var(--coin-ink); font: 600 16px/24px var(--font-sans); }
+.dc-rank-next .dc-icon { width: 30px; height: 30px; flex: none; color: inherit; }
+.dc-rank-next b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.dc-rank-scale { display: grid; gap: var(--space-2); }
+.dc-rank-track { position: relative; height: 16px; border-radius: var(--radius-pill); background: var(--cloud-100); }
+.dc-rank-track > i { position: absolute; inset: 0 auto 0 0; width: calc(var(--value) * 100%); border-radius: inherit; background: var(--coin); }
+.dc-rank-track > b { position: absolute; top: 50%; left: calc(var(--value) * 100%); width: 28px; height: 28px; margin: -14px 0 0 -14px; box-sizing: border-box; border: 4px solid var(--surface-raised); border-radius: 50%; background: var(--dolphin); box-shadow: 0 0 0 2px var(--dolphin); }
+.dc-rank-ends { display: flex; justify-content: space-between; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.dc-ranks { list-style: none; margin: 0; padding: var(--space-2); background: var(--surface-raised); border: 2px solid var(--line); border-radius: var(--radius-lg); }
+.dc-rank { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); }
+.dc-rank-no { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font: 800 18px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+.dc-rank.is-top .dc-rank-no { background: var(--coin-soft); color: var(--coin-ink); font-size: 20px; }
+.dc-rank.is-first .dc-rank-no { background: var(--coin); color: var(--ink); }
+.dc-rank-who { min-width: 0; }
+.dc-rank-name { display: flex; align-items: center; gap: var(--space-2); font: 600 16px/24px var(--font-sans); }
+.dc-rank-class { font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-rank-bar { grid-column: 2 / -1; height: 6px; margin-top: var(--space-2); border-radius: var(--radius-pill); background: var(--cloud-100); }
+.dc-rank-bar > i { display: block; height: 100%; width: calc(var(--value) * 100%); border-radius: inherit; background: var(--coin); }
+.dc-rank-amount { font: 800 18px/24px var(--font-sans); font-variant-numeric: tabular-nums; text-align: right; }
+.dc-rank-amount small { margin-left: var(--space-1); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-rank.is-me { background: var(--cloud-100); box-shadow: inset 0 0 0 2px var(--dolphin); }
+.dc-rank.is-me .dc-rank-no { background: var(--dolphin); color: var(--on-dolphin); }
+.dc-rank.is-me .dc-rank-bar { background: var(--surface-raised); }
+.dc-ranks-gap { padding: var(--space-2) var(--space-3); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); text-align: center; }
+.dc-rank + .dc-rank { margin-top: var(--space-1); }

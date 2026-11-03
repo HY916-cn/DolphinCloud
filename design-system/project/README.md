@@ -91,4 +91,4 @@
 
 ## 页面示例
 
-`LoginPage`（登录）、`StudentHomePage`（学生首页）、`TxnHistoryPage`（交易明细）、`SettingsPage`（设置）、`CounterServicePage`（柜台办理：一位学生连续办理多笔）、`CounterDepositPage`（柜台存款）、`ResultPage`（办理结果）六个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。
+`LoginPage`（登录）、`StudentHomePage`（学生首页）、`TxnHistoryPage`（明细）、`RankingPage`（存款排名）、`SettingsPage`（我的）、`CounterServicePage`（柜台办理：一位学生连续办理多笔）、`CounterDepositPage`（柜台存款）、`ResultPage`（办理结果）八个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。
