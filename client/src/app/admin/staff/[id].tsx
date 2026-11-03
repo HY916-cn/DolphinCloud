@@ -6,14 +6,14 @@ import { usePayroll } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
-import { ROLES, useMe, type Role } from '@/lib/session';
+import { bankAdmin, managesLogins, ROLES, useMe, type Role } from '@/lib/session';
 import { useStaff } from '@/lib/staff';
 
 type Action = { title: string; text: string; confirm: string; fn: string; args: Record<string, unknown>; done: string };
 
 // One staff login: correct its role, reset its password, stop or restore it, or close it for good (注销). Only a
 // teacher manages a teacher's login, which is never closed, and nobody stops or closes their own (PHASE-1.md §6.4). Links to the transactions a teller handled (流水 is the teacher's) and
-// to the login's 日志. A teller's 考勤: whether the bank admin counts them, and their 工资账户.
+// to the login's 日志. A teller's 考勤: whether the bank admin counts them, and their 工资账户. A president reads it only.
 export default function StaffLogin() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe().data!;
@@ -25,7 +25,7 @@ export default function StaffLogin() {
   const [action, setAction] = useState<Action | null>(null);
   const [closing, setClosing] = useState(false);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
-  const canManage = !!p && p.role !== 'teacher';
+  const canManage = !!p && p.role !== 'teacher' && managesLogins(me);
   const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
   const picked = role ?? p?.role ?? 'teller';
 
@@ -73,9 +73,9 @@ export default function StaffLogin() {
                   <ul className="dc-list">
                     <li>
                       <label className="dc-switch">
-                        <span className="dc-switch-text"><b>参与考勤</b><small>开启后上下班计入考勤，有效班次按周发放工资{me.roles.includes('teacher') ? '' : '；由银行管理员设置'}</small></span>
+                        <span className="dc-switch-text"><b>参与考勤</b><small>开启后上下班计入考勤，有效班次按周发放工资{bankAdmin(me) ? '' : '；由银行管理员设置'}</small></span>
                         <input type="checkbox" role="switch" checked={!!payroll.data?.find((x) => x.user_id === p.id)?.attendance}
-                          disabled={!me.roles.includes('teacher') || !payroll.data}
+                          disabled={!bankAdmin(me) || !payroll.data}
                           onChange={(e) => run({ title: '', text: '', confirm: '', fn: 'set_attendance', args: { p_user_id: p.id, p_on: e.target.checked },
                             done: e.target.checked ? '已参与考勤' : '已停止考勤' })} />
                         <span className="dc-switch-track" />
@@ -83,11 +83,11 @@ export default function StaffLogin() {
                     </li>
                   </ul>
                 </div>
-                <SalaryAccount userId={p.id} payroll={payroll.data?.find((x) => x.user_id === p.id)} />
+                <SalaryAccount userId={p.id} payroll={payroll.data?.find((x) => x.user_id === p.id)} readOnly={!managesLogins(me)} />
               </>
             )}
             <ul className="dc-list" aria-label="相关记录">
-              {p.role === 'teller' && me.roles.includes('teacher') && (
+              {p.role === 'teller' && bankAdmin(me) && (
                 <li>
                   <a className="dc-list-link" {...link(`/admin/txns?operator=${p.id}`)}>
                     <span className="dc-list-icon"><Icon name="passbook" /></span><span>查看他办理的流水</span><Icon name="next" />
@@ -136,6 +136,8 @@ export default function StaffLogin() {
                 <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => { setResult(null); setClosing(true); }}>注销账号</button>
               )}
             </div>
+          ) : p.role !== 'teacher' ? (
+            <Notice title="账号由银行管理员和运维员管理">行长可以查看工作人员账号，不能修改身份、重置密码、停用或注销。</Notice>
           ) : (
             <Notice title="银行管理员只有一个">这个账号的身份不能更改，也不能停用。忘记密码时，由服务器维护人员运行 dolphin reset-admin 重置密码。</Notice>
           )}

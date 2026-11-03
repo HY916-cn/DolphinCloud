@@ -72,8 +72,8 @@ test('the accountant reads products with their cost, without editing them', asyn
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/staff/new');
   await page.getByPlaceholder('如 teller02').fill('acct09');
-  await page.getByPlaceholder('如 柜员小王').fill('会计小陈');
-  await page.getByRole('combobox').selectOption({ label: '会计' });
+  await page.getByPlaceholder('如 柜员小王').fill('财务小陈');
+  await page.getByRole('combobox').selectOption({ label: '财务' });
   await page.getByRole('button', { name: '创建账号' }).click();
   const password = (await page.locator('.dc-notice-success').innerText()).match(/初始密码 ([A-Za-z0-9]{8})。/)?.[1];
 

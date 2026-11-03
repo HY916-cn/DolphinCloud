@@ -18,10 +18,10 @@ const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', 
 export default function Admin() {
   const me = useMe().data!;
   const has = (...roles: string[]) => me.roles.some((r) => roles.includes(r));
-  const teacher = has('teacher');
-  const money = has('accountant', 'teacher');
+  const teacher = has('teacher', 'president');
+  const money = has('accountant', 'teacher', 'president');
   const logins = has('teacher', 'sysadmin');
-  const goods = has('storekeeper', 'teacher');
+  const goods = has('storekeeper', 'teacher', 'president');
   const day = today();
 
   const mismatch = useQuery({

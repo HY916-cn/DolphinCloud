@@ -64,7 +64,7 @@ const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'c
   'signed_by', 'reviewed_by', 'reviewed_at', 'salary_txn', 'pay']);
 const WORDS: Record<string, string> = {
   primary: '小学部', junior: '初中部', normal: '正常', frozen: '冻结', graduated: '毕业', reversed: '已冲正',
-  teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '银行管理员', sysadmin: '运维员',
+  teller: '柜员', accountant: '财务', storekeeper: '库管', president: '行长', teacher: '银行管理员', sysadmin: '运维员',
   am: '中午班', pm: '下午班', pending: '待审', confirmed: '有效', rejected: '未通过',
 };
 

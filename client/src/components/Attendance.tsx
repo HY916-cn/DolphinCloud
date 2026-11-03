@@ -118,7 +118,8 @@ export function DayShifts({ day, rows, names, shifts = ORDER, action }: {
 
 // 工资账户: the student account a teller's pay goes to, bound with that account's password, by the teller or by the
 // bank admin or sysadmin for them. A counted teller changes it by binding another; unbinding waits until they are not.
-export function SalaryAccount({ userId, payroll }: { userId: string; payroll?: Payroll }) {
+// `readOnly` (a president): the account, without changing it.
+export function SalaryAccount({ userId, payroll, readOnly }: { userId: string; payroll?: Payroll; readOnly?: boolean }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [no, setNo] = useState('');
@@ -163,13 +164,15 @@ export function SalaryAccount({ userId, payroll }: { userId: string; payroll?: P
       <p className="dc-list-title">工资账户</p>
       {result && <Notice tone={result.tone} title={result.title}>{result.text || undefined}</Notice>}
       <div className="dc-card dc-stack">
-        {account && !editing ? (
+        {readOnly && !account ? (
+          <p className="dc-top-sub">还没有绑定工资账户，工资暂不发放。</p>
+        ) : account && !editing ? (
           <>
             <Summary rows={[...(payroll?.students ? [['学生', payroll.students.name] as [string, string]] : []), ['学号', account]]} />
-            <div className="at-buttons">
+            {!readOnly && <div className="at-buttons">
               <button className="dc-btn dc-btn-secondary" type="button" onClick={() => { setResult(null); setEditing(true); }}>更换账户</button>
               {!payroll?.attendance && <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => setUnbinding(true)}>解除绑定</button>}
-            </div>
+            </div>}
           </>
         ) : (
           <form className="dc-stack" onSubmit={bind} noValidate aria-label="绑定工资账户">

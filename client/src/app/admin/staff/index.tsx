@@ -5,7 +5,7 @@ import {
   type StaffPassword,
 } from '@/components';
 import { call } from '@/lib/rpc';
-import { ROLES, useMe } from '@/lib/session';
+import { managesLogins, ROLES, useMe } from '@/lib/session';
 import { useStaff, type StaffLogin } from '@/lib/staff';
 
 type Result = { tone: 'success' | 'danger'; title: string; text: string };
@@ -73,11 +73,13 @@ export default function Staff() {
             <button className="dc-chip" type="button" aria-pressed={stopped} onClick={() => { setStopped(!stopped); setPicked(new Set()); }}>
               <Icon name="check" />已停用{staff.data && ` ${disabledCount}`}
             </button>
-            <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
-              <Icon name="check" />选择
-            </button>
+            {managesLogins(me) && (
+              <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
+                <Icon name="check" />选择
+              </button>
+            )}
           </div>
-          <span className="fl-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>
+          {managesLogins(me) && <span className="fl-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>}
         </div>
       </form>
       {staff.isError && <Notice tone="danger" title="暂时无法读取工作人员">请检查网络后刷新页面。</Notice>}

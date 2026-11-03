@@ -9,7 +9,7 @@ import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatSigned, formatTime } from '@/lib/format';
 import { ledgerPages, ledgerQuery, ledgerSheet, NO_LEDGER, saveWorkbook, type LedgerFilter } from '@/lib/reports';
 import { findScopes } from '@/lib/search';
-import { useMe } from '@/lib/session';
+import { bankAdmin, useMe } from '@/lib/session';
 import { useStudents } from '@/lib/students';
 import { supabase } from '@/lib/supabase';
 import { KINDS as LOOK, toTxn } from '@/lib/txns';
@@ -46,7 +46,7 @@ export default function Txns() {
 
 function Ledger({ init }: { init: LedgerFilter }) {
   const me = useMe().data!;
-  const teacher = me.roles.includes('teacher');
+  const teacher = bankAdmin(me);
   const queryClient = useQueryClient();
   const students = useStudents();
   const [applied, setApplied] = useState<LedgerFilter>(init);

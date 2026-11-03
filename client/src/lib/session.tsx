@@ -4,8 +4,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { rememberSession, renameAccount } from './accounts';
 import { supabase, type LoginKind } from './supabase';
 
-export type Role = 'teller' | 'accountant' | 'storekeeper' | 'teacher' | 'sysadmin';
-export const ROLES: Record<Role, string> = { teller: '柜员', accountant: '会计', storekeeper: '库管', teacher: '银行管理员', sysadmin: '运维员' };
+export type Role = 'teller' | 'accountant' | 'storekeeper' | 'president' | 'teacher' | 'sysadmin';
+export const ROLES: Record<Role, string> = {
+  teller: '柜员', accountant: '财务', storekeeper: '库管', president: '行长', teacher: '银行管理员', sysadmin: '运维员',
+};
 export type Profile = { id: string; login_kind: LoginKind; login_id: string; display_name: string; must_change_password: boolean; disabled: boolean };
 export type Student = { student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number; class_label: string | null };
 export type Me = { profile: Profile; roles: Role[]; student: Student | null };
@@ -74,6 +76,10 @@ export function useMe() {
     },
   });
 }
+
+// 行长 has the bank admin's rights in everything but managing logins (PHASE-1.md §4.1).
+export const bankAdmin = (me: Me) => me.roles.includes('teacher') || me.roles.includes('president');
+export const managesLogins = (me: Me) => !me.roles.includes('president');
 
 // Where a login works: each account has one identity (PHASE-1.md §4.1).
 export function home(me: Me) {

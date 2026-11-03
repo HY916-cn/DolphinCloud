@@ -10,7 +10,7 @@ import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { searchRoster } from '@/lib/search';
-import { useMe } from '@/lib/session';
+import { bankAdmin, managesLogins, useMe } from '@/lib/session';
 import { STATUS, useStudents, type AdminStudent } from '@/lib/students';
 import { readAll, supabase } from '@/lib/supabase';
 
@@ -47,6 +47,7 @@ export default function Students() {
   }, [students.data, all, query, onlyWaiting, limit]);
   const shown = onlyWaiting ? waiting : all;
   const teacher = me.roles.includes('teacher');
+  const manages = managesLogins(me);
   const chosen = all.filter((s) => picked.has(s.student_no));
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-students'] });
   const notice = (s: AdminStudent, password: string): NoticeAccount =>
@@ -120,18 +121,18 @@ export default function Students() {
             <button className="dc-chip" type="button" aria-pressed={onlyWaiting} onClick={() => setOnlyWaiting(!onlyWaiting)}>
               <Icon name="check" />未设置密码{students.data && ` ${waiting.length}`}
             </button>
-            {all.length > 0 && (
+            {manages && all.length > 0 && (
               <button className="dc-chip" type="button" aria-pressed={picking} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>
                 <Icon name="check" />选择
               </button>
             )}
           </div>
           <span className="fl-actions">
-            {waiting.length > 0 && (
+            {manages && waiting.length > 0 && (
               <button className={`dc-btn dc-btn-ghost dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy}
                 onClick={() => setStep({ kind: 'reissue' })}>开户通知单</button>
             )}
-            {teacher && all.length > 0 && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => setStep({ kind: 'opening' })}>期初余额核对表</button>}
+            {bankAdmin(me) && all.length > 0 && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => setStep({ kind: 'opening' })}>期初余额核对表</button>}
             {teacher && <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/students/import')}>导入名册</a>}
           </span>
         </div>

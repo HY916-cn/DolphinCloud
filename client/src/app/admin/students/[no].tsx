@@ -6,7 +6,7 @@ import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
-import { useMe } from '@/lib/session';
+import { bankAdmin, managesLogins, useMe } from '@/lib/session';
 import { DIVISION, STATUS, useStudent, type AdminStudent } from '@/lib/students';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
@@ -32,17 +32,19 @@ const CHANGE: Record<Status, Change> = {
 };
 
 // One student: who they are, whether they have signed in, the latest movements with the way to all of them in 流水
-// (teacher), 重置密码, freezing, unfreezing or marking them graduated (teacher; the counter then refuses them), and
-// 注销 (teacher, sysadmin).
+// (teacher, president), 重置密码, freezing, unfreezing or marking them graduated (teacher; the counter then refuses
+// them), and 注销 (teacher, sysadmin). A president reads it only.
 export default function Student() {
   const { no } = useLocalSearchParams<{ no: string }>();
   const me = useMe().data!;
   const teacher = me.roles.includes('teacher');
+  const money = bankAdmin(me);
+  const manages = managesLogins(me);
   const queryClient = useQueryClient();
   const student = useStudent(no);
   const txns = useQuery({
     queryKey: ['admin-student-txns', no],
-    enabled: teacher,
+    enabled: money,
     queryFn: async () => {
       const { data, error } = await supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
         .eq('student_no', no).order('seq', { ascending: false }).limit(10);
@@ -98,16 +100,16 @@ export default function Student() {
                 ['开户时间', formatTime(s.opened_at)],
               ]} />
             </div>
-            {s.status !== 'closed' && <button className="dc-btn dc-btn-secondary" type="button" onClick={() => { setResult(null); setConfirm('reset'); }}>重置密码</button>}
+            {manages && s.status !== 'closed' && <button className="dc-btn dc-btn-secondary" type="button" onClick={() => { setResult(null); setConfirm('reset'); }}>重置密码</button>}
             {teacher && s.status !== 'closed' && NEXT[s.status].map((to) => (
               <button key={to} className={`dc-btn dc-btn-ghost ${to === 'normal' ? '' : 'is-danger'}`} type="button"
                 onClick={() => { setResult(null); setConfirm(to); }}>{CHANGE[to].label(s)}</button>
             ))}
-            {s.status !== 'closed' && (
+            {manages && s.status !== 'closed' && (
               <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => { setResult(null); setConfirm('close'); }}>注销账号</button>
             )}
           </div>
-          {teacher && (
+          {money && (
             <section className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
               <div className="dc-section-head">
                 <h2 className="heading">最近交易</h2>

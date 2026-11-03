@@ -253,3 +253,31 @@ test('five wrong passwords lock a login', async ({ page }) => {
   await expect(page.locator('.dc-notice-danger')).toContainText('请 15 分钟后再试，或请银行管理员重置密码。');
   await expect(page).toHaveURL(/\/login\?add=1$/);
 });
+
+test('行长 has every bank page, and reads students and staff without managing their logins', async ({ page }) => {
+  await signIn(page, '工作人员', 'president01');
+  await expect(page).toHaveURL(/\/admin$/);
+  const nav = page.getByRole('navigation', { name: '主导航' });
+  for (const name of ['学生', '流水', '报表', '商品', '出入库', '人员', '考勤', '参数', '日志']) {
+    await expect(nav.getByRole('link', { name })).toBeVisible();
+  }
+
+  await page.goto('/admin/students');
+  await expect(page.getByRole('list', { name: '学生' })).toContainText('张小明');
+  await expect(page.getByRole('button', { name: '选择', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '导入名册' })).toHaveCount(0);
+  await page.goto('/admin/students/20260001');
+  await expect(page.locator('.dc-person-side')).toContainText('当前余额');
+  await expect(page.getByRole('heading', { name: '最近交易' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '注销账号' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /冻结/ })).toHaveCount(0);
+
+  await page.goto('/admin/staff');
+  await expect(page.getByRole('link', { name: '新增账号' })).toHaveCount(0);
+  await page.getByRole('list', { name: '工作人员' }).locator('.dc-list-link', { hasText: '柜员小林' }).click();
+  await expect(page.locator('.dc-notice')).toContainText('账号由银行管理员和运维员管理');
+  await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
+  await page.goto('/admin/staff/new');
+  await expect(page).toHaveURL(/\/admin$/);
+});

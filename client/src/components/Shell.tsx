@@ -5,15 +5,15 @@ import { Icon, link, type IconName } from './ui';
 
 // Back-office sections and who may open them (PHASE-1.md §4.2).
 export const SECTIONS: { href: string; icon: IconName; label: string; roles: Role[]; kind?: string }[] = [
-  { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'sysadmin'] },
-  { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher'] },
-  { href: '/admin/reports', icon: 'ranking', label: '报表', roles: ['accountant', 'teacher'] },
-  { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher'], kind: 'dc-kind-exchange' },
-  { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher'], kind: 'dc-kind-exchange' },
-  { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },
-  { href: '/admin/attendance', icon: 'calendar', label: '考勤', roles: ['teacher'] },
-  { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher'] },
-  { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'sysadmin'] },
+  { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'president', 'sysadmin'] },
+  { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher', 'president'] },
+  { href: '/admin/reports', icon: 'ranking', label: '报表', roles: ['accountant', 'teacher', 'president'] },
+  { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher', 'president'], kind: 'dc-kind-exchange' },
+  { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher', 'president'], kind: 'dc-kind-exchange' },
+  { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'president', 'sysadmin'] },
+  { href: '/admin/attendance', icon: 'calendar', label: '考勤', roles: ['teacher', 'president'] },
+  { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher', 'president'] },
+  { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'president', 'sysadmin'] },
 ];
 export const sectionsFor = (me: Me) => SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)));
 

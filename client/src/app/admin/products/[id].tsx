@@ -52,7 +52,7 @@ function Field({ icon, label, error, hint, children }: { icon: IconName; label: 
 // 新增商品 (id "new") or 编辑商品 with its stock and the latest stock movements; the accountant reads 商品详情.
 export default function ProductPage() {
   const { id, saved } = useLocalSearchParams<{ id: string; saved?: string }>();
-  const editor = useMe().data!.roles.some((r) => r === 'storekeeper' || r === 'teacher');
+  const editor = useMe().data!.roles.some((r) => r === 'storekeeper' || r === 'teacher' || r === 'president');
   const isNew = id === 'new' && editor;
   const product = useQuery({
     queryKey: ['products', id],

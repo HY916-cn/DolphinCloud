@@ -10,7 +10,7 @@ const imageUrl = (path: string) => supabase.storage.from('product-images').getPu
 // 商品: every product, listed ones first, those out of stock marked 缺货; a row opens the product to edit it, 出入库
 // stocks several in or out at once (PHASE-1.md §1.1). The accountant only reads them, with their cost.
 export default function Products() {
-  const editor = useMe().data!.roles.some((r) => r === 'storekeeper' || r === 'teacher');
+  const editor = useMe().data!.roles.some((r) => r === 'storekeeper' || r === 'teacher' || r === 'president');
   const products = useQuery({
     queryKey: ['products', 'all'],
     queryFn: async () => {

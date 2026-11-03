@@ -1,6 +1,6 @@
 # 海豚云
 
-海豚云是明德学校校园银行「海豚银行」的业务平台：学生以海豚币办理存取和文创兑换，柜员在柜台办理业务，会计、库管、银行管理员和运维员在后台管理流水、商品、账号与系统。余额只能由业务流水推出，错账用冲正更正，记录不删除。前端是 Expo Router Web 应用，后端是自托管的 Supabase（Postgres、Auth、PostgREST、Storage）加 Caddy，全部打包在一个 Docker 镜像里，一条 `docker run` 启动并自动申请 HTTPS 证书。
+海豚云是明德学校校园银行「海豚银行」的业务平台：学生以海豚币办理存取和文创兑换，柜员在柜台办理业务，财务、库管、银行管理员和运维员在后台管理流水、商品、账号与系统。余额只能由业务流水推出，错账用冲正更正，记录不删除。前端是 Expo Router Web 应用，后端是自托管的 Supabase（Postgres、Auth、PostgREST、Storage）加 Caddy，全部打包在一个 Docker 镜像里，一条 `docker run` 启动并自动申请 HTTPS 证书。
 
 完整的开发文档（架构、数据模型、接口、测试与验收）见 [docs/development/PHASE-1.md](docs/development/PHASE-1.md)。
 
