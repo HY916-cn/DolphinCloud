@@ -112,7 +112,7 @@ export default function StaffLogin() {
                 </span>
               </label>
               <button className="dc-btn dc-btn-primary" type="button" disabled={picked === p.role}
-                onClick={() => setAction({ title: `把 ${p.display_name} 改为${ROLES[picked]}？`, text: '账号只保留这一种身份，下次打开页面时生效。',
+                onClick={() => setAction({ title: `把 ${p.display_name} 改为${ROLES[picked]}？`, text: '对方下次打开页面时生效。',
                   confirm: '确认修改', fn: 'set_role', args: { p_user_id: p.id, p_role: picked }, done: '身份已修改' })}>
                 保存身份
               </button>
@@ -136,10 +136,8 @@ export default function StaffLogin() {
                 <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => { setResult(null); setClosing(true); }}>注销账号</button>
               )}
             </div>
-          ) : p.role !== 'teacher' ? (
-            <Notice title="账号由银行管理员和运维员管理">行长可以查看工作人员账号，不能修改身份、重置密码、停用或注销。</Notice>
-          ) : (
-            <Notice title="银行管理员只有一个">这个账号的身份不能更改，也不能停用。忘记密码时，由服务器维护人员运行 dolphin reset-admin 重置密码。</Notice>
+          ) : p.role === 'teacher' && managesLogins(me) && (
+            <Notice title="银行管理员忘记密码时">由服务器维护人员运行 dolphin reset-admin 重置。</Notice>
           )}
         </div>
       )}

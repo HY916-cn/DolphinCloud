@@ -5,8 +5,8 @@ import { useMe } from '@/lib/session';
 const enter = (i: number, className = '') => ({ className: `dc-stack dc-enter ${className}`, style: { '--i': i } as React.CSSProperties });
 
 // 排名: the first three on the podium and the rest of the top with each balance against the first place's; my place
-// as a large medal, what passes the place above, my place on a bar from the last place to the first, the students
-// right before and after me when I am below the top, and how the ranking is made.
+// as a large medal, what passes the place above, my place on a bar from the last place to the first, and the students
+// right before and after me when I am below the top.
 export default function StudentRanking() {
   const student = useMe().data!.student!;
   const ranking = useRanking(student.student_no);
@@ -49,23 +49,12 @@ export default function StudentRanking() {
                 <p style={{ margin: 0, font: '600 16px/24px var(--font-sans)' }}>超过了{division} {r.me.behind} 位同学</p>
               </section>
             ) : (
-              <Notice title="账户暂不参加排名">账户状态正常后，会按余额参加本学部排名。</Notice>
+              <Notice title="账户暂不参加排名" />
             )}
             {r?.me && !r.top.some((t) => t.me) && <>
               <div className="dc-section-head"><h2 className="heading">我的前后</h2></div>
               <ol className="dc-ranks">{r.me.near.map((row) => <RankRow key={row.rank + row.name} row={row} bar={bar(row.balance)} />)}</ol>
             </>}
-            {r && (
-              <section className="dc-card">
-                <h2 className="heading" style={{ margin: '0 0 var(--space-3)' }}>排名怎么算</h2>
-                <dl className="dc-kv">
-                  <div><dt>排名依据</dt><dd>账户余额</dd></div>
-                  <div><dt>参加的同学</dt><dd>{division}在读 {r.total} 人</dd></div>
-                  <div><dt>余额相同</dt><dd>名次相同</dd></div>
-                  <div><dt>姓名</dt><dd>{r.anonymous ? '只显示首尾两个字' : '显示全名'}</dd></div>
-                </dl>
-              </section>
-            )}
           </div>
         </div>
       )}

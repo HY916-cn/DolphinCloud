@@ -79,7 +79,6 @@ export default function Today() {
         <aside className="dc-card is-sticky dc-enter" style={{ '--i': 1 } as React.CSSProperties} aria-label="今日合计">
           <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>今日合计</h2>
           <Summary rows={rows} />
-          <p className="dc-top-sub" style={{ marginTop: 'var(--space-3)' }}>不含已冲正的业务。只能冲正本人今天办理的存款、取款和兑换。</p>
         </aside>
       </div>
       {reversing && (

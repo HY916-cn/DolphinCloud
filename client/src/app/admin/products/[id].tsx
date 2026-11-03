@@ -166,7 +166,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
         <input className="dc-input" inputMode="numeric" value={price} placeholder="请输入价格" onChange={(e) => setPrice(digits(e.target.value))} />
         <span className="dc-input-unit">HTB</span>
       </Field>
-      <Field icon="savings" label="成本" hint="选填，用于核算">
+      <Field icon="savings" label="成本" hint="选填">
         <input className="dc-input" inputMode="numeric" value={cost} placeholder="选填" onChange={(e) => setCost(digits(e.target.value))} />
         <span className="dc-input-unit">HTB</span>
       </Field>
@@ -197,10 +197,10 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
           <input ref={fileInput} type="file" accept={IMAGE_TYPES} hidden aria-label="选择商品图片"
             onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
-        <span className="dc-field-hint">JPG、PNG 或 WebP，上传前自动缩小到最长边 800 像素；更换或移除后保存才生效</span>
+        <span className="dc-field-hint">JPG、PNG 或 WebP</span>
       </div>
       <label className="dc-switch">
-        <span className="dc-switch-text"><b>上架</b><small>上架后柜台可以兑换这件商品，保存后生效</small></span>
+        <span className="dc-switch-text"><b>上架</b><small>上架后柜台可以兑换这件商品</small></span>
         <input type="checkbox" role="switch" checked={listed} onChange={(e) => setListed(e.target.checked)} />
         <span className="dc-switch-track" />
       </label>

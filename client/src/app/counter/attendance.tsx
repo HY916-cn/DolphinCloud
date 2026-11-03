@@ -24,7 +24,7 @@ export default function Attendance() {
         <div className="dc-stack dc-enter">
           <DutyCard me={me} />
           {payroll.data && !mine?.attendance && (
-            <Notice title="还没有参与考勤">上下班照常，班次不计工资。由银行管理员开启；参与前需要先绑定工资账户。</Notice>
+            <Notice title="还没有参与考勤">先绑定工资账户，再请银行管理员开启。</Notice>
           )}
           <WeekBar monday={monday} onMonday={setMonday} />
           <Stats items={[
@@ -35,7 +35,7 @@ export default function Attendance() {
           ]} />
           {shifts.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
             : shifts.isPending ? <ListLoading rows={3} label="正在加载考勤" /> : <WeekShifts monday={monday} rows={rows} />}
-          <p className="dc-top-sub">每个班次由银行管理员审查确认后计为有效；工资中午班每个 {r.am} HTB、下午班每个 {r.pm} HTB，由银行管理员发放到工资账户。</p>
+          <p className="dc-top-sub">工资：中午班每个 {r.am} HTB，下午班每个 {r.pm} HTB。</p>
         </div>
         <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
           <section aria-label="上下班记录">

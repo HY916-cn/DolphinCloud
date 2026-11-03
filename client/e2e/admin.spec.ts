@@ -83,7 +83,7 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   // The student signs in on this device too (it becomes a second account here), with the password on their notice.
   await signIn(page, '学生', '20269001', '/login?add=1', password);
   await expect(page).toHaveURL(/\/change-password$/);
-  await page.getByPlaceholder('至少 8 位，可以全是数字').fill('20262026');
+  await page.getByPlaceholder('至少 8 位').fill('20262026');
   await page.getByPlaceholder('再次输入新密码').fill('20262026');
   await page.getByRole('button', { name: '设置密码' }).click();
   await expect(page.locator('.dc-pb-balance dd')).toContainText('30');
@@ -128,7 +128,7 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/staff');
   await page.locator('.dc-list-link', { hasText: '银行管理员' }).first().click();
-  await expect(page.locator('.dc-notice')).toContainText('银行管理员只有一个');
+  await expect(page.locator('.dc-notice')).toContainText('dolphin reset-admin');
   await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
 });
 
@@ -287,7 +287,6 @@ test('行长 has every bank page, and reads students and staff without managing 
   await page.goto('/admin/staff');
   await expect(page.getByRole('link', { name: '新增账号' })).toHaveCount(0);
   await page.getByRole('list', { name: '工作人员' }).locator('.dc-list-link', { hasText: '柜员小林' }).click();
-  await expect(page.locator('.dc-notice')).toContainText('账号由银行管理员和运维员管理');
   await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
   await page.goto('/admin/staff/new');
   await expect(page).toHaveURL(/\/admin$/);

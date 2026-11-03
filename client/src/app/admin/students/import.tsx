@@ -138,7 +138,7 @@ export default function ImportRoster() {
           <div className="dc-progress-track" role="progressbar" aria-valuenow={stage.done} aria-valuemax={stage.total}>
             <div className="dc-progress-fill" style={{ '--value': stage.done / stage.total } as React.CSSProperties} />
           </div>
-          <p className="dc-progress-note">每 {BATCH} 人一批，请不要关闭页面。</p>
+          <p className="dc-progress-note">请不要关闭页面。</p>
         </div>
       )}
 

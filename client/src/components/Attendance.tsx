@@ -194,7 +194,7 @@ export function SalaryAccount({ userId, payroll, readOnly }: { userId: string; p
         )}
       </div>
       {unbinding && (
-        <ConfirmSheet title="解除工资账户的绑定？" text="解除后工资暂不发放，直到绑定新的账户；已发放的工资不受影响。" confirm="解除绑定"
+        <ConfirmSheet title="解除工资账户的绑定？" text="解除后工资暂不发放，直到绑定新的账户。" confirm="解除绑定"
           onClose={() => setUnbinding(false)} onConfirm={unbind} />
       )}
     </section>

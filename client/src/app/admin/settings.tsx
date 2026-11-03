@@ -186,7 +186,7 @@ function SettingsForm({ saved }: { saved: Values }) {
                 </div>
               </Field>
               <LimitPair label="单笔取款上限" primary={[singlePrimary, setSinglePrimary]} junior={[singleJunior, setSingleJunior]} />
-              <LimitPair label="单日取款上限" hint="当天累计，不含已冲正的取款" primary={[dailyPrimary, setDailyPrimary]} junior={[dailyJunior, setDailyJunior]} />
+              <LimitPair label="单日取款上限" hint="当天累计" primary={[dailyPrimary, setDailyPrimary]} junior={[dailyJunior, setDailyJunior]} />
             </div>
           </div>
         </div>
@@ -212,7 +212,7 @@ function SettingsForm({ saved }: { saved: Values }) {
             <p className="dc-list-title">考勤</p>
             <div className="dc-card dc-stack">
               {([['中午班', '13:30 之前', payAm, setPayAm], ['下午班', '13:30 起', payPm, setPayPm]] as const).map(([name, when, value, set]) => (
-                <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB；发放时按当时的金额计算`}>
+                <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB`}>
                   <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} min={1} max={10000} />
                 </Field>
               ))}

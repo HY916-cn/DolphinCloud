@@ -53,7 +53,7 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
         // Not known yet: the counter stays closed until the server says the teller is on duty.
         duty.isError || duty.fetchStatus === 'paused' ? (
           <Notice tone="danger" title="暂时无法确认上班状态">
-            请检查网络后重试；确认已上班后才能办理业务。
+            请检查网络后重试。
             <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => duty.refetch()}>重试</button>
           </Notice>
         ) : <div className="dc-card dc-skeleton" style={{ height: 200 }} role="status" aria-label="正在读取上班状态" />
@@ -61,14 +61,14 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
         <div className="dc-card dc-empty">
           <span className="dc-empty-icon"><Icon name="clock" /></span>
           <h3>未上班</h3>
-          <p>上班后才能办理业务。13:30 之前为中午班，13:30 起为下午班。</p>
+          <p>13:30 之前为中午班，13:30 起为下午班。</p>
           {start}
         </div>
       ) : (
         <div className="dc-card at-sign">
           <span className="at-sign-main">
             <b>{d ? `已上班 · ${formatTime(d.started_at)} 起` : '未上班'}</b>
-            <small className="dc-top-sub">{d ? `现在是${SHIFTS[shiftAt(new Date())]}；下班前先打印本次的业务总结，签字留存` : '上班后才能办理业务；13:30 之前为中午班，13:30 起为下午班'}</small>
+            <small className="dc-top-sub">{d ? `现在是${SHIFTS[shiftAt(new Date())]}；下班前先打印本次的业务总结，签字留存` : '13:30 之前为中午班，13:30 起为下午班'}</small>
           </span>
           {d ? (
             <button className="dc-btn dc-btn-secondary" type="button" disabled={!online || busy} onClick={() => setStep('print')}>

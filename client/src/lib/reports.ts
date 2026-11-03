@@ -90,7 +90,7 @@ export async function ledgerPages(select: string, f: LedgerFilter, fullNames: bo
   const live = rows.filter((r) => r.status === 'normal' && r.type !== 'reversal');
   const sum = (type: string) => live.filter((r) => r.type === type).reduce((s, r) => s + r.amount, 0);
   return renderDoc('海豚银行流水', `打印于 ${formatTime(new Date().toISOString(), new Date(0))}`, [
-    { kind: 'heading', text: `${about} · 共 ${rows.length} 笔`, sub: '按办理时间排列；合计不含已冲正的业务。' },
+    { kind: 'heading', text: `${about} · 共 ${rows.length} 笔` },
     { kind: 'stats', items: [['存款', `${formatAmount(sum('deposit'))} HTB`], ['取款', `${formatAmount(sum('withdraw'))} HTB`],
       ['兑换', `${formatAmount(sum('purchase'))} HTB`], ['已冲正', `${rows.filter((r) => r.status === 'reversed').length} 笔`]] },
     { kind: 'table', head: ['时间', '交易号', '学生', '班级', '业务', '金额', '余额变动', '经办人', '状态'],
@@ -122,14 +122,14 @@ export function reportPages(r: Report, period: string, scope: string) {
   const tellers = r.tellers.filter((t) => t.count || t.reversed || t.reversals);
   const pages: Block[][] = [
     [
-      { kind: 'heading', text: '营业概况', sub: '笔数和金额不含已冲正的业务。' },
+      { kind: 'heading', text: '营业概况' },
       { kind: 'stats', items: [['存款', `${formatAmount(b.deposit.amount)} HTB`], ['取款', `${formatAmount(b.withdraw.amount)} HTB`],
         ['兑换', `${formatAmount(b.purchase_account.amount + b.purchase_cash.amount)} HTB`], ['办理业务的学生', `${b.students} 人`]] },
       { kind: 'table', head: ['业务', '笔数', '金额（HTB）'], rows: [
         ['存款', b.deposit.count, b.deposit.amount], ['取款', b.withdraw.count, b.withdraw.amount],
         ['兑换（账户支付）', b.purchase_account.count, b.purchase_account.amount], ['兑换（现金支付）', b.purchase_cash.count, b.purchase_cash.amount],
         ['冲正', r.reversals.count, r.reversals.amount], ['期初余额导入', r.openings.count, r.openings.amount]] },
-      { kind: 'heading', text: '余额核对', sub: '期初账面余额加上本期每笔余额变动，等于期末账面余额；按整天计算。' },
+      { kind: 'heading', text: '余额核对' },
       { kind: 'table', head: ['项目', '金额（HTB）'], rows: [['期初账面余额', r.balance.opening], ...CHANGES.map(([k, label]) => [label, ch[k] ?? 0])],
         foot: ['期末账面余额', r.balance.closing] },
       { kind: 'heading', text: '柜面现金' },
@@ -147,7 +147,7 @@ export function reportPages(r: Report, period: string, scope: string) {
         rows: dailyBalance(r).map(({ d, balance }) => [d.day, d.deposit_count, d.deposit, d.withdraw_count, d.withdraw, d.purchase_count, d.purchase, d.students, balance]) },
     ] as Block[]] : []),
     ...(r.hours.length ? [[
-      { kind: 'heading', text: '营业时段', sub: '每个小时办理的业务笔数' },
+      { kind: 'heading', text: '营业时段' },
       { kind: 'columns', title: '业务笔数', unit: '笔', data: r.hours.map((h) => ({ label: `${h.hour}时`, value: h.count })) },
       { kind: 'table', head: ['时段', '业务笔数'], rows: r.hours.map((h) => [`${h.hour}:00–${h.hour + 1}:00`, h.count]) },
     ] as Block[]] : []),
@@ -158,7 +158,7 @@ export function reportPages(r: Report, period: string, scope: string) {
         rows: tellers.map((t) => [t.name, t.count, t.deposit, t.withdraw, t.purchase, t.reversed, t.reversals]) },
     ],
     [
-      { kind: 'heading', text: '账户', sub: '期末余额按学生统计' },
+      { kind: 'heading', text: '账户' },
       { kind: 'stats', items: [['学生', `${s.total} 人`], ['本期办理过业务', `${s.active} 人`], ['期末账面余额', `${formatAmount(s.balance)} HTB`],
         ['余额中位数', `${formatAmount(s.median)} HTB`]] },
       { kind: 'columns', title: '期末余额分布（人）', unit: '人', data: r.distribution.map((d) => ({ label: d.label, value: d.count })) },
@@ -176,13 +176,13 @@ export function reportPages(r: Report, period: string, scope: string) {
       { kind: 'line', title: '日终账面余额', unit: 'HTB', data: dailyBalance(r).map(({ d, balance }) => ({ label: dayLabel(d.day), value: balance })) },
     ] as Block[]] : []),
     [
-      { kind: 'heading', text: '商品兑换', sub: '不含已冲正的兑换；成本未填写的商品，成本和毛利为「—」。' },
+      { kind: 'heading', text: '商品兑换', sub: '成本未填写的商品，成本和毛利为「—」。' },
       { kind: 'bars', title: '兑换数量', unit: '件', color: 'rose-ink', data: products.map((x) => ({ label: x.name, value: x.qty })) },
       { kind: 'table', head: ['商品', '数量', '金额', '账户支付', '现金支付', '成本', '毛利'],
         rows: products.map((x) => [x.name, x.qty, x.amount, x.account, x.cash, x.cost, x.cost === null ? null : x.amount - x.cost]) },
     ],
     [
-      { kind: 'heading', text: '库存', sub: '期初 + 入库 − 出库 − 兑出 = 期末' },
+      { kind: 'heading', text: '库存' },
       { kind: 'table', head: ['商品', '单价', '成本价', '期初', '入库', '出库', '兑出', '期末'],
         rows: stock.map((x) => [x.name, x.price, x.cost, x.opening, x.stock_in, x.stock_out, x.sold, x.closing]) },
     ],

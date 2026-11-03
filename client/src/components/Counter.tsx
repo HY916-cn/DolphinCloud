@@ -114,7 +114,7 @@ export function FindStudent({ onFound, offline, recent = [] }: { onFound: (s: St
           <div className="dc-empty">
             <span className="dc-empty-icon"><Icon name="me" /></span>
             <h3>查找学生</h3>
-            <p>姓名、拼音首字母、班级、学号都能搜<br />例如 张小明 · zxm · 四年级1班{offline && <><br />离线时不显示余额</>}</p>
+            <p>姓名、拼音首字母、班级、学号都能搜<br />例如 张小明 · zxm · 四年级1班</p>
           </div>
         )
       ) : roster.isPending ? <ListLoading rows={3} label="正在加载名册" />

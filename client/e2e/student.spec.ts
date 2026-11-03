@@ -98,7 +98,6 @@ test('排名: my place on the scale, the podium with my place tagged and names m
   await expect(mine.locator('.dc-rank-name')).toContainText('张*明');
   await expect(mine).toContainText('108HTB');
   await expect(page.locator('.dc-rank-name').filter({ hasNotText: '*' })).toHaveCount(0);
-  await expect(page.locator('.dc-card', { hasText: '排名怎么算' })).toContainText('小学部在读 2 人');
 });
 
 test('我的: my closed 存折 with my name on its label, and my account’s balance, division, status and term', async ({ page }) => {

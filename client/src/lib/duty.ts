@@ -75,8 +75,7 @@ export async function dutySummary(duty: Duty, teller: string) {
   const count = (type: string) => rows.filter((r) => r.type === type).length;
   const now = new Date().toISOString();
   const pages = await renderDoc('柜员下班总结', `${teller} · 打印于 ${formatTime(now, new Date(0))}`, [
-    { kind: 'heading', text: `${teller} · ${formatTime(duty.started_at, new Date(0))} 上班 至 ${formatTime(now, new Date(0))} 下班`,
-      sub: '本次上班期间本人办理的全部业务，按办理时间排列；已冲正的业务不计入合计。' },
+    { kind: 'heading', text: `${teller} · ${formatTime(duty.started_at, new Date(0))} 上班 至 ${formatTime(now, new Date(0))} 下班` },
     { kind: 'stats', items: [
       ['业务笔数', `${rows.length} 笔`], ['存款', `${formatAmount(sum('deposit'))} HTB · ${count('deposit')} 笔`],
       ['取款', `${formatAmount(sum('withdraw'))} HTB · ${count('withdraw')} 笔`], ['兑换', `${formatAmount(sum('purchase'))} HTB · ${count('purchase')} 笔`],

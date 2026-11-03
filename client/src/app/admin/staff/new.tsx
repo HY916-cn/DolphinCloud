@@ -55,13 +55,13 @@ export default function NewStaff() {
               autoComplete="off" autoCapitalize="none" spellCheck={false} />
           </span>
           <span className="dc-field-hint">
-            {tried && !loginOk && <Icon name="warning" />}2–32 位小写字母、数字、. _ -，以字母或数字开头，用于登录
+            {tried && !loginOk && <Icon name="warning" />}2–32 位小写字母、数字、. _ -，以字母或数字开头
           </span>
         </label>
         <label className={`dc-field ${tried && !name.trim() ? 'is-error' : ''}`}>
           <span className="dc-field-label"><Icon name="teacher" />姓名</span>
           <span className="dc-input-wrap"><input className="dc-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="如 柜员小王" /></span>
-          {tried && !name.trim() && <span className="dc-field-hint"><Icon name="warning" />请填写姓名，登录后显示在页面标题下</span>}
+          {tried && !name.trim() && <span className="dc-field-hint"><Icon name="warning" />请填写姓名</span>}
         </label>
         <label className="dc-field">
           <span className="dc-field-label"><Icon name="settings" />身份</span>
@@ -70,7 +70,6 @@ export default function NewStaff() {
               {roles.map((r) => <option key={r} value={r}>{ROLES[r]}</option>)}
             </select>
           </span>
-          <span className="dc-field-hint">每个账号只有一种身份；同一个人担任两种身份时请分别建账号。</span>
         </label>
         <button className="dc-btn dc-btn-primary dc-btn-block" type="submit" disabled={busy}>{busy ? '正在创建' : '创建账号'}</button>
       </form>

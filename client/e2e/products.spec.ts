@@ -79,7 +79,7 @@ test('the accountant reads products with their cost, without editing them', asyn
 
   await signIn(page, '工作人员', 'acct09', '/login?add=1', password);
   await expect(page).toHaveURL(/\/change-password$/);
-  await page.getByPlaceholder('至少 8 位，可以全是数字').fill('20262027');
+  await page.getByPlaceholder('至少 8 位').fill('20262027');
   await page.getByPlaceholder('再次输入新密码').fill('20262027');
   await page.getByRole('button', { name: '设置密码' }).click();
   await expect(page).toHaveURL(/\/admin$/);

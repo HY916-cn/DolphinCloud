@@ -111,7 +111,7 @@ export default function Reports() {
         )}
       {output && r && (
         <OutputSheet title="打印报表" name={`银行报表-${from}至${to}${scope ? `-${scope.kind === 'student' ? `学号${scope.student_no}` : scope.label}` : ''}.pdf`}
-          text={`${period} · ${scopeText}。首页为概况和余额核对，之后每个图表和表格各占一页。`}
+          text={`${period} · ${scopeText}`}
           make={() => reportPages(r, period, scopeText)} onClose={() => setOutput(false)} onDone={() => setOutput(false)} />
       )}
     </Desk>
@@ -142,9 +142,9 @@ function Business({ r, p }: { r: Report; p: Prev }) {
         ['冲正', r.reversals.count, `笔 · ${formatAmount(r.reversals.amount)} HTB`, delta(r.reversals.count, p?.reversals.count)],
         ['办理业务的学生', b.students, '人', delta(b.students, pb?.students)],
       ]} />
-      <p className="dc-top-sub">笔数和金额不含已冲正的业务（本期 {r.reversed} 笔）；兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB。</p>
+      <p className="dc-top-sub">兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB；另有 {r.reversed} 笔已冲正。</p>
       {r.days.length > 1 && (
-        <Section title="每日业务" sub="金额（HTB），悬停看当天笔数">
+        <Section title="每日业务">
           <div className="rp-charts">
             <Columns title="存款" kind="dc-kind-save" unit="HTB" data={daily('deposit', '存款')} />
             <Columns title="取款" kind="dc-kind-withdraw" unit="HTB" data={daily('withdraw', '取款')} />
@@ -158,7 +158,7 @@ function Business({ r, p }: { r: Report; p: Prev }) {
         </Section>
       )}
       {hours.length > 0 && (
-        <Section title="营业时段" sub="每个小时办理的业务笔数">
+        <Section title="营业时段">
           <Columns title="业务笔数" unit="笔" data={hours.map((h) => {
             const n = r.hours.find((x) => x.hour === h)?.count ?? 0;
             return { label: `${h}时`, value: n, tip: `${h}:00–${h + 1}:00 · ${n} 笔` };
@@ -191,7 +191,7 @@ function Accounts({ r, p }: { r: Report; p: Prev }) {
         // 学生 counts every account in scope; the rest of it are the ones closed (注销).
         ['已冻结 / 已毕业 / 已注销', `${s.frozen} / ${s.graduated} / ${s.total - s.normal - s.frozen - s.graduated}`, '人'],
       ]} />
-      <Section title="期末余额分布" sub="每档的学生人数">
+      <Section title="期末余额分布">
         <Columns title="学生" unit="人" data={r.distribution.map((d) => ({ label: d.label, value: d.count, tip: `${d.label} HTB · ${d.count} 人` }))} />
       </Section>
       <Section title="按班级">
@@ -212,7 +212,7 @@ function Finance({ r }: { r: Report }) {
   const signed = (n = 0) => `${n ? formatSigned(n) : 0} HTB`;
   return (
     <>
-      <Section title="余额核对" sub="期初账面余额加上本期每笔余额变动，等于期末账面余额；按整天计算，不受时段影响">
+      <Section title="余额核对">
         <Summary rows={[['期初账面余额', `${formatAmount(r.balance.opening)} HTB`],
           ...CHANGES.filter(([k]) => k !== 'closing' || ch.closing).map(([k, label]): [string, string] => [label, signed(ch[k])])]}
           total={['期末账面余额', r.balance.closing]} />
@@ -225,10 +225,9 @@ function Finance({ r }: { r: Report }) {
           }))} />
         )}
       </Section>
-      <Section title="柜面现金" sub="柜台收进和付出的海豚币现金">
+      <Section title="柜面现金">
         <Summary rows={[['收入（存款、现金兑换）', `${formatAmount(r.cash.in)} HTB`], ['付出（取款、冲正退回）', `${formatAmount(r.cash.out)} HTB`]]}
           total={['净额', r.cash.in - r.cash.out]} />
-        {r.cash.in < r.cash.out && <p className="dc-top-sub">付出多于收入 {formatAmount(r.cash.out - r.cash.in)} HTB。</p>}
       </Section>
     </>
   );
@@ -241,7 +240,7 @@ function Goods({ r, scoped }: { r: Report; scoped: boolean }) {
   const cost = costKnown ? p.reduce((a, x) => a + x.cost!, 0) : null;
   return (
     <>
-      <Section title="商品兑换" sub="不含已冲正的兑换">
+      <Section title="商品兑换">
         {p.length ? (
           <>
             <Bars title="兑换数量" kind="dc-kind-exchange" data={p.map((x) => ({ label: x.name, value: x.qty, text: `${x.qty} 件` }))} />
@@ -252,7 +251,7 @@ function Goods({ r, scoped }: { r: Report; scoped: boolean }) {
           </>
         ) : <p className="dc-top-sub">这段时间没有兑换。</p>}
       </Section>
-      <Section title="库存" sub={scoped ? '全行数据，不按学生范围筛选' : '期初 + 入库 − 出库 − 兑出 = 期末'}>
+      <Section title="库存" sub={scoped ? '全行库存' : undefined}>
         <Table label="库存" head={['商品', '期初', '入库', '出库', '兑出', '期末']}
           rows={r.stock.map((s) => [s.name, s.opening, s.stock_in, s.stock_out, s.sold, s.closing])} />
       </Section>
