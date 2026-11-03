@@ -72,19 +72,36 @@ export function forgetAccount(id: string) {
   }
 }
 
+// Forgets the accounts closed (注销) since they signed in here: a closed login never signs in again. Asked only while
+// an account is signed in.
+export async function dropClosed() {
+  const ids = savedAccounts().map((a) => a.id);
+  if (!ids.length || !(await supabase.auth.getSession()).data.session) return;
+  const { data, error } = await supabase.rpc('closed_logins', { p_ids: ids });
+  if (error) throw error;
+  (data as string[]).forEach(forgetAccount);
+}
+
+const closed = async (id: string) => {
+  await dropClosed().catch(() => {});
+  return !savedAccounts().some((a) => a.id === id);
+};
+
 // Makes an account the active one: by its saved session, or with `password`. Answers null, 'password' (the account
 // needs its password: not saved, or its session no longer works after a reset or a week unused), 'disabled' (the login
-// was stopped) or the Auth error code of a wrong password.
+// was stopped), 'closed' (it was closed, and this device forgets it) or the Auth error code of a wrong password.
 export async function switchAccount(id: string, password?: string): Promise<string | null> {
   const target = savedAccounts().find((a) => a.id === id);
   if (!target) return 'password';
   if (password) {
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail(target.kind, target.loginId), password });
+    if (error && (await closed(id))) return 'closed';
     return error ? (error.code === 'user_banned' ? 'disabled' : error.message.includes('LOGIN_LOCKED') ? 'LOGIN_LOCKED' : error.code ?? 'error') : null;
   }
   if (!target.session) return 'password';
   const { error } = await supabase.auth.setSession(target.session);
   if (!error) return null;
+  if (await closed(id)) return 'closed';
   store(savedAccounts().map((a) => (a.id === id ? { ...a, session: null } : a)));
   return error.code === 'user_banned' ? 'disabled' : 'password';
 }

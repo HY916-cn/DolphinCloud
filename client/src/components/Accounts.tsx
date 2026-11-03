@@ -9,6 +9,7 @@ const who = (a: SavedAccount) => (a.kind === 'student' ? `学号 ${a.loginId}` :
 const SWITCH_ERRORS: Record<string, string> = {
   disabled: '这个账号已被停用，不能登录；需要恢复时请联系银行管理员。',
   LOGIN_LOCKED: '密码错误次数过多，请 15 分钟后再试。',
+  closed: '这个账号已注销，已从这台设备上移除。',
 };
 
 // A password asked in a sheet: switching to an account not saved on this device, or turning saving on.
@@ -51,11 +52,14 @@ export function DeviceAccounts({ current }: { current?: string }) {
   if (!accounts.length) return null;
 
   const switched = () => { queryClient.clear(); router.replace('/'); };
+  // A closed account has just been forgotten (lib/accounts.ts): the login page reads the list again.
+  const gone = () => { setPassword(null); setProblem(SWITCH_ERRORS.closed); queryClient.invalidateQueries({ queryKey: ['device-accounts'] }); };
   async function trySwitch(a: SavedAccount) {
     setAsk(null);
     const r = await switchAccount(a.id);
     if (!r) return switched();
     if (r === 'password') return setPassword(a);
+    if (r === 'closed') return gone();
     setProblem(SWITCH_ERRORS[r] ?? '暂时无法切换，请检查网络后重试。');
   }
 
@@ -109,6 +113,7 @@ export function DeviceAccounts({ current }: { current?: string }) {
           onPassword={async (pw) => {
             const r = await switchAccount(password.id, pw);
             if (!r) { switched(); return null; }
+            if (r === 'closed') { gone(); return null; }
             return SWITCH_ERRORS[r] ?? (r === 'invalid_credentials' ? '密码不正确，请重新输入。' : '暂时无法切换，请检查网络后重试。');
           }} />
       )}

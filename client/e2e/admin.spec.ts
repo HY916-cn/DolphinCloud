@@ -146,6 +146,13 @@ test('批量: create two staff logins at once, stop one, which then cannot sign 
   const password = await page.evaluate(() => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('teller21') + 1]; });
   expect(password).toMatch(/^\d{8}$/);
   await confirmIn(page, '取消');
+  // 柜员乙 signs in on this device too, in another tab; 切换账号 lists it.
+  const other = await page.context().newPage();
+  await signIn(other, '工作人员', 'teller22', '/login?add=1', await page.evaluate(() => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('teller22') + 1]; }));
+  await expect(other).toHaveURL(/\/change-password$/);
+  await other.close();
+  await page.goto('/login?switch=1');
+  await expect(page.getByRole('list', { name: '本机账号' })).toContainText('teller22');
 
   const pick = async (name: string) => page.locator('.bt-pick', { hasText: `选择${name}` }).click();
   await page.goto('/admin/staff');
@@ -168,6 +175,10 @@ test('批量: create two staff logins at once, stop one, which then cannot sign 
   const stopped = (await page.getByRole('group', { name: '筛选' }).getByRole('button', { name: /^已停用 \d+$/ }).textContent())!.match(/\d+/)![0];
   await page.goto('/admin');
   await expect(page.getByRole('link', { name: /个工作人员账号已停用/ })).toHaveText(new RegExp(`^${stopped} 个工作人员账号已停用`));
+  // Once closed it leaves 切换账号 on the devices it signed in on.
+  await page.goto('/login?switch=1');
+  await expect(page.getByRole('list', { name: '本机账号' })).toContainText('添加账号');
+  await expect(page.getByRole('list', { name: '本机账号' })).not.toContainText('teller22');
 
   await signIn(page, '工作人员', 'teller21', '/login?add=1', password);
   await expect(page.locator('.dc-notice-danger')).toContainText('这个账号已被停用');

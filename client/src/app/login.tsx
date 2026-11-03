@@ -1,8 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { DeviceAccounts, Icon, link, Notice, Welcome } from '@/components';
-import { savedAccounts, setSaved } from '@/lib/accounts';
+import { dropClosed, savedAccounts, setSaved } from '@/lib/accounts';
 import { useSession } from '@/lib/session';
 import { loginEmail, supabase, type LoginKind } from '@/lib/supabase';
 
@@ -33,6 +33,8 @@ export default function Login() {
   const [error, setError] = useState<{ title: string; text: string; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [save, setSave] = useState(false);
+  // Accounts closed since they signed in here leave the list once the server says so; until then it shows them.
+  useQuery({ queryKey: ['device-accounts'], staleTime: 0, queryFn: async () => { await dropClosed(); return savedAccounts().map((a) => a.id); } });
   if (ready && session && !adding && params.switch !== '1') return <Redirect href="/" />;
   const current = KINDS.find((k) => k.kind === kind)!;
   const accounts = savedAccounts();

@@ -40,5 +40,9 @@ select is(tests.call(:'ops', format($$select close_accounts(array[%L]::uuid[])$$
 select is((select count(*)::int from app_private.check_balances()), 0, 'the ledger self-check still holds');
 select is((select count(*)::int from audit_log where action = 'user.close'), 2, 'each 注销 is logged');
 
+-- 切换账号, signed in, learns which of the device's accounts were closed.
+select is(tests.call(:'t1', format($$select to_jsonb(array(select x from unnest(closed_logins(array[%L, %L, %L]::uuid[])) x order by x))$$,
+  :'s1', :'s2', :'t1')), to_jsonb(array(select x from unnest(array[:'s1', :'s2']::uuid[]) x order by x)), 'closed_logins names the closed ones only');
+
 select * from finish();
 rollback;
