@@ -251,9 +251,9 @@ test('closing the app signs out an account not saved on this device; a saved one
 
 test('the student sees the counter\'s work', async ({ page }) => {
   await signIn(page, '学生', '20260001');
-  await expect(page.locator('.dc-balance-amount')).toContainText('98');
-  await expect(page.locator('.dc-txns')).toContainText('兑换 · 海豚书签');
-  await expect(page.locator('.dc-txns')).toContainText('（已冲正）');
+  await expect(page.locator('.dc-pb-balance dd')).toContainText('98');
+  await expect(page.locator('.dc-pb-table')).toContainText('兑换 · 海豚书签');
+  await expect(page.locator('.dc-pb-table')).toContainText('（已冲正）');
 });
 
 test('下班 may skip printing the summary, and 办理 waits for 上班 again', async ({ page }) => {

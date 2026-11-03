@@ -3,11 +3,12 @@ import { formatTime } from './format';
 
 // One ledger line as the account holder reads it. `amount` is the change to the balance; `paid` is the business's own
 // amount, shown instead when the balance is untouched (a cash exchange and its 冲正).
-export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; paid: number; note: string };
+// `after` is the balance once the business was done (txns.balance_after), when the query read it.
+export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; paid: number; note: string; after?: number };
 
 export type TxnRow = {
   id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'closing'; amount: number; balance_delta: number;
-  payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; reason: string | null; created_at: string;
+  payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; reason: string | null; created_at: string; balance_after?: number;
   txn_items?: { name: string; qty: number }[];
 };
 
@@ -40,5 +41,6 @@ export function toTxn(t: TxnRow): Txn {
     amount: t.balance_delta,
     paid: t.amount,
     note: t.balance_delta > 0 ? '存入' : t.balance_delta < 0 ? (t.type === 'purchase' ? '余额支付' : '取出') : t.type === 'reversal' ? '退回现金，余额不变' : '现金支付，余额不变',
+    after: t.balance_after,
   };
 }

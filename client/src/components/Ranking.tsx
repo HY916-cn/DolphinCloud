@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { formatAmount } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Icon } from './ui';
@@ -40,13 +41,43 @@ export function RankRow({ row, bar }: { row: Row; bar?: number }) {
   );
 }
 
-// How much more passes the place just above: one coin more than its balance.
-export function RankNext({ r }: { r: Ranking }) {
+// A place's medal: gold, silver and bronze for the first three, plain beyond.
+export const medal = (rank: number) => `dc-medal ${['', 'is-gold', 'is-silver', 'is-bronze'][rank] ?? ''}`;
+
+// The first three on the podium (design system Podium), drawn 2–1–3 from left to right.
+export function Podium({ rows }: { rows: Row[] }) {
+  return (
+    <ol className="dc-podium" aria-label="前三名">
+      {rows.slice(0, 3).map((row) => (
+        <li key={row.rank + row.name} className={row.me ? 'is-me' : undefined} aria-current={row.me || undefined}>
+          <span className={medal(row.rank)} aria-label={`第 ${row.rank} 名`}>{row.rank}</span>
+          <div className="dc-rank-name">{row.name}{row.me && <span className="dc-tag dc-tag-coin"><Icon name="me" />我</span>}</div>
+          <div className="dc-rank-class">{row.class_label ?? `${row.cohort} 届`}</div>
+          <div className="dc-podium-step">{formatAmount(row.balance)}<small>HTB</small></div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// The student's place: a large medal beside "第 12 名" and `note` under it.
+export function RankSummary({ r, note }: { r: Ranking; note: ReactNode }) {
   const me = r.me!;
   return (
-    <p className="dc-rank-next"><Icon name="star" />
-      {me.above ? <span>再存 <b>{formatAmount(me.above.balance - me.balance + 1)} HTB</b> 超过第 {me.above.rank} 名</span>
-        : <span>你是{DIVISIONS[r.division]}第 1 名</span>}
-    </p>
+    <div className="dc-rank-sum">
+      <span className={`${medal(me.rank)} is-lg`} aria-hidden="true">{me.rank}</span>
+      <p className="dc-rank-place">第 {me.rank} 名<small>{note}</small></p>
+    </div>
   );
+}
+
+// How much more passes the place just above: one coin more than its balance.
+export function rankNext(r: Ranking) {
+  const me = r.me!;
+  return me.above ? <span>再存 <b>{formatAmount(me.above.balance - me.balance + 1)} HTB</b> 超过第 {me.above.rank} 名</span>
+    : <span>你是{DIVISIONS[r.division]}第 1 名</span>;
+}
+
+export function RankNext({ r }: { r: Ranking }) {
+  return <p className="dc-rank-next"><Icon name="star" />{rankNext(r)}</p>;
 }

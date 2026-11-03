@@ -1,5 +1,5 @@
-export { BalanceCard, signed, TxnList, TxnListLoading, useTerm } from './Account';
-export { DIVISIONS, RankNext, RankRow, useRanking, type Ranking } from './Ranking';
+export { signed, TxnList, TxnListLoading, useTerm } from './Account';
+export { DIVISIONS, medal, Podium, RankNext, rankNext, RankRow, RankSummary, useRanking, type Ranking } from './Ranking';
 export { Page, SECTIONS, Shell, sectionsFor } from './Shell';
 export { ConfirmSheet, SignOut } from './Sheet';
 export { Icon, Loading, Notice, link, type IconName } from './ui';
@@ -23,3 +23,4 @@ export { DutyCard } from './Duty';
 export { CloseSheet, type Closing } from './Close';
 export { BatchBar, eachOf, passwordPages, Pick, type StaffPassword } from './Batch';
 export { FilterBar, filtered, NO_FILTER, type Chip, type Filter, type Suggestion } from './Filter';
+export { Passbook, PassbookPage, PassbookRows, PassbookSeal } from './Passbook';
