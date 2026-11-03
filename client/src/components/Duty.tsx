@@ -49,7 +49,15 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
   return (
     <section className="dc-stack" aria-label="上下班">
       {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
-      {whole && !d ? (
+      {whole && d === undefined ? (
+        // Not known yet: the counter stays closed until the server says the teller is on duty.
+        duty.isError || duty.fetchStatus === 'paused' ? (
+          <Notice tone="danger" title="暂时无法确认上班状态">
+            请检查网络后重试；确认已上班后才能办理业务。
+            <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => duty.refetch()}>重试</button>
+          </Notice>
+        ) : <div className="dc-card dc-skeleton" style={{ height: 200 }} role="status" aria-label="正在读取上班状态" />
+      ) : whole && !d ? (
         <div className="dc-card dc-empty">
           <span className="dc-empty-icon"><Icon name="clock" /></span>
           <h3>未上班</h3>
@@ -78,7 +86,7 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
             <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" type="button" disabled={busy} onClick={async () => {
               setBusy(true);
               try {
-                setCount(await dutyCount(d));
+                setCount(await dutyCount());
                 setPrinted(false);
                 setStep('confirm');
               } catch {

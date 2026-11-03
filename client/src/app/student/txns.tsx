@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, TxnList, TxnListLoading, type Filter } from '@/components';
 import { formatAmount, formatTime } from '@/lib/format';
 import { useMe } from '@/lib/session';
-import { supabase } from '@/lib/supabase';
+import { readAll, supabase } from '@/lib/supabase';
 import { toTxn, type Txn, type TxnRow } from '@/lib/txns';
 
 const enter = (i: number, className = '') => ({ className: `dc-stack dc-enter ${className}`, style: { '--i': i } as React.CSSProperties });
@@ -51,7 +51,9 @@ export default function StudentTxns() {
       const words = filter.text.trim().replace(/[%_\\,()*]/g, '');
       if (words) {
         // A product's name is in txn_items; the transactions holding it join the ones whose 交易号 matches.
-        const { data, error } = await supabase.from('txn_items').select('txn_id').ilike('name', `%${words}%`).limit(500);
+        // Only this student's items, so the cap holds every match but a student's 500th purchase of the same product.
+        const { data, error } = await supabase.from('txn_items').select('txn_id,txns!inner(student_no)')
+          .eq('txns.student_no', student.student_no).ilike('name', `%${words}%`).limit(500);
         if (error) throw error;
         q = q.or([`txn_no.ilike.*${words}*`, ...(data.length ? [`id.in.(${data.map((i) => i.txn_id).join(',')})`] : [])].join(','));
       }
@@ -66,9 +68,11 @@ export default function StudentTxns() {
   const totals = useQuery({
     queryKey: ['student-month', student.student_no, month],
     queryFn: async () => {
-      const { data, error } = await supabase.from('txns').select('type,amount').eq('student_no', student.student_no).eq('status', 'normal')
-        .in('type', ['deposit', 'withdraw', 'purchase', 'salary']).gte('created_at', `${month}-01T00:00:00+08:00`);
-      if (error) throw error;
+      const [y, m] = month.split('-').map(Number);
+      const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+      const data = await readAll<{ type: string; amount: number }>((from, to) => supabase.from('txns').select('type,amount')
+        .eq('student_no', student.student_no).eq('status', 'normal').in('type', ['deposit', 'withdraw', 'purchase', 'salary'])
+        .gte('created_at', `${month}-01T00:00:00+08:00`).lt('created_at', `${next}-01T00:00:00+08:00`).order('id').range(from, to));
       const sum = (type: string) => data.filter((t) => t.type === type).reduce((n, t) => n + t.amount, 0);
       return { deposit: sum('deposit'), withdraw: sum('withdraw'), purchase: sum('purchase'), salary: sum('salary') };
     },

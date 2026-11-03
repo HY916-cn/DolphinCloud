@@ -97,6 +97,7 @@ check() {
   rows=$(psql_ -qAt -F ' ' -c "select kind, key, 'recorded', recorded, 'expected', expected from app_private.check_balances()")
   if [ -n "$rows" ]; then echo "$rows"; exit 1; fi
   echo "Balances and stock match the ledger"
+  [ -n "${BACKUP_RECIPIENT:-}" ] || echo "Warning: BACKUP_RECIPIENT is not set, so backups are not encrypted" >&2
 }
 
 # The container's HEALTHCHECK: every service answers on its own port, Caddy is running and migrate has not failed.

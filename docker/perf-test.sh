@@ -1,7 +1,7 @@
 #!/bin/bash
 # Performance at full school size (PHASE-1.md §10): a fresh container with the seed, 2000 students imported through
 # import_roster in batches of 100, and 100 000 transactions. Times the reads and functions the acceptance names and
-# checks that no role can change balances, stock or the ledger through the API.
+# times 报表 and the 流水 export, and checks that no role can change balances, stock or the ledger through the API.
 # Usage: docker/perf-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container on https://localhost:18446.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -72,6 +72,11 @@ t=$(timed "$TELLER" "$BASE/rest/v1/rpc/withdraw" \
 under "$t" 1 'withdraw'
 t=$(timed "$TEACHER" "$BASE/rest/v1/txns?select=id,txn_no,type,amount&order=seq.desc&limit=50")
 under "$t" 1 'back-office ledger page'
+# 报表 over a whole year of every student (the longest range the page offers), and the 流水 export read page by page.
+t=$(timed "$TEACHER" "$BASE/rest/v1/rpc/bank_report" -d "{\"p_from\":\"$(date -u -d '-365 days' +%F 2>/dev/null || date -u -v-365d +%F)\",\"p_to\":\"$(date -u +%F)\"}")
+under "$t" 5 'bank_report, one year, every student'
+t=$(timed "$TEACHER" "$BASE/rest/v1/txns?select=txn_no,type,amount,balance_delta,created_at,student_no,students(name)&order=seq.desc&offset=99000&limit=1000")
+under "$t" 2 'ledger export, last page of 1000'
 start=$(date +%s); docker exec "$NAME" dolphin check | tail -1; echo "dolphin check: $(( $(date +%s) - start ))s"
 
 # No role changes balances, stock or the ledger directly; each answer must leave the data as it was.

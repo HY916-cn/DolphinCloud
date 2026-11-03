@@ -188,7 +188,8 @@ function Accounts({ r, p }: { r: Report; p: Prev }) {
         ['学生', s.total, '人'], ['本期办理过业务', s.active, '人', delta(s.active, ps?.active)],
         ['期末账面余额', formatAmount(s.balance), 'HTB', delta(s.balance, ps?.balance)],
         ['余额中位数', formatAmount(s.median), 'HTB', delta(s.median, ps?.median)], ['最高余额', formatAmount(s.max), 'HTB'],
-        ['已冻结 / 已毕业', `${s.frozen} / ${s.graduated}`, '人'],
+        // 学生 counts every account in scope; the rest of it are the ones closed (注销).
+        ['已冻结 / 已毕业 / 已注销', `${s.frozen} / ${s.graduated} / ${s.total - s.normal - s.frozen - s.graduated}`, '人'],
       ]} />
       <Section title="期末余额分布" sub="每档的学生人数">
         <Columns title="学生" unit="人" data={r.distribution.map((d) => ({ label: d.label, value: d.count, tip: `${d.label} HTB · ${d.count} 人` }))} />

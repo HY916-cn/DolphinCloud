@@ -19,7 +19,7 @@ const BATCH = 100; // passwords are hashed one by one on the server, as in impor
 
 type Status = 'normal' | 'frozen' | 'graduated';
 const TO: Record<Status, string> = { frozen: '冻结', normal: '恢复正常', graduated: '标记毕业' };
-type Result = { tone: 'success' | 'danger'; title: string; text: string };
+type Result = { tone: 'success' | 'danger' | 'info'; title: string; text: string };
 type Step = { kind: 'status'; to: Status } | { kind: 'reset' } | { kind: 'close' } | { kind: 'reissue' } | { kind: 'busy' }
   | { kind: 'notices'; accounts: NoticeAccount[] } | { kind: 'opening' };
 
@@ -39,12 +39,12 @@ export default function Students() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [step, setStep] = useState<Step | null>(null);
   const [result, setResult] = useState<Result | null>(null);
-  const all = students.data?.rows ?? [];
+  const all = useMemo(() => students.data?.rows ?? [], [students.data]);
   const waiting = all.filter((s) => s.profiles?.must_change_password);
   const list = useMemo(() => {
     const found = query.trim() ? searchRoster(students.data?.index ?? [], query, onlyWaiting ? all.length : limit) : all;
     return (onlyWaiting ? found.filter((s) => s.profiles?.must_change_password) : found).slice(0, limit);
-  }, [students.data, query, onlyWaiting, limit]);
+  }, [students.data, all, query, onlyWaiting, limit]);
   const shown = onlyWaiting ? waiting : all;
   const teacher = me.roles.includes('teacher');
   const chosen = all.filter((s) => picked.has(s.student_no));
@@ -83,6 +83,7 @@ export default function Students() {
       // Passwords already reissued in earlier batches are still printed, so those notices are not lost.
       setResult({ tone: 'danger', title: why.title, text: why.text + (accounts.length ? `已为前 ${accounts.length} 人生成新密码。` : '') });
     }
+    if (!nos.length) setResult({ tone: 'info', title: '没有需要重发通知单的学生', text: '名单里的学生都已设置新密码。' });
     refresh();
     setStep(accounts.length ? { kind: 'notices', accounts } : null);
   }

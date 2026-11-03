@@ -75,7 +75,7 @@ npm --prefix client run lint
 docker/upgrade-test.sh <生产环境当前的提交>
 ```
 
-CI（`.github/workflows/ci.yml`）在每次推送和 PR 上运行依赖审计、类型检查、代码检查、单元测试，再构建镜像跑 pgTAP、冒烟和端到端测试；推送到 `main` 通过后把镜像发布到 `ghcr.io/hy916-cn/dolphin-cloud`。性能测试每周运行一次，也可手动触发。
+CI（`.github/workflows/ci.yml`）在每次推送和 PR 上运行依赖审计、类型检查、代码检查、单元测试，再构建镜像跑 pgTAP、冒烟和端到端测试；推送到 `main` 通过后把镜像发布到 `ghcr.io/hy916-cn/dolphin-cloud`。性能测试和升级测试（从一周前的 `main` 升级）每周运行一次，也可手动触发。
 
 ## 部署
 

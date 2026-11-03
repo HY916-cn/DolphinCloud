@@ -12,15 +12,17 @@ export function setReachable(ok: boolean) {
   notify();
 }
 
+// Registered once for every subscriber: a shared handler removed by one leaving would stop the others hearing it.
+window.addEventListener('online', () => {
+  failed = false;
+  notify();
+});
+window.addEventListener('offline', notify);
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  const online = () => setReachable(true);
-  window.addEventListener('online', online);
-  window.addEventListener('offline', notify);
   return () => {
     listeners.delete(listener);
-    window.removeEventListener('online', online);
-    window.removeEventListener('offline', notify);
   };
 }
 

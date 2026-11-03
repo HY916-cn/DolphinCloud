@@ -76,10 +76,11 @@ export function Page({ title, sub, back, actions, children }: {
   title: string; sub?: ReactNode; back?: () => void; actions?: ReactNode; children: ReactNode;
 }) {
   const setInFlow = useContext(InFlow);
+  const inFlow = !!back;
   useEffect(() => {
-    setInFlow(!!back);
+    setInFlow(inFlow);
     return () => setInFlow(false);
-  }, [setInFlow, !!back]);
+  }, [setInFlow, inFlow]);
   return (
     <>
       <header className="dc-top">

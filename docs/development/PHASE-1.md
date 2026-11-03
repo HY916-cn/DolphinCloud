@@ -405,7 +405,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 | `reissue_passwords(p_student_nos)` | teacher / sysadmin | 重印开户通知单：为其中还未设置新密码的学生各生成新的初始密码并返回（同 `import_roster` 的 `accounts`），旧通知单随即失效 |
 | `set_student_status(p_student_no, p_status)` | teacher | 账户状态改为 `normal`（在读）、`frozen`（冻结）或 `graduated`（毕业）；非在读账户不能办理业务（`STUDENT_INACTIVE`）；已注销的账户不能再改（`ACCOUNT_CLOSED`） |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`），登录时提示「账号已停用」；停用柜员同时退出考勤，不发工资，也不再出现在各处名单里，只留在记录中；已注销的账号不能再启用（`ACCOUNT_CLOSED`） |
-| `close_accounts(p_user_ids)` | teacher / sysadmin | 注销账号，不能撤销：学生账户的余额由一笔 `closing`（注销清零）流水清零，状态为 `closed`；账号永久停用（`profiles.closed_at`）、结束会话，从所有名单里消失，交易、考勤与日志保留；用作工资账户的学生账户解除绑定并让该柜员退出考勤。不能注销自己和银行管理员。返回注销人数和清零金额 |
+| `close_accounts(p_user_ids)` | teacher / sysadmin | 注销账号，不能撤销：学生账户的余额由一笔 `closing`（注销清零）流水清零，状态为 `closed`；账号永久停用（`profiles.closed_at`）、结束会话，从所有名单里消失，交易、考勤与日志保留；用作工资账户的学生账户解除绑定并让该柜员退出考勤。不能注销自己和银行管理员。返回注销人数和清零金额。至少保留一个在用的运维员：最后一个不能停用、注销或改为其他身份（`LAST_SYSADMIN`，数据库触发器检查） |
 | `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 新增或编辑商品（`p_listed` 必填；`p_safety_stock` 新商品默认 5，编辑时不传则保持原值）；单件商品入库 |
 | `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
@@ -444,7 +444,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 - `must_change_password` 为 `true` 时，该账号不具备任何角色，也看不到本人的学生账户，只能读到自己的 `profiles`；前端据此直接进入「设置新密码」页。
 - 设置新密码：前端调用 `supabase.auth.updateUser({ password })`。`auth.users` 上的触发器只在 `must_change_password` 为 `true` 时允许修改；新密码与初始密码相同时 Auth 返回 `same_password`。修改后 `must_change_password` 变为 `false`。此后本人无法再改密码（Auth 返回错误），忘记或需要更换时由银行管理员或运维员 `reset_password` 生成新的初始密码。
 - 登录锁定：同一账号 15 分钟内输错 5 次即锁定 15 分钟，由 Auth 的密码校验钩子实现（按账号计算，不按 IP，校内共用出口 IP 不受影响）；重置密码同时解除锁定。按账号锁定意味着知道学号的人可以故意输错把对方锁 15 分钟，`login.locked` 在日志里集中出现时由银行管理员核查；`smoke-test.sh` 经 HTTPS 调 Auth 验证锁定。
-- 新密码至少 8 位，可以全是数字，所有账号相同。由 Auth 校验（`GOTRUE_PASSWORD_MIN_LENGTH=8`），不符合时返回 `weak_password`；前端在提交前给出同样的提示。
+- 新密码至少 8 位，可以全是数字，所有账号相同。这是已接受的风险：8 位数字的组合较少，靠按账号锁定防猜测；Auth 的按 IP 限流（`GOTRUE_RATE_LIMIT_TOKEN_REFRESH`）因全校共用出口 IP 放得很宽。入学教育和首次设置新密码时提醒不要用生日、学号等容易猜的数字。由 Auth 校验（`GOTRUE_PASSWORD_MIN_LENGTH=8`），不符合时返回 `weak_password`；前端在提交前给出同样的提示。
 
 ### 6.6 读取与 RLS
 
@@ -480,10 +480,11 @@ create table attendance (                      -- 每个柜员每个班次一行
 | --- | --- | --- |
 | `set_attendance(p_user_id, p_on)` | teacher | 设置柜员是否参与考勤；开启前须已绑定工资账户（`SALARY_UNBOUND`），已停用的账号不能开启 |
 | `start_duty()` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），已上班时返回原记录；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
+| `duty_txns()` | teller | 下班总结：本人当前上班以来办理的全部业务（按办理时间，含学生姓名），与 `end_duty` 的计数口径相同（含离线补传和冲正）。柜员只能读当天流水，跨午夜的上班也由它完整列出；未上班时 `OFF_DUTY` |
 | `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次 |
 | `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 补签：今天已开始的班次或以前的班次，须写说明，直接计为有效；已有记录时 `ALREADY_EXISTS` |
 | `review_attendance(p_ids, p_status, p_note)` | teacher | 审查待审班次：设为有效（`confirmed`）或未通过（`rejected`）；审查后不能再改（`ATTENDANCE_REVIEWED`） |
-| `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`） |
+| `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`）；只能绑定在读（`normal`）的账户（`STUDENT_INACTIVE`） |
 | `unbind_salary_account(p_user_id)` | teller（本人）/ teacher / sysadmin | 解除绑定；参与考勤期间不能解除（`ATTENDANCE_ON`） |
 | `pay_salaries(p_week)` | teacher | 由银行管理员手动发放。到 `p_week` 所在周日为止还有待审班次时拒绝（`ATTENDANCE_PENDING`，附待审数量）；否则发放这一周（周一至周日）及以前所有有效、未发放的班次：每个柜员一笔 `salary` 流水存入其工资账户（金额 = 中午班数 × 中午班工资 + 下午班数 × 下午班工资，`cash_delta` 为 0，原因写日期和两种班次各几个，如「10月27日至11月1日，中午班 3 个、下午班 2 个」），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的柜员这次跳过，下次发放时补发；已停用的柜员不发放；重复发放不会重复付。返回发放和跳过的名单 |
 
@@ -608,7 +609,7 @@ client/
 
 柜员导航四项：**办理**、**今日业务**、**考勤**、**我的**。柜员登录后直接进入「办理」；还没上班时这里只有「上班」卡片，上班后才出现搜索框。
 
-**上班 / 下班**（「办理」和「考勤」顶部的 `DutyCard`）：「上班」后开始办理业务。「下班」先生成「柜员下班总结」：本次上班以来本人办理的每一笔业务（时间、交易号、学生、业务、金额、状态）和存款、取款、兑换合计，底部留柜员、复核人签字和日期；打印（或下载 PDF）、签字留存后，再确认下班（`end_duty`，总结过时则提示重新打印）；也可「跳过打印」，直接确认下班。上班状态在本机留一份，离线重新打开也知道。
+**上班 / 下班**（「办理」和「考勤」顶部的 `DutyCard`）：「上班」后开始办理业务。「下班」先生成「柜员下班总结」：本次上班以来本人办理的每一笔业务（时间、交易号、学生、业务、金额、状态）和存款、取款、兑换合计，底部留柜员、复核人签字和日期；打印（或下载 PDF）、签字留存后，再确认下班（`end_duty`，总结过时则提示重新打印）；也可「跳过打印」，直接确认下班。上班状态在本机留一份，离线重新打开也知道；本机没有记录又读不到时（首次加载、网络或服务异常），「办理」只显示读取中或「暂时无法确认上班状态」和「重试」，不打开柜台。
 
 **办理**：一位学生到柜台办理的全过程，版式按设计系统页面示例 `CounterServicePage`（柜台办理），整个过程不跳页。
 
@@ -658,6 +659,7 @@ client/
 | `USER_NOT_FOUND`、`PRODUCT_NOT_FOUND` | 未找到 | 请刷新后重试。 |
 | `SELF_SERVICE_FORBIDDEN` | 不能为自己办理 | 这是你本人或你的工资账户，请由其他柜员办理。 |
 | `OFF_DUTY` | 还没有上班 | 请先点「上班」，再办理业务。 |
+| `LAST_SYSADMIN` | 至少保留一个运维员 | 这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。 |
 | `SUMMARY_STALE` | 下班总结已过时 | 打印后又办理了业务，请重新打印下班总结。 |
 | `ATTENDANCE_REVIEWED` | 已经审查过 | 审查后的班次不能再修改。 |
 | `ATTENDANCE_PENDING` | 还有待审的班次 | 还有 {count} 个班次没有审查，全部审查后才能发放工资。 |
@@ -704,7 +706,7 @@ client/
 - **流水**（会计、银行管理员）：搜索框输入姓名、拼音、班级、学部、柜员姓名或交易号，下面列出匹配的学生、整个班级、整个学部、柜员和「交易号含…」，选中后成为一个可去掉的标签（已停用的柜员不在其中）；再按日期、类型（存款、取款、兑换、冲正、工资、期初、注销清零）和时段筛选，最新的在前，每次加载 50 笔，显示符合条件的总笔数。每一行可以展开看完整信息，已冲正的写明原因和冲正交易号；银行管理员从展开处进入学生和经办人页面，并可直接冲正正常状态的期初、存款、取款、兑换（`ReversalSheet`）。「打印 / 导出」打印符合条件的全部流水，或下载 PDF、Excel。
 - **报表**（会计、银行管理员）：期间用「今天 / 本周 / 本月 / 上月」一键选，也可用「从 / 到」选任意日期（最长一年）；「按时段」和学生范围可选，条件一改报表即更新（`bank_report`）。同时读取紧挨着的上一个同样长的期间，主要数字下写「比上期 +12%」。四个标签页，每项都有图表和表格：
   - 营业：存款、取款、兑换、冲正、办理业务的学生；每日存款 / 取款 / 兑换金额柱状图（期间多于一天时，附按日明细表）；营业时段柱状图；按柜员条形图与表格。
-  - 账户：学生、办理过业务、期末账面余额、中位数、最高余额、冻结 / 毕业；期末余额分布柱状图；按班级条形图与表格（含合计）。
+  - 账户：学生、办理过业务、期末账面余额、中位数、最高余额、冻结 / 毕业 / 注销（「学生」含已注销的账户）；期末余额分布柱状图；按班级条形图与表格（含合计）。
   - 财务：余额核对（期初 + 各类变动 = 期末，含注销清零，一致时显示「核对一致」）与日终账面余额折线图；柜面现金收入、付出、净额。
   - 商品：兑换数量条形图，兑换金额、账户 / 现金支付、成本、毛利表；库存期初、入库、出库、兑出、期末表。
   - 图表每张只有一个系列（存款、取款、兑换用各自的类别色，其余用海豚蓝）：柱状图和折线图左侧有取整的刻度和虚线网格，标题旁写合计；条形图写数值和占比；悬停显示数值。样式在 `app.css` 的 `rp-` 类里，用设计系统的 token。
@@ -847,7 +849,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 - 备份目录权限 700、备份文件 600；备份与恢复都写入 `audit_log`（`backup.create` / `backup.restore`）。
 - 每天 `BACKUP_TIME` 执行：`pg_dump -Fc` 全库 + `/data/storage` 打包为 `/data/backups/dolphin-YYYYMMDD-HHMM.tar.gz`，保留 `BACKUP_RETENTION_DAYS` 天。
-- 设置 `BACKUP_RECIPIENT` 后备份用 [age](https://age-encryption.org) 加密为 `.tar.gz.age`，容器里只有公钥，没有私钥的人打不开备份。生成密钥：`docker run --rm --entrypoint age-keygen dolphin-cloud > backup-key.txt`，文件里 `# public key:` 后面就是公钥；`backup-key.txt` 离线保管（密码管理器或加密 U 盘），丢失后加密备份无法恢复。未设置时备份不加密，`dolphin backup` 会提示。
+- 设置 `BACKUP_RECIPIENT` 后备份用 [age](https://age-encryption.org) 加密为 `.tar.gz.age`，容器里只有公钥，没有私钥的人打不开备份。生成密钥：`docker run --rm --entrypoint age-keygen dolphin-cloud > backup-key.txt`，文件里 `# public key:` 后面就是公钥；`backup-key.txt` 离线保管（密码管理器或加密 U 盘），丢失后加密备份无法恢复。未设置时备份不加密，`dolphin backup`、`dolphin check` 和容器启动日志都会提示。
 - 备份后运行 `dolphin check`；发现不一致时写入 `audit_log`，后台首页对银行管理员显示提示。
 - 建议把 `/data/backups` 单独挂载到另一块磁盘或 NAS：`-v /mnt/nas/dolphin-backups:/data/backups`。
 - 每学期末把当期备份复制归档一次，并在测试机上演练一次 `dolphin restore`。
@@ -878,12 +880,12 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 | 层级 | 工具 | 覆盖内容 |
 | --- | --- | --- |
-| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户；柜台查询翻页与经办人，报表各项数字（不含已冲正的、期初 + 变动 = 期末、库存期初 + 入库 − 出库 − 兑出 = 期末）、时段、学部 / 班级 / 学生范围与以前的期间；上班才能办理、上下班记下班次（一个班次只记一次）、下班总结笔数核对、补签与审核的权限（审查一次）、参与考勤前须绑定工资账户、工资账户的密码与锁定计数、不能为工资账户办理业务、有待审班次时不能发放、停用柜员不发放、按周发放与不重复发放、`salary` 流水不能冲正且不破坏余额自检；8 位数字初始密码；注销账号（余额清零、不能注销自己和银行管理员、余额自检一致）；柜台查询按类型、商品和日期筛选。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
+| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户；柜台查询翻页与经办人，报表各项数字（不含已冲正的、期初 + 变动 = 期末、库存期初 + 入库 − 出库 − 兑出 = 期末）、时段、学部 / 班级 / 学生范围与以前的期间；上班才能办理、上下班记下班次（一个班次只记一次）、下班总结笔数核对、补签与审核的权限（审查一次）、参与考勤前须绑定工资账户、工资账户的密码与锁定计数、不能为工资账户办理业务、有待审班次时不能发放、停用柜员不发放、按周发放与不重复发放、`salary` 流水不能冲正且不破坏余额自检；8 位数字初始密码；注销账号（余额清零、不能注销自己和银行管理员、余额自检一致）；跨午夜的下班总结、最后一个运维员、工资账户须在读；柜台查询按类型、商品和日期筛选。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
 | 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序，学生范围里的班级与学部；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额、时间、报表期间（周一起算）、姓名脱敏与班次（13:30 分界）；`roster.ts` 名册模板逐行校验与年级推算 |
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按搜索（学生、柜员、交易号）、时段、类型筛选与冲正、流水导出；报表数字、标签页、时段与 PDF 导出；柜台查询全部交易记录与筛选；柜员上班才能办理、下班打印总结；柜员绑定工资账户 → 银行管理员开启考勤 → 上下班记下班次 → 审查、全部确认、补签、发放工资 → 柜员看到已发工资、学生明细里有工资；批量管理学生与工作人员、注销账号；我的页与在此设备保存登录（未保存的账号重新打开后须登录）；总览待办、页面间跳转、参数开关、日志；学生明细（按类型、搜索）与排名。备份恢复由 `smoke-test.sh` 覆盖 |
-| 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
+| 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 
-CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。
+CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh` 和 `docker/upgrade-test.sh`，后者从一周前的 `main` 升级到当前镜像。
 
 ---
 

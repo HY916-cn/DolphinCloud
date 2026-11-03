@@ -36,6 +36,7 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'INVALID_AMOUNT': return { title: '金额有误', text: '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
     case 'FORBIDDEN': return { title: '没有权限', text: '当前账号不能办理这项业务。' };
+    case 'LAST_SYSADMIN': return { title: '至少保留一个运维员', text: '这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。' };
     case 'ONE_BANK_ADMIN': return { title: '银行管理员只有一个', text: '不能新增银行管理员，也不能更改银行管理员的身份。' };
     case 'INVALID_INPUT':
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };

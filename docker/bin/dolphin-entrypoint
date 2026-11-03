@@ -54,4 +54,6 @@ printf 'window.__DOLPHIN_CONFIG__ = %s;\n' "{\"supabaseUrl\":\"$SITE_URL\",\"ano
 chown -R dolphin: /data/run /data/storage /data/caddy /data/backups
 chmod -R go= /data/backups
 
+[ -n "${BACKUP_RECIPIENT:-}" ] || echo "Warning: BACKUP_RECIPIENT is not set, so backups are not encrypted; set it in production" >&2
+
 exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf

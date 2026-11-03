@@ -47,6 +47,8 @@ export default function Serve() {
   // The preset opens once the counter is online; a visit already open (or ended, which drops ?s=) is left alone.
   useEffect(() => {
     if (preset && online && !student) lookupStudent(preset).then(begin, () => {});
+    // Not student: opening or ending a visit must not open the preset again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, online]);
 
   // Today's students, newest first, for a second visit without searching.
@@ -83,7 +85,7 @@ export default function Serve() {
     changed();
   }
 
-  if (!student && duty.data === null) {
+  if (!student && !duty.data) {
     return <CounterPage title="办理"><DutyCard me={me} whole /></CounterPage>;
   }
   if (!student) {

@@ -227,7 +227,7 @@ function TxnLine({ row, page, first, teacher, onReverse }: {
       ? [['冲正原因', row.reason ?? ''], ['冲正的交易', page.originals.get(row.reversal_of ?? '') ?? '']] as [string, ReactNode][]
       : [['状态', row.status === 'normal' ? '正常' : rev ? `已冲正 · ${rev.reason ?? ''} · 冲正交易号 ${rev.txn_no}` : '已冲正']] as [string, ReactNode][]),
   ];
-  const canReverse = teacher && row.status === 'normal' && row.type !== 'reversal' && row.type !== 'salary';
+  const canReverse = teacher && row.status === 'normal' && !['reversal', 'salary', 'closing'].includes(row.type);
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>

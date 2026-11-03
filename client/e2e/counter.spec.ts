@@ -206,6 +206,21 @@ test('切换账号 lists this device’s accounts and 添加账号; 退出账号
   await expect(page).toHaveURL(/\/student$/);
 });
 
+test.describe(() => {
+  // The service worker's fetches are not routed; without it the duty request is.
+  test.use({ serviceWorkers: 'block' });
+  test('the counter stays closed while 上班 cannot be confirmed', async ({ page }) => {
+    await page.route(/\/rest\/v1\/duty\?/, (route) => route.fulfill({ status: 400, contentType: 'application/json', body: '{"message":"test"}' }));
+    await signIn(page, '工作人员', 'teller01');
+    await expect(page).toHaveURL(/\/counter$/);
+    await expect(page.locator('.dc-notice-danger')).toContainText('暂时无法确认上班状态', { timeout: 10_000 });
+    await expect(page.getByRole('searchbox', { name: '搜索学生' })).toHaveCount(0);
+    await page.unroute(/\/rest\/v1\/duty\?/);
+    await page.getByRole('button', { name: '重试' }).click();
+    await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeVisible();
+  });
+});
+
 test('closing the app signs out an account not saved on this device; a saved one stays signed in', async ({ page: first }) => {
   let page = first;
   // A new tab shares localStorage but not sessionStorage: what reopening the browser or the home-screen app finds.
