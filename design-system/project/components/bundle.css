@@ -202,6 +202,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-waves.is-drifting i:nth-child(3) { --period: 220px; animation-duration: 9s; }
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: 1ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+  .dc-time-col { scroll-behavior: auto; }
 }
 
 /* AppShell — 多端外壳。断点用容器查询：手机 <600px，平板 600–1023px，电脑 ≥1024px（同 tokens 的 bp-tablet、bp-desktop） */
@@ -498,7 +499,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-cal-nav { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--cloud-100); color: var(--dolphin-deep); cursor: pointer; }
 .dc-cal-nav .dc-icon { width: 22px; height: 22px; color: inherit; }
 .dc-cal-nav:disabled { background: var(--surface); color: var(--cloud-300); cursor: not-allowed; }
-.dc-cal-nav:focus-visible, .dc-cal-title:focus-visible, .dc-cal-day:focus-visible, .dc-cal-month:focus-visible, .dc-time-opt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dc-cal-nav:focus-visible, .dc-cal-title:focus-visible, .dc-cal-day:focus-visible, .dc-cal-month:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
 .dc-cal-week { font: 600 14px/32px var(--font-sans); color: var(--ink-muted); text-align: center; }
 .dc-cal-day { aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; font: 600 17px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; transition: background-color var(--motion-press); }
@@ -513,13 +514,20 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-cal-month.is-today { box-shadow: inset 0 0 0 2px var(--dolphin); color: var(--dolphin-deep); }
 .dc-cal-month[aria-pressed="true"] { background: var(--dolphin); color: var(--on-dolphin); box-shadow: none; }
 .dc-cal-month:disabled { background: none; color: var(--cloud-300); cursor: not-allowed; }
-.dc-time-label { margin: 0 0 var(--space-2); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); }
-.dc-time-label + .dc-time-grid + .dc-time-label { margin-top: var(--space-4); }
-.dc-time-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-1); }
-.dc-time-opt { height: 44px; min-width: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--surface); font: 600 17px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; transition: background-color var(--motion-press); }
-.dc-time-opt:hover { background: var(--cloud-100); }
-.dc-time-opt[aria-pressed="true"] { background: var(--dolphin); color: var(--on-dolphin); }
-.dc-time-opt:disabled { background: none; color: var(--cloud-300); cursor: not-allowed; }
+.dc-time-heads, .dc-time-wheels { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); }
+.dc-time-label { margin: 0 0 var(--space-2); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); text-align: center; }
+.dc-time-heads .dc-time-label:last-child { grid-column: 3; }
+.dc-time-wheels { position: relative; align-items: center; }
+.dc-time-wheels::before { content: ""; position: absolute; inset: 88px 0 auto; height: 44px; border-radius: var(--radius-sm); background: var(--cloud-100); box-shadow: inset 0 0 0 2px var(--dolphin); pointer-events: none; }
+.dc-time-sep { position: relative; font: 700 22px/1 var(--font-sans); color: var(--dolphin-deep); text-align: center; }
+.dc-time-col { position: relative; box-sizing: border-box; height: 220px; padding: 88px 0; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scroll-behavior: smooth; scrollbar-width: none; -webkit-mask: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.dc-time-col::-webkit-scrollbar { display: none; }
+.dc-time-opt { display: block; width: 100%; height: 44px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; scroll-snap-align: center; font: 600 20px/44px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink-muted); cursor: pointer; transition: color var(--motion-press); }
+.dc-time-opt:hover { color: var(--ink); }
+.dc-time-opt[aria-pressed="true"] { font-size: 24px; font-weight: 700; color: var(--dolphin-deep); }
+.dc-time-opt:disabled { color: var(--cloud-300); cursor: not-allowed; }
+.dc-time-opt:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--dolphin-deep); }
+.dc-time-acts { display: flex; gap: var(--space-2); }
 .dc-cal-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 2px solid var(--line); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 
 /* Segmented — 分段切换：一块白色滑块滑到选中项（纯 CSS，最多 4 段） */
