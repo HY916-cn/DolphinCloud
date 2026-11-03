@@ -15,7 +15,7 @@ remove
 docker run -d --name "$NAME" -p 18446:443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$IMAGE" >/dev/null
 for _ in $(seq 1 90); do
   [ "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/auth/v1/health")" = 200 ] \
-    && docker exec "$NAME" psql -U postgres -qAt -c "select 1 from public.settings limit 1" >/dev/null 2>&1 && break
+    && [ "$(docker exec "$NAME" psql -U postgres -qAt -c "select count(*) from public.app_migrations" 2>/dev/null)" = "$(ls "$ROOT"/supabase/migrations/*.sql | wc -l | tr -d ' ')" ] && break
   sleep 2
 done
 docker exec -i "$NAME" psql -U postgres -v ON_ERROR_STOP=1 -q < "$ROOT/supabase/seed.sql"
@@ -60,6 +60,9 @@ echo "transactions: $(psql -c 'select count(*) from public.txns')"
 docker exec "$NAME" dolphin check | tail -1 | grep -q 'match' || fail 'balances do not match the ledger after loading'
 
 # The student home (§12.2: balance and the last 10 transactions within 2 s) and the accounting functions (< 1 s).
+# Imported students get random initial passwords; this one is given the seed's and is past its first sign-in.
+psql -c "update auth.users set encrypted_password = public.crypt('a12345678', public.gen_salt('bf', 10)) where email = '30001000@student.dolphin.internal';
+  update public.profiles set must_change_password = false where login_kind = 'student' and login_id = '30001000'" >/dev/null
 STUDENT=$(token 30001000@student.dolphin.internal)
 t=$(timed "$STUDENT" "$BASE/rest/v1/accounts?select=balance&student_no=eq.30001000")
 t2=$(timed "$STUDENT" "$BASE/rest/v1/txns?select=id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)&student_no=eq.30001000&balance_delta=neq.0&order=seq.desc&limit=10")
