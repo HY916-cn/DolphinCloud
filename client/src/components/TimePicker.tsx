@@ -1,11 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './ui';
 
 const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
-const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0'));
+const ROW = 44;
 
-// TimePicker (design system): 24 hours in a 6 × 4 grid, then minutes in five-minute steps. A picked hour shows at
-// once and moves to the minutes; a picked minute closes the panel. Values are "HH:MM"; with `placeholder` the field
+// TimePicker (design system): two scrolling wheels, hours 00–23 and minutes 00–59. The number that comes to rest in
+// the middle band is the value, and a tapped number scrolls there. Values are "HH:MM"; with `placeholder` the field
 // may stay empty and the footer can clear it. `rule` says what may be picked.
 export function TimePicker({ label, value, onChange, rule, placeholder }: {
   label: string; value: string; onChange: (v: string) => void; rule: string; placeholder?: string;
@@ -18,12 +19,19 @@ export function TimePicker({ label, value, onChange, rule, placeholder }: {
   const minutes = useRef<HTMLDivElement>(null);
   const [h, m] = value ? value.split(':') : ['', ''];
   const close = (focus = true) => { setOpen(false); if (focus) trigger.current?.focus(); };
-  const focusIn = (group: HTMLDivElement | null) =>
-    (group?.querySelector<HTMLButtonElement>('[aria-pressed="true"]') ?? group?.querySelector<HTMLButtonElement>('button'))?.focus();
+  const pickHour = (x: string) => onChange(`${x}:${m || '00'}`);
+  const pickMinute = (x: string) => onChange(`${h || '00'}:${x}`);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    hours.current!.scrollTo({ top: Math.max(0, HOURS.indexOf(h)) * ROW, behavior: 'instant' });
+    minutes.current!.scrollTo({ top: Math.max(0, MINUTES.indexOf(m)) * ROW, behavior: 'instant' });
+    hours.current!.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    focusIn(hours.current);
     const outside = (e: MouseEvent) => { if (!e.composedPath().includes(root.current!)) setOpen(false); };
     document.addEventListener('mousedown', outside);
     return () => document.removeEventListener('mousedown', outside);
@@ -31,12 +39,20 @@ export function TimePicker({ label, value, onChange, rule, placeholder }: {
 
   function key(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
-    const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -6, ArrowDown: 6 } as Record<string, number>)[e.key];
-    const b = (e.target as HTMLElement).closest('.dc-time-opt');
-    if (!step || !b) return;
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.dc-time-opt');
+    if (!b) return;
+    const col = b.parentElement!;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const other = col === hours.current ? minutes.current : hours.current;
+      other?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      return;
+    }
+    const step = ({ ArrowUp: -1, ArrowDown: 1 } as Record<string, number>)[e.key];
+    if (!step) return;
     e.preventDefault();
-    const list = [...b.parentElement!.children] as HTMLButtonElement[];
-    list[list.indexOf(b as HTMLButtonElement) + step]?.focus();
+    const next = b[step < 0 ? 'previousElementSibling' : 'nextElementSibling'] as HTMLButtonElement | null;
+    if (next) { next.click(); next.focus({ preventScroll: true }); }
   }
 
   return (
@@ -48,25 +64,44 @@ export function TimePicker({ label, value, onChange, rule, placeholder }: {
         <Icon name="clock" />
       </button>
       <div className="dc-cal" id={`${id}-pop`} role="dialog" aria-label={`选择${label}`} hidden={!open} onKeyDown={key}>
-        <p className="dc-time-label" id={`${id}-h`}>时</p>
-        <div className="dc-time-grid" role="group" aria-labelledby={`${id}-h`} ref={hours}>
-          {HOURS.map((x) => (
-            <button key={x} className="dc-time-opt" type="button" aria-label={`${Number(x)}时`} aria-pressed={x === h}
-              onClick={() => { onChange(`${x}:${m || '00'}`); focusIn(minutes.current); }}>{x}</button>
-          ))}
-        </div>
-        <p className="dc-time-label" id={`${id}-m`}>分</p>
-        <div className="dc-time-grid" role="group" aria-labelledby={`${id}-m`} ref={minutes}>
-          {MINUTES.map((x) => (
-            <button key={x} className="dc-time-opt" type="button" aria-label={`${Number(x)}分`} aria-pressed={x === m}
-              onClick={() => { onChange(`${h || '00'}:${x}`); close(); }}>{x}</button>
-          ))}
+        <div className="dc-time-heads" aria-hidden="true"><p className="dc-time-label">时</p><p className="dc-time-label">分</p></div>
+        <div className="dc-time-wheels">
+          <Wheel ref={hours} name="时" items={HOURS} current={h} onPick={pickHour} />
+          <span className="dc-time-sep" aria-hidden="true">:</span>
+          <Wheel ref={minutes} name="分" items={MINUTES} current={m} onPick={pickMinute} />
         </div>
         <div className="dc-cal-foot">
           <span>{rule}</span>
-          {placeholder && value && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { onChange(''); close(); }}>{placeholder}</button>}
+          <span className="dc-time-acts">
+            {placeholder && value && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { onChange(''); close(); }}>{placeholder}</button>}
+            <button className="dc-btn dc-btn-primary dc-btn-sm" type="button" onClick={() => close()}>确定</button>
+          </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// One wheel. Scrolling snaps by row; once it has rested for a moment the number in the band is picked.
+function Wheel({ ref, name, items, current, onPick }: {
+  ref: React.RefObject<HTMLDivElement | null>; name: string; items: string[]; current: string; onPick: (x: string) => void;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const settle = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const x = items[Math.round(ref.current!.scrollTop / ROW)];
+      // an empty field shows the first row without having picked it
+      if (x && x !== (current || items[0])) onPick(x);
+    }, 120);
+  };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return (
+    <div className="dc-time-col" role="group" aria-label={name} ref={ref} onScroll={settle}>
+      {items.map((x, i) => (
+        <button key={x} className="dc-time-opt" type="button" aria-label={`${Number(x)}${name}`} aria-pressed={x === current}
+          onClick={() => { onPick(x); ref.current!.scrollTo({ top: i * ROW }); }}>{x}</button>
+      ))}
     </div>
   );
 }
