@@ -164,6 +164,10 @@ test('批量: create two staff logins at once, stop one, which then cannot sign 
   await confirmIn(page, '确认注销');
   await expect(page.locator('.dc-notice-success')).toContainText('已注销 1 个账号');
   await expect(page.getByRole('list', { name: '工作人员' })).not.toContainText('柜员乙');
+  // 待办 counts the stopped logins 已停用 lists; the closed one is gone for good.
+  const stopped = (await page.getByRole('group', { name: '筛选' }).getByRole('button', { name: /^已停用 \d+$/ }).textContent())!.match(/\d+/)![0];
+  await page.goto('/admin');
+  await expect(page.getByRole('link', { name: /个工作人员账号已停用/ })).toHaveText(new RegExp(`^${stopped} 个工作人员账号已停用`));
 
   await signIn(page, '工作人员', 'teller21', '/login?add=1', password);
   await expect(page.locator('.dc-notice-danger')).toContainText('这个账号已被停用');

@@ -62,7 +62,8 @@ export default function Admin() {
     queryKey: ['admin-overview', 'todo'],
     enabled: logins,
     queryFn: async () => {
-      const count = () => supabase.from('profiles').select('id', { count: 'exact', head: true });
+      // A closed login (注销) is disabled for good and no longer listed, so it is not a to-do.
+      const count = () => supabase.from('profiles').select('id', { count: 'exact', head: true }).is('closed_at', null);
       const [waiting, disabled] = await Promise.all([
         count().eq('login_kind', 'student').eq('must_change_password', true),
         count().eq('login_kind', 'staff').eq('disabled', true),
