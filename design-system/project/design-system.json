@@ -275,8 +275,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-02T08:00:00Z",
+    "at": "2026-11-03T08:00:00Z",
     "via": "Claude Code",
-    "note": "新增 TimePicker：24 小时制，先选时再选分"
+    "note": "新增 FilterBar：查询、流水、明细共用的筛选栏模板"
   }
 }

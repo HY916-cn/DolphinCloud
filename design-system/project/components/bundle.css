@@ -559,6 +559,22 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-search-clear { display: grid; place-items: center; width: 36px; height: 36px; flex: none; padding: 0; border: 0; border-radius: var(--radius-pill); background: var(--cloud-100); color: var(--dolphin-deep); cursor: pointer; }
 .dc-search-clear .dc-icon { width: 20px; height: 20px; color: inherit; }
 .dc-search-clear:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* FilterBar: one search, the days and the types; 时段 opens beside the days when asked for. */
+.dc-filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-4); }
+.dc-filter-row:has(> .dc-filter-pair) { align-items: flex-start; }
+.dc-filter-row > .dc-chips { flex: 1 1 auto; }
+.dc-filter-row > .dc-filter-pair, .dc-filter-row > .dc-field { flex: 1 1 320px; max-width: 480px; margin: 0; }
+.dc-filter-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.dc-filter-pair .dc-date-trigger { padding: 0 var(--space-3) 0 var(--space-4); }
+.dc-filter-pair .dc-date-trigger > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dc-filter-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-left: auto; }
+.dc-filter .dc-chip .dc-icon + .dc-icon { margin-left: var(--space-1); }
+@container app (max-width: 599px) {
+  /* Two fields side by side: their labels already show the icon. */
+  .dc-filter-pair .dc-date-trigger > .dc-icon { display: none; }
+  .dc-filter-actions { gap: var(--space-1); }
+  .dc-filter-actions > .dc-btn { padding-inline: var(--space-3); }
+}
 
 /* Slider — 滑块；--value（0～1）由使用者在 input 事件里更新 */
 .dc-slider { display: flex; flex-direction: column; gap: var(--space-2); }
