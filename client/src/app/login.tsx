@@ -52,7 +52,7 @@ export default function Login() {
       const locked = e.message.includes('LOGIN_LOCKED');
       return setError({ ...message(locked ? 'LOGIN_LOCKED' : e.code), n: (error?.n ?? 0) + 1 });
     }
-    if (!known) setSaved(data.user.id, save);
+    if (!known) await setSaved(data.user.id, save);
     queryClient.clear();
     router.replace('/');
   }

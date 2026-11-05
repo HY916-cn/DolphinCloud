@@ -85,7 +85,9 @@ export default function Serve() {
     changed();
   }
 
-  if (!student && !duty.data) {
+  // Closed until the server says the teller is on duty. Offline with no answer yet (a new device that lost the network
+  // first), it opens for offline deposits only: the server takes those without 上班 (require_duty).
+  if (!student && !duty.data && (online || duty.data === null)) {
     return <CounterPage title="办理"><DutyCard me={me} whole /></CounterPage>;
   }
   if (!student) {

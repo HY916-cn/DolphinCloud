@@ -48,8 +48,8 @@ export const medal = (rank: number) => `dc-medal ${['', 'is-gold', 'is-silver', 
 export function Podium({ rows }: { rows: Row[] }) {
   return (
     <ol className="dc-podium" aria-label="前三名">
-      {rows.slice(0, 3).map((row) => (
-        <li key={row.rank + row.name} className={row.me ? 'is-me' : undefined} aria-current={row.me || undefined}>
+      {rows.slice(0, 3).map((row, i) => (
+        <li key={i} className={row.me ? 'is-me' : undefined} aria-current={row.me || undefined}>
           <span className={medal(row.rank)} aria-label={`第 ${row.rank} 名`}>{row.rank}</span>
           <div className="dc-rank-name">{row.name}{row.me && <span className="dc-tag dc-tag-coin"><Icon name="me" />我</span>}</div>
           <div className="dc-rank-class">{row.class_label ?? `${row.cohort} 届`}</div>

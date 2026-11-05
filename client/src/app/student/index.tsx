@@ -68,6 +68,7 @@ export default function StudentHome() {
               <Icon name="next" />
             </a>
           )}
+          {ranking.error && <Notice tone="danger" title="暂时无法读取排名">请检查网络后刷新页面。</Notice>}
         </div>
       )}
     </Page>

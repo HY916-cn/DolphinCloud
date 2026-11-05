@@ -54,9 +54,39 @@ export function renameAccount(id: string, name: string) {
   store(savedAccounts().map((a) => (a.id === id && a.name !== name ? { ...a, name } : a)));
 }
 
+// What the app keeps for an account besides its session (who it is, the open duty) is stored where the session is:
+// on the device for an account saved here, until the tab is closed otherwise.
+const KEPT = (id: string) => [`dolphin.me:${id}`, `dolphin.duty:${id}`];
+export function keptStorage(id: string): Storage {
+  return savedAccounts().find((a) => a.id === id)?.saved ? localStorage : sessionStorage;
+}
+export function readKept(key: string) {
+  try {
+    return sessionStorage.getItem(key) ?? localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+export function writeKept(id: string, key: string, value: string) {
+  try {
+    const keep = keptStorage(id);
+    keep.setItem(key, value);
+    (keep === localStorage ? sessionStorage : localStorage).removeItem(key);
+  } catch {
+    // Private mode: offline reloads are unavailable.
+  }
+}
+function moveKept(id: string) {
+  for (const key of KEPT(id)) {
+    const value = readKept(key);
+    if (value !== null) writeKept(id, key, value);
+  }
+}
+
 // 在此设备保存登录: whether this account stays signed in on this device, and switching back to it needs no password.
 export async function setSaved(id: string, saved: boolean) {
   store(savedAccounts().map((a) => (a.id === id ? { ...a, saved, session: null } : a)));
+  moveKept(id);
   keepSession();
   const { data } = await supabase.auth.getSession();
   if (saved && data.session?.user.id === id) rememberSession(data.session);
@@ -65,10 +95,13 @@ export async function setSaved(id: string, saved: boolean) {
 export function forgetAccount(id: string) {
   store(savedAccounts().filter((a) => a.id !== id));
   dropRoster(id).catch(() => {});
-  try {
-    localStorage.removeItem(`dolphin.me:${id}`);
-  } catch {
-    // Nothing was kept.
+  for (const key of KEPT(id)) {
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    } catch {
+      // Nothing was kept.
+    }
   }
 }
 

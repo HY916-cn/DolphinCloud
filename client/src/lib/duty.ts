@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderDoc } from './doc';
 import { formatAmount, formatTime } from './format';
+import { readKept, writeKept } from './accounts';
 import { supabase } from './supabase';
 import { KINDS } from './txns';
 
@@ -14,7 +15,7 @@ export function useDuty(uid: string) {
     queryKey: ['duty', uid],
     initialData: () => {
       try {
-        const saved = localStorage.getItem(key(uid));
+        const saved = readKept(key(uid));
         return saved === null ? undefined : (JSON.parse(saved) as Duty | null);
       } catch {
         return undefined;
@@ -25,11 +26,7 @@ export function useDuty(uid: string) {
       const { data, error } = await supabase.from('duty').select('id,user_id,started_at,ended_at,txns')
         .eq('user_id', uid).is('ended_at', null).maybeSingle();
       if (error) throw error;
-      try {
-        localStorage.setItem(key(uid), JSON.stringify(data));
-      } catch {
-        // Private mode: an offline reload asks again.
-      }
+      writeKept(uid, key(uid), JSON.stringify(data));
       return data as Duty | null;
     },
   });

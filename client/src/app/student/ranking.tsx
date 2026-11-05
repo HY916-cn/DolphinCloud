@@ -24,7 +24,7 @@ export default function StudentRanking() {
             {!r ? <TxnListLoading label="正在加载排名" /> : r.top.length ? <>
               <div className="dc-section-head"><h2 className="heading">{division}存款榜</h2></div>
               <Podium rows={r.top} />
-              {r.top.length > 3 && <ol className="dc-ranks">{r.top.slice(3).map((row) => <RankRow key={row.rank + row.name} row={row} bar={bar(row.balance)} />)}</ol>}
+              {r.top.length > 3 && <ol className="dc-ranks">{r.top.slice(3).map((row, i) => <RankRow key={i} row={row} bar={bar(row.balance)} />)}</ol>}
             </> : (
               <div className="dc-card">
                 <div className="dc-empty">
@@ -53,7 +53,7 @@ export default function StudentRanking() {
             )}
             {r?.me && !r.top.some((t) => t.me) && <>
               <div className="dc-section-head"><h2 className="heading">我的前后</h2></div>
-              <ol className="dc-ranks">{r.me.near.map((row) => <RankRow key={row.rank + row.name} row={row} bar={bar(row.balance)} />)}</ol>
+              <ol className="dc-ranks">{r.me.near.map((row, i) => <RankRow key={i} row={row} bar={bar(row.balance)} />)}</ol>
             </>}
           </div>
         </div>

@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { rememberSession, renameAccount } from './accounts';
+import { readKept, rememberSession, renameAccount, writeKept } from './accounts';
 import { supabase, type LoginKind } from './supabase';
 
 export type Role = 'teller' | 'accountant' | 'storekeeper' | 'president' | 'teacher' | 'sysadmin';
@@ -37,7 +37,7 @@ export const useSession = () => useContext(SessionContext);
 const meKey = (uid: string) => `dolphin.me:${uid}`;
 function savedMe(uid: string | undefined): Me | undefined {
   try {
-    return uid ? JSON.parse(localStorage.getItem(meKey(uid)) ?? 'null') ?? undefined : undefined;
+    return uid ? JSON.parse(readKept(meKey(uid)) ?? 'null') ?? undefined : undefined;
   } catch {
     return undefined;
   }
@@ -67,11 +67,7 @@ export function useMe() {
         roles: roles.data.map((r) => r.role as Role),
         student: (student.data as Student | null) ?? null,
       };
-      try {
-        localStorage.setItem(meKey(uid!), JSON.stringify(me));
-      } catch {
-        // Private mode: offline reloads are unavailable.
-      }
+      writeKept(uid!, meKey(uid!), JSON.stringify(me));
       return me;
     },
   });

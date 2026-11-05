@@ -108,6 +108,7 @@ test('今日业务: today\'s totals, 冲正 of the deposit, and back to that stu
 test('offline deposit is registered, then uploaded once online', async ({ page, context }) => {
   await signIn(page, '工作人员', 'teller01');
   await expect(page).toHaveURL(/\/counter$/);
+  await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeVisible(); // on duty
   await page.waitForLoadState('networkidle'); // the roster is kept for offline searches
   await context.setOffline(true);
   await expect(page.locator('.dc-notice', { hasText: '离线登记' })).toBeVisible();
@@ -128,6 +129,19 @@ test('offline deposit is registered, then uploaded once online', async ({ page, 
   await expect(page.locator('.dc-notice', { hasText: '待上传' })).toHaveCount(0);
   await findStudent(page, 'lsy', '李思远');
   await expect(page.locator('.dc-person')).toContainText('47');
+});
+
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
+  test('a new device that loses the network before it knows 上班 still registers offline deposits', async ({ page, context }) => {
+    await page.route('**/rest/v1/duty?*', () => {}); // the answer never comes
+    await signIn(page, '工作人员', 'teller01');
+    await expect(page).toHaveURL(/\/counter$/);
+    await expect(page.locator('[aria-label="正在读取上班状态"]')).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.locator('.dc-notice', { hasText: '离线登记' })).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeVisible();
+  });
 });
 
 test('the counter reopens without a network once installed', async ({ page, context }) => {

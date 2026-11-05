@@ -53,7 +53,9 @@ export function PassbookSeal() {
 
 // "11月3日" as a passbook prints it, "11-03", on one line; below it the time, or for an earlier year the year.
 const printed = (day: string) => {
-  const [, y, m, d] = day.match(/(?:(\d{4})年)?(\d+)月(\d+)日/)!;
+  const found = day.match(/(?:(\d{4})年)?(\d+)月(\d+)日/);
+  if (!found) return { date: day, year: undefined };
+  const [, y, m, d] = found;
   return { date: `${m.padStart(2, '0')}-${d.padStart(2, '0')}`, year: y && `${y}年` };
 };
 
