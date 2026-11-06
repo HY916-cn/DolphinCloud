@@ -784,7 +784,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
    纸页色 #f7faff，打印墨色 #1d2438，印章红 rgb(198 40 40)，其余用 tokens */
 .dc-passbook { --pb-paper: #f7faff; --pb-ink: #1d2438; --pb-rule: rgba(21, 70, 196, .22); --pb-rule-strong: rgba(21, 70, 196, .6); --pb-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   position: relative; display: grid; padding: 6px; border-radius: 14px; background: linear-gradient(160deg, #2152d0, #163a9e); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 1px 2px rgba(13, 30, 80, .25), 0 18px 36px -18px rgba(13, 30, 80, .55); }
-.dc-pb-page { position: relative; box-sizing: border-box; min-width: 0; padding: var(--space-5) var(--space-4) var(--space-4); color: var(--pb-ink);
+.dc-pb-page { position: relative; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; padding: var(--space-5) var(--space-4) var(--space-4); color: var(--pb-ink);
   background: repeating-radial-gradient(circle at 0 100%, rgba(31, 95, 245, .045) 0 1px, transparent 1px 6px), repeating-radial-gradient(circle at 100% 0, rgba(42, 191, 212, .05) 0 1px, transparent 1px 6px), var(--pb-paper); }
 .dc-pb-page:first-child { border-radius: 9px 9px 0 0; }
 .dc-pb-page:last-child { border-radius: 0 0 9px 9px; }
@@ -818,11 +818,12 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-pb-table .is-num { text-align: right; white-space: nowrap; }
 .dc-pb-table td.is-date { white-space: nowrap; }
 .dc-pb-table td.is-date small { white-space: nowrap; }
-.dc-pb-table td.is-text, .dc-pb-table td.is-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-pb-table td.is-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-pb-clamp { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .dc-pb-table td small { display: block; font: 500 11px/14px var(--font-sans); color: var(--ink-muted); text-shadow: none; white-space: normal; }
 .dc-pb-table tr.dc-txn { display: table-row; padding: 0; border: 0; }
 .dc-pb-table tr.is-new td { animation: dc-highlight 1200ms ease-out; }
-.dc-pb-foot { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); font: 600 12px/16px var(--font-sans); letter-spacing: .14em; color: var(--dolphin-deep); opacity: .7; }
+.dc-pb-foot { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding-top: var(--space-3); font: 600 12px/16px var(--font-sans); letter-spacing: .14em; color: var(--dolphin-deep); opacity: .7; }
 .dc-pb-empty { padding: var(--space-6) 0; text-align: center; font: 600 15px/24px var(--font-sans); color: var(--ink-muted); }
 .dc-pb-empty b { display: block; font: 800 18px/26px var(--font-sans); color: var(--ink); }
 @container app (min-width: 600px) {
@@ -904,6 +905,30 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-pb-table tr.is-me td.is-text small { display: inline; margin-left: var(--space-1); color: var(--coin-ink); font: 800 12px/18px var(--font-sans); }
 .dc-pb-note { margin: var(--space-3) 0; padding: var(--space-2) var(--space-3); border: 1px dashed var(--pb-rule-strong); font: 600 15px/22px var(--font-sans); color: var(--pb-ink); }
 .dc-pb-note b { font-weight: 800; }
-.dc-pb-actions { padding: 0 var(--space-4); background: rgba(255, 255, 255, .7); border: 1px solid var(--pb-rule-strong); border-radius: 4px; }
+.dc-pb-actions { padding: 0 var(--space-3); background: transparent; border: 1px solid var(--pb-rule-strong); border-radius: 0; }
+.dc-pb-actions > li + li { border-top: 1px solid var(--pb-rule); }
+.dc-pb-actions .dc-list-link, .dc-pb-actions .dc-switch-text b { font-size: 16px; letter-spacing: .06em; }
+.dc-pb-actions .dc-list-icon { width: 32px; height: 32px; border-radius: 0; background: transparent; color: var(--dolphin-deep); }
+.dc-pb-actions .is-danger .dc-list-icon { color: rgb(198 40 40); }
+.dc-pb-actions .is-danger { color: rgb(198 40 40); }
+.dc-pb-actions .dc-list-link .dc-list-icon { background: transparent; }
+.dc-pb-chop-box { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding: var(--space-3) var(--space-4); border: 1px solid var(--pb-rule-strong); }
+.dc-pb-chop-box > span { font: 700 13px/20px var(--font-sans); letter-spacing: .2em; color: var(--dolphin-deep); }
+.dc-pb-chop { display: block; box-sizing: border-box; width: 68px; height: 68px; padding: 4px; border: 3px solid currentColor; border-radius: 4px; color: rgb(198 40 40); font: 700 26px/29px "Songti SC", "STSong", "SimSun", serif; writing-mode: vertical-rl; text-align: center; opacity: .88; transform: rotate(3deg); mix-blend-mode: multiply; }
+.dc-pb-sub { margin: var(--space-5) 0 var(--space-2); font: 800 14px/20px var(--font-sans); letter-spacing: .3em; color: var(--dolphin-deep); }
+.dc-pb-rules { margin: auto 0 0; padding: var(--space-5) 0 0 var(--space-5); color: var(--dolphin-deep); font: 500 12px/20px var(--font-sans); letter-spacing: .04em; opacity: .8; }
+.dc-pb-rules::before { content: "存折须知"; display: block; margin: 0 0 var(--space-1) calc(-1 * var(--space-5)); font-weight: 800; letter-spacing: .3em; }
+@container app (max-width: 599px) {
+  .dc-pb-types { gap: 4px; }
+  .dc-pb-types button { min-height: 40px; padding: 0 10px; font-size: 13px; letter-spacing: .04em; }
+}
+@container app (min-width: 1024px) {
+  /* 纸页的厚度：外侧边缘一层层叠着的纸边；换栏目时右页从中缝翻过来 */
+  .dc-book-open .dc-passbook.is-spread .dc-pb-page:first-child { box-shadow: inset -16px 0 16px -16px rgba(13, 30, 80, .4), inset 1px 0 0 #cfd8ec, inset 2px 0 0 #fbfcff, inset 3px 0 0 #cfd8ec, inset 4px 0 0 #fbfcff, inset 5px 0 0 #d8e0f0; }
+  .dc-book-open .dc-passbook.is-spread .dc-pb-page:last-child { box-shadow: inset 16px 0 16px -16px rgba(13, 30, 80, .4), inset -1px 0 0 #cfd8ec, inset -2px 0 0 #fbfcff, inset -3px 0 0 #cfd8ec, inset -4px 0 0 #fbfcff, inset -5px 0 0 #d8e0f0; }
+  .dc-book-turn { animation: none; }
+  .dc-book-turn .dc-passbook.is-spread .dc-pb-page:last-child { transform-origin: left center; animation: dc-page-flip 520ms var(--ease-out) both; }
+}
+@keyframes dc-page-flip { from { transform: perspective(2000px) rotateY(-80deg); filter: brightness(.85); } }
 
 

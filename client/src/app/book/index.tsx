@@ -20,6 +20,7 @@ export default function BookAccount() {
           <dt>账号</dt><dd>{student.student_no}</dd>
           <dt>班级</dt><dd>{student.class_label ?? `${student.class_no} 班`}</dd>
           <dt>学部</dt><dd>{DIVISIONS[student.division]}</dd>
+          <dt>储种</dt><dd>活期储蓄 · 海豚币（HTB）</dd>
         </dl>
         {term.error ? <Notice tone="danger" title="暂时无法读取账户">请检查网络后刷新页面。</Notice> : <>
           <div className="dc-pb-balance">
@@ -32,6 +33,10 @@ export default function BookAccount() {
             {r?.me && <><dt>存款排名</dt><dd>第 {r.me.rank} 名<small>{DIVISIONS[r.division]} {r.total} 人</small></dd></>}
           </dl>
         </>}
+        <ol className="dc-pb-rules" aria-label="存折须知">
+          <li>本存折只限本人使用，密码不要告诉别人。</li>
+          <li>每一笔存取和兑换都印在交易记录里，可随时到柜台核对。</li>
+        </ol>
       </PassbookPage>
       <PassbookPage title="交易记录" side={<a {...link('/book/txns')}>翻看全部</a>} foot="第 1 页">
         {txns.error ? <Notice tone="danger" title="暂时无法读取交易">请检查网络后刷新页面。</Notice>

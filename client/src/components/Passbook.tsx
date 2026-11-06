@@ -78,7 +78,7 @@ export function PassbookRows({ items, lines = 0 }: { items: Txn[]; lines?: numbe
             <tr key={t.key} className="dc-txn">
               <td className="is-line">{i + 1}</td>
               <td className="is-date">{date}<small>{year || time}</small></td>
-              <td className="is-text" title={[t.title, cash].filter(Boolean).join('\n')}>{t.title}{cash && <small>{cash}</small>}</td>
+              <td className="is-text" title={[t.title, cash].filter(Boolean).join('\n')}><span className="dc-pb-clamp">{t.title}</span>{cash && <small>{cash}</small>}</td>
               <td className="is-num is-out">{t.amount < 0 ? formatAmount(-t.amount) : ''}</td>
               <td className="is-num is-in">{t.amount > 0 ? formatAmount(t.amount) : ''}</td>
               <td className="is-num">{t.after === undefined ? '' : formatAmount(t.after)}</td>

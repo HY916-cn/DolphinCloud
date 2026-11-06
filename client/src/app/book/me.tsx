@@ -4,7 +4,10 @@ import { useMe } from '@/lib/session';
 
 const STATUS = { normal: '在读', frozen: '已冻结', graduated: '已毕业' } as const;
 
-// 我的: the account holder's page; facing it, the 存折's own settings: the 普通版, 切换账号, 在此设备保存登录, and closing
+// The holder's name seal, four characters in two columns as a 印章 has them: 张小明印, 王雨之印.
+const chop = (name: string) => (name.length === 2 ? `${name}之印` : name.length === 3 ? `${name}印` : name.slice(0, 4));
+
+// 我的: the account holder's page with the name seal kept on file; facing it, the 存折's own settings: the 普通版, 切换账号, 在此设备保存登录, and closing
 // the 存折, which signs out.
 export default function BookMe() {
   const me = useMe().data!;
@@ -27,6 +30,7 @@ export default function BookMe() {
           <dt>本学期存入</dt><dd className="is-in">{term ? signed(term.saved) : '…'}</dd>
           <dt>本学期支出</dt><dd>{term ? signed(term.spent) : '…'}</dd>
         </dl>
+        <div className="dc-pb-chop-box"><span>预留印鉴</span><b className="dc-pb-chop" aria-hidden="true">{chop(s.name)}</b></div>
       </PassbookPage>
       <PassbookPage title="存折设置">
         <ul className="dc-list dc-pb-actions">
