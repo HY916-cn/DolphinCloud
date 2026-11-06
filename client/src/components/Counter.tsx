@@ -11,6 +11,7 @@ import { useMe } from '@/lib/session';
 import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
 import { ListLoading } from './Skeleton';
+import { Avatar } from './Avatar';
 import { Icon, link, Notice } from './ui';
 
 // QtyStepper: one card per face value, two columns, counts entered with − / + or typed.
@@ -83,7 +84,7 @@ export function FindStudent({ onFound, offline, recent = [] }: { onFound: (s: St
       {rows.map((s) => (
         <li key={s.student_no}>
           <a className="dc-list-link" href={`#${s.student_no}`} aria-busy={reading === s.student_no} onClick={(e) => { e.preventDefault(); pick(s); }}>
-            <span className="dc-list-icon"><Icon name="me" /></span>
+            <Avatar role="student" />
             <span>{s.name}<small className="dc-top-sub">{classOf(s)} · 学号 {s.student_no}</small></span>
             {reading === s.student_no ? <small className="dc-top-sub">正在读取</small> : <Icon name="next" />}
           </a>

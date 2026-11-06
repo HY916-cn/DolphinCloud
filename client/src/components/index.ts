@@ -25,3 +25,4 @@ export { BatchBar, eachOf, passwordPages, Pick, type StaffPassword } from './Bat
 export { FilterBar, filtered, NO_FILTER, type Chip, type Filter, type Suggestion } from './Filter';
 export { Passbook, PassbookPage, PassbookRows, PassbookSeal } from './Passbook';
 export { BookCover, BookShell, useCloseBook, ViewSwitch } from './Book';
+export { Avatar } from './Avatar';

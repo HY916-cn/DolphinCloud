@@ -1,6 +1,7 @@
 import { savedAccounts } from '@/lib/accounts';
 import { formatAmount } from '@/lib/format';
-import { ROLES, type Me, type Student } from '@/lib/session';
+import { roleOf, ROLES, type Me, type Student } from '@/lib/session';
+import { Avatar } from './Avatar';
 import { signed, useTerm } from './Account';
 import { SaveLogin } from './Accounts';
 import { ViewSwitch } from './Book';
@@ -39,7 +40,7 @@ export function MeView({ me }: { me: Me }) {
   const main = (
     <div className="dc-stack dc-enter">
       <div className="dc-person">
-        <span className="dc-person-avatar"><Icon name={s ? 'me' : 'teacher'} /></span>
+        <Avatar role={roleOf(me)} lg className="dc-person-avatar" />
         <div className="dc-person-main">
           <div className="dc-person-name">{me.profile.display_name}</div>
           <div className="dc-person-meta">

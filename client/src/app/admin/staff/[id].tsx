@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SalaryAccount, SkeletonGroup, Summary } from '@/components';
+import { Avatar, CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SalaryAccount, SkeletonGroup, Summary } from '@/components';
 import { usePayroll } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
@@ -52,7 +52,7 @@ export default function StaffLogin() {
         <div className="dc-split">
           <div className="dc-stack dc-enter">
             <div className="dc-person">
-              <span className="dc-person-avatar"><Icon name="teacher" /></span>
+              <Avatar role={p.role} lg className="dc-person-avatar" />
               <div className="dc-person-main">
                 <div className="dc-person-name">{p.display_name}</div>
                 <div className="dc-person-meta"><span>{p.role ? ROLES[p.role] : '未分配身份'}</span> · <span>账号 {p.login_id}</span></div>

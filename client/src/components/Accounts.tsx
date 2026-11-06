@@ -2,6 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { checkPassword, savedAccounts, setSaved, signOutAll, switchAccount, type SavedAccount } from '@/lib/accounts';
+import { savedRole } from '@/lib/session';
+import { Avatar } from './Avatar';
 import { ConfirmSheet } from './Sheet';
 import { Icon, link, Notice } from './ui';
 
@@ -70,7 +72,7 @@ export function DeviceAccounts({ current }: { current?: string }) {
         {accounts.map((a) => {
           const body = (
             <>
-              <span className="dc-list-icon"><Icon name={a.kind === 'student' ? 'me' : 'teacher'} /></span>
+              <Avatar role={a.kind === 'student' ? 'student' : savedRole(a.id)} />
               <span>{a.name}<small className="dc-top-sub">{who(a)}{a.id !== current && !(a.saved && a.session) && ' · 需要输入密码'}</small></span>
             </>
           );

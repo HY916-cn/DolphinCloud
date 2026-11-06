@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, noticePages, openingPages, OutputSheet, Pick,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, noticePages, openingPages, OutputSheet, Pick,
   today, type NoticeAccount,
 } from '@/components';
 import { classOf } from '@/lib/counter';
@@ -212,7 +212,7 @@ function Row({ s, pick }: { s: AdminStudent; pick: React.ReactNode }) {
     <li className={pick ? 'bt-row' : undefined}>
       {pick}
       <a className="dc-list-link" {...link(`/admin/students/${s.student_no}`)}>
-        <span className="dc-list-icon"><Icon name="me" /></span>
+        <Avatar role="student" />
         <span>
           {s.name}
           {s.profiles?.must_change_password && <> <span className="dc-tag"><Icon name="lock" />未设置密码</span></>}

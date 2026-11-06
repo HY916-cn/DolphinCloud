@@ -8,6 +8,8 @@ export type Role = 'teller' | 'accountant' | 'storekeeper' | 'president' | 'teac
 export const ROLES: Record<Role, string> = {
   teller: '柜员', accountant: '财务', storekeeper: '库管', president: '行长', teacher: '银行管理员', sysadmin: '运维员',
 };
+// The identity an account shows: a student login, one of the staff roles, or null for a login with none yet.
+export type AccountRole = Role | 'student' | null;
 export type Profile = { id: string; login_kind: LoginKind; login_id: string; display_name: string; must_change_password: boolean; disabled: boolean };
 export type Student = { student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number; class_label: string | null };
 export type Me = { profile: Profile; roles: Role[]; student: Student | null };
@@ -41,6 +43,13 @@ function savedMe(uid: string | undefined): Me | undefined {
   } catch {
     return undefined;
   }
+}
+
+export const roleOf = (me: Me): AccountRole => (me.student ? 'student' : me.roles[0] ?? null);
+// The identity of an account signed in on this device, from what was kept of it; undefined when nothing was kept.
+export function savedRole(uid: string): AccountRole | undefined {
+  const me = savedMe(uid);
+  return me && roleOf(me);
 }
 
 // Who is signed in: profile, roles and (for a student login) the student record.

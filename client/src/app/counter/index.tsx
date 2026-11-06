@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CounterPage, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, type IconName, type Served,
+  Avatar, CounterPage, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, type IconName, type Served,
 } from '@/components';
 import { classOf, lookupStudent, useMyDay, useSettings, type Student, type TxnResult } from '@/lib/counter';
 import { useDuty } from '@/lib/duty';
@@ -110,7 +110,7 @@ export default function Serve() {
   return (
     <CounterPage title="办理" onBack={end}>
       <div className="dc-person">
-        <span className="dc-person-avatar"><Icon name="me" /></span>
+        <Avatar role="student" lg className="dc-person-avatar" />
         <div className="dc-person-main">
           <div className="dc-person-name">{student.name}</div>
           <div className="dc-person-meta">{classOf(student)} · 学号 {student.student_no}</div>

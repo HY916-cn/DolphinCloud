@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, OutputSheet, passwordPages, Pick, today,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, OutputSheet, passwordPages, Pick, today,
   type StaffPassword,
 } from '@/components';
 import { call } from '@/lib/rpc';
@@ -97,7 +97,7 @@ export default function Staff() {
                 }} />
               ) : <span className="bt-pick" />)}
               <a className="dc-list-link" {...link(`/admin/staff/${p.id}`)}>
-                <span className="dc-list-icon"><Icon name="teacher" /></span>
+                <Avatar role={p.role} />
                 <span>
                   {p.display_name}
                   {p.disabled && <> <span className="dc-tag dc-tag-danger"><Icon name="warning" />已停用</span></>}

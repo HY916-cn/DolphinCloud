@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
+import { Avatar, CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -81,7 +81,7 @@ export default function Student() {
         <div className="dc-split">
           <div className="dc-stack dc-enter">
             <div className="dc-person">
-              <span className="dc-person-avatar"><Icon name="me" /></span>
+              <Avatar role="student" lg className="dc-person-avatar" />
               <div className="dc-person-main">
                 <div className="dc-person-name">
                   {s.name}

@@ -69,7 +69,7 @@
 
 ## 图标
 
-- 图标使用 [morphicons](https://www.morphicons.com/) 的默认图标集 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 33 个图标（21 个业务图标和 12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 图标使用 [morphicons](https://www.morphicons.com/) 的默认图标集 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 40 个图标（21 个业务图标、12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
 - 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
 - 图标在两种状态之间切换时（底部导航选中、展开 / 收起、办理完成打勾），用 morphicons（`npm install morphicons`）做形变过渡，时长不超过 200ms。
 - 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、导航 30px、提示条和余额卡 36px、宫格 52px。
@@ -83,7 +83,7 @@
 - 布局：`AppShell`（多端外壳与导航）、`ActionBar`（页面操作栏）、`WaveDivider`。
 - 操作与导航：`Button`、`ServiceTile`、`TabBar`、`Tabs`、`Segmented`、`FilterChips`。
 - 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`Slider`、`QtyStepper`。
-- 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`PersonCard`、`SummaryList`、`Progress`、`ListGroup`。
+- 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`Avatar`（账号头像，角标表示身份）、`PersonCard`、`SummaryList`、`Progress`、`ListGroup`。
 - 引导与反馈：`GuideBubble`、`Steps`、`Tag`、`Badge`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
 
 选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；在范围内取值用 `Slider`；学生在普通版和存折版之间选用 `ViewSwitch`。
