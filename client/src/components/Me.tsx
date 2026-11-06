@@ -3,6 +3,7 @@ import { formatAmount } from '@/lib/format';
 import { ROLES, type Me, type Student } from '@/lib/session';
 import { signed, useTerm } from './Account';
 import { SaveLogin } from './Accounts';
+import { ViewSwitch } from './Book';
 import { DIVISIONS } from './Ranking';
 import { SignOut } from './Sheet';
 import { Icon, link } from './ui';
@@ -30,8 +31,8 @@ function StudentAccount({ s }: { s: Student }) {
   );
 }
 
-// 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号; a student can
-// open the 存折版 from here, and sees 我的账户 beside the list.
+// 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号; a student also
+// picks the 页面样式 (普通版 or 存折版) here, and sees 我的账户 beside the list.
 export function MeView({ me }: { me: Me }) {
   const s = me.student;
   const others = savedAccounts().filter((a) => a.id !== me.profile.id).length;
@@ -47,6 +48,7 @@ export function MeView({ me }: { me: Me }) {
           </div>
         </div>
       </div>
+      {s && <ViewSwitch current="normal" />}
       <ul className="dc-list">
         <li>
           <a className="dc-list-link" {...link('/login?switch=1')}>
@@ -55,15 +57,6 @@ export function MeView({ me }: { me: Me }) {
             <Icon name="next" />
           </a>
         </li>
-        {s && (
-          <li>
-            <a className="dc-list-link" {...link('/book')}>
-              <span className="dc-list-icon"><Icon name="passbook" /></span>
-              <span>存折版<small className="dc-top-sub">把账户装进一本存折里翻看</small></span>
-              <Icon name="next" />
-            </a>
-          </li>
-        )}
         <li><SaveLogin id={me.profile.id} /></li>
         <li>
           <SignOut trigger={(open) => (

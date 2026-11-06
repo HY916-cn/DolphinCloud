@@ -43,8 +43,10 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = 
 }
 
 // Sign out after a confirmation, then 切换账号 (the login page with this device's accounts); `trigger` draws the
-// control that opens the sheet.
-export function SignOut({ trigger, to = '/login' }: { trigger: (open: () => void) => ReactNode; to?: '/login' | '/book' }) {
+// control that opens the sheet, and `before` runs first with the sign-out to call when it is done (the 存折 closing).
+export function SignOut({ trigger, to = '/login', before }: {
+  trigger: (open: () => void) => ReactNode; to?: '/login' | '/book'; before?: (then: () => Promise<void>) => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   return (
@@ -54,9 +56,12 @@ export function SignOut({ trigger, to = '/login' }: { trigger: (open: () => void
         <ConfirmSheet title="退出登录" text="退出后，这台设备不再保存这个账号，下次使用需要重新输入密码。" confirm="退出登录"
           onClose={() => setOpen(false)}
           onConfirm={async () => {
-            await signOutCurrent();
-            queryClient.clear();
-            router.replace(to);
+            const leave = async () => {
+              await signOutCurrent();
+              queryClient.clear();
+              router.replace(to);
+            };
+            if (before) { setOpen(false); await before(leave); } else await leave();
           }} />
       )}
     </>

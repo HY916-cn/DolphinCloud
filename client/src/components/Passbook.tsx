@@ -61,8 +61,9 @@ const printed = (day: string) => {
 
 // The printed lines, newest first, each with its line number: date and time, 摘要, 支取 or 存入 unsigned in its own
 // column, and the balance after it; a cash business leaves both columns empty and says so under 摘要. `lines` prints
-// ruled empty lines up to that many, as on a page not yet filled.
-export function PassbookRows({ items, lines = 0 }: { items: Txn[]; lines?: number }) {
+// ruled empty lines up to that many, as on a page not yet filled; the first `fresh` lines are printed as you watch,
+// the oldest of them first, as the counter's printer does when it brings a 存折 up to date.
+export function PassbookRows({ items, lines = 0, fresh = 0 }: { items: Txn[]; lines?: number; fresh?: number }) {
   const blank = Math.max(0, lines - items.length);
   return (
     <table className="dc-pb-table">
@@ -75,7 +76,8 @@ export function PassbookRows({ items, lines = 0 }: { items: Txn[]; lines?: numbe
           const { date, year } = printed(d);
           const cash = t.amount ? '' : `${t.note} · ${formatAmount(t.paid)} HTB`;
           return (
-            <tr key={t.key} className="dc-txn">
+            <tr key={t.key} className={`dc-txn ${i < fresh ? 'is-printing' : ''}`}
+              style={i < fresh ? { '--row': fresh - 1 - i } as React.CSSProperties : undefined}>
               <td className="is-line">{i + 1}</td>
               <td className="is-date">{date}<small>{year || time}</small></td>
               <td className="is-text" title={[t.title, cash].filter(Boolean).join('\n')}><span className="dc-pb-clamp">{t.title}</span>{cash && <small>{cash}</small>}</td>

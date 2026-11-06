@@ -1,4 +1,4 @@
-import { DIVISIONS, Icon, link, Passbook, PassbookPage, SaveLogin, signed, SignOut, useTerm } from '@/components';
+import { DIVISIONS, Icon, link, Passbook, PassbookPage, SaveLogin, signed, SignOut, useCloseBook, useTerm, ViewSwitch } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
@@ -7,12 +7,13 @@ const STATUS = { normal: '在读', frozen: '已冻结', graduated: '已毕业' }
 // The holder's name seal, four characters in two columns as a 印章 has them: 张小明印, 王雨之印.
 const chop = (name: string) => (name.length === 2 ? `${name}之印` : name.length === 3 ? `${name}印` : name.slice(0, 4));
 
-// 我的: the account holder's page with the name seal kept on file; facing it, the 存折's own settings: the 普通版, 切换账号, 在此设备保存登录, and closing
-// the 存折, which signs out.
+// 我的: the account holder's page with the name seal kept on file; facing it, the 存折's own settings: 页面样式, 切换账号,
+// 在此设备保存登录, and closing the 存折, which signs out once its cover has shut.
 export default function BookMe() {
   const me = useMe().data!;
   const s = me.student!;
   const term = useTerm(s.student_no).data;
+  const close = useCloseBook();
 
   return (
     <Passbook spread>
@@ -33,13 +34,8 @@ export default function BookMe() {
         <div className="dc-pb-chop-box"><span>预留印鉴</span><b className="dc-pb-chop" aria-hidden="true">{chop(s.name)}</b></div>
       </PassbookPage>
       <PassbookPage title="存折设置">
+        <ViewSwitch current="book" />
         <ul className="dc-list dc-pb-actions">
-          <li>
-            <a className="dc-list-link" {...link('/student')}>
-              <span className="dc-list-icon"><Icon name="home" /></span>
-              <span>普通版<small className="dc-top-sub">换回卡片式的页面</small></span><Icon name="next" />
-            </a>
-          </li>
           <li>
             <a className="dc-list-link" {...link('/login?switch=1')}>
               <span className="dc-list-icon"><Icon name="me" /></span>
@@ -48,7 +44,7 @@ export default function BookMe() {
           </li>
           <li><SaveLogin id={me.profile.id} /></li>
           <li>
-            <SignOut to="/book" trigger={(open) => (
+            <SignOut to="/book" before={close} trigger={(open) => (
               <a className="dc-list-link is-danger" href="#" role="button" onClick={(e) => { e.preventDefault(); open(); }}>
                 <span className="dc-list-icon"><Icon name="lock" /></span><span>合上存折<small className="dc-top-sub">退出登录，下次用密码打开</small></span><Icon name="next" />
               </a>

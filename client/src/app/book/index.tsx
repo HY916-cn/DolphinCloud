@@ -1,16 +1,25 @@
+import { useEffect, useState } from 'react';
 import { DIVISIONS, link, Notice, Passbook, PassbookPage, PassbookRows, PassbookSeal, signed, TxnListLoading, useRanking, useTerm } from '@/components';
 import { formatAmount, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { useMe } from '@/lib/session';
 
 // 账户: the account's page with the balance under the bank's seal, this term's money in and out and the place in the
-// division; facing it, the nine latest businesses with the balance after each.
+// division; facing it, the nine latest businesses with the balance after each, the ones new since this device last
+// opened it printed as you watch.
 export default function BookAccount() {
   const student = useMe().data!.student!;
   const term = useTerm(student.student_no);
   const ranking = useRanking(student.student_no);
   const txns = useRecent(student.student_no);
   const r = ranking.data;
+  // The latest business already printed in this 存折 on this device; the ones after it are printed on opening (补登).
+  const key = `dolphin.book-printed.${student.student_no}`;
+  const [printed] = useState(() => { try { return localStorage.getItem(key); } catch { return null; } });
+  const latest = txns.data?.[0]?.key;
+  useEffect(() => { try { if (latest) localStorage.setItem(key, latest); } catch { /* nothing is kept */ } }, [key, latest]);
+  const at = txns.data?.findIndex((t) => t.key === printed) ?? -1;
+  const fresh = !txns.data ? 0 : at < 0 ? txns.data.length : at;
 
   return (
     <Passbook spread>
@@ -40,7 +49,7 @@ export default function BookAccount() {
       </PassbookPage>
       <PassbookPage title="交易记录" side={<a {...link('/book/txns')}>翻看全部</a>} foot="第 1 页">
         {txns.error ? <Notice tone="danger" title="暂时无法读取交易">请检查网络后刷新页面。</Notice>
-          : !txns.data ? <TxnListLoading /> : txns.data.length ? <PassbookRows items={txns.data} lines={9} /> : (
+          : !txns.data ? <TxnListLoading /> : txns.data.length ? <PassbookRows items={txns.data} lines={9} fresh={fresh} /> : (
             <p className="dc-pb-empty"><b>还没有交易记录</b>在柜台办理存款后，这里会打印每一笔交易。</p>
           )}
       </PassbookPage>

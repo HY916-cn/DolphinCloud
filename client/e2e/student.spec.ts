@@ -97,7 +97,7 @@ test('排名: my place on the scale, the podium with my place tagged and names m
   await expect(page.locator('.dc-rank-name').filter({ hasNotText: '*' })).toHaveCount(0);
 });
 
-test('我的: who I am, the way to the 存折版, and my account’s balance, division, status and term', async ({ page }) => {
+test('我的: who I am, 页面样式 to the 存折版, and my account’s balance, division, status and term', async ({ page }) => {
   await signIn(page, '学生', '20260001');
   await expect(page).toHaveURL(/\/student$/);
   await open(page, '我的', 'me');
@@ -108,7 +108,9 @@ test('我的: who I am, the way to the 存折版, and my account’s balance, di
   await expect(account).toContainText('学部小学部');
   await expect(account).toContainText('账户状态在读');
   await expect(account).toContainText('本学期支出−37');
-  await page.getByRole('link', { name: /存折版/ }).click();
+  const style = page.getByRole('group', { name: '页面样式' });
+  await expect(style.getByRole('radio', { name: /普通版/ })).toBeChecked();
+  await style.getByText('存折版').click();
   await expect(page).toHaveURL(/\/book$/);
   await expect(page.locator('.dc-book-open')).toBeVisible();
 });

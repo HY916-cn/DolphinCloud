@@ -69,7 +69,9 @@ test('this device opens the version last used: the 存折版 until the 普通版
   await page.goto('/');
   await expect(page).toHaveURL(/\/book$/);
   await mark(page, '我的').click();
-  await page.getByRole('link', { name: /普通版/ }).click();
+  const style = page.getByRole('group', { name: '页面样式' });
+  await expect(style.getByRole('radio', { name: /存折版/ })).toBeChecked();
+  await style.getByText('普通版').click(); // the 存折 closes, then the 普通版 opens
   await expect(page).toHaveURL(/\/student$/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/student$/);

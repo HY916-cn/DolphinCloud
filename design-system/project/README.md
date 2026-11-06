@@ -82,11 +82,11 @@
 - 颜色：`ColorRoles`（每种颜色用于什么）。
 - 布局：`AppShell`（多端外壳与导航）、`ActionBar`（页面操作栏）、`WaveDivider`。
 - 操作与导航：`Button`、`ServiceTile`、`TabBar`、`Tabs`、`Segmented`、`FilterChips`。
-- 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`Slider`、`QtyStepper`。
+- 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`Slider`、`QtyStepper`。
 - 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`PersonCard`、`SummaryList`、`Progress`、`ListGroup`。
 - 引导与反馈：`GuideBubble`、`Steps`、`Tag`、`Badge`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
 
-选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；在范围内取值用 `Slider`。
+选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；在范围内取值用 `Slider`；学生在普通版和存折版之间选用 `ViewSwitch`。
 - 动效示例：`Motion`。
 
 ## 页面示例
