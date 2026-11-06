@@ -9,6 +9,19 @@ import { Icon } from './ui';
 // +270, −45, and 0 with no sign when nothing came in or went out.
 export const signed = (n: number) => (n ? formatSigned(n) : '0');
 
+// BalanceCard: the largest number on the page, on a dolphin-blue card with the wave at its foot; with this term's
+// money, the pills say what came in and went out.
+export function BalanceCard({ amount, term }: { amount: number; term?: { saved: number; spent: number } }) {
+  return (
+    <div className="dc-balance">
+      <div className="dc-balance-label"><Icon name="coin" />我的海豚币</div>
+      <div className="dc-balance-amount">{formatAmount(amount)}<span>HTB</span></div>
+      {term && <div className="dc-balance-split"><span>本学期存入 <b>{signed(term.saved)}</b></span><span>本学期支出 <b>{signed(term.spent)}</b></span></div>}
+      <div className="dc-waves" aria-hidden="true"><i /><i /><i /></div>
+    </div>
+  );
+}
+
 // A student's balance, account status and this term's businesses, with what came in and went out.
 export function useTerm(studentNo: string) {
   const term = termStart();

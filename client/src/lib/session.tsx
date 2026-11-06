@@ -77,9 +77,21 @@ export function useMe() {
 export const bankAdmin = (me: Me) => me.roles.includes('teacher') || me.roles.includes('president');
 export const managesLogins = (me: Me) => !me.roles.includes('president');
 
+// Which of the two student versions this device opens: the 存折版 (/book) once a student has used it here, until the
+// 普通版 (/student) is used again. Each version's layout records itself.
+const VIEW = 'dolphin.student-view';
+export function studentView(set?: 'book' | 'normal') {
+  try {
+    if (set) localStorage.setItem(VIEW, set);
+    return localStorage.getItem(VIEW);
+  } catch {
+    return null;
+  }
+}
+
 // Where a login works: each account has one identity (PHASE-1.md §4.1).
 export function home(me: Me) {
-  if (me.student) return '/student' as const;
+  if (me.student) return studentView() === 'book' ? '/book' as const : '/student' as const;
   if (me.roles.includes('teller')) return '/counter' as const;
   if (me.roles.length) return '/admin' as const;
   return null;

@@ -12,27 +12,24 @@ async function open(page: Page, label: string, path: string) {
   await expect(page).toHaveURL(new RegExp(`/student/${path}$`));
 }
 
-test('首页: the open 存折 with the account, the balance, this term’s money and the latest printed lines, and my place', async ({ page }) => {
+test('首页: the balance with this term’s money, my place with the students around me, and the latest businesses', async ({ page }) => {
   await signIn(page, '学生', '20260001');
   await expect(page).toHaveURL(/\/student$/);
-  const book = page.locator('.dc-passbook');
-  await expect(book.locator('.dc-pb-fields').first()).toContainText('账号20260001');
-  await expect(book.locator('.dc-pb-balance dd')).toHaveText('108HTB');
-  await expect(book.locator('.dc-pb-sums')).toContainText('本学期支出−37');
-  const lines = book.getByRole('region', { name: '交易记录' }).locator('.dc-txn');
+  await expect(page.locator('.dc-top-sub')).toHaveText('四年级(1)班 · 学号 20260001');
+  await expect(page.locator('.dc-balance-amount')).toHaveText('108HTB');
+  await expect(page.locator('.dc-balance-split')).toContainText('本学期支出 −37');
+  const lines = page.locator('.dc-txns .dc-txn');
   await expect(lines).toHaveCount(4);
-  // Newest first, each line with the balance after it: 22 taken out leaves 108, the opening 120 is the last line.
-  await expect(lines.first().locator('td.is-out')).toHaveText('22');
-  await expect(lines.first().locator('td').last()).toHaveText('108');
-  await expect(lines.last().locator('td').last()).toHaveText('120');
-  const place = page.getByRole('link', { name: '存款排名第 1 名，查看排名' });
-  await expect(place).toContainText('小学部第 1 名');
-  await expect(place).toContainText('你是小学部第 1 名');
-  await place.click();
+  await expect(lines.first()).toContainText('−22');
+  await expect(lines.last()).toContainText('期初余额');
+  const rank = page.locator('.dc-rank-card');
+  await expect(rank.locator('.dc-rank-place')).toHaveText('第 1 名小学部 2 人');
+  await expect(rank).toContainText('你是小学部第 1 名');
+  await rank.getByRole('link', { name: '查看排名' }).click();
   await expect(page).toHaveURL(/\/student\/ranking$/);
 });
 
-test('明细: the 存折 pages by type, found by a product or a 交易号, with this month’s money', async ({ page }) => {
+test('明细: every business by day and by type, found by a product or a 交易号, with this month’s money', async ({ page }) => {
   await signIn(page, '学生', '20260001');
   await expect(page).toHaveURL(/\/student$/);
   await open(page, '明细', 'txns');
@@ -41,8 +38,8 @@ test('明细: the 存折 pages by type, found by a product or a 交易号, with 
   const panel = page.getByRole('tabpanel');
   await expect(panel).toContainText('期初余额');
   await expect(panel).toContainText('存款');
-  await expect(panel.locator('.dc-txn td.is-date').first()).toHaveText(/^\d{2}-\d{2}(\d{4}年|\d{2}:\d{2})$/);
-  await expect(panel.locator('.dc-txn').first().locator('td').last()).toHaveText('108');
+  await expect(panel.locator('.dc-list-title').first()).toHaveText(/^(\d{4}年)?\d{1,2}月\d{1,2}日$/);
+  await expect(panel.locator('.dc-txn').first()).toContainText('−22');
   // Last month's closing balance, money in and money out add up to the balance now.
   const month = page.locator('.dc-card', { hasText: /\d+月收支/ });
   await expect(month).toContainText('支出−37');
@@ -68,7 +65,7 @@ test('明细: the 存折 pages by type, found by a product or a 交易号, with 
 
 test('明细: a cash exchange shows under 兑换 without changing the balance', async ({ page }) => {
   await signIn(page, '学生', '20260002'); // the seed's cash exchange of 海浪中性笔
-  await expect(page.locator('.dc-pb-table')).toContainText('现金支付，余额不变');
+  await expect(page.locator('.dc-txns')).toContainText('现金支付，余额不变');
   await open(page, '明细', 'txns');
   const panel = page.getByRole('tabpanel');
   await expect(panel.locator('.dc-txn', { hasText: '兑换 · 海浪中性笔' }).first()).toContainText('现金支付，余额不变');
@@ -100,15 +97,18 @@ test('排名: my place on the scale, the podium with my place tagged and names m
   await expect(page.locator('.dc-rank-name').filter({ hasNotText: '*' })).toHaveCount(0);
 });
 
-test('我的: my closed 存折 with my name on its label, and my account’s balance, division, status and term', async ({ page }) => {
+test('我的: who I am, the way to the 存折版, and my account’s balance, division, status and term', async ({ page }) => {
   await signIn(page, '学生', '20260001');
   await expect(page).toHaveURL(/\/student$/);
   await open(page, '我的', 'me');
-  await expect(page.locator('.dc-pb-cover .dc-pb-name')).toHaveText('张小明');
-  await expect(page.locator('.dc-pb-cover')).toContainText('账号20260001');
+  await expect(page.locator('.dc-person-name')).toHaveText('张小明');
+  await expect(page.locator('.dc-person-meta')).toHaveText('四年级(1)班 · 学号 20260001');
   const account = page.locator('.dc-card', { hasText: '我的账户' });
   await expect(account).toContainText('当前余额108HTB');
   await expect(account).toContainText('学部小学部');
   await expect(account).toContainText('账户状态在读');
   await expect(account).toContainText('本学期支出−37');
+  await page.getByRole('link', { name: /存折版/ }).click();
+  await expect(page).toHaveURL(/\/book$/);
+  await expect(page.locator('.dc-book-open')).toBeVisible();
 });

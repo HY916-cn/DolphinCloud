@@ -25,12 +25,12 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      testMatch: ['counter.spec.ts', 'student.spec.ts'],
+      testMatch: ['counter.spec.ts', 'student.spec.ts', 'book.spec.ts'],
       use: { ...devices['Desktop Safari'], viewport: { width: 1180, height: 820 } },
     },
     {
       name: 'phone',
-      testMatch: 'student.spec.ts', // the back office and the counter are laid out for computers and iPads
+      testMatch: ['student.spec.ts', 'book.spec.ts'], // the back office and the counter are laid out for computers and iPads
       use: { ...devices['iPhone 13'] },
     },
   ],

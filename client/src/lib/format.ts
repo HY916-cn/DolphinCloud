@@ -43,3 +43,9 @@ export function niceMax(value: number) {
   const p = 10 ** Math.floor(Math.log10(value));
   return ([1, 2, 5, 10].find((m) => m * p >= value) ?? 10) * p;
 }
+
+// 上午好 / 下午好 / 晚上好 by the school's clock (Asia/Shanghai).
+export function greeting(now = new Date()) {
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', hour: 'numeric', hourCycle: 'h23' }).format(now));
+  return h < 12 ? '上午好' : h < 18 ? '下午好' : '晚上好';
+}

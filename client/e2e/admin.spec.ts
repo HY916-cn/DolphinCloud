@@ -86,7 +86,7 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await page.getByPlaceholder('至少 8 位').fill('20262026');
   await page.getByPlaceholder('再次输入新密码').fill('20262026');
   await page.getByRole('button', { name: '设置密码' }).click();
-  await expect(page.locator('.dc-pb-balance dd')).toContainText('30');
+  await expect(page.locator('.dc-balance-amount')).toContainText('30');
 });
 
 test('the teacher resets a student password to a new initial one, shown once', async ({ page }) => {

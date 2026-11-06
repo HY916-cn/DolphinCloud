@@ -44,7 +44,7 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = 
 
 // Sign out after a confirmation, then 切换账号 (the login page with this device's accounts); `trigger` draws the
 // control that opens the sheet.
-export function SignOut({ trigger }: { trigger: (open: () => void) => ReactNode }) {
+export function SignOut({ trigger, to = '/login' }: { trigger: (open: () => void) => ReactNode; to?: '/login' | '/book' }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   return (
@@ -56,7 +56,7 @@ export function SignOut({ trigger }: { trigger: (open: () => void) => ReactNode 
           onConfirm={async () => {
             await signOutCurrent();
             queryClient.clear();
-            router.replace('/login');
+            router.replace(to);
           }} />
       )}
     </>

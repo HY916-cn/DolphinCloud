@@ -57,3 +57,13 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }
 }
+
+// Auth error codes of a sign-in → what the person can do about it. The lockout (5 wrong passwords in 15 minutes) comes
+// from the database's password check hook as invalid_credentials with the message LOGIN_LOCKED.
+export function loginError(code?: string) {
+  if (code === 'user_banned') return { title: '这个账号已被停用', text: '停用的账号不能登录。需要恢复时，请联系银行管理员启用。' };
+  if (code === 'over_request_rate_limit') return { title: '尝试次数过多', text: '请稍后再登录。' };
+  if (code === 'invalid_credentials') return { title: '账号或密码不正确', text: '请核对后重新输入。' };
+  if (code === 'LOGIN_LOCKED') return { title: '密码错误次数过多', text: '请 15 分钟后再试，或请银行管理员重置密码。' };
+  return { title: '暂时无法登录', text: '请检查网络后重试。' };
+}

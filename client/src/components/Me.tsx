@@ -9,22 +9,6 @@ import { Icon, link } from './ui';
 
 const STATUS = { normal: '在读', frozen: '已冻结', graduated: '已毕业' } as const;
 
-// The closed 存折 on a student's 我的: the bank's name and 储蓄存折 in gold foil, and the label with 户名, 账号 and 班级.
-export function StudentCover({ s }: { s: Student }) {
-  return (
-    <div className="dc-pb-cover dc-enter">
-      <p className="dc-pb-foil">海豚银行</p>
-      <img src="/logo.png" alt="" />
-      <h2 className="dc-pb-foil is-title">储蓄存折</h2>
-      <div className="dc-pb-label">
-        <p><span>户名</span><b className="dc-pb-name">{s.name}</b></p>
-        <p><span>账号</span>{s.student_no}</p>
-        <p><span>班级</span>{s.class_label ?? `${s.class_no} 班`}</p>
-      </div>
-    </div>
-  );
-}
-
 // 我的账户: the student's division, cohort, account status and this term's money in and out.
 function StudentAccount({ s }: { s: Student }) {
   const term = useTerm(s.student_no).data;
@@ -46,23 +30,23 @@ function StudentAccount({ s }: { s: Student }) {
   );
 }
 
-// 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号; a student sees
-// their closed 存折 (StudentCover) above the list and 我的账户 beside it.
+// 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号; a student can
+// open the 存折版 from here, and sees 我的账户 beside the list.
 export function MeView({ me }: { me: Me }) {
   const s = me.student;
   const others = savedAccounts().filter((a) => a.id !== me.profile.id).length;
   const main = (
     <div className="dc-stack dc-enter">
-      {s && <StudentCover s={s} />}
-      {!s && <div className="dc-person">
-        <span className="dc-person-avatar"><Icon name="teacher" /></span>
+      <div className="dc-person">
+        <span className="dc-person-avatar"><Icon name={s ? 'me' : 'teacher'} /></span>
         <div className="dc-person-main">
           <div className="dc-person-name">{me.profile.display_name}</div>
           <div className="dc-person-meta">
-            <span>{me.roles.map((r) => ROLES[r]).join('、') || '未分配身份'}</span> · <span>账号 {me.profile.login_id}</span>
+            {s ? <><span>{s.class_label ?? `${s.class_no} 班`}</span> · <span>学号 {s.student_no}</span></>
+              : <><span>{me.roles.map((r) => ROLES[r]).join('、') || '未分配身份'}</span> · <span>账号 {me.profile.login_id}</span></>}
           </div>
         </div>
-      </div>}
+      </div>
       <ul className="dc-list">
         <li>
           <a className="dc-list-link" {...link('/login?switch=1')}>
@@ -71,6 +55,15 @@ export function MeView({ me }: { me: Me }) {
             <Icon name="next" />
           </a>
         </li>
+        {s && (
+          <li>
+            <a className="dc-list-link" {...link('/book')}>
+              <span className="dc-list-icon"><Icon name="passbook" /></span>
+              <span>存折版<small className="dc-top-sub">把账户装进一本存折里翻看</small></span>
+              <Icon name="next" />
+            </a>
+          </li>
+        )}
         <li><SaveLogin id={me.profile.id} /></li>
         <li>
           <SignOut trigger={(open) => (

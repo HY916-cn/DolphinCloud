@@ -844,8 +844,65 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-pb-foil.is-title { font-size: 30px; line-height: 40px; letter-spacing: .4em; text-indent: .4em; }
 .dc-pb-cover img { width: 56px; height: 56px; padding: 4px; border-radius: 50%; background: var(--surface-raised); box-shadow: 0 0 0 2px #f3cf7a; }
 .dc-pb-label { width: 100%; max-width: 280px; box-sizing: border-box; margin-top: var(--space-2); padding: var(--space-2) var(--space-4); border-radius: 3px; background: var(--surface-raised); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); color: var(--ink); text-align: left; }
-.dc-pb-label p { display: flex; gap: var(--space-3); margin: 0; padding: 4px 0; font: 600 15px/22px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-.dc-pb-label p + p { border-top: 1px solid var(--line); }
 .dc-pb-label span { flex: none; width: 3em; font: 700 13px/22px var(--font-sans); letter-spacing: .2em; color: var(--dolphin-deep); }
+.dc-pb-label p, .dc-pb-label label { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: 4px 0; font: 600 15px/22px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.dc-pb-label p + p, .dc-pb-label label + label { border-top: 1px solid var(--line); }
+.dc-pb-label input { flex: 1; min-width: 0; min-height: 40px; padding: 0 var(--space-2); border: 0; border-radius: 3px; background: transparent; color: var(--ink); font: inherit; outline: none; }
+.dc-pb-label input::placeholder { color: var(--ink-muted); }
+.dc-pb-label input:focus-visible { background: var(--cloud-100); box-shadow: inset 0 -2px 0 var(--dolphin); }
+
+/* 存折版 — 学生专用的整本存折。合着时封面就是锁：在标签上填账号和密码，按金色的“打开存折”；打开后存折占满屏幕，
+   右边缘伸出四枚书签（账户、明细、排名、我的），当前一枚拉出得更长。书签用四种类别浅色，只在存折版里出现 */
+.dc-book { background: var(--surface); }
+.dc-book-desk { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); width: 100%; max-width: 1240px; min-height: 100dvh; margin-inline: auto; padding: var(--space-5) var(--space-3) var(--space-6) var(--space-4); }
+.dc-book-cover { animation: dc-book-in var(--motion-page) var(--ease-out) both; }
+.dc-book-cover h1 { margin: 0; }
+.dc-book-unlock { min-width: 220px; margin-top: var(--space-2); background: #f3cf7a; color: #3b2a00; box-shadow: 0 4px 0 #a7802a; font-weight: 800; letter-spacing: .1em; }
+.dc-book-unlock:hover:not(:disabled) { background: #f7d98e; }
+.dc-book-unlock:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #a7802a; }
+.dc-book-unlock .dc-icon { width: 24px; height: 24px; }
+.dc-book-unlock:disabled { background: #f3cf7a; color: #3b2a00; box-shadow: 0 4px 0 #a7802a; opacity: .6; }
+.dc-book-error { width: 100%; max-width: 280px; box-sizing: border-box; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 3px; background: var(--danger-soft); color: var(--danger); font: 600 14px/20px var(--font-sans); text-align: left; }
+.dc-book-error b { display: block; font-weight: 800; }
+.dc-book-help { margin: 0; color: rgba(255, 255, 255, .82); font: 500 13px/20px var(--font-sans); }
+.dc-book-alt { color: var(--ink-muted); font: 600 15px/22px var(--font-sans); }
+.dc-book-open { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; width: 100%; animation: dc-book-in var(--motion-page) var(--ease-out) both; }
+.dc-book-open .dc-passbook { position: relative; z-index: 1; }
+.dc-book-turn { min-width: 0; animation: dc-book-turn 280ms var(--ease-out) both; }
+.dc-book-marks { position: sticky; top: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-6) 0 0 -6px; }
+.dc-book-mark { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 44px; min-height: 92px; padding: var(--space-3) 0 var(--space-3) 6px; border-radius: 0 10px 10px 0; writing-mode: vertical-rl; font: 800 16px/1 var(--font-sans); letter-spacing: .3em; text-decoration: none; transform: translateX(-10px); box-shadow: 0 2px 4px rgba(13, 30, 80, .18); transition: transform var(--motion-quick) var(--ease-out); }
+.dc-book-mark:nth-child(1) { background: var(--sea-soft); color: var(--sea-ink); }
+.dc-book-mark:nth-child(2) { background: var(--coin-soft); color: var(--coin-ink); }
+.dc-book-mark:nth-child(3) { background: var(--rose-soft); color: var(--rose-ink); }
+.dc-book-mark:nth-child(4) { background: var(--grape-soft); color: var(--grape-ink); }
+.dc-book-mark:hover { transform: translateX(-4px); }
+.dc-book-mark[aria-current="page"] { transform: none; box-shadow: 0 3px 8px rgba(13, 30, 80, .28); }
+.dc-book-mark[aria-current="page"]::after { content: ""; width: 4px; height: 24px; margin-top: var(--space-2); border-radius: 2px; background: currentColor; }
+.dc-book-mark:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@container app (min-width: 1024px) {
+  .dc-book-turn .dc-pb-page { min-height: 560px; }
+}
+@container app (max-width: 599px) {
+  .dc-book-desk { padding: var(--space-3) var(--space-2) var(--space-5) var(--space-3); }
+  .dc-book-mark { width: 36px; min-height: 76px; font-size: 15px; letter-spacing: .2em; }
+}
+@keyframes dc-book-in { from { opacity: 0; transform: perspective(1200px) rotateY(-14deg) scale(.97); transform-origin: left center; } }
+@keyframes dc-book-turn { from { opacity: .3; transform: translateX(12px); } }
+
+/* 存折版各栏的纸面部件：印刷的类型页签、续页按钮、名次表里的“我”、名次说明和存折设置 */
+.dc-pb-types { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--space-3); }
+.dc-pb-types button { min-height: 40px; padding: 0 var(--space-3); border: 1px solid var(--pb-rule-strong); border-radius: 4px; background: transparent; color: var(--dolphin-deep); font: 700 14px/20px var(--font-sans); letter-spacing: .1em; cursor: pointer; }
+.dc-pb-types button[aria-selected="true"] { background: var(--dolphin-deep); border-color: var(--dolphin-deep); color: var(--on-dolphin); }
+.dc-pb-types button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dc-pb-more { margin-top: var(--space-4); }
+.dc-pb-fields dd small { margin-left: var(--space-2); font: 600 13px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-pb-fields dd.is-total { font-size: 20px; font-weight: 800; }
+.dc-pb-table col.is-rank { width: 44px; }
+.dc-pb-table td.is-rank { text-align: center; font-weight: 700; }
+.dc-pb-table tr.is-me td { background: rgba(255, 194, 51, .2); font-weight: 700; }
+.dc-pb-table tr.is-me td.is-text small { display: inline; margin-left: var(--space-1); color: var(--coin-ink); font: 800 12px/18px var(--font-sans); }
+.dc-pb-note { margin: var(--space-3) 0; padding: var(--space-2) var(--space-3); border: 1px dashed var(--pb-rule-strong); font: 600 15px/22px var(--font-sans); color: var(--pb-ink); }
+.dc-pb-note b { font-weight: 800; }
+.dc-pb-actions { padding: 0 var(--space-4); background: rgba(255, 255, 255, .7); border: 1px solid var(--pb-rule-strong); border-radius: 4px; }
 
 

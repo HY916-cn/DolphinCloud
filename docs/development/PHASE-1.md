@@ -531,7 +531,10 @@ client/
       index.tsx               问候、余额卡、最近 10 笔
       txns.tsx                明细：全部 / 存款 / 取款 / 兑换 / 工资，搜索与日期筛选，按天分组，分页加载；本月合计
       ranking.tsx             存款排名：本人名次，本学部前 N 名（按参数匿名）
-      me.tsx                  我的：切换账号、在此设备保存登录、退出账号（三端共用 MeView）
+      me.tsx                  我的：切换账号、在此设备保存登录、退出账号、打开存折版（三端共用 MeView）
+    book/                     学生端存折版（只给学生）：合着的存折是登录页，学号和密码打开；打开后右侧书签换栏目
+      index.tsx  txns.tsx     账户（余额、本学期收支、最近 9 笔）、明细（按类型，分页印下去；本月收支）
+      ranking.tsx  me.tsx     排名（名次表、我的名次）、我的（户主信息、普通版、切换账号、合上存折）
     counter/                  柜台（AppShell，导航：办理 今日业务 考勤 我的；进入时打开办理）
       _layout.tsx             柜员准入；联网时把名册缓存到本机
       index.tsx  today.tsx    办理（找学生、一位学生连续办理多笔和查询、就地冲正）、今日业务（合计与冲正）
@@ -548,7 +551,7 @@ client/
       txns.tsx  reports.tsx  流水查询与导出、报表（图表、表格、打印与 PDF）
       settings.tsx  audit.tsx  me.tsx   参数、操作日志、我的
   src/components/             设计系统结构的 React 写法：Shell / Page（AppShell）、Welcome（登录页外观）、
-                              Gate（页面准入）、ConfirmSheet / SignOut、Passbook（学生的储蓄存折）、Podium（排名领奖台）、TxnList、Notice、Icon、
+                              Gate（页面准入）、ConfirmSheet / SignOut、Passbook / BookCover / BookShell（存折版的存折、封面登录与书签）、Podium（排名领奖台）、TxnList、Notice、Icon、
                               Desk（后台页面框架）、DatePicker / TimePicker（月历选日期、24 小时选时间）、FilterBar（筛选栏）、ScopePicker / TimeRange（学生范围、时段）、Stats / Columns / Line / Bars / Table（报表的数字、图表与表格）、WeekBar / WeekShifts / DayShifts / SalaryAccount（考勤的一周、班次、工资账户）、DutyCard（上班 / 下班）、MeView（我的）、DeviceAccounts（切换账号页的本机账号）、OutputSheet（打印或下载 PDF）、Pick / BatchBar（批量选择）、CloseSheet（注销）、MoveList（库存变动）、LedgerLine（流水一行）、ReversalSheet（冲正）、noticePages / openingPages（开户通知单、期初余额核对表）
   src/theme/                  tokens.css、bundle.css、icons.ts，均由 npm run tokens 生成
   src/lib/supabase.ts         客户端：与页面同源，anon key 取自 window.__DOLPHIN_CONFIG__；请求带 X-Device-Id
@@ -582,7 +585,7 @@ client/
 
 `src/lib` 只放数据与业务逻辑，不引用 DOM、CSS 和组件，原生客户端可以直接复用。
 
-页面准入（`Gate`）：未登录去登录页，初始密码去设置新密码，无权限回首页。登录后按身份进入：还在用初始密码 → 设置新密码；学生 → 学生端，柜员 → 柜台，财务 / 库管 / 银行管理员 / 运维员 → 后台。每种身份都有一个总览页作为第一项导航：学生是「首页」（摊开的存折：余额与最近交易），柜员是柜台「办理」（搜索框和今天办理过的学生），后台身份是后台「总览」（本身份的今日数据、待办和管理入口）。
+页面准入（`Gate`）：未登录去登录页，初始密码去设置新密码，无权限回首页。登录后按身份进入：还在用初始密码 → 设置新密码；学生 → 学生端，柜员 → 柜台，财务 / 库管 / 银行管理员 / 运维员 → 后台。每种身份都有一个总览页作为第一项导航：学生是「首页」（余额卡、排名与最近交易；用过存折版的设备打开存折版的「账户」），柜员是柜台「办理」（搜索框和今天办理过的学生），后台身份是后台「总览」（本身份的今日数据、待办和管理入口）。
 
 ### 7.3 设计系统落地
 
