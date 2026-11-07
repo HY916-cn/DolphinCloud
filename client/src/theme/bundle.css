@@ -365,17 +365,14 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-person-side small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 
 
-/* Avatar — 账号头像：圆底上一个人像（person），右下角一枚深蓝圆角标写身份：学生书包、柜员钞票、财务计算器、库管包裹、
-   行长银行、银行管理员学士帽、运维员扳手，还没分配身份是问号。所有身份同一种海豚蓝，只靠角标区分；角标外一圈和底色同色的描边，
-   把它从人像上分开。列表里 44px（cloud-100 底），PersonCard 里 56px（白底） */
-.dc-avatar { --avatar-ring: var(--surface-raised); position: relative; display: block; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--cloud-100); color: var(--dolphin); }
-.dc-avatar-face { position: absolute; inset: 0; overflow: hidden; border-radius: 50%; }
-.dc-avatar .dc-icon { color: inherit; }
-.dc-avatar-face .dc-icon { position: absolute; left: 50%; bottom: -6%; width: 76%; height: 76%; transform: translateX(-50%); }
-.dc-avatar-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 46%; height: 46%; border-radius: 50%; background: var(--dolphin-deep); color: var(--on-dolphin); box-shadow: 0 0 0 2px var(--avatar-ring); }
-.dc-avatar-badge .dc-icon { width: 66%; height: 66%; }
+/* Avatar — 账号头像：圆底上就是身份图标本身，占头像的六成：学生书包、柜员钞票、财务计算器、库管包裹、行长银行、
+   银行管理员学士帽、运维员扳手，还没分配身份是问号，这台设备不知道身份的账号是一个人像。所有身份同一种海豚蓝，靠图标区分。
+   列表里 44px（cloud-100 底），PersonCard 里 56px（白底） */
+.dc-avatar { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--cloud-100); color: var(--dolphin); }
+.dc-avatar .dc-icon { width: 60%; height: 60%; color: inherit; }
 .dc-avatar.is-lg { width: 56px; height: 56px; }
-.dc-person-avatar.dc-avatar { background: var(--surface-raised); --avatar-ring: var(--cloud-100); }
+.dc-person-avatar.dc-avatar { background: var(--surface-raised); }
+
 /* Result — 办理结果 */
 .dc-result { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); width: 100%; max-width: var(--form-max); margin: 0 auto; text-align: center; }
 .dc-result-badge { display: grid; place-items: center; width: 96px; height: 96px; border-radius: var(--radius-pill); background: var(--success-soft); color: var(--success); }

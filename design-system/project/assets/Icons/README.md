@@ -19,7 +19,7 @@
 | `star` | 奖励 / 闪光点 | `star` |
 | `me` | 我的 | `user` |
 | `parent` | 家长 | `users` |
-| `teacher` | 老师 | `graduation-cap` |
+| `teacher` | 老师、工作人员、银行管理员 | `presentation` |
 | `lock` | 密码 | `lock` |
 | `home` | 首页 | `house` |
 | `bell` | 消息 | `bell` |
@@ -37,14 +37,14 @@
 | `logout` | 退出登录 | `log-out` |
 | `inbox` | 空状态 | `inbox` |
 | `settings` | 设置 | `settings` |
-| `person` | 头像的人像 | `user-round` |
-| `student` | 学生（头像角标） | `backpack` |
-| `teller` | 柜员（头像角标） | `banknote` |
-| `accountant` | 财务（头像角标） | `calculator` |
-| `storekeeper` | 库管（头像角标） | `package` |
-| `president` | 行长（头像角标） | `landmark` |
-| `sysadmin` | 运维员（头像角标） | `wrench` |
+| `person` | 身份未知的账号头像 | `user-round` |
+| `student` | 学生 | `graduation-cap` |
+| `teller` | 柜员 | `banknote` |
+| `accountant` | 财务 | `calculator` |
+| `storekeeper` | 库管 | `package` |
+| `president` | 行长 | `landmark` |
+| `sysadmin` | 运维员 | `wrench` |
 
 - 组件里内联同一份路径，描边写 `stroke="currentColor"`，让图标跟随文字颜色；作为 `<img>` 使用时放在 `surface`、`surface-raised`、`cloud-100` 上。
 - 常用尺寸 20 / 26 / 30 / 36 / 52px。图标总是和文字一起出现，除非是头像或纯装饰。
-- 账号头像（`Avatar`）用 `person` 画人像，右下角的角标按身份用 `student`、`teller`、`accountant`、`storekeeper`、`president`、`sysadmin`，银行管理员用 `teacher`，还没分配身份用 `help`。
+- 账号头像（`Avatar`）的圆里就是身份图标：`student`、`teller`、`accountant`、`storekeeper`、`president`、`sysadmin`，银行管理员用 `teacher`，还没分配身份用 `help`，这台设备不知道身份的账号用 `person`。
