@@ -910,6 +910,8 @@ CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR �
 
 M0 是后续工作的前提，先完成并确认单容器方案可行，再进入 M1。
 
+阶段一、二合并上线：M5 顺延，与第二阶段一起在 [PHASE-2.md](PHASE-2.md) 的 M15 完成。
+
 ---
 
 ## 12. 上线与验收
