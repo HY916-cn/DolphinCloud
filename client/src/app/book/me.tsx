@@ -1,4 +1,4 @@
-import { DIVISIONS, Icon, link, Passbook, PassbookPage, SaveLogin, signed, SignOut, useCloseBook, useTerm, ViewSwitch } from '@/components';
+import { BookPages, DIVISIONS, Icon, link, PassbookPage, SaveLogin, signed, SignOut, useCloseBook, useTerm, ViewSwitch } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
@@ -16,8 +16,8 @@ export default function BookMe() {
   const close = useCloseBook();
 
   return (
-    <Passbook spread>
-      <PassbookPage title="户主信息">
+    <BookPages pages={[
+      <PassbookPage key="holder" title="户主信息">
         <dl className="dc-pb-fields">
           <dt>户名</dt><dd>{s.name}</dd>
           <dt>账号</dt><dd>{s.student_no}</dd>
@@ -32,8 +32,8 @@ export default function BookMe() {
           <dt>本学期支出</dt><dd>{term ? signed(term.spent) : '…'}</dd>
         </dl>
         <div className="dc-pb-chop-box"><span>预留印鉴</span><b className="dc-pb-chop" aria-hidden="true">{chop(s.name)}</b></div>
-      </PassbookPage>
-      <PassbookPage title="存折设置">
+      </PassbookPage>,
+      <PassbookPage key="settings" title="存折设置">
         <ViewSwitch current="book" />
         <ul className="dc-list dc-pb-actions">
           <li>
@@ -51,7 +51,7 @@ export default function BookMe() {
             )} />
           </li>
         </ul>
-      </PassbookPage>
-    </Passbook>
+      </PassbookPage>,
+    ]} />
   );
 }

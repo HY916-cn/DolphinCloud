@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, usePathname } from 'expo-router';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { cloneElement, createContext, useContext, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { loginError } from '@/lib/errors';
 import { loginEmail, supabase } from '@/lib/supabase';
+import { Passbook } from './Passbook';
 import { Icon, link } from './ui';
 
 // The 存折版: the student pages as one 存折, for students only. Closed, its cover is the lock: 账号 and 密码 on the
@@ -113,6 +114,114 @@ export function BookShell({ children }: { children: ReactNode }) {
         </main>
       </div>
     </Closer.Provider>
+  );
+}
+
+// Two pages face each other on a computer (the app's 1024px breakpoint); a phone or tablet shows one page at a time.
+export function useWide() {
+  const query = '(min-width: 1024px)';
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setWide(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
+// Printed lines on one page of the 存折: as many as a page holds without scrolling, on a computer and on a phone.
+export const useLines = () => (useWide() ? 10 : 8);
+
+type Page = ReactElement<{ foot?: ReactNode }>;
+const TURN_MS = 800;
+
+// A part's pages, PassbookPages in order, in the 存折's fixed size: turned with 上一页 and 下一页 at the foot of the
+// pages, by swiping across them, or with the arrow keys. Each page is numbered at its foot. `onShow` hears the last
+// page in view, so a part can load what that page prints.
+// A turn is a real leaf: on a computer the right page lifts at the binding and lands on the left with the next page
+// printed on its back (going back, the left page turns over to the right); on a phone the page turns away over the
+// left edge, or the page before comes back over it. Copies of the pages draw the leaf; the pages under it are live.
+export function BookPages({ pages, onShow }: { pages: Page[]; onShow?: (last: number) => void }) {
+  const per = useWide() ? 2 : 1;
+  const [at, setAt] = useState(0);
+  const [turn, setTurn] = useState<{ d: 1 | -1; from: number; n: number } | null>(null);
+  const first = Math.floor(Math.min(at, Math.max(0, pages.length - 1)) / per) * per;
+  const last = Math.min(first + per, pages.length) - 1;
+  const go = (d: 1 | -1) => {
+    const to = first + d * per;
+    if (to < 0 || to >= pages.length) return;
+    setTurn((t) => ({ d, from: first, n: (t?.n ?? 0) + 1 }));
+    setAt(to);
+  };
+  const goRef = useRef(go);
+  useEffect(() => { goRef.current = go; });
+  useEffect(() => { onShow?.(last); }, [last]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!turn) return;
+    const t = setTimeout(() => setTurn(null), TURN_MS);
+    return () => clearTimeout(t);
+  }, [turn]);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select')) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') goRef.current(1);
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') goRef.current(-1);
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, []);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const flip = (d: 1 | -1, label: string) => (
+    <button className={`dc-book-flip is-${d > 0 ? 'next' : 'prev'}`} type="button" onClick={() => go(d)}>
+      {d < 0 && <Icon name="back" />}{label}{d > 0 && <Icon name="next" />}
+    </button>
+  );
+  // Page `i` as it is printed: its number at the foot, and on the first and last page in view the way to turn on.
+  const page = (i: number, live = true) => {
+    const p = pages[i];
+    if (!p) return <section key={`blank-${i}`} className="dc-pb-page is-blank" aria-hidden="true" />;
+    const lead = i % per === 0, end = i === Math.min(i - (i % per) + per, pages.length) - 1;
+    return cloneElement(p, {
+      key: live ? `slot-${i % per}` : `copy-${i}`, // a slot keeps its page element, so turning does not replay its opening
+      foot: <><span>{lead && i > 0 && (live ? flip(-1, '上一页') : <span className="dc-book-flip">上一页</span>)}</span>
+        <span>第 {i + 1} 页</span>
+        <span>{end && i < pages.length - 1 && (live ? flip(1, '下一页') : <span className="dc-book-flip">下一页</span>)}</span></>,
+    });
+  };
+  // The leaf in motion, from the pages that were in view (`from`) to the ones now in view.
+  const leaf = (() => {
+    if (!turn) return null;
+    const { d, from } = turn;
+    const [under, front, back] = per === 2
+      ? (d > 0 ? [from, from + 1, from + 2] : [from + 1, from, from - 1])
+      : (d > 0 ? [null, from, null] : [from, from - 1, null]);
+    return (
+      <div key={turn.n} className={`dc-book-turning is-${per === 2 ? 'spread' : 'single'} is-${d > 0 ? 'next' : 'prev'}`} aria-hidden="true" inert>
+        {under !== null && <div className="dc-book-under">{page(under, false)}</div>}
+        <div className="dc-book-leaf">
+          <div className="dc-book-face">{page(front, false)}</div>
+          {back !== null && <div className="dc-book-face is-back">{page(back, false)}</div>}
+        </div>
+      </div>
+    );
+  })();
+
+  return (
+    <div className="dc-book-pages"
+      onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }}
+      onPointerUp={(e) => {
+        const s = swipe.current;
+        swipe.current = null;
+        if (!s) return;
+        const dx = e.clientX - s.x, dy = e.clientY - s.y;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+      }}>
+      <Passbook spread>
+        {Array.from({ length: per }, (_, k) => page(first + k))}
+      </Passbook>
+      {leaf}
+    </div>
   );
 }
 

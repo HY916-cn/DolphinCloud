@@ -1,29 +1,31 @@
 import { useEffect, useState } from 'react';
-import { DIVISIONS, link, Notice, Passbook, PassbookPage, PassbookRows, PassbookSeal, signed, TxnListLoading, useRanking, useTerm } from '@/components';
+import { BookPages, DIVISIONS, link, Notice, PassbookPage, PassbookRows, PassbookSeal, signed, TxnListLoading, useLines, useRanking, useTerm } from '@/components';
 import { formatAmount, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { useMe } from '@/lib/session';
 
 // 账户: the account's page with the balance under the bank's seal, this term's money in and out and the place in the
-// division; facing it, the nine latest businesses with the balance after each, the ones new since this device last
-// opened it printed as you watch.
+// division; facing it (on a phone, the next page), the latest businesses a page holds with the balance after each, the
+// ones new since this device last opened it printed as you watch.
 export default function BookAccount() {
   const student = useMe().data!.student!;
   const term = useTerm(student.student_no);
   const ranking = useRanking(student.student_no);
   const txns = useRecent(student.student_no);
+  const lines = useLines();
+  const recent = txns.data?.slice(0, lines);
   const r = ranking.data;
   // The latest business already printed in this 存折 on this device; the ones after it are printed on opening (补登).
   const key = `dolphin.book-printed.${student.student_no}`;
   const [printed] = useState(() => { try { return localStorage.getItem(key); } catch { return null; } });
   const latest = txns.data?.[0]?.key;
   useEffect(() => { try { if (latest) localStorage.setItem(key, latest); } catch { /* nothing is kept */ } }, [key, latest]);
-  const at = txns.data?.findIndex((t) => t.key === printed) ?? -1;
-  const fresh = !txns.data ? 0 : at < 0 ? txns.data.length : at;
+  const at = recent?.findIndex((t) => t.key === printed) ?? -1;
+  const fresh = !recent ? 0 : at < 0 ? recent.length : at;
 
   return (
-    <Passbook spread>
-      <PassbookPage title="储蓄存折" side={<small>{greeting()}，{student.name}</small>}>
+    <BookPages pages={[
+      <PassbookPage key="account" title="储蓄存折" side={<small>{greeting()}，{student.name}</small>}>
         <dl className="dc-pb-fields">
           <dt>户名</dt><dd>{student.name}</dd>
           <dt>账号</dt><dd>{student.student_no}</dd>
@@ -46,13 +48,13 @@ export default function BookAccount() {
           <li>本存折只限本人使用，密码不要告诉别人。</li>
           <li>每一笔存取和兑换都印在交易记录里，可随时到柜台核对。</li>
         </ol>
-      </PassbookPage>
-      <PassbookPage title="交易记录" side={<a {...link('/book/txns')}>翻看全部</a>} foot="第 1 页">
+      </PassbookPage>,
+      <PassbookPage key="recent" title="交易记录" side={<a {...link('/book/txns')}>翻看全部</a>}>
         {txns.error ? <Notice tone="danger" title="暂时无法读取交易">请检查网络后刷新页面。</Notice>
-          : !txns.data ? <TxnListLoading /> : txns.data.length ? <PassbookRows items={txns.data} lines={9} fresh={fresh} /> : (
+          : !recent ? <TxnListLoading /> : recent.length ? <PassbookRows items={recent} lines={lines} fresh={fresh} /> : (
             <p className="dc-pb-empty"><b>还没有交易记录</b>在柜台办理存款后，这里会打印每一笔交易。</p>
           )}
-      </PassbookPage>
-    </Passbook>
+      </PassbookPage>,
+    ]} />
   );
 }

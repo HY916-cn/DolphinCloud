@@ -10,13 +10,13 @@ export function Passbook({ spread, children }: { spread?: boolean; children: Rea
 
 // One page: the printed heading (with an optional link or note on the right), the page, and the printed foot.
 export function PassbookPage({ title, side, foot, children, ...rest }: {
-  title: string; side?: ReactNode; foot?: string; children: ReactNode;
+  title: string; side?: ReactNode; foot?: ReactNode; children: ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
     <section className="dc-pb-page" aria-label={title} {...rest}>
       <h2 className="dc-pb-head">{title}{side}</h2>
       {children}
-      {foot && <p className="dc-pb-foot"><span>海豚银行</span><span>{foot}</span></p>}
+      {foot && <div className="dc-pb-foot">{foot}</div>}
     </section>
   );
 }
@@ -61,9 +61,9 @@ const printed = (day: string) => {
 
 // The printed lines, newest first, each with its line number: date and time, 摘要, 支取 or 存入 unsigned in its own
 // column, and the balance after it; a cash business leaves both columns empty and says so under 摘要. `lines` prints
-// ruled empty lines up to that many, as on a page not yet filled; the first `fresh` lines are printed as you watch,
-// the oldest of them first, as the counter's printer does when it brings a 存折 up to date.
-export function PassbookRows({ items, lines = 0, fresh = 0 }: { items: Txn[]; lines?: number; fresh?: number }) {
+// ruled empty lines up to that many, as on a page not yet filled, and `start` lines come before this page's; the first
+// `fresh` lines are printed as you watch, the oldest of them first, as the counter's printer brings a 存折 up to date.
+export function PassbookRows({ items, lines = 0, start = 0, fresh = 0 }: { items: Txn[]; lines?: number; start?: number; fresh?: number }) {
   const blank = Math.max(0, lines - items.length);
   return (
     <table className="dc-pb-table">
@@ -78,7 +78,7 @@ export function PassbookRows({ items, lines = 0, fresh = 0 }: { items: Txn[]; li
           return (
             <tr key={t.key} className={`dc-txn ${i < fresh ? 'is-printing' : ''}`}
               style={i < fresh ? { '--row': fresh - 1 - i } as React.CSSProperties : undefined}>
-              <td className="is-line">{i + 1}</td>
+              <td className="is-line">{start + i + 1}</td>
               <td className="is-date">{date}<small>{year || time}</small></td>
               <td className="is-text" title={[t.title, cash].filter(Boolean).join('\n')}><span className="dc-pb-clamp">{t.title}</span>{cash && <small>{cash}</small>}</td>
               <td className="is-num is-out">{t.amount < 0 ? formatAmount(-t.amount) : ''}</td>
@@ -88,7 +88,7 @@ export function PassbookRows({ items, lines = 0, fresh = 0 }: { items: Txn[]; li
           );
         })}
         {Array.from({ length: blank }, (_, i) => (
-          <tr key={`blank-${i}`} aria-hidden="true"><td className="is-line">{items.length + i + 1}</td><td /><td /><td /><td /><td /></tr>
+          <tr key={`blank-${i}`} aria-hidden="true"><td className="is-line">{start + items.length + i + 1}</td><td /><td /><td /><td /><td /></tr>
         ))}
       </tbody>
     </table>
