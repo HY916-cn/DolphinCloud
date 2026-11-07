@@ -365,8 +365,8 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-person-side small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 
 
-/* Avatar — 账号头像：圆底上就是身份图标本身，占头像的六成：学生书包、柜员钞票、财务计算器、库管包裹、行长银行、
-   银行管理员学士帽、运维员扳手，还没分配身份是问号，这台设备不知道身份的账号是一个人像。所有身份同一种海豚蓝，靠图标区分。
+/* Avatar — 账号头像：圆底上就是身份图标本身，占头像的六成：学生学士帽、柜员钞票、财务计算器、库管包裹、行长银行、
+   银行管理员讲台白板、运维员扳手，还没分配身份是问号，这台设备不知道身份的账号是一个人像。所有身份同一种海豚蓝，靠图标区分。
    列表里 44px（cloud-100 底），PersonCard 里 56px（白底） */
 .dc-avatar { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--cloud-100); color: var(--dolphin); }
 .dc-avatar .dc-icon { width: 60%; height: 60%; color: inherit; }
