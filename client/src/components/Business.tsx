@@ -175,7 +175,7 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
   // Checked again by withdraw(); shown here so the teller sees the reason before confirming.
   const problem =
     !amount ? null
-    : amount > balance ? `余额不足：可用余额 ${formatAmount(balance)} HTB`
+    : amount > balance ? `余额不足：可用余额 ${formatAmount(balance)} HTB，还差 ${formatAmount(amount - balance)} HTB`
     : single !== undefined && amount > single ? `超过单笔取款限额 ${formatAmount(single)} HTB`
     : todayLeft !== undefined && amount > todayLeft ? `超过今日取款限额：今日还可取款 ${formatAmount(todayLeft)} HTB`
     : null;
