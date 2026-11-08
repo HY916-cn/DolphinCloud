@@ -18,8 +18,7 @@ async function turnTo(page: Page, target: Locator) {
   const next = page.getByRole('button', { name: '下一页' });
   await expect(target.or(next).first()).toBeVisible(); // the part has opened
   for (let i = 0; i < 4 && !(await target.isVisible()); i++) {
-    await next.click();
-    await page.waitForTimeout(100);
+    await next.click(); await page.waitForTimeout(900);
   }
   await expect(target).toBeVisible();
 }
@@ -65,7 +64,7 @@ test('the bookmarks turn to 明细, 排名 and 我的; closing the 存折 signs 
 
   await mark(page, '排名').click();
   await expect(page).toHaveURL(/\/book\/ranking$/);
-  const mine = page.locator('.dc-pb-table tr[aria-current]');
+  const mine = page.locator('.dc-passbook .dc-pb-table tr[aria-current]');
   await expect(mine).toContainText('张*明我');
   await expect(mine).toContainText('108');
   await turnTo(page, page.getByRole('region', { name: '我的名次' }));

@@ -869,8 +869,8 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
    当前一枚拉出得更长；一栏有几页时，在页脚按“上一页”“下一页”、左右滑动或按方向键翻页，每页页脚印着页码。
    书签用四种类别浅色，只在存折版里出现。--book-h 是存折的高度：电脑上 540–700px，手机上整屏 */
 .dc-book { background: var(--surface); }
-.dc-book-desk { --book-h: clamp(540px, calc(100dvh - 48px), 700px); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); width: 100%; max-width: 1240px; min-height: 100dvh; margin-inline: auto; padding: var(--space-5) var(--space-3) var(--space-5) var(--space-4); overflow: clip; }
-.dc-book-cover { justify-content: center; width: calc(var(--book-h) * .72); max-width: 100%; min-height: calc(var(--book-h) - 40px); animation: dc-book-in var(--motion-page) var(--ease-out) both; }
+.dc-book-desk { --book-h: clamp(540px, calc(100dvh - 48px), 700px); --book-w: min(calc(var(--book-h) * 1.44), calc(100% - 42px)); --cover-w: calc(var(--book-w) / 2); --book-shift: 21px; --book-closed: calc(var(--book-shift) - 25%); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); width: 100%; max-width: 1240px; min-height: 100dvh; margin-inline: auto; padding: var(--space-5) var(--space-3) var(--space-5) var(--space-4); overflow: clip; }
+.dc-book-cover { justify-content: center; width: var(--cover-w); max-width: none; height: var(--book-h); }
 .dc-book-cover h1 { margin: 0; }
 @container app (min-width: 1024px) {
   .dc-book-cover { gap: var(--space-4); }
@@ -886,10 +886,11 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-book-error { width: 100%; max-width: 280px; box-sizing: border-box; margin: 0; padding: var(--space-2) var(--space-3); border-radius: 3px; background: var(--danger-soft); color: var(--danger); font: 600 14px/20px var(--font-sans); text-align: left; }
 .dc-book-error b { display: block; font-weight: 800; }
 .dc-book-help { margin: 0; color: rgba(255, 255, 255, .82); font: 500 13px/20px var(--font-sans); }
-.dc-book-alt { color: var(--ink-muted); font: 600 15px/22px var(--font-sans); }
+.dc-book-alt { color: #f3cf7a; font: 600 15px/22px var(--font-sans); }
+.dc-pb-cover.is-waiting > :is(.dc-pb-label, .dc-book-unlock, .dc-book-help, .dc-book-alt) { visibility: hidden; }
 .dc-book-open { display: flex; justify-content: center; align-items: flex-start; width: 100%; }
 .dc-book-open .dc-passbook { position: relative; z-index: 1; }
-.dc-book-turn { position: relative; z-index: 1; flex: 0 1 calc(var(--book-h) * 1.44); min-width: 0; perspective: 1800px; }
+.dc-book-turn { position: relative; z-index: 1; flex: 0 0 var(--book-w); height: var(--book-h); min-width: 0; perspective: 2400px; }
 .dc-book-pages { position: relative; height: var(--book-h); touch-action: pan-y; }
 .dc-book-pages > .dc-passbook { box-sizing: border-box; height: 100%; grid-template-rows: minmax(0, 1fr); }
 .dc-book-pages .dc-pb-page { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
@@ -915,17 +916,14 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-book-mark[aria-current="page"]::after { content: ""; width: 4px; height: 24px; margin-top: var(--space-2); border-radius: 2px; background: currentColor; }
 .dc-book-mark:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @container app (max-width: 1023px) {
-  .dc-book-desk { --book-h: max(500px, calc(100dvh - 24px)); padding-block: 12px; }
-  .dc-book-turn { flex: 1 1 auto; max-width: 640px; }
-  .dc-book-cover { width: 100%; max-width: 640px; }
+  .dc-book-desk { --book-h: max(500px, calc(100dvh - 24px)); --book-w: min(640px, calc(100% - 42px)); --cover-w: var(--book-w); --book-closed: var(--book-shift); padding-block: 12px; }
 }
 @container app (max-width: 599px) {
-  .dc-book-desk { padding: 12px var(--space-2) 12px var(--space-3); }
+  .dc-book-desk { --book-w: calc(100% - 34px); --book-shift: 17px; padding: 12px var(--space-2) 12px var(--space-3); }
   .dc-book-mark { width: 40px; min-height: 76px; padding-left: 14px; font-size: 15px; letter-spacing: .2em; }
   .dc-pb-balance dd { font-size: 38px; }
   .dc-pb-foot { padding-top: var(--space-2); }
 }
-@keyframes dc-book-in { from { opacity: 0; transform: perspective(1200px) rotateY(-14deg) scale(.97); transform-origin: left center; } }
 
 /* 存折版各栏的纸面部件：印刷的类型页签、续页按钮、名次表里的“我”、名次说明和存折设置 */
 .dc-pb-types { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--space-3); }
@@ -962,9 +960,19 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
   .dc-pb-types button { min-height: 40px; padding: 0 10px; font-size: 13px; letter-spacing: .04em; }
 }
 @container app (min-width: 1024px) {
-  /* 纸页的厚度：外侧边缘一层层叠着的纸边；换栏目时右页从中缝翻过来 */
-  .dc-book-open .dc-passbook.is-spread .dc-pb-page:first-child { box-shadow: inset -16px 0 16px -16px rgba(13, 30, 80, .4), inset 1px 0 0 #cfd8ec, inset 2px 0 0 #fbfcff, inset 3px 0 0 #cfd8ec, inset 4px 0 0 #fbfcff, inset 5px 0 0 #d8e0f0; }
-  .dc-book-open .dc-passbook.is-spread .dc-pb-page:last-child { box-shadow: inset 16px 0 16px -16px rgba(13, 30, 80, .4), inset -1px 0 0 #cfd8ec, inset -2px 0 0 #fbfcff, inset -3px 0 0 #cfd8ec, inset -4px 0 0 #fbfcff, inset -5px 0 0 #d8e0f0; }
+  /* 打开的存折：每页带着自己那半边蓝封皮（渐变按整本书算，两半拼起来和一整张一样），打开时左页才能连着封皮一起翻过来。
+     纸页的厚度：外侧边缘一层层叠着的纸边；翻页用的副本也带这些 */
+  .dc-book-open .dc-pb-page[data-side="left"] { box-shadow: inset -16px 0 16px -16px rgba(13, 30, 80, .4), inset 1px 0 0 #cfd8ec, inset 2px 0 0 #fbfcff, inset 3px 0 0 #cfd8ec, inset 4px 0 0 #fbfcff, inset 5px 0 0 #d8e0f0; }
+  .dc-book-open .dc-pb-page[data-side="right"] { box-shadow: inset 16px 0 16px -16px rgba(13, 30, 80, .4), inset -1px 0 0 #cfd8ec, inset -2px 0 0 #fbfcff, inset -3px 0 0 #cfd8ec, inset -4px 0 0 #fbfcff, inset -5px 0 0 #d8e0f0; }
+  .dc-book-open .dc-passbook.is-spread { background: none; box-shadow: none; perspective: 2400px; }
+  .dc-book-open .dc-passbook.is-spread .dc-pb-page[data-side] { margin-block: -6px; border: 6px solid transparent; }
+  .dc-book-open .dc-passbook.is-spread .dc-pb-page[data-side="left"] { margin-left: -6px; border-right: 0; border-radius: 14px 0 0 14px;
+    background: repeating-radial-gradient(circle at 0 100%, rgba(31, 95, 245, .045) 0 1px, transparent 1px 6px) padding-box, repeating-radial-gradient(circle at 100% 0, rgba(42, 191, 212, .05) 0 1px, transparent 1px 6px) padding-box, linear-gradient(var(--pb-paper) 0 0) padding-box, linear-gradient(160deg, #2152d0, #163a9e) left / 200% 100% no-repeat border-box;
+    box-shadow: inset -16px 0 16px -16px rgba(13, 30, 80, .4), inset 1px 0 0 #cfd8ec, inset 2px 0 0 #fbfcff, inset 3px 0 0 #cfd8ec, inset 4px 0 0 #fbfcff, inset 5px 0 0 #d8e0f0, 0 1px 2px rgba(13, 30, 80, .25), 0 18px 36px -18px rgba(13, 30, 80, .55); }
+  .dc-book-open .dc-passbook.is-spread .dc-pb-page[data-side="right"] { margin-right: -6px; border-left: 0; border-radius: 0 14px 14px 0;
+    background: repeating-radial-gradient(circle at 0 100%, rgba(31, 95, 245, .045) 0 1px, transparent 1px 6px) padding-box, repeating-radial-gradient(circle at 100% 0, rgba(42, 191, 212, .05) 0 1px, transparent 1px 6px) padding-box, linear-gradient(var(--pb-paper) 0 0) padding-box, linear-gradient(160deg, #2152d0, #163a9e) right / 200% 100% no-repeat border-box;
+    box-shadow: inset 16px 0 16px -16px rgba(13, 30, 80, .4), inset -1px 0 0 #cfd8ec, inset -2px 0 0 #fbfcff, inset -3px 0 0 #cfd8ec, inset -4px 0 0 #fbfcff, inset -5px 0 0 #d8e0f0, 0 1px 2px rgba(13, 30, 80, .25), 0 18px 36px -18px rgba(13, 30, 80, .55); }
+  .dc-book-turning.is-spread .dc-pb-page { padding: var(--space-6) var(--space-5) var(--space-5); }
 }
 
 
@@ -1001,17 +1009,16 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 @keyframes dc-mini-open { from { transform: rotateY(0); } }
 
 /* 存折版的动画 — 和用一本真存折一样：
-   打开：每次进入存折版，封面从合着的样子绕中缝翻到左边，它的背面就是印着户名和余额的第一页；随后书签从书页里依次滑出。
-   翻页：点书签时，一页纸从右页掀起，越过中缝落到左边，右页上掠过翻页的阴影。手机上纸页叠在一起，换栏目时最上面一张纸
-   绕左边装订线掀走，露出下一页。
+   打开：封面还是登录时那一张，大小、位置都不变。它绕中缝翻到左边，和它同一个角度翻过来的是左页（连着半边封皮），两张纸在竖直时交接；整本书同时往左移到摊开的位置；随后书签从书页里依次滑出。
+   翻页：翻起的是真的一页，正面是这一页，背面是下一页。点书签换栏目也一样翻，往后面的栏目向左翻，往前面的栏目向右翻。
    补登：这台设备上还没印过的交易，从最早的一笔起逐行、逐格印上去，打印头经过的地方闪一下淡蓝。
-   盖章：翻到盖着章的一页，银行业务章和姓名章最后“啪”地盖下去。
-   合上：书签先收回去，封面翻回来合上，再回到封面登录。
+   盖章：打开存折时，银行业务章和姓名章最后“啪”地盖下去。翻页时章已经在纸上，不再重盖。
+   合上：书签先收回去，封面翻回来合上，书移回中间，正好是封面登录那一张。
    系统减少动态效果时，这些动画都只剩最后的样子 */
-.dc-book-lid, .dc-book-sheet { display: none; }
+.dc-book-lid { display: none; }
 .dc-pb-seal { --tilt: -12deg; }
 .dc-pb-chop { --tilt: 3deg; }
-.dc-book-turn .dc-pb-seal, .dc-book-turn .dc-pb-chop { animation: dc-stamp 380ms cubic-bezier(.2, .9, .3, 1.15) 1500ms both; }
+.is-opening .dc-pb-seal, .is-opening .dc-pb-chop { animation: dc-stamp 380ms cubic-bezier(.2, .9, .3, 1.15) 1100ms both; }
 .dc-pb-table tr.is-printing td:not(.is-line) { animation: dc-ink 420ms steps(1, jump-start) both, dc-head 420ms ease-out; animation-delay: calc(1500ms + var(--row) * 520ms + var(--col) * 80ms); }
 .dc-pb-table tr.is-printing td:not(.is-line) * { animation: dc-ink 420ms steps(1, jump-start) both; animation-delay: calc(1500ms + var(--row) * 520ms + var(--col) * 80ms); }
 .dc-pb-table tr.is-printing td:nth-child(2) { --col: 0; }
@@ -1019,38 +1026,27 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-pb-table tr.is-printing td:nth-child(4) { --col: 2; }
 .dc-pb-table tr.is-printing td:nth-child(5) { --col: 3; }
 .dc-pb-table tr.is-printing td:nth-child(6) { --col: 4; }
-.is-opening .dc-book-mark { animation: dc-mark-out 420ms var(--ease-out) both; animation-delay: calc(1050ms + var(--i) * 90ms); }
+.is-opening .dc-book-mark { animation: dc-mark-out 420ms var(--ease-out) both; animation-delay: calc(750ms + var(--i) * 90ms); }
 .is-closing .dc-book-mark { transform: translateX(-130%); opacity: 0; transition: transform 240ms var(--ease-in), opacity 240ms var(--ease-in); }
+.is-opening .dc-book-lid, .is-closing .dc-book-lid { position: absolute; inset: 0; z-index: 5; display: block; transform-origin: left center; backface-visibility: hidden; pointer-events: none; }
+.dc-book-lid .dc-book-cover { width: 100%; height: 100%; }
+.is-opening .dc-book-lid { animation: dc-lid 1100ms cubic-bezier(.45, .05, .55, .95) both; }
+.is-closing .dc-book-lid { animation: dc-lid 760ms cubic-bezier(.45, .05, .55, .95) 240ms both reverse; }
+.is-opening .dc-book-turn { animation: dc-book-slide 1100ms cubic-bezier(.45, .05, .55, .95) both; }
+.is-closing .dc-book-turn { animation: dc-book-slide 760ms cubic-bezier(.45, .05, .55, .95) 240ms both reverse; }
 @container app (max-width: 1023px) {
-  /* 手机和平板：封面绕左边装订线翻开；换栏目时最上面一张纸掀走 */
-  .is-opening .dc-book-lid, .is-closing .dc-book-lid { position: absolute; inset: 0; z-index: 5; display: block; border-radius: 6px 14px 14px 6px; background: linear-gradient(160deg, #2152d0, #163a9e); box-shadow: inset 8px 0 0 rgba(0, 0, 0, .14), inset 0 0 0 10px rgba(255, 210, 120, 0), 0 18px 36px -18px rgba(13, 30, 80, .55); transform-origin: left center; backface-visibility: hidden; pointer-events: none; }
-  .dc-book-lid > div { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); height: 100%; }
-  .dc-book-lid img { width: 56px; height: 56px; padding: 4px; border-radius: 50%; background: var(--surface-raised); box-shadow: 0 0 0 2px #f3cf7a; }
-  .is-opening .dc-book-lid { animation: dc-lid 1200ms 200ms both; }
-  .is-closing .dc-book-lid { animation: dc-lid 760ms 240ms both reverse; }
-  .dc-book-sheet { position: absolute; inset: 6px 6px 6px 6px; z-index: 4; display: block; border-radius: 9px; background: repeating-radial-gradient(circle at 0 100%, rgba(31, 95, 245, .045) 0 1px, transparent 1px 6px), #f7faff; box-shadow: 4px 0 12px rgba(13, 30, 80, .18); transform-origin: left center; backface-visibility: hidden; pointer-events: none; animation: dc-sheet 640ms cubic-bezier(.4, 0, .2, 1) both; }
-  .is-opening .dc-book-sheet, .is-closing .dc-book-sheet { display: none; }
+  /* 手机和平板：封面翻过竖直就看不见了，转到这里为止，时间都花在看得见的那一段 */
+  .is-opening .dc-book-lid, .is-closing .dc-book-lid { animation-name: dc-lid-single; }
 }
 @container app (min-width: 1024px) {
-  /* 电脑：左页就是翻动的那一张纸，绕中缝从右边翻过来；打开和合上时它的背面是封面 */
-  .dc-book-turn .dc-passbook.is-spread { perspective: 2600px; }
-  .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child { z-index: 2; transform-origin: right center; animation: dc-leaf 820ms both; }
-  .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::after { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; background: inherit; box-shadow: inset 16px 0 24px -16px rgba(13, 30, 80, .35); transform: scaleX(-1); pointer-events: none; animation: dc-leaf-ghost 820ms both; }
-  .dc-book-turn .dc-passbook.is-spread .dc-pb-page:last-child::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg, rgba(13, 30, 80, .3), transparent 65%); pointer-events: none; animation: dc-leaf-shade 820ms both; }
-  .is-opening .dc-book-turn .dc-passbook.is-spread { animation: dc-book-unclose 1300ms 200ms both; }
-  .is-opening .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child { animation: dc-leaf 1300ms 200ms both; }
-  .is-opening .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::before, .is-opening .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::after { animation: dc-leaf-back 1300ms 200ms both; }
-  .is-opening .dc-book-turn .dc-passbook.is-spread .dc-pb-page:last-child::after { animation: dc-leaf-shade 1300ms 200ms both; }
-  .is-closing .dc-book-turn .dc-passbook.is-spread { animation: dc-book-close 760ms 240ms both; }
-  .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child { animation: dc-leaf-shut 760ms 240ms both; }
-  .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::before, .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::after { animation: dc-leaf-front 760ms 240ms both; }
-  .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:last-child::after { animation: dc-leaf-shade 760ms 240ms both reverse; }
-  /* 翻页时左页下面垫着的那张纸（上一页的背面）；打开和合上时下面什么也没有 */
-  .dc-book-turn .dc-passbook.is-spread::before { content: ""; position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc(50% - 6px); border-radius: 9px 0 0 9px; background: repeating-radial-gradient(circle at 0 100%, rgba(31, 95, 245, .045) 0 1px, transparent 1px 6px), #f7faff; box-shadow: inset -16px 0 16px -16px rgba(13, 30, 80, .4); }
-  .is-opening .dc-book-turn .dc-passbook.is-spread::before, .is-closing .dc-book-turn .dc-passbook.is-spread::before { display: none; }
-  .is-opening .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::after, .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::after { background: linear-gradient(160deg, #163a9e, #2152d0); box-shadow: inset -8px 0 0 rgba(0, 0, 0, .14); outline: 1px solid rgba(255, 210, 120, .45); outline-offset: -14px; }
-  .is-opening .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::before, .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::before { content: "海豚银行\A\A储蓄存折"; position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; align-content: center; white-space: pre; text-align: center; color: #f3cf7a; font: 800 30px/1.3 var(--font-sans); letter-spacing: .4em; text-indent: .4em; text-shadow: 0 1px 0 rgba(0, 0, 0, .35); transform: scaleX(-1); pointer-events: none; animation: dc-leaf-back 1300ms 200ms both; }
-  .is-closing .dc-book-turn .dc-passbook.is-spread .dc-pb-page:first-child::before { animation: dc-leaf-front 760ms 240ms both; }
+  /* 封面在右半边，绕中缝翻到左边；左页和它同角度、同缓动，背面朝外时藏起来 */
+  .is-opening .dc-book-lid, .is-closing .dc-book-lid { left: 50%; }
+  .is-opening .dc-pb-page[data-side="left"], .is-closing .dc-pb-page[data-side="left"] { z-index: 2; transform-origin: right center; backface-visibility: hidden; }
+  .is-opening .dc-pb-page[data-side="left"] { animation: dc-page-land 1100ms cubic-bezier(.45, .05, .55, .95) both; }
+  .is-closing .dc-pb-page[data-side="left"] { animation: dc-page-land 760ms cubic-bezier(.45, .05, .55, .95) 240ms both reverse; }
+  .is-opening .dc-pb-page[data-side="right"]::after, .is-closing .dc-pb-page[data-side="right"]::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(13, 30, 80, .3), transparent 65%); pointer-events: none; }
+  .is-opening .dc-pb-page[data-side="right"]::after { animation: dc-page-shade 1100ms both; }
+  .is-closing .dc-pb-page[data-side="right"]::after { animation: dc-page-shade 760ms 240ms both reverse; }
 }
 /* 翻页：一张纸叶，正面是翻起的那一页，背面印着下一页（都是页面的副本，翻完就收走，下面的页面才是能点的）。
    电脑上往后翻，右页从中缝掀起落到左边；往回翻，左页翻到右边；纸叶下面垫着原来那一页，纸面上随翻起的角度掠过阴影。
@@ -1060,7 +1056,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-book-turning .dc-pb-page { box-sizing: border-box; height: 100%; overflow: hidden; }
 .dc-book-under, .dc-book-leaf { position: absolute; top: 0; bottom: 0; }
 .dc-book-leaf { transform-style: preserve-3d; animation-duration: 760ms; animation-timing-function: cubic-bezier(.45, .05, .25, 1); animation-fill-mode: both; }
-.dc-book-face { position: absolute; inset: 0; backface-visibility: hidden; box-shadow: 0 2px 14px rgba(13, 30, 80, .18); }
+.dc-book-face { position: absolute; inset: 0; backface-visibility: hidden; animation: dc-turn-lift 760ms both; }
 .dc-book-face.is-back { transform: rotateY(180deg); }
 .dc-book-face::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: dc-turn-shade 760ms both; }
 .dc-book-turning.is-single .dc-book-under, .dc-book-turning.is-single .dc-book-leaf { left: 0; right: 0; }
@@ -1074,25 +1070,21 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-book-turning.is-spread.is-next .dc-book-leaf { right: 0; transform-origin: left center; animation-name: dc-turn-left; }
 .dc-book-turning.is-prev .dc-book-under { right: 0; }
 .dc-book-turning.is-spread.is-prev .dc-book-leaf { left: 0; transform-origin: right center; animation-name: dc-turn-right; }
-.dc-book-turning.is-next .dc-book-under .dc-pb-page, .dc-book-turning.is-spread.is-next .dc-book-face.is-back .dc-pb-page, .dc-book-turning.is-spread.is-prev .dc-book-face:not(.is-back) .dc-pb-page { border-radius: 9px 0 0 9px; }
-.dc-book-turning.is-prev .dc-book-under .dc-pb-page, .dc-book-turning.is-spread.is-next .dc-book-face:not(.is-back) .dc-pb-page, .dc-book-turning.is-spread.is-prev .dc-book-face.is-back .dc-pb-page { border-radius: 0 9px 9px 0; }
+.dc-book-turning.is-next .dc-book-under .dc-pb-page, .dc-book-turning.is-spread.is-next .dc-book-face.is-back .dc-pb-page, .dc-book-turning.is-spread.is-prev .dc-book-face:not(.is-back) .dc-pb-page { border-radius: 8px 0 0 8px; }
+.dc-book-turning.is-prev .dc-book-under .dc-pb-page, .dc-book-turning.is-spread.is-next .dc-book-face:not(.is-back) .dc-pb-page, .dc-book-turning.is-spread.is-prev .dc-book-face.is-back .dc-pb-page { border-radius: 0 8px 8px 0; }
 .dc-book-turning.is-spread.is-next .dc-book-face:not(.is-back)::after, .dc-book-turning.is-spread.is-prev .dc-book-face.is-back::after { background: linear-gradient(90deg, rgba(13, 30, 80, .3), transparent 60%); }
 .dc-book-turning.is-spread.is-next .dc-book-face.is-back::after, .dc-book-turning.is-spread.is-prev .dc-book-face:not(.is-back)::after { background: linear-gradient(270deg, rgba(13, 30, 80, .3), transparent 60%); }
-.dc-book-turning.is-single.is-prev .dc-book-under { filter: brightness(.96); }
 @keyframes dc-turn-left { from { transform: rotateY(0); } to { transform: rotateY(-180deg); } }
 @keyframes dc-turn-right { from { transform: rotateY(0); } to { transform: rotateY(180deg); } }
-@keyframes dc-turn-in { from { transform: rotateY(-180deg); } to { transform: rotateY(0); } }
+@keyframes dc-turn-in { from { transform: rotateY(-110deg); } to { transform: rotateY(0); } }
 @keyframes dc-turn-shade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
-@keyframes dc-leaf { 0% { transform: rotateY(180deg); animation-timing-function: cubic-bezier(.55, 0, .85, .45); } 50% { transform: rotateY(90deg); animation-timing-function: cubic-bezier(.15, .55, .45, 1); } 100% { transform: rotateY(0); } }
-@keyframes dc-leaf-ghost { 0%, 49.9% { opacity: .93; } 50%, 100% { opacity: 0; } }
-@keyframes dc-leaf-back { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
-@keyframes dc-leaf-shut { 0% { transform: rotateY(0); animation-timing-function: cubic-bezier(.55, 0, .85, .45); } 50% { transform: rotateY(90deg); animation-timing-function: cubic-bezier(.15, .55, .45, 1); } 100% { transform: rotateY(180deg); } }
-@keyframes dc-leaf-front { 0%, 49.9% { opacity: 0; } 50%, 100% { opacity: 1; } }
-@keyframes dc-book-close { 0% { transform: none; clip-path: inset(-80px); } 30% { clip-path: inset(-80px); } 42% { clip-path: inset(-80px -80px -80px 22%); } 50% { clip-path: inset(-80px -80px -80px 50%); } 100% { transform: translateX(-25%); clip-path: inset(-80px -80px -80px 50%); } }
-@keyframes dc-leaf-shade { 0% { opacity: .2; } 45% { opacity: 1; } 70%, 100% { opacity: 0; } }
-@keyframes dc-book-unclose { 0% { transform: translateX(-25%); clip-path: inset(-80px -80px -80px 50%); } 50% { clip-path: inset(-80px -80px -80px 50%); } 58% { clip-path: inset(-80px -80px -80px 22%); } 70% { clip-path: inset(-80px); } 100% { transform: none; clip-path: inset(-80px); } }
-@keyframes dc-lid { 0% { transform: rotateY(0); animation-timing-function: cubic-bezier(.5, 0, .3, 1); } 80% { opacity: 1; } 100% { transform: rotateY(-150deg); opacity: 0; } }
-@keyframes dc-sheet { 0% { transform: rotateY(0); } 100% { transform: rotateY(-120deg); opacity: 0; } }
+@keyframes dc-turn-lift { 0%, 100% { box-shadow: 0 0 0 rgba(13, 30, 80, 0); } 50% { box-shadow: 0 6px 24px rgba(13, 30, 80, .3); } }
+.dc-book-html { display: contents; }
+@keyframes dc-lid { from { transform: rotateY(0); } to { transform: rotateY(-180deg); } }
+@keyframes dc-lid-single { from { transform: rotateY(0); } to { transform: rotateY(-100deg); } }
+@keyframes dc-page-land { from { transform: rotateY(180deg); } to { transform: rotateY(0); } }
+@keyframes dc-book-slide { from { transform: translateX(var(--book-closed)); } to { transform: none; } }
+@keyframes dc-page-shade { from { opacity: 1; } to { opacity: 0; } }
 @keyframes dc-mark-out { from { transform: translateX(-130%); opacity: 0; } }
 @keyframes dc-stamp { 0% { opacity: 0; transform: rotate(var(--tilt)) scale(1.8); } 60% { opacity: 1; transform: rotate(var(--tilt)) scale(.94); } }
 @keyframes dc-ink { from { color: transparent; text-shadow: none; } }
