@@ -167,8 +167,8 @@
         },
         "teacher.svg": {
           "name": "teacher.svg",
-          "blob": "7fee2af2388bb2ba59d0c8496b20f175",
-          "size": 392,
+          "blob": "7b0cf25448fb800f758fec742697812f",
+          "size": 296,
           "type": "image/svg+xml"
         },
         "lock.svg": {
@@ -280,9 +280,9 @@
           "type": "image/svg+xml"
         },
         "student.svg": {
-          "blob": "e9e382280764d7cbad95e74de2d610bd",
+          "blob": "24a57b44c4a9ce41be5f39aefc582973",
           "name": "student.svg",
-          "size": 433,
+          "size": 392,
           "type": "image/svg+xml"
         },
         "teller.svg": {
@@ -320,7 +320,11 @@
   },
   "blobs": {},
   "docs": {
-    "sections": []
+    "readme": "project/README.md",
+    "sections": [
+      "project/layout.md",
+      "project/motion.md"
+    ]
   },
   "lastChange": {
     "by": "HY916",
