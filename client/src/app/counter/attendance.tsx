@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CounterPage, DutyCard, ListLoading, Notice, SalaryAccount, Stats, today, WeekBar, WeekShifts } from '@/components';
-import { earned, NO_RATES, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
+import { earned, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
 import { useDuties } from '@/lib/duty';
 import { formatAmount, formatTime, shiftDay } from '@/lib/format';
 import { useMe } from '@/lib/session';
@@ -17,7 +17,7 @@ export default function Attendance() {
   const shifts = useShifts(monday, sunday, me.profile.id);
   const duties = useDuties(me.profile.id, monday, sunday);
   const rows = shifts.data ?? [];
-  const r = rate.data ?? NO_RATES;
+  const r = rate.data;
   return (
     <CounterPage title="考勤">
       <div className="dc-split">
@@ -30,12 +30,12 @@ export default function Attendance() {
           <Stats items={[
             ['有效', rows.filter((x) => x.status === 'confirmed').length, '个班次'],
             ['待审', rows.filter((x) => x.status === 'pending').length, '个班次'],
-            ['工资', formatAmount(earned(rows, r)), 'HTB'],
+            ['工资', r ? formatAmount(earned(rows, r)) : '—', 'HTB'],
             ['已发', formatAmount(rows.reduce((s, x) => s + (x.pay ?? 0), 0)), 'HTB'],
           ]} />
           {shifts.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
             : shifts.isPending ? <ListLoading rows={3} label="正在加载考勤" /> : <WeekShifts monday={monday} rows={rows} />}
-          <p className="dc-top-sub">工资：中午班每个 {r.am} HTB，下午班每个 {r.pm} HTB。</p>
+          <p className="dc-top-sub">工资：中午班每个 {r?.am ?? '—'} HTB，下午班每个 {r?.pm ?? '—'} HTB。</p>
         </div>
         <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
           <section aria-label="上下班记录">

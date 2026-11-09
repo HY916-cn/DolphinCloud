@@ -12,7 +12,7 @@ import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
 import { CashCounter, QtySum, Summary } from './Counter';
-import { FilterBar, filtered, NO_FILTER, type Filter } from './Filter';
+import { FilterBar, filtered, NO_FILTER, wrongTimes, type Filter } from './Filter';
 import { Stats } from './Report';
 import { ConfirmSheet } from './Sheet';
 import { TxnListLoading } from './Account';
@@ -405,8 +405,10 @@ export function QueryPanel({ student, served }: Props) {
       return data;
     },
   });
+  const badTime = wrongTimes(filter);
   const history = useInfiniteQuery({
     queryKey: ['counter-history', student.student_no, done, filter],
+    enabled: !badTime,
     initialPageParam: null as number | null,
     getNextPageParam: (last: HistoryRow[]) => (last.length === HISTORY ? last[last.length - 1].seq : undefined),
     queryFn: ({ pageParam }) => call<HistoryRow[]>('student_txns', {
@@ -425,7 +427,8 @@ export function QueryPanel({ student, served }: Props) {
           ['累计取出', formatAmount(a.total_out), 'HTB'], ['累计账户兑换', formatAmount(a.total_spent), 'HTB']]} />
       ) : account.error ? <Notice tone="danger" title="暂时无法读取账户">请检查网络后再试一次。</Notice> : <KvLoading rows={2} />}
       <FilterBar label="筛选交易记录" placeholder="搜索交易号或商品" value={filter} onChange={setFilter} kinds={QUERY_KINDS} />
-      {history.error && !rows ? <Notice tone="danger" title="暂时无法读取交易记录">请检查网络后再试一次。</Notice>
+      {badTime ? <Notice tone="danger" title="时段有误">结束时间要晚于开始时间。</Notice>
+        : history.error && !rows ? <Notice tone="danger" title="暂时无法读取交易记录">请检查网络后再试一次。</Notice>
         : !rows ? <TxnListLoading />
         : rows.length ? (
           <ul className="dc-txns" aria-label="交易记录">

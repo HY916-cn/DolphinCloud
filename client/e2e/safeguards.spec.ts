@@ -77,6 +77,19 @@ test.describe(() => {
     await expect(page.locator('.dc-notice-success')).toContainText(`已发放 ${pay} HTB`);
     expect(sql(`select pay from public.attendance where salary_txn is not null`)).toBe(pay);
   });
+
+  test('the teller sees — and not 0 while the rates cannot be read', async ({ page }) => {
+    await page.route(salary, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"test"}' }));
+    await signIn(page, '工作人员', 'teller01');
+    await expect(page).toHaveURL(/\/counter$/);
+    await page.goto('/counter/attendance');
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.dc-stat', { hasText: '工资' })).toContainText('—');
+    await expect(page.locator('.dc-top-sub', { hasText: '中午班每个' })).toHaveText('工资：中午班每个 — HTB，下午班每个 — HTB。');
+    await page.unroute(salary);
+    await page.reload();
+    await expect(page.locator('.dc-top-sub', { hasText: '中午班每个' })).toHaveText(/中午班每个 \d+ HTB，下午班每个 \d+ HTB/);
+  });
 });
 
 test('选择 covers only the students in view, and a batch confirmation names everyone it reaches', async ({ page }) => {
@@ -124,6 +137,12 @@ test('选择 covers only the students in view, and a batch confirmation names ev
 
   await page.goto('/admin/staff');
   await page.getByRole('button', { name: '选择', exact: true }).click();
+  await pick('柜员小林');
+  await expect(bar).toContainText('已选 1 个');
+  await page.getByRole('searchbox', { name: '搜索工作人员' }).fill('柜员');
+  await expect(bar).toContainText('已选 0 个');
+  await page.getByRole('button', { name: '清除', exact: true }).click();
+  await expect(bar).toContainText('已选 0 个');
   await bar.locator('label.dc-check').click();
   const count = Number((await bar.innerText()).match(/已选 (\d+) 个/)![1]);
   expect(count).toBeGreaterThan(1);
@@ -276,14 +295,14 @@ test.describe(() => {
     for (const value of values) await page.getByRole('button', { name: value, exact: true }).click();
     await page.getByRole('dialog', { name: `选择${field}` }).getByRole('button', { name: '确定' }).click();
   };
-  const wrongThenRight = async (page: Page) => {
+  const wrongThenRight = async (page: Page, read = '/rest/v1/txns?') => {
     await page.getByRole('button', { name: '按时段' }).click();
     await pickTime(page, '每天从', '10时');
     await pickTime(page, '每天到', '9时');
     await expect(page.locator('.dc-notice-danger')).toHaveText(/时段有误.*结束时间要晚于开始时间。/s);
     await page.waitForTimeout(500);
     let reads = 0;
-    const count = (r: { url(): string }) => { if (r.url().includes('/rest/v1/txns?')) reads++; };
+    const count = (r: { url(): string }) => { if (r.url().includes(read)) reads++; };
     page.on('request', count);
     await page.waitForTimeout(800);
     expect(reads).toBe(0);
@@ -312,6 +331,17 @@ test.describe(() => {
     await page.reload();
     await wrongThenRight(page);
     await expect(out).toBeEnabled();
+  });
+
+  test('柜台查询 asks for nothing while its 时段 ends before it starts', async ({ page }) => {
+    await signIn(page, '工作人员', 'teller01');
+    await expect(page).toHaveURL(/\/counter$/);
+    await search(page).fill('zxm');
+    await page.locator('.dc-list-link', { hasText: '张小明' }).click();
+    await page.locator('.dc-seg label', { hasText: '查询' }).click();
+    await expect(page.locator('.dc-txn').first()).toBeVisible();
+    await wrongThenRight(page, '/rest/v1/rpc/student_txns');
+    await expect(page.locator('.dc-txn').first()).toBeVisible();
   });
 
   test('明细 asks for nothing while its 时段 ends before it starts', async ({ page }) => {

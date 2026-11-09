@@ -95,8 +95,7 @@ export default function AttendanceDesk() {
       {rate.isError && !rates && (
         <Notice tone="danger" title="暂时无法读取工资费率">
           读到费率后才能发放工资，请检查网络后重试。
-          <br />
-          <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" style={{ marginTop: 'var(--space-2)' }} onClick={() => rate.refetch()}>重试</button>
+          <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => rate.refetch()}>重试</button>
         </Notice>
       )}
       <div className="dc-stack dc-enter">

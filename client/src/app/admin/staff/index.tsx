@@ -74,8 +74,8 @@ export default function Staff() {
         <label className="dc-search">
           <Icon name="query" />
           <input type="search" aria-label="搜索工作人员" placeholder="输入姓名或账号" autoComplete="off" enterKeyHint="search"
-            value={query} onChange={(e) => setQuery(e.target.value)} />
-          {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
+            value={query} onChange={(e) => { setQuery(e.target.value); setPicked(new Set()); }} />
+          {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => { setQuery(''); setPicked(new Set()); }}><Icon name="close" /></button>}
         </label>
         <div className="dc-filter-row">
           <div className="dc-chips" role="group" aria-label="筛选">

@@ -62,7 +62,6 @@ export function useSalaryRate() {
 // What confirmed shifts pay: their own pay once paid, the current pay of their kind until then.
 export const earned = (rows: ShiftRow[], rates: Record<Shift, number>) =>
   rows.filter((r) => r.status === 'confirmed').reduce((s, r) => s + (r.pay ?? rates[r.shift]), 0);
-export const NO_RATES: Record<Shift, number> = { am: 0, pm: 0 };
 
 // bind_salary_account answers a wrong password instead of raising it (the lockout count must stay).
 export async function bindSalaryAccount(userId: string, studentNo: string, password: string | null) {
