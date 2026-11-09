@@ -2,17 +2,16 @@
 export const formatAmount = (n: number) => Math.abs(n).toLocaleString('en-US');
 export const formatSigned = (n: number) => `${n < 0 ? '−' : '+'}${formatAmount(n)}`;
 
+// A moment as the school's clock reads it (Asia/Shanghai): year, month, day, hour and minute, hour and minute two digits.
+const SHANGHAI = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+export const shanghai = (d: Date) => Object.fromEntries(SHANGHAI.formatToParts(d).map((p) => [p.type, p.value]));
+
 // 10月27日 14:20, with the year only when it is not the current one (Asia/Shanghai).
 export function formatTime(iso: string, now = new Date()) {
-  const part = (d: Date) =>
-    Object.fromEntries(
-      new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai', year: 'numeric', month: 'numeric', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-      }).formatToParts(d).map((p) => [p.type, p.value]),
-    );
-  const t = part(new Date(iso));
-  const year = t.year === part(now).year ? '' : `${t.year}年`;
+  const t = shanghai(new Date(iso));
+  const year = t.year === shanghai(now).year ? '' : `${t.year}年`;
   return `${year}${t.month}月${t.day}日 ${t.hour}:${t.minute}`;
 }
 

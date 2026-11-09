@@ -14,6 +14,9 @@ export function resetData() {
     tar -xf /tmp/e2e-storage.tar -C /data`], { stdio: ['ignore', 'ignore', 'inherit'] });
 }
 
+// Runs one statement in the test container's database and gives its output, for a state the pages only reach after many steps.
+export const sql = (statement: string) => execFileSync('docker', ['exec', process.env.E2E_CONTAINER!, 'psql', '-U', 'postgres', '-qAt', '-c', statement], { encoding: 'utf8' }).trim();
+
 // Signs in with the default password a12345678 (every seed login uses it); `save` ticks 在此设备保存登录.
 export async function signIn(page: Page, kind: '学生' | '工作人员', id: string, path = '/login?add=1', password = 'a12345678', save = false) {
   await page.goto(path);

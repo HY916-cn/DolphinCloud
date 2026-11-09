@@ -1,18 +1,18 @@
 // A PDF with one JPEG per A4 page, as wide as the page and from its top edge. Pages drawn on a canvas carry their
-// Chinese text as pixels, so no font has to be embedded.
-export type PdfPage = { jpeg: Uint8Array; width: number; height: number };
+// Chinese text as pixels, so no font has to be embedded. Each JPEG stays a Blob, kept by the browser outside the
+// JavaScript heap, and the file is put together from them without being copied into one array.
+export type PdfPage = { jpeg: Blob; width: number; height: number };
 export const A4 = { width: 595.28, height: 841.89 }; // points
 
-export function jpegPdf(pages: PdfPage[]): Uint8Array {
-  const chunks: Uint8Array[] = [];
+export function jpegPdf(pages: PdfPage[]): Blob {
+  const parts: (string | Blob)[] = [];
   const offsets: number[] = [];
   let length = 0;
-  const put = (part: string | Uint8Array) => {
-    const bytes = typeof part === 'string' ? new TextEncoder().encode(part) : part;
-    chunks.push(bytes);
-    length += bytes.length;
+  const put = (part: string | Blob) => {
+    parts.push(part);
+    length += typeof part === 'string' ? part.length : part.size; // every string here is ASCII: one byte a character
   };
-  const object = (n: number, ...body: (string | Uint8Array)[]) => {
+  const object = (n: number, ...body: (string | Blob)[]) => {
     offsets[n] = length;
     put(`${n} 0 obj\n`);
     body.forEach(put);
@@ -32,15 +32,12 @@ export function jpegPdf(pages: PdfPage[]): Uint8Array {
       + `/Resources << /XObject << /Im0 ${n + 2} 0 R >> >> /Contents ${n + 1} 0 R >>`);
     object(n + 1, `<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`);
     object(n + 2, `<< /Type /XObject /Subtype /Image /Width ${p.width} /Height ${p.height} /ColorSpace /DeviceRGB `
-      + `/BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`, p.jpeg, '\nendstream');
+      + `/BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.size} >>\nstream\n`, p.jpeg, '\nendstream');
   });
   const xref = length;
   put(`xref\n0 ${offsets.length}\n0000000000 65535 f \n`);
   for (let n = 1; n < offsets.length; n++) put(`${String(offsets[n]).padStart(10, '0')} 00000 n \n`);
   put(`trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
 
-  const out = new Uint8Array(length);
-  let at = 0;
-  for (const c of chunks) { out.set(c, at); at += c.length; }
-  return out;
+  return new Blob(parts, { type: 'application/pdf' });
 }

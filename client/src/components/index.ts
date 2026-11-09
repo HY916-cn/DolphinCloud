@@ -1,7 +1,7 @@
 export { BalanceCard, signed, TxnList, TxnListLoading, useTerm } from './Account';
 export { DIVISIONS, medal, Podium, RankNext, rankNext, RankRow, RankSummary, useRanking, type Ranking } from './Ranking';
 export { Page, SECTIONS, Shell, sectionsFor } from './Shell';
-export { ConfirmSheet, SignOut } from './Sheet';
+export { ConfirmSheet, SheetList, SignOut } from './Sheet';
 export { Icon, Loading, Notice, link, type IconName } from './ui';
 export { Welcome } from './Welcome';
 export { Gate, SignOutBlock } from './Gate';
@@ -22,7 +22,7 @@ export { TimePicker } from './TimePicker';
 export { DutyCard } from './Duty';
 export { CloseSheet, type Closing } from './Close';
 export { BatchBar, eachOf, Pick } from './Batch';
-export { FilterBar, filtered, NO_FILTER, type Chip, type Filter, type Suggestion } from './Filter';
+export { FilterBar, filtered, NO_FILTER, wrongTimes, type Chip, type Filter, type Suggestion } from './Filter';
 export { Passbook, PassbookPage, PassbookRows, PassbookSeal } from './Passbook';
 export { BookCover, BookPages, BookShell, useCloseBook, useLines, useWide, ViewSwitch } from './Book';
 export { Avatar } from './Avatar';

@@ -30,9 +30,10 @@ export function useRecent(studentNo: string) {
 }
 
 // Every business newest first, 30 at a time, by type (`tab`), by words of a 交易号 or a product and by days.
-export function useLedger(studentNo: string, tab: TxnTab, filter: Filter) {
+export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enabled = true) {
   return useInfiniteQuery({
     queryKey: ['student-txns', studentNo, tab, filter],
+    enabled,
     initialPageParam: 0,
     getNextPageParam: (last: TxnRow[], pages) => (last.length === PAGE ? pages.length : undefined),
     queryFn: async ({ pageParam }) => {

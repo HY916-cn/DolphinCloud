@@ -8,11 +8,12 @@ import { checkRoster, HEADER, type RosterProblem, type RosterRow } from '@/lib/r
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 
+type Failure = { title: string; text: string };
 type Stage =
-  | { kind: 'pick'; error?: { title: string; text: string } }
+  | { kind: 'pick'; error?: Failure }
   | { kind: 'checked'; file: string; rows: RosterRow[]; problems: RosterProblem[] }
   | { kind: 'importing'; done: number; total: number }
-  | { kind: 'done'; created: NoticeAccount[]; updated: number };
+  | { kind: 'done'; created: NoticeAccount[]; updated: number; error?: Failure };
 type Imported = { created: number; updated: number; accounts: NoticeAccount[] };
 
 const BATCH = 100;
@@ -66,7 +67,9 @@ export default function ImportRoster() {
         const e = err instanceof AppError ? err : new AppError('');
         const at = typeof e.detail.row === 'number' ? rows[i + e.detail.row - 1] : null;
         const { title, text } = explain(e.code, { ...e.detail, row: undefined });
-        setStage({ kind: 'pick', error: { title, text: `${at ? `学号 ${at.student_no}：` : ''}${text}前 ${i} 人已导入；改好后重新导入整个名册即可，已导入的学号只会更新信息。` } });
+        const error = { title, text: `${at ? `学号 ${at.student_no}：` : ''}${text}前 ${i} 人已导入${created.length ? `，其中新开户 ${created.length} 人，请先保存这些人的开户通知单` : ''}；改好后重新导入整个名册，已导入的学号只更新信息。` };
+        // Batches already imported have passwords shown nowhere else: keep their notices within reach.
+        setStage(created.length ? { kind: 'done', created, updated, error } : { kind: 'pick', error });
         return;
       } finally {
         queryClient.invalidateQueries({ queryKey: ['admin-students'] });
@@ -144,9 +147,10 @@ export default function ImportRoster() {
 
       {stage.kind === 'done' && (
         <>
+          {stage.error && <Notice tone="danger" title={stage.error.title}>{stage.error.text}</Notice>}
           <section className="dc-result">
-            <span className="dc-result-badge dc-pop"><Icon name="success" /></span>
-            <h1 className="display dc-enter" style={{ '--i': 1 } as React.CSSProperties}>导入完成</h1>
+            <span className="dc-result-badge dc-pop"><Icon name={stage.error ? 'warning' : 'success'} /></span>
+            <h1 className="display dc-enter" style={{ '--i': 1 } as React.CSSProperties}>{stage.error ? '导入中断' : '导入完成'}</h1>
             <p className="dc-result-lead dc-enter" style={{ '--i': 2 } as React.CSSProperties}>
               新开户 <b>{stage.created.length}</b> 人，更新 <b>{stage.updated}</b> 人
             </p>

@@ -9,6 +9,7 @@ import { Icon, type IconName } from './ui';
 // `actions` (打印 / 导出) always sit at the bar's bottom right, after 清除条件.
 export type Filter = { text: string; from: string; to: string; timeFrom: string; timeTo: string; kinds: string[] };
 export const NO_FILTER: Filter = { text: '', from: '', to: '', timeFrom: '', timeTo: '', kinds: [] };
+export const wrongTimes = (f: Pick<Filter, 'timeFrom' | 'timeTo'>) => !!f.timeFrom && !!f.timeTo && f.timeFrom >= f.timeTo;
 export const filtered = (f: Filter) => !!(f.text.trim() || f.from || f.to || f.timeFrom || f.timeTo || f.kinds.length);
 export type Suggestion = { key: string; icon: IconName; label: string; note?: string; pick: () => void };
 export type Chip = { key: string; label: string; clear: () => void };

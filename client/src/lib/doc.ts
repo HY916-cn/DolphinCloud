@@ -75,7 +75,7 @@ export async function renderDoc(title: string, sub: string, blocks: Block[]): Pr
     if (!open) return;
     text(`第 ${pages.length + 1} 页`, W / 2, H - 24, 500, 9, v('ink-muted'), 'center');
     const jpeg = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('canvas'))), 'image/jpeg', 0.85));
-    pages.push({ jpeg: new Uint8Array(await jpeg.arrayBuffer()), width: canvas.width, height: canvas.height });
+    pages.push({ jpeg, width: canvas.width, height: canvas.height });
     open = false;
   };
   const room = async (need: number) => {
@@ -232,7 +232,7 @@ export async function renderDoc(title: string, sub: string, blocks: Block[]): Pr
 
 // 打印 or 下载 PDF: the pages as a file, or printed through a frame holding them as images, one per sheet of A4.
 export function savePdf(pages: PdfPage[], name: string) {
-  const url = URL.createObjectURL(new Blob([jpegPdf(pages) as BlobPart], { type: 'application/pdf' }));
+  const url = URL.createObjectURL(jpegPdf(pages));
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
@@ -241,7 +241,7 @@ export function savePdf(pages: PdfPage[], name: string) {
 }
 
 export async function printPages(pages: PdfPage[]) {
-  const urls = pages.map((p) => URL.createObjectURL(new Blob([p.jpeg as BlobPart], { type: 'image/jpeg' })));
+  const urls = pages.map((p) => URL.createObjectURL(p.jpeg));
   const frame = document.createElement('iframe');
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
   document.body.appendChild(frame);

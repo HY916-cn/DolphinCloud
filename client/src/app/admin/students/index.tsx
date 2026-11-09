@@ -3,7 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, noticePages, openingPages, OutputSheet, Pick,
-  ResetNoticeSheet, today, type NoticeAccount,
+  ResetNoticeSheet, SheetList, today, type NoticeAccount,
 } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
@@ -48,7 +48,8 @@ export default function Students() {
   const shown = onlyWaiting ? waiting : all;
   const teacher = me.roles.includes('teacher');
   const manages = managesLogins(me);
-  const chosen = all.filter((s) => picked.has(s.student_no));
+  const chosen = list.filter((s) => picked.has(s.student_no));
+  const sheetRows = (rows: AdminStudent[]) => rows.map((s): [string, string] => [s.name, s.student_no]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-students'] });
   const notice = (s: AdminStudent, password: string): NoticeAccount =>
     ({ student_no: s.student_no, name: s.name, class_label: s.class_label, cohort: s.cohort, class_no: s.class_no, password });
@@ -113,12 +114,12 @@ export default function Students() {
         <label className="dc-search">
           <Icon name="query" />
           <input type="search" aria-label="搜索学生" placeholder="输入姓名、拼音首字母、班级或学号" autoComplete="off"
-            enterKeyHint="search" value={query} onChange={(e) => setQuery(e.target.value)} />
-          {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
+            enterKeyHint="search" value={query} onChange={(e) => { setQuery(e.target.value); setPicked(new Set()); }} />
+          {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => { setQuery(''); setPicked(new Set()); }}><Icon name="close" /></button>}
         </label>
         <div className="dc-filter-row">
           <div className="dc-chips" role="group" aria-label="筛选">
-            <button className="dc-chip" type="button" aria-pressed={onlyWaiting} onClick={() => setOnlyWaiting(!onlyWaiting)}>
+            <button className="dc-chip" type="button" aria-pressed={onlyWaiting} onClick={() => { setOnlyWaiting(!onlyWaiting); setPicked(new Set()); }}>
               <Icon name="check" />未设置密码{students.data && ` ${waiting.length}`}
             </button>
             {manages && all.length > 0 && (
@@ -180,18 +181,22 @@ export default function Students() {
       {step?.kind === 'status' && (
         <ConfirmSheet title={`${TO[step.to]} ${chosen.filter((s) => s.status !== step.to).length} 名学生？`} confirm={TO[step.to]}
           onClose={() => setStep(null)} onConfirm={() => setStatus(step.to)}
-          text={step.to === 'normal' ? '恢复后可以在柜台办理业务。' : `${step.to === 'frozen' ? '冻结' : '毕业'}后柜台不能为他们办理业务，余额和记录保留，可以再恢复。`} />
+          text={step.to === 'normal' ? '恢复后可以在柜台办理业务。' : `${step.to === 'frozen' ? '冻结' : '毕业'}后柜台不能为他们办理业务，余额和记录保留，可以再恢复。`}>
+          <SheetList people={sheetRows(chosen.filter((s) => s.status !== step.to))} />
+        </ConfirmSheet>
       )}
       {step?.kind === 'reset' && (
         <ConfirmSheet title={`为 ${chosen.length} 名学生重置密码？`} confirm="重置并生成通知单" onClose={() => setStep(null)} onConfirm={reset}
-          text="原密码立即失效。随后打印或下载重置密码通知单（每人一页），发给学生本人。" />
+          text="原密码立即失效。随后打印或下载重置密码通知单（每人一页），发给学生本人。">
+          <SheetList people={sheetRows(chosen)} />
+        </ConfirmSheet>
       )}
       {step?.kind === 'reissue' && (
         <ConfirmSheet title={`为 ${waiting.length} 名学生重新生成初始密码？`} confirm="生成通知单" onClose={() => setStep(null)} onConfirm={reissue}
           text="这些学生还未设置新密码。新的开户通知单（每人一页）上是新的初始密码，之前发出的通知单随即失效。" />
       )}
       {step?.kind === 'close' && (
-        <CloseSheet people={chosen.map((s) => ({ id: s.user_id, name: s.name, balance: s.accounts?.balance }))}
+        <CloseSheet people={chosen.map((s) => ({ id: s.user_id, name: s.name, no: s.student_no, balance: s.accounts?.balance }))}
           onClose={() => setStep(null)} onDone={(r) => { setStep(null); done(r); }} />
       )}
       {step?.kind === 'notices' && (step.resetAt

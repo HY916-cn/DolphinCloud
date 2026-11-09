@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet, DayShifts, Desk, Icon, link, ListLoading, Notice, ShiftLegend, ShiftMark, shiftWords, Stats, today, WeekBar } from '@/components';
-import { earned, NO_RATES, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf, type Shift, type ShiftRow } from '@/lib/attendance';
+import { earned, SHIFTS, usePayroll, useSalaryRate, useShifts, weekOf, type Shift, type ShiftRow } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, shiftAt, shiftDay } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -30,7 +30,8 @@ export default function AttendanceDesk() {
   const days = Array.from({ length: 7 }, (_, i) => shiftDay(monday, i));
   const staff = useStaff();
   const payroll = usePayroll();
-  const rates = useSalaryRate().data ?? NO_RATES;
+  const rate = useSalaryRate();
+  const rates = rate.data;
   const shifts = useShifts(monday, sunday);
   const due = useQuery({
     queryKey: ['attendance', 'due', sunday],
@@ -55,7 +56,8 @@ export default function AttendanceDesk() {
   const pending = rows.filter((r) => r.status === 'pending');
   const unpaid = (due.data ?? []).filter((u) => tellers.some((t) => t.id === u.user_id));
   const waiting = unpaid.filter((u) => u.status === 'pending').length;
-  const toPay = tellers.flatMap((t) => {
+  // Known only once the rates are read: an amount to confirm is never made up from a rate still unknown.
+  const toPay = !rates ? [] : tellers.flatMap((t) => {
     const mine = unpaid.filter((u) => u.user_id === t.id && u.status === 'confirmed');
     const amount = mine.reduce((s, u) => s + rates[u.shift], 0);
     return mine.length ? [{ name: t.display_name, shifts: mine.length, amount, account: counted(t.id)?.account ?? undefined }] : [];
@@ -90,14 +92,21 @@ export default function AttendanceDesk() {
   return (
     <Desk title="考勤">
       {result && <Notice tone={result.tone} title={result.title}>{result.text || undefined}</Notice>}
+      {rate.isError && !rates && (
+        <Notice tone="danger" title="暂时无法读取工资费率">
+          读到费率后才能发放工资，请检查网络后重试。
+          <br />
+          <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" style={{ marginTop: 'var(--space-2)' }} onClick={() => rate.refetch()}>重试</button>
+        </Notice>
+      )}
       <div className="dc-stack dc-enter">
         <WeekBar monday={monday} onMonday={setMonday} />
         {waiting > 0 && toPay.length > 0 && <p className="dc-top-sub">截至 {md(sunday)} 还有 {waiting} 个待审班次，全部审查后才能发放工资。</p>}
         <Stats items={[
           ['本周有效', rows.filter((r) => r.status === 'confirmed').length, '个班次'],
           ['待审', pending.length, '个班次'],
-          ['本周工资', formatAmount(earned(rows, rates)), 'HTB'],
-          ['每班工资', `${rates.am} / ${rates.pm}`, 'HTB'],
+          ['本周工资', rates ? formatAmount(earned(rows, rates)) : '—', 'HTB'],
+          ['每班工资', rates ? `${rates.am} / ${rates.pm}` : '—', 'HTB'],
         ]} />
         {shifts.error || staff.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
           : shifts.isPending || staff.isPending ? <ListLoading rows={3} label="正在加载考勤" />
@@ -140,7 +149,7 @@ export default function AttendanceDesk() {
                             </td>
                           ))}
                           <td className="n">{mine.filter((r) => r.status === 'confirmed').length}</td>
-                          <td className="n">{formatAmount(earned(mine, rates))}</td>
+                          <td className="n">{rates ? formatAmount(earned(mine, rates)) : '—'}</td>
                         </tr>
                       );
                     })}
@@ -164,7 +173,7 @@ export default function AttendanceDesk() {
           onConfirm={() => run('review_attendance', { p_ids: pending.map((r) => r.id), p_status: 'confirmed' },
             (r: { count: number }) => ({ tone: 'success', title: `已确认 ${r.count} 个班次`, text: '' }))} />
       )}
-      {paying && (
+      {paying && rates && (
         <ConfirmSheet title={`发放截至 ${md(sunday)} 的工资？`} busy={busy} onClose={() => setPaying(false)} onConfirm={pay}
           confirm={`发放 ${formatAmount(toPay.filter((p) => p.account).reduce((s, p) => s + p.amount, 0))} HTB`}
           ready={toPay.some((p) => p.account)}

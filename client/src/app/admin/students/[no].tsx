@@ -133,7 +133,7 @@ export default function Student() {
       )}
       {notice && <ResetNoticeSheet count={1} make={() => noticePages([notice.account], notice.at)} onClose={() => setNotice(null)} />}
       {confirm === 'close' && s && (
-        <CloseSheet people={[{ id: s.user_id, name: s.name, balance: s.accounts?.balance }]} onClose={() => setConfirm(null)}
+        <CloseSheet people={[{ id: s.user_id, name: s.name, no: s.student_no, balance: s.accounts?.balance }]} onClose={() => setConfirm(null)}
           onDone={(r) => {
             setConfirm(null);
             setResult(r);

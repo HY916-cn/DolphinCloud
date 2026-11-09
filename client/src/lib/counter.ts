@@ -63,17 +63,22 @@ export function useSettings() {
 
 // The roster the counter searches (lib/search.ts). Each read is kept on this device; offline, or when the read gets
 // no answer, the counter searches the copy kept there (§7.7). Read again whenever the counter comes back into view,
-// so students imported meanwhile can be found; an import on this device invalidates ['roster'] at once.
+// so students imported meanwhile can be found; an import on this device invalidates ['roster'] at once. With no answer
+// and no copy on this device it fails, at once and even offline, for FindStudent to say so; 0 students read is no failure.
 export function useRoster(accountId: string) {
   return useQuery({
     queryKey: ['roster', accountId],
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: 'always',
+    networkMode: 'always',
+    retry: false,
     queryFn: async () => {
       const data = await withTimeout(5000, (signal) => readAll((from, to) => supabase.from('students')
         .select('student_no,name,class_no,class_label,status').neq('status', 'closed').order('student_no').range(from, to).abortSignal(signal))).catch(() => null);
       if (data) await saveRoster(accountId, data);
-      return indexRoster(data ?? await cachedRoster(accountId));
+      const roster = data ?? await cachedRoster(accountId);
+      if (!data && !roster.length) throw new Error('no roster on this device');
+      return indexRoster(roster);
     },
   });
 }

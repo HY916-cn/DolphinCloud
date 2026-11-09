@@ -21,6 +21,11 @@ export function TimePicker({ label, value, onChange, rule, placeholder }: {
   const close = (focus = true) => { setOpen(false); if (focus) trigger.current?.focus(); };
   const pickHour = (x: string) => onChange(`${x}:${m || '00'}`);
   const pickMinute = (x: string) => onChange(`${h || '00'}:${x}`);
+  // An empty field takes what stands in the band; a filled one has followed its wheels already.
+  const confirm = () => {
+    if (!value) onChange(`${HOURS[Math.round(hours.current!.scrollTop / ROW)]}:${MINUTES[Math.round(minutes.current!.scrollTop / ROW)]}`);
+    close();
+  };
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -74,7 +79,7 @@ export function TimePicker({ label, value, onChange, rule, placeholder }: {
           <span>{rule}</span>
           <span className="dc-time-acts">
             {placeholder && value && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { onChange(''); close(); }}>{placeholder}</button>}
-            <button className="dc-btn dc-btn-primary dc-btn-sm" type="button" onClick={() => close()}>确定</button>
+            <button className="dc-btn dc-btn-primary dc-btn-sm" type="button" onClick={confirm}>确定</button>
           </span>
         </div>
       </div>

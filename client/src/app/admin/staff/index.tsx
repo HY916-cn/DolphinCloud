@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, Pick, ResetNoticeSheet, staffNotice, staffNoticePages,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, Pick, ResetNoticeSheet, SheetList, staffNotice, staffNoticePages,
   type StaffNotice,
 } from '@/components';
 import { readPayroll, type Payroll } from '@/lib/attendance';
@@ -32,6 +32,7 @@ export default function Staff() {
   const pickable = (p: StaffLogin) => p.role !== 'teacher' && p.id !== me.profile.id;
   const chosen = list.filter((p) => picked.has(p.id));
   const disabledCount = all.filter((p) => p.disabled).length;
+  const sheetRows = chosen.map((p): [string, string] => [p.display_name, p.login_id]);
 
   function done(r: Result) {
     setResult(r);
@@ -137,14 +138,18 @@ export default function Staff() {
       {(step?.kind === 'disable' || step?.kind === 'enable') && (
         <ConfirmSheet title={`${step.kind === 'disable' ? '停用' : '启用'} ${chosen.length} 个账号？`} confirm={step.kind === 'disable' ? '停用' : '启用'}
           onClose={() => setStep(null)} onConfirm={() => setDisabled(step.kind === 'disable')}
-          text={step.kind === 'disable' ? '停用后立即退出登录、不能再登录，也不发放工资；记录保留，可以再启用。' : '启用后可以用原密码登录。'} />
+          text={step.kind === 'disable' ? '停用后立即退出登录、不能再登录，也不发放工资；记录保留，可以再启用。' : '启用后可以用原密码登录。'}>
+          <SheetList people={sheetRows} />
+        </ConfirmSheet>
       )}
       {step?.kind === 'reset' && (
         <ConfirmSheet title={`为 ${chosen.length} 个账号重置密码？`} confirm="重置" onClose={() => setStep(null)} onConfirm={reset}
-          text="原密码立即失效，账号退出登录。随后打印或下载重置密码通知单（每人一页），转交本人。" />
+          text="原密码立即失效，账号退出登录。随后打印或下载重置密码通知单（每人一页），转交本人。">
+          <SheetList people={sheetRows} />
+        </ConfirmSheet>
       )}
       {step?.kind === 'close' && (
-        <CloseSheet people={chosen.map((p) => ({ id: p.id, name: p.display_name }))} onClose={() => setStep(null)}
+        <CloseSheet people={chosen.map((p) => ({ id: p.id, name: p.display_name, no: p.login_id }))} onClose={() => setStep(null)}
           onDone={(r) => { setStep(null); done(r); }} />
       )}
       {step?.kind === 'notices' && <ResetNoticeSheet count={step.rows.length} make={() => staffNoticePages(step.rows, step.at)} onClose={() => setStep(null)} />}

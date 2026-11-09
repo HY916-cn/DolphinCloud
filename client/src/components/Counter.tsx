@@ -113,7 +113,14 @@ export function FindStudent({ onFound, offline, recent = [] }: { onFound: (s: St
       </label>
       </form>
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      {!query.trim() ? (
+      {roster.isError && !roster.data ? (
+        <div className="dc-empty">
+          <span className="dc-empty-icon"><Icon name="inbox" /></span>
+          <h3>这台设备还没有名册</h3>
+          <p>请联网后重试。名册下载后，断网也能搜索学生。</p>
+          <button className={`dc-btn dc-btn-secondary dc-btn-sm ${roster.isFetching ? 'is-loading' : ''}`} type="button" disabled={roster.isFetching} onClick={() => roster.refetch()}>重试</button>
+        </div>
+      ) : !query.trim() ? (
         recent.length ? (
           <>
             <p className="dc-list-title">今天办理过的学生</p>

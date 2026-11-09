@@ -17,27 +17,36 @@ const digits = (v: string) => v.replace(/\D/g, '').slice(0, 7);
 const FACES = [1, 2, 5, 10, 20, 50, 100];
 const pad = (n: number) => String(n).padStart(2, '0');
 
-function Field({ icon, label, hint, children }: { icon: IconName; label: string; hint?: string; children: ReactNode }) {
+// The numbers set_settings takes; an empty or out-of-range one is said so here and never saved.
+type Range = { min: number; max: number };
+const LIMIT: Range = { min: 1, max: 1_000_000 };
+const RANKING: Range = { min: 1, max: 100 };
+const PAY: Range = { min: 1, max: 10_000 };
+const outside = (value: string, { min, max }: Range) => value === '' || Number(value) < min || Number(value) > max;
+const allowed = ({ min, max }: Range) => `请输入 ${min} 到 ${max} 的整数`;
+
+function Field({ icon, label, hint, error, children }: { icon: IconName; label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
-    <div className="dc-field">
+    <div className={`dc-field ${error ? 'is-error' : ''}`}>
       <span className="dc-field-label"><Icon name={icon} />{label}</span>
       {children}
-      {hint && <span className="dc-field-hint">{hint}</span>}
+      {(error || hint) && <span className="dc-field-hint">{error ? <><Icon name="warning" />{error}</> : hint}</span>}
     </div>
   );
 }
 
-// QtyStepper control (design system): minus, the number (typed or stepped) and plus, kept within min and max.
-function Stepper({ label, value, onChange, step, min, max }: {
-  label: string; value: string; onChange: (v: string) => void; step: number; min: number; max?: number;
+// QtyStepper control (design system): minus, the number (typed or stepped) and plus; the buttons keep within the range.
+function Stepper({ label, value, onChange, step, range }: {
+  label: string; value: string; onChange: (v: string) => void; step: number; range: Range;
 }) {
   const n = Number(value);
-  const to = (v: number) => onChange(String(Math.min(max ?? Infinity, Math.max(min, v))));
+  const { min, max } = range;
+  const to = (v: number) => onChange(String(Math.min(max, Math.max(min, v))));
   return (
-    <div className="dc-qty-ctrl">
+    <div className={`dc-qty-ctrl ${outside(value, range) ? 'is-error' : ''}`}>
       <button className="dc-qty-btn" type="button" aria-label={`${label}减少 ${step}`} disabled={n <= min} onClick={() => to(n - step)}><Icon name="minus" /></button>
       <input className="dc-qty-input" inputMode="numeric" aria-label={label} value={value} onChange={(e) => onChange(digits(e.target.value))} />
-      <button className="dc-qty-btn" type="button" aria-label={`${label}增加 ${step}`} disabled={max != null && n >= max} onClick={() => to(n + step)}><Icon name="plus" /></button>
+      <button className="dc-qty-btn" type="button" aria-label={`${label}增加 ${step}`} disabled={n >= max} onClick={() => to(n + step)}><Icon name="plus" /></button>
     </div>
   );
 }
@@ -47,12 +56,12 @@ function LimitPair({ label, hint, primary, junior }: {
   label: string; hint?: string; primary: [string, (v: string) => void]; junior: [string, (v: string) => void];
 }) {
   return (
-    <Field icon="withdraw" label={`${label}（HTB）`} hint={hint}>
+    <Field icon="withdraw" label={`${label}（HTB）`} hint={hint} error={outside(primary[0], LIMIT) || outside(junior[0], LIMIT) ? allowed(LIMIT) : undefined}>
       <div className="dc-denoms">
         {([['小学部', primary], ['初中部', junior]] as const).map(([name, [value, set]]) => (
           <div key={name} className="dc-qty is-product">
             <div className="dc-qty-head"><span className="dc-qty-name">{name}</span></div>
-            <Stepper label={`${name}${label}`} value={value} onChange={set} step={10} min={1} />
+            <Stepper label={`${name}${label}`} value={value} onChange={set} step={10} range={LIMIT} />
           </div>
         ))}
       </div>
@@ -131,6 +140,8 @@ function SettingsForm({ saved }: { saved: Values }) {
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
   const toggleFace = (f: number) => setFaces(faces.includes(f) ? faces.filter((x) => x !== f) : [...faces, f]);
   const changed = Object.keys(next).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(saved[k]));
+  const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING], [payAm, PAY], [payPm, PAY]] as const)
+    .some(([value, range]) => outside(value, range));
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
@@ -139,7 +150,7 @@ function SettingsForm({ saved }: { saved: Values }) {
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (busy || !changed.length) return;
+    if (busy || invalid || !changed.length) return;
     setBusy(true);
     setError(null);
     try {
@@ -202,8 +213,8 @@ function SettingsForm({ saved }: { saved: Values }) {
                 </label>
               </li>
               <li>
-                <Field icon="ranking" label="排名人数（名）" hint="每个学部显示前几名，1 到 100">
-                  <Stepper label="排名人数" value={rankingSize} onChange={(v) => setRankingSize(v.slice(0, 3))} step={1} min={1} max={100} />
+                <Field icon="ranking" label="排名人数（名）" hint="每个学部显示前几名，1 到 100" error={outside(rankingSize, RANKING) ? allowed(RANKING) : undefined}>
+                  <Stepper label="排名人数" value={rankingSize} onChange={(v) => setRankingSize(v.slice(0, 3))} step={1} range={RANKING} />
                 </Field>
               </li>
             </ul>
@@ -212,8 +223,8 @@ function SettingsForm({ saved }: { saved: Values }) {
             <p className="dc-list-title">考勤</p>
             <div className="dc-card dc-stack">
               {([['中午班', '13:30 之前', payAm, setPayAm], ['下午班', '13:30 起', payPm, setPayPm]] as const).map(([name, when, value, set]) => (
-                <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB`}>
-                  <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} min={1} max={10000} />
+                <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB`} error={outside(value, PAY) ? allowed(PAY) : undefined}>
+                  <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} range={PAY} />
                 </Field>
               ))}
             </div>
@@ -231,7 +242,7 @@ function SettingsForm({ saved }: { saved: Values }) {
         </div>
       </div>
       <div className="dc-actions">
-        <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || !changed.length}>
+        <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || invalid || !changed.length}>
           {busy ? '正在保存' : '保存参数'}
         </button>
       </div>

@@ -3,9 +3,12 @@
 import assert from 'node:assert/strict';
 const { jpegPdf } = await import('./pdf.ts');
 
-const fake = (s) => ({ jpeg: new TextEncoder().encode(s), width: 2, height: 3 });
+const fake = (s) => ({ jpeg: new Blob([s]), width: 2, height: 3 });
 const pdf = jpegPdf([fake('JPEG-ONE'), fake('JPEG-TWO')]);
-const text = new TextDecoder('latin1').decode(pdf);
+const text = new TextDecoder('latin1').decode(await pdf.arrayBuffer());
+
+assert.equal(pdf.type, 'application/pdf');
+assert.equal(pdf.size, text.length);
 
 assert.ok(text.startsWith('%PDF-1.4\n') && text.endsWith('%%EOF\n'));
 assert.equal(text.match(/\/Type \/Page /g).length, 2);

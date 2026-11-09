@@ -4,9 +4,27 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { signOutCurrent } from '@/lib/accounts';
 
+// Tab and Shift+Tab stay in the sheet: from its last control to its first and back, and in again if focus got out. Of
+// a radio group only the checked one takes a Tab.
+function keepTab(e: KeyboardEvent, sheet: HTMLElement) {
+  const controls = [...sheet.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
+    .filter((el) => el.offsetParent && !(el.matches('input[type="radio"]:not(:checked)') && sheet.querySelector('input[type="radio"]:checked')));
+  const [to, edge] = e.shiftKey ? [controls.at(-1), controls[0]] : [controls[0], controls.at(-1)];
+  if (!sheet.contains(document.activeElement) || document.activeElement === edge) {
+    e.preventDefault();
+    to?.focus();
+  }
+}
+
+// Everyone a batch confirmation reaches (design system Sheet): name and number, scrolling in its box past five rows.
+export function SheetList({ people }: { people: [string, string][] }) {
+  return <ul className="dc-sheet-list" tabIndex={0} aria-label="本次涉及">{people.map(([name, no]) => <li key={no}><b>{name}</b><small>{no}</small></li>)}</ul>;
+}
+
 // Confirmation sheet (design system Sheet): rises from the foot on phones, a centred dialog on wider screens.
 // Esc or a tap on the scrim cancels; closing plays the leaving animation before the sheet is removed. `children`
 // holds the choices a confirmation needs (e.g. a reason); `ready` keeps the confirm button off until they are made.
+// Focus starts on the first button, stays in the sheet, and goes back to what opened it when the sheet is gone.
 // `alt` adds a second way to go on beside the confirm button (下载 PDF beside 打印).
 export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = true, busy = false, alt, onConfirm, onClose, children }: {
   title: string; text: ReactNode; confirm: string; cancel?: string; ready?: boolean; busy?: boolean;
@@ -14,11 +32,19 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = 
 }) {
   const [leaving, setLeaving] = useState(false);
   const first = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
     first.current?.focus();
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setLeaving(true);
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLeaving(true);
+      if (e.key === 'Tab') keepTab(e, sheet.current!);
+    };
+    document.addEventListener('keydown', keys);
+    return () => {
+      document.removeEventListener('keydown', keys);
+      opener?.focus();
+    };
   }, []);
   // Rendered at the end of <body> in its own viewport-sized .dc-app: the page's .dc-app (container query) and
   // animated ancestors would otherwise hold the fixed scrim inside them.
@@ -26,7 +52,7 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = 
     <div className="dc-app" style={{ position: 'fixed', inset: 0, zIndex: 10, minHeight: 0, background: 'none' }}>
     <div className={`dc-scrim ${leaving ? 'is-leaving' : ''}`} onClick={(e) => e.target === e.currentTarget && setLeaving(true)}
       onAnimationEnd={(e) => leaving && e.target === e.currentTarget && onClose()}>
-      <div className="dc-sheet" role="dialog" aria-modal="true" aria-labelledby="dc-sheet-title">
+      <div ref={sheet} className="dc-sheet" role="dialog" aria-modal="true" aria-labelledby="dc-sheet-title">
         <h2 className="dc-sheet-title" id="dc-sheet-title">{title}</h2>
         <p className="dc-sheet-text">{text}</p>
         {children}

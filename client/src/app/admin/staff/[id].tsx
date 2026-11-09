@@ -149,7 +149,7 @@ export default function StaffLogin() {
         </div>
       )}
       {closing && p && (
-        <CloseSheet people={[{ id: p.id, name: p.display_name }]} onClose={() => setClosing(false)}
+        <CloseSheet people={[{ id: p.id, name: p.display_name, no: p.login_id }]} onClose={() => setClosing(false)}
           onDone={(r) => {
             setClosing(false);
             if (r.tone === 'danger') return setResult(r);

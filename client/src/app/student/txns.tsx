@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, signed, TxnList, TxnListLoading, type Filter } from '@/components';
+import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, signed, TxnList, TxnListLoading, wrongTimes, type Filter } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { TXN_TABS as TABS, useLedger, useMonth, type TxnTab as Tab } from '@/lib/ledger';
 import { useNewRows } from '@/lib/motion';
@@ -27,7 +27,8 @@ export default function StudentTxns() {
   const student = useMe().data!.student!;
   const [tab, setTab] = useState<Tab>('all');
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
-  const list = useLedger(student.student_no, tab, filter);
+  const badTime = wrongTimes(filter);
+  const list = useLedger(student.student_no, tab, filter, !badTime);
   const { m, totals } = useMonth(student.student_no);
 
   const rows = list.data?.pages.flat();
@@ -52,7 +53,8 @@ export default function StudentTxns() {
                 ))}
               </div>
               <div id="txns-panel" className="dc-stack" role="tabpanel" aria-labelledby={`txns-tab-${tab}`}>
-                {!rows ? <TxnListLoading /> : rows.length ? byDay(rows).map(({ day, items }) => (
+                {badTime ? <Notice tone="danger" title="时段有误">结束时间要晚于开始时间。</Notice>
+                  : !rows ? <TxnListLoading /> : rows.length ? byDay(rows).map(({ day, items }) => (
                   <div key={day}>
                     <p className="dc-list-title">{day}</p>
                     <TxnList items={items} fresh={fresh} />

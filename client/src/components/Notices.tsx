@@ -1,5 +1,5 @@
 import { renderDoc, type Block } from '@/lib/doc';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, shanghai } from '@/lib/format';
 import { A4, type PdfPage } from '@/lib/pdf';
 import { ROLES, type Role } from '@/lib/session';
 import { icons, type IconName } from '@/theme/icons';
@@ -96,8 +96,8 @@ export function ResetNoticeSheet({ count, make, onClose }: { count: number; make
 type NoticeSheet = { kind: string; greeting: string; lead: string; rows: [string, string][]; signIn: [string, string]; keep: string; at?: Date };
 
 async function drawNotices(sheets: NoticeSheet[]) {
-  // shortcut: about 140 KB a page at 144 dpi (a 2000-student import is ~280 MB); split the download by class if that
-  // becomes a problem.
+  // shortcut: about 130 KB of JPEG a page at 144 dpi, held as Blobs by the browser until the file is saved (2000 pages:
+  // 260 MB of Blobs, 3 MB of ArrayBuffer, about 20 s measured on a computer); split the download by class if a device runs short.
   const scale = 2; // canvas pixels per point
   const W = A4.width;
   const X = 56; // page margin
@@ -132,8 +132,8 @@ async function drawNotices(sheets: NoticeSheet[]) {
   };
 
   const date = new Date();
-  const dated = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-  const stamp = (s: NoticeSheet) => (s.at ? `${dated(s.at)} ${String(s.at.getHours()).padStart(2, '0')}:${String(s.at.getMinutes()).padStart(2, '0')}` : dated(date));
+  const dated = (d: Date) => { const t = shanghai(d); return `${t.year}年${t.month}月${t.day}日`; };
+  const stamp = (s: NoticeSheet) => { if (!s.at) return dated(date); const t = shanghai(s.at); return `${dated(s.at)} ${t.hour}:${t.minute}`; };
   const origin = window.__DOLPHIN_CONFIG__?.supabaseUrl ?? location.origin; // the site's public address, whatever this page was opened at
   const stepsOf = (s: NoticeSheet) => [['打开网址', origin, ''], ['登录', ...s.signIn], ['设新密码', '至少 8 位', '']];
   const words = ['海豚云明德实验学校海豚银行年月日登录信息怎样登录请妥善保管本通知单',
@@ -237,7 +237,7 @@ async function drawNotices(sheets: NoticeSheet[]) {
     text(s.keep, X + 72, 801, 400, 16, v('ink'));
 
     const jpeg = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('canvas'))), 'image/jpeg', 0.8));
-    pages.push({ jpeg: new Uint8Array(await jpeg.arrayBuffer()), width: canvas.width, height: canvas.height });
+    pages.push({ jpeg, width: canvas.width, height: canvas.height });
   }
 
   return pages;

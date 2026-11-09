@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useLocalSearchParams } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import {
-  Desk, FilterBar, Icon, link, Notice, OutputSheet, ReversalSheet, SCOPE_ICON, Summary, TxnListLoading, today, type Chip, type Suggestion,
+  Desk, FilterBar, Icon, link, Notice, OutputSheet, ReversalSheet, SCOPE_ICON, Summary, TxnListLoading, today, wrongTimes, type Chip, type Suggestion,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { AppError, explain } from '@/lib/errors';
@@ -92,8 +92,10 @@ function Ledger({ init }: { init: LedgerFilter }) {
   const about = [chips.map((c) => c.label).join(' · ') || '全部学生',
     applied.from || applied.to ? `${applied.from || '最早'} 至 ${applied.to || now}` : `截至 ${now}`].join(' · ');
 
+  const badTime = wrongTimes(applied);
   const list = useInfiniteQuery({
     queryKey: ['admin-txns', applied],
+    enabled: !badTime,
     initialPageParam: 0,
     getNextPageParam: (last: Page, pages) => (last.rows.length === PAGE ? pages.length : undefined),
     queryFn: async ({ pageParam }): Promise<Page> => {
@@ -139,7 +141,7 @@ function Ledger({ init }: { init: LedgerFilter }) {
       <div className="dc-enter">
         <FilterBar label="筛选流水" placeholder="搜索学生、班级、柜员或交易号" value={applied} onChange={(f) => set(f)} kinds={KINDS}
           suggest={suggest} chips={chips} actions={
-            <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={!rows?.length} onClick={() => { setProblem(null); setExporting('pdf'); }}>
+            <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={badTime || !rows?.length} onClick={() => { setProblem(null); setExporting('pdf'); }}>
               <Icon name="passbook" />打印 / 导出
             </button>
           } />
@@ -147,7 +149,9 @@ function Ledger({ init }: { init: LedgerFilter }) {
 
       <section className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties} aria-label="流水">
         {reversed && <Notice tone="success" title="冲正成功">冲正交易号 {reversed}，原交易已标记为已冲正。</Notice>}
-        {list.error && !rows ? (
+        {badTime ? (
+          <Notice tone="danger" title="时段有误">结束时间要晚于开始时间。</Notice>
+        ) : list.error && !rows ? (
           <Notice tone="danger" title="暂时无法读取流水">请检查网络后再查询一次。</Notice>
         ) : !rows ? (
           <TxnListLoading />
