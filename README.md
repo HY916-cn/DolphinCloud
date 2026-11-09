@@ -2,7 +2,7 @@
 
 海豚云是明德学校校园银行「海豚银行」的业务平台：学生以海豚币办理存取和文创兑换，柜员在柜台办理业务，财务、库管、银行管理员和运维员在后台管理流水、商品、账号与系统。余额只能由业务流水推出，错账用冲正更正，记录不删除。前端是 Expo Router Web 应用，后端是自托管的 Supabase（Postgres、Auth、PostgREST、Storage）加 Caddy，全部打包在一个 Docker 镜像里，一条 `docker run` 启动并自动申请 HTTPS 证书。
 
-完整的开发文档（架构、数据模型、接口、测试与验收）见 [docs/development/PHASE-1.md](docs/development/PHASE-1.md)。
+完整的开发文档（架构、数据模型、接口、测试与验收）见 [docs/development/PHASE-1.md](docs/development/PHASE-1.md)，二期开发文档见 [docs/development/PHASE-2.md](docs/development/PHASE-2.md)，验收清单见 [docs/development/ACCEPTANCE.md](docs/development/ACCEPTANCE.md)，历次审查报告见 [docs/audit/](docs/audit/)。
 
 ## 仓库结构
 
@@ -14,7 +14,7 @@ supabase/
   seed.sql       开发种子数据
 docker/          Dockerfile、Caddyfile、supervisord.conf、init/、bin/（入口脚本与运维命令 dolphin）、测试脚本
 design-system/   海豚云设计系统
-docs/            产品文档、需求与开发文档
+docs/            产品文档、需求、开发文档、审查报告（audit/）与本地样例（samples/）
 ```
 
 ## 本地开发
