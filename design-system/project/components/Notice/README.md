@@ -6,7 +6,7 @@
 - `dc-notice-danger`（`role="alert"`）：没办成，标题说发生了什么（“余额不足”），说明写清数字并给出下一步怎么做。
 - `dc-notice-coin`：奖励、积分到账。
 - 默认（无修饰类）：一般信息，`cloud-100` 底。
-- 图标 36px 放在左侧；成功用 `success`、警示用 `warning`、奖励用 `star`。
+- 文字放 `dc-notice-title` 和 `dc-notice-text`。图标 36px 放在左侧；成功用 `success`、警示用 `warning`、奖励用 `star`。
 
 使用者提供：类型、标题、说明。用平实的业务用语，不用“错误”“异常”“非法”这类让学生紧张的词。
 

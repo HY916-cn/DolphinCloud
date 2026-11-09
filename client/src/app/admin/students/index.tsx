@@ -109,14 +109,14 @@ export default function Students() {
   const busy = step?.kind === 'busy';
   return (
     <Desk title="学生">
-      <form className="dc-card dc-stack fl-bar" role="search" onSubmit={(e) => e.preventDefault()}>
+      <form className="dc-card dc-stack dc-filter" role="search" onSubmit={(e) => e.preventDefault()}>
         <label className="dc-search">
           <Icon name="query" />
           <input type="search" aria-label="搜索学生" placeholder="输入姓名、拼音首字母、班级或学号" autoComplete="off"
             enterKeyHint="search" value={query} onChange={(e) => setQuery(e.target.value)} />
           {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
         </label>
-        <div className="fl-row">
+        <div className="dc-filter-row">
           <div className="dc-chips" role="group" aria-label="筛选">
             <button className="dc-chip" type="button" aria-pressed={onlyWaiting} onClick={() => setOnlyWaiting(!onlyWaiting)}>
               <Icon name="check" />未设置密码{students.data && ` ${waiting.length}`}
@@ -127,7 +127,7 @@ export default function Students() {
               </button>
             )}
           </div>
-          <span className="fl-actions">
+          <span className="dc-filter-actions">
             {manages && waiting.length > 0 && (
               <button className={`dc-btn dc-btn-ghost dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy}
                 onClick={() => setStep({ kind: 'reissue' })}>开户通知单</button>
@@ -209,7 +209,7 @@ export default function Students() {
 
 function Row({ s, pick }: { s: AdminStudent; pick: React.ReactNode }) {
   return (
-    <li className={pick ? 'bt-row' : undefined}>
+    <li className={pick ? 'dc-batch-row' : undefined}>
       {pick}
       <a className="dc-list-link" {...link(`/admin/students/${s.student_no}`)}>
         <Avatar role="student" />

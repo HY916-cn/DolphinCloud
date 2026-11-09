@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatAmount, formatSigned } from '@/lib/format';
+import { useRolling } from '@/lib/motion';
 import { readAll, supabase } from '@/lib/supabase';
 import { termStart } from '@/lib/term';
 import type { Txn } from '@/lib/txns';
@@ -12,10 +13,11 @@ export const signed = (n: number) => (n ? formatSigned(n) : '0');
 // BalanceCard: the largest number on the page, on a dolphin-blue card with the wave at its foot; with this term's
 // money, the pills say what came in and went out.
 export function BalanceCard({ amount, term }: { amount: number; term?: { saved: number; spent: number } }) {
+  const shown = useRolling(amount);
   return (
     <div className="dc-balance">
       <div className="dc-balance-label"><Icon name="coin" />我的海豚币</div>
-      <div className="dc-balance-amount">{formatAmount(amount)}<span>HTB</span></div>
+      <div className="dc-balance-amount">{formatAmount(shown)}<span>HTB</span></div>
       {term && <div className="dc-balance-split"><span>本学期存入 <b>{signed(term.saved)}</b></span><span>本学期支出 <b>{signed(term.spent)}</b></span></div>}
       <div className="dc-waves" aria-hidden="true"><i /><i /><i /></div>
     </div>
@@ -44,11 +46,11 @@ export function useTerm(studentNo: string) {
 
 // TxnList: icon, "业务 · 详情", time, and the signed amount with a word (存入 / 取出 / 余额支付), never colour alone; a cash
 // business shows its amount unsigned, as it leaves the balance as it is.
-export function TxnList({ items }: { items: Txn[] }) {
+export function TxnList({ items, fresh }: { items: Txn[]; fresh: ReadonlySet<string> }) {
   return (
     <ul className="dc-txns dc-stagger">
       {items.map((t) => (
-        <li key={t.key} className={`dc-txn ${t.kind}`}>
+        <li key={t.key} className={`dc-txn ${t.kind} ${fresh.has(t.key) ? 'is-new' : ''}`}>
           <span className="dc-txn-icon"><Icon name={t.icon} /></span>
           <div className="dc-txn-main">
             <div className="dc-txn-title">{t.title}</div>

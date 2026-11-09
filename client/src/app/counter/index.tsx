@@ -7,6 +7,7 @@ import {
 import { classOf, lookupStudent, useMyDay, useSettings, type Student, type TxnResult } from '@/lib/counter';
 import { useDuty } from '@/lib/duty';
 import { formatAmount } from '@/lib/format';
+import { useRolling } from '@/lib/motion';
 import type { RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
@@ -16,6 +17,11 @@ const BUSINESSES: [Business, IconName, string][] = [
 ];
 type Business = 'deposit' | 'withdraw' | 'shop' | 'query';
 const STATUS: Record<string, string> = { frozen: '已冻结', graduated: '已毕业' };
+
+// PersonCard's balance, rolling to its new value after a business.
+function StudentBalance({ amount }: { amount: number }) {
+  return <div className="dc-person-side">{formatAmount(useRolling(amount))}<small>当前余额 HTB</small></div>;
+}
 
 // 办理 (PHASE-1.md §7.5, design system CounterServicePage): the counter's one page. Search and tap a student (or one
 // served earlier today), then any number of deposits, withdrawals and exchanges for them, and 查询 for their account
@@ -118,7 +124,7 @@ export default function Serve() {
             {left === null ? '离线时不显示余额' : `今日还可取 ${formatAmount(left)} HTB`}{STATUS[student.status] && ` · 账户${STATUS[student.status]}`}
           </div>
         </div>
-        {student.balance !== null && <div className="dc-person-side">{formatAmount(student.balance)}<small>当前余额 HTB</small></div>}
+        {student.balance !== null && <StudentBalance key={student.student_no} amount={student.balance} />}
         <button className="dc-btn dc-btn-secondary dc-btn-sm dc-hide-phone" type="button" onClick={end}>{served.length ? '结束办理' : '换一位'}</button>
       </div>
       <fieldset className="dc-seg" aria-label="业务">

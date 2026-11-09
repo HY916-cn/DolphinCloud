@@ -6,7 +6,6 @@
   --cloud-200: #c9d6f8;
   --cloud-300: #a9bdf0;
   --cloud-400: #88a3e5;
-  --cloud-500: #7795de;
   --dolphin: #1f5ff5;
   --dolphin-deep: #1546c4;
   --on-dolphin: #ffffff;
@@ -28,8 +27,6 @@
   --success-soft: #dcf5ea;
   --danger: #b23c0a;
   --danger-soft: #ffe8dc;
-  --on-danger: #ffffff;
-  --link: var(--dolphin);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -61,3 +58,4 @@
 .body-lg { margin: 0; font: 600 18px/28px var(--font-sans); }
 .body { margin: 0; font: 400 16px/26px var(--font-sans); }
 .caption { margin: 0; font: 500 14px/20px var(--font-sans); }
+.data-label { margin: 0; font: 500 12px/16px var(--font-sans); }

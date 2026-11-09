@@ -10,7 +10,7 @@ import { Icon, link, Notice } from './ui';
 const who = (a: SavedAccount) => (a.kind === 'student' ? `学号 ${a.loginId}` : `工作账号 ${a.loginId}`);
 const SWITCH_ERRORS: Record<string, string> = {
   disabled: '这个账号已被停用，不能登录；需要恢复时请联系银行管理员。',
-  LOGIN_LOCKED: '密码错误次数过多，请 15 分钟后再试。',
+  LOGIN_LOCKED: '密码输错次数过多，请 15 分钟后再试。',
   closed: '这个账号已注销，已从这台设备上移除。',
 };
 
@@ -103,7 +103,7 @@ export function DeviceAccounts({ current }: { current?: string }) {
         </li>
       </ul>
       {accounts.length > 1 && (
-        <button className="dc-btn dc-btn-ghost dc-btn-sm is-danger lg-all" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>
+        <button className="dc-btn dc-btn-ghost dc-btn-sm is-danger dc-login-all" type="button" onClick={() => setConfirmAll(true)}>退出全部账号</button>
       )}
 
       {ask && (

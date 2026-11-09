@@ -3,7 +3,7 @@
 筛选栏：查交易流水、柜台“查询”、学生“明细”共用的一张筛选卡片。一个搜索框、一组日期、一组类型，需要时再按每天的时段筛选；打印、导出等动作放在卡片右下角。
 
 - 结构：`<form class="dc-card dc-stack dc-filter" role="search" aria-label>`，自上而下：
-  1. 搜索框 `SearchField`（`dc-search`）。有搜索建议时，下方出现建议列表（`dc-list`，最多约 320px 高，可滚动），每条是图标、名称和一行说明；没有匹配时写“没有找到「三年级」。”。
+  1. 搜索框 `SearchField`（`dc-search`）。有搜索建议时，下方出现建议列表（`dc-list dc-filter-found`，最多 320px 高，可滚动），每条是图标、名称和一行说明；没有匹配时写“没有找到「三年级」。”。
   2. 已选条件 `dc-chips`（`aria-label="已选条件"`）：从建议里选中的学生、班级、柜员变成按下状态的 `dc-chip`，对勾、名称、`close` 图标，点一下去掉这个条件。
   3. 日期行 `dc-filter-row`：`dc-filter-pair` 里并排两个 `DatePicker`（“从”“到”，未选时显示“不限”，选中后显示“10月1日 周四”，当年不写年份）。打开“按时段”后，右侧多一个 `dc-field`，里面是 `dc-filter-pair` 并排两个 `TimePicker`（“每天从”“每天到”），下方提示“全天”或“每天 07:00 至 12:00”。
   4. 类型行 `dc-filter-row`：左边是类型 `FilterChips`（`aria-label="类型"`，可多选），最后一个是“按时段”；右边 `dc-filter-actions`，先“清除条件”（`dc-btn-ghost dc-btn-sm`），再页面自己的动作（`dc-btn-secondary dc-btn-sm`，例如“打印 / 导出”）。

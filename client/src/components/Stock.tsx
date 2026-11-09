@@ -1,4 +1,5 @@
 import { formatSigned, formatTime } from '@/lib/format';
+import { useNewRows } from '@/lib/motion';
 import { Icon, link, type IconName } from './ui';
 
 export type Move = {
@@ -7,17 +8,18 @@ export type Move = {
 };
 
 const MOVE: Record<Move['kind'], { label: string; icon: IconName; kind: string }> = {
-  stock_in: { label: '入库', icon: 'plus', kind: 'dc-kind-save' }, stock_out: { label: '出库', icon: 'minus', kind: 'dc-kind-withdraw' },
+  stock_in: { label: '入库', icon: 'plus', kind: '' }, stock_out: { label: '出库', icon: 'minus', kind: '' },
   sale: { label: '兑换', icon: 'exchange', kind: 'dc-kind-exchange' }, reversal: { label: '冲正', icon: 'transfer', kind: '' },
 };
 
 // Stock movements, newest first: what moved, the product (a link to it) when the list spans several, the note and the
 // pieces.
 export function MoveList({ moves, label }: { moves: Move[]; label: string }) {
+  const fresh = useNewRows(moves.map((m) => m.id));
   return (
     <ul className="dc-txns" aria-label={label}>
       {moves.map((m) => (
-        <li key={m.id} className={`dc-txn ${MOVE[m.kind].kind}`}>
+        <li key={m.id} className={`dc-txn ${MOVE[m.kind].kind} ${fresh.has(String(m.id)) ? 'is-new' : ''}`}>
           <span className="dc-txn-icon"><Icon name={MOVE[m.kind].icon} /></span>
           <div className="dc-txn-main">
             <div className="dc-txn-title">

@@ -85,7 +85,7 @@ export default function Login() {
           autoComplete="current-password" placeholder="请输入密码" />
       </label>
       {!known && (
-        <label className="dc-check lg-save" title="保存后，在这台设备上切换回这个账号不用再输入密码">
+        <label className="dc-check dc-login-save" title="保存后，在这台设备上切换回这个账号不用再输入密码">
           <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
           <span className="dc-check-box" />
           <span>在此设备保存登录<small>公用设备请不要勾选</small></span>

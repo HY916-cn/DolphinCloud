@@ -50,8 +50,8 @@ function LimitPair({ label, hint, primary, junior }: {
     <Field icon="withdraw" label={`${label}（HTB）`} hint={hint}>
       <div className="dc-denoms">
         {([['小学部', primary], ['初中部', junior]] as const).map(([name, [value, set]]) => (
-          <div key={name} className="dc-qty">
-            <div className="dc-qty-head"><span className="dc-qty-face" style={{ fontSize: 18 }}>{name}</span></div>
+          <div key={name} className="dc-qty is-product">
+            <div className="dc-qty-head"><span className="dc-qty-name">{name}</span></div>
             <Stepper label={`${name}${label}`} value={value} onChange={set} step={10} min={1} />
           </div>
         ))}

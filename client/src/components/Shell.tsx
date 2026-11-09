@@ -1,5 +1,6 @@
 import { usePathname } from 'expo-router';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { replay } from '@/lib/motion';
 import type { Me, Role } from '@/lib/session';
 import { Icon, link, type IconName } from './ui';
 
@@ -9,7 +10,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/reports', icon: 'ranking', label: '报表', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher', 'president'], kind: 'dc-kind-exchange' },
-  { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher', 'president'], kind: 'dc-kind-exchange' },
+  { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher', 'president'] },
   { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'president', 'sysadmin'] },
   { href: '/admin/attendance', icon: 'calendar', label: '考勤', roles: ['teacher', 'president'] },
   { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher', 'president'] },
@@ -41,16 +42,41 @@ function navItems(me: Me): { href: string; icon: IconName; label: string; exact?
 // A page in the middle of a business (it has a back button) hides the phone TabBar (layout.md, AppShell).
 const InFlow = createContext<(on: boolean) => void>(() => {});
 
+// Whether the page change under way goes back: a page's back button or the browser's history; every other is forward.
+// shortcut: the browser's forward button fires the same popstate and slides as a return, read the history index to tell them apart.
+let returning = false;
+const PAGE_MOTION = ['dc-page-forward', 'dc-page-back'];
+
+// Slides the pages in as the path changes (motion.md), the navigation staying put. Not on the shell's first page.
+function usePageMotion(path: string) {
+  const main = useRef<HTMLDivElement>(null);
+  const shown = useRef(path);
+  useEffect(() => {
+    const back = () => { returning = true; };
+    addEventListener('popstate', back);
+    return () => removeEventListener('popstate', back);
+  }, []);
+  useLayoutEffect(() => {
+    if (shown.current === path || !main.current) return;
+    shown.current = path;
+    main.current.classList.remove(...PAGE_MOTION);
+    replay(main.current, PAGE_MOTION[returning ? 1 : 0]);
+    returning = false;
+  }, [path]);
+  return main;
+}
+
 // AppShell: bottom TabBar on phones, icon rail on tablets, full side navigation on computers (layout.md).
 export function Shell({ me, children }: { me: Me; children: ReactNode }) {
   const path = usePathname();
+  const main = usePageMotion(path);
   const items = navItems(me);
   // The phone TabBar holds five, the last one 我的; every section is also a tile on 总览.
   const tabs = items.length > 5 ? [...items.slice(0, 4), items[items.length - 1]] : items;
   const [inFlow, setInFlow] = useState(false);
   const current = (i: (typeof items)[number]) => (i.exact ? path === i.href : path.startsWith(i.href)) ? ('page' as const) : undefined;
   return (
-    <div className="dc-app">
+    <div className="dc-app" onClickCapture={() => { returning = false; }}>
       <div className="dc-shell">
         <aside className="dc-nav">
           <div className="dc-nav-inner">
@@ -60,7 +86,7 @@ export function Shell({ me, children }: { me: Me; children: ReactNode }) {
             </nav>
           </div>
         </aside>
-        <div className="dc-main"><InFlow.Provider value={setInFlow}>{children}</InFlow.Provider></div>
+        <div className="dc-main" ref={main}><InFlow.Provider value={setInFlow}>{children}</InFlow.Provider></div>
         {tabs.length > 1 && !inFlow && (
           <nav className="dc-tabbar" aria-label="主导航">
             {tabs.map((i) => <a key={i.href} className="dc-tab" aria-current={current(i)} {...link(i.href)}><Icon name={i.icon} />{i.label}</a>)}
@@ -84,7 +110,7 @@ export function Page({ title, sub, back, actions, children }: {
   return (
     <>
       <header className="dc-top">
-        {back && <button className="dc-icon-btn" type="button" aria-label="返回" onClick={back}><Icon name="back" /></button>}
+        {back && <button className="dc-icon-btn" type="button" aria-label="返回" onClick={() => { returning = true; back(); }}><Icon name="back" /></button>}
         <h1 className="dc-top-title title">{title}{sub && <span className="dc-top-sub">{sub}</span>}</h1>
         {actions}
       </header>

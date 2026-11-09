@@ -2,8 +2,9 @@
 
 空状态：列表或搜索没有内容时，说明原因并给出下一步。
 
-- 结构：`<div class="dc-empty">`：`dc-empty-icon`（96px `cloud-100` 圆底 + 图标；空的是某类业务时加对应的 `dc-kind-*`）、`<h3>` 标题、`<p>` 说明、可选的 `dc-btn-secondary dc-btn-sm`。
-- 居中排列，说明最宽 22 个字，上下留白 `space-7`。
+- 结构：`<div class="dc-empty">`：`dc-empty-icon`（96px `cloud-100` 圆底 + 图标；空的是某类业务时加对应的 `dc-kind-*`）、`<h3>` 标题、`<p>` 说明、可选的 `dc-btn-secondary dc-btn-sm`（最小宽 200px）。
+- 居中排列，说明最宽 22 个字，上下留白 `space-7`，最小高 360px：空状态要撑满它所代表的区域，不是一行小字。
+- 独立放在页面里时自成一张白底大卡片（`radius-lg`、`line` 描边）；放在 `dc-card` 里时不再套边框。
 
 使用者提供：图标（从 Icons 组选，常用 `inbox`、`query`）、标题（直接说没有什么：“这段时间没有交易”）、说明（为什么、可以怎么做）、可选的按钮。
 

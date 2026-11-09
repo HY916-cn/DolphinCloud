@@ -52,7 +52,7 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'SUMMARY_STALE': return { title: '总结需要重新生成', text: `上班后又办理了业务（共 ${d.txns} 笔），请重新生成并打印总结后再下班。` };
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };
     case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
-    case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码错误次数过多，请 15 分钟后再试。' };
+    case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码输错次数过多，请 15 分钟后再试。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }
@@ -64,6 +64,6 @@ export function loginError(code?: string) {
   if (code === 'user_banned') return { title: '这个账号已被停用', text: '停用的账号不能登录。需要恢复时，请联系银行管理员启用。' };
   if (code === 'over_request_rate_limit') return { title: '尝试次数过多', text: '请稍后再登录。' };
   if (code === 'invalid_credentials') return { title: '账号或密码不正确', text: '请核对后重新输入。' };
-  if (code === 'LOGIN_LOCKED') return { title: '密码错误次数过多', text: '请 15 分钟后再试，或请银行管理员重置密码。' };
+  if (code === 'LOGIN_LOCKED') return { title: '密码输错次数过多', text: '请 15 分钟后再试，或请银行管理员重置密码。' };
   return { title: '暂时无法登录', text: '请检查网络后重试。' };
 }

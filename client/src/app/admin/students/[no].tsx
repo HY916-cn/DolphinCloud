@@ -8,6 +8,7 @@ import {
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
+import { useNewRows } from '@/lib/motion';
 import { call } from '@/lib/rpc';
 import { bankAdmin, managesLogins, useMe } from '@/lib/session';
 import { DIVISION, STATUS, useStudent, type AdminStudent } from '@/lib/students';
@@ -55,6 +56,7 @@ export default function Student() {
       return (data as TxnRow[]).map(toTxn);
     },
   });
+  const fresh = useNewRows(txns.data?.map((t) => t.key));
   const [confirm, setConfirm] = useState<'reset' | 'close' | Status | null>(null);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
   const [notice, setNotice] = useState<{ account: NoticeAccount; at: Date } | null>(null);
@@ -120,7 +122,7 @@ export default function Student() {
                 <h2 className="heading">最近交易</h2>
                 <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/txns?student=${s.student_no}`)}>查看全部流水<Icon name="next" /></a>
               </div>
-              {!txns.data ? <TxnListLoading /> : txns.data.length ? <TxnList items={txns.data} /> : <p className="dc-top-sub">还没有交易记录。</p>}
+              {!txns.data ? <TxnListLoading /> : txns.data.length ? <TxnList items={txns.data} fresh={fresh} /> : <p className="dc-top-sub">还没有交易记录。</p>}
             </section>
           )}
         </div>

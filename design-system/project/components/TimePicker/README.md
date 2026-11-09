@@ -3,7 +3,7 @@
 时间选择器：24 小时制，点开后是“时”“分”两条竖向滚轮，上下滑动或点一下数字就能选，不用系统自带的时间控件。用于预约柜台办理时间、设置班次和提醒时间等。
 
 - 结构：`<div class="dc-field dc-time">`：`<label class="dc-field-label" for>`（图标 + 字段名）、触发按钮 `dc-date-trigger`（显示“09:30”，右侧 `clock` 图标），以及弹层 `dc-cal`（`role="dialog"`，关闭时加 `hidden`）。触发按钮和弹层与 `DatePicker` 共用样式。
-- 弹层：顶部 `dc-time-heads` 写“时”“分”；中间 `dc-time-wheels` 并排两条滚轮 `dc-time-col`（时 00–23，分 00–59），中间隔一个冒号 `dc-time-sep`；底部 `dc-cal-foot` 左边写可选范围，右边 `dc-time-acts` 放“确定”（小号主按钮）。每个数字是一个 `dc-time-opt` 按钮，两位数补零。
+- 弹层：顶部 `dc-time-heads` 用 `dc-time-label` 写“时”“分”；中间 `dc-time-wheels` 并排两条滚轮 `dc-time-col`（时 00–23，分 00–59），中间隔一个冒号 `dc-time-sep`；底部 `dc-cal-foot` 左边写可选范围，右边 `dc-time-acts` 放“确定”（小号主按钮）。每个数字是一个 `dc-time-opt` 按钮，两位数补零。
 - 滚轮：每行 44px，一次露出 5 行，上下两端渐隐；正中一条选中带（`cloud-100` 底、`dolphin` 描边）。滚动按行吸附，停在选中带里的数字就是当前值，触发按钮立刻更新。点任意一个数字，它会滚到正中并选中。停在不可选的整点上时，自动滚到最近的可选整点。
 - 状态：选中 `aria-pressed="true"`（24px 粗体 `dolphin-deep`）；其余 `ink-muted`；不可选 `disabled`（`cloud-300`），例如营业时间之外的整点。
 - 关闭：点“确定”、按 Esc 或点弹层外面。前两种把焦点还给触发按钮。

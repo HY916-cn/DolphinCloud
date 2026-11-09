@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, signed, TxnList, TxnListLoading, type Filter } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { TXN_TABS as TABS, useLedger, useMonth, type TxnTab as Tab } from '@/lib/ledger';
+import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { toTxn, type Txn, type TxnRow } from '@/lib/txns';
 
@@ -30,6 +31,7 @@ export default function StudentTxns() {
   const { m, totals } = useMonth(student.student_no);
 
   const rows = list.data?.pages.flat();
+  const fresh = useNewRows(rows?.map((r) => toTxn(r).key), JSON.stringify([tab, filter]));
   const amount = (n: number | undefined, show = formatAmount) =>
     n === undefined ? <span className="dc-skeleton" style={{ display: 'inline-block', width: 48, height: 22 }} /> : show(n);
   const narrowed = filtered(filter);
@@ -53,7 +55,7 @@ export default function StudentTxns() {
                 {!rows ? <TxnListLoading /> : rows.length ? byDay(rows).map(({ day, items }) => (
                   <div key={day}>
                     <p className="dc-list-title">{day}</p>
-                    <TxnList items={items} />
+                    <TxnList items={items} fresh={fresh} />
                   </div>
                 )) : (
                   <div className="dc-card">
@@ -67,14 +69,14 @@ export default function StudentTxns() {
                 {list.isFetchingNextPage && <TxnListLoading rows={2} />}
                 {list.error && rows && <Notice tone="danger" title="暂时无法读取更早的交易">请检查网络后再试一次。</Notice>}
                 {list.hasNextPage && !list.isFetchingNextPage && (
-                  <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => list.fetchNextPage()}>加载更早的交易</button>
+                  <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" onClick={() => list.fetchNextPage()}>加载更多</button>
                 )}
               </div>
             </div>
           </section>
           <div {...enter(0, 'is-sticky')}>
             <section className="dc-card">
-              <h2 className="heading" style={{ margin: '0 0 var(--space-3)' }}>{m}月收支</h2>
+              <h2 className="heading has-gap">{m}月收支</h2>
               <dl className="dc-kv">
                 <div><dt>{m === 1 ? 12 : m - 1}月底余额</dt><dd>{amount(totals.data?.opening)}</dd></div>
                 <div><dt>存入</dt><dd>{amount(totals.data?.saved, signed)}</dd></div>

@@ -3,7 +3,7 @@
 ## 设计原则
 
 1. **一眼看得懂。** 每屏只办一件事；业务入口用大图标 + 规范业务名称；金额是全页最大的字。
-2. **每一步都有引导。** 新功能用“小海豚提示”（`GuideBubble`）逐步说明，办理业务用 `Steps` 显示进度，结果用 `Notice` 说清楚。
+2. **每一步都有引导。** 结果用 `Notice` 说清楚，按钮写明下一步，不可撤销的动作先经 `Sheet` 确认。
 3. **圆润、可触、有反馈。** 所有可点的元素都是大圆角和厚底阴影，按下会下沉，像积木一样实在。
 4. **账目清楚可信。** 金额用 `amount` 样式，收支总配文字（存入 / 支出 / 奖励），不只靠颜色区分。
 
@@ -12,11 +12,11 @@
 界面元素可以活泼，**界面文字保持正式**：像一家认真对待小储户的银行，亲切、清楚、不幼稚。
 
 - 用“你”称呼学生，句子短，一句话说一件事。不用“哦”“啦”“呀”等语气词，不用叠词和网络用语；感叹号只用于奖励到账，一句最多一个。
-- 使用规范业务用语，与柜台业务 SOP 一致：存款、取款、兑换、查询、理财、贷款、存折、预约。按钮写动作本身：“确认存款”“知道了”“下一步”，不写“提交”“确定操作”这类含糊的词。
-- 结果直接写结果：“存款成功”“余额不足”。说明里写清数字和下一步：“可用余额 1,280 HTB，还差 720 HTB，请减少取款金额。”不用“错误”“失败”“异常”“非法”。
+- 使用规范业务用语，与柜台业务 SOP 一致：存款、取款、兑换、查询、理财、贷款、存折、预约。按钮写动作本身：“确认存款”“知道了”“下一步”，不写“提交”“确定操作”这类含糊的词。时间选择器弹层里的“确定”是例外：它只确认选中的值，没有业务动作可写。
+- 结果直接写结果：“存款成功”“余额不足”“密码输错次数过多”。说明里写清数字和下一步：“可用余额 1,280 HTB，还差 720 HTB，请减少取款金额。”不用“错误”“失败”“异常”“非法”。
 - 海豚币单位写 `HTB`，金额用千分位逗号：`1,280 HTB`。收入写 `+50`，支出写 `−20`（用减号 −）。
-- 时间写“10月27日 14:20”，当年内不写年份。按钮文字 2～5 个字，动词开头；字段名不加冒号。
-- 不用 emoji 当图标，用 Icons 组里的图标。
+- 时间写“10月27日 14:20”，当年内不写年份。按钮文字 2～6 个字，动词开头，数量用空格隔开（“全部确认 3”），不用全角括号；字段名不加冒号。
+- 不用 emoji 当图标，用 Icons 组里的图标。后台统计数字的涨跌 ▲▼ 是唯一的字符标记（见“数据与后台”）。
 
 ## 颜色
 
@@ -31,32 +31,34 @@
 | 珊瑚粉 | `dc-kind-exchange`（`rose-soft` / `rose-ink`） | **兑换**：用海豚币换东西 | 兑换、文创好物 |
 | 金色 | `dc-kind-reward`（`coin-soft` / `coin-ink`） | **海豚币与奖励** | 奖励、闪光点、利息、理财、排名；币图标 |
 | 绿 / 橙红 | `success` / `danger` | **状态**，不是类别 | 办成了、已到账 / 没办成、需要注意。永远配 `success` / `warning` 图标和文字 |
+| 白底蓝描边 | `dc-tag-pending` | **待处理**，状态 | 等人审核，还没有结果：待审、待发放。配 `clock` 图标或文字，不用金色 |
 
-- **类别色是一套**：四组浅底的明度和饱和度相同（OKLCH L 0.95），文字色同样一致（L 0.48），只换色相。色相彼此拉开，也避开状态色：储蓄偏蓝的海青（210°）与成功的绿（160°）分开，支取的葡萄紫（305°）与海豚蓝（263°）分开，兑换的莓红（355°）与警示的橙红（40°）分开。新增类别色时沿用同样的明度和饱和度。
-- **类别色只出现在四处**：图标底块（宫格、交易、列表、空状态）、类别标签 `Tag`、进度条 `Progress`、面额卡 `QtyStepper`。类名加在组件或它的容器上，浅底配同色系的图标和文字。
-- **类别色不用于**按钮、导航、链接、正文文字、页面和卡片背景。一项业务在全站只用一种颜色，同一个页面里同类的东西颜色相同（一屏的面额卡全是存款的海青）。
+- **类别色是一套**：四组浅底的明度接近（OKLCH L 0.95），文字色也接近（L 0.48～0.50），主要只换色相。色相彼此拉开，也避开状态色：储蓄偏蓝的海青（210°）与成功的绿（160°）分开，支取的葡萄紫（305°）与海豚蓝（263°）分开，兑换的莓红（355°）与警示的橙红（40°）分开。新增类别色时沿用同样的明度。
+- **类别色只出现在五处**：图标底块（宫格、交易、列表、空状态）、类别标签 `Tag`、进度条 `Progress`、面额卡 `QtyStepper`、单系列图表 `Chart`。类名加在组件或它的容器上，浅底配同色系的图标和文字。
+- **类别色不用于**按钮、导航、链接、正文文字、页面和卡片背景。一项业务在全站只用一种颜色，同一个页面里同类的东西颜色相同（一屏的面额卡全是存款的海青）。类别只描述钱怎么动：入库、出库、考勤不涉及钱，用默认的海豚蓝。
+- **存折版是唯一的仿真例外**：封面烫金和金色的“打开存折”模仿实物，只出现在 `Passbook`。
 - **大面积色块只有两处**：余额卡（纯 `dolphin` 底，同色浅一层的海浪，`dolphin-deep` 胶囊，文字和图标全部白色，不加金色或其他色系）和登录页头图（`sea-soft` → `cloud-100`，海水到天空）。封面同样只用海豚蓝、云朵色、海青和金色。
-- **底色与文字**：页面底色 `surface`，卡片和输入框 `surface-raised`，选中态和引导气泡用 `cloud-100`。标题和正文 `ink`，次要信息 `ink-muted`；`cloud-100` / `cloud-200` 上的蓝色文字用 `dolphin-deep`，`dolphin` 上的文字与图标用 `on-dolphin`。
-- 云朵色阶 `cloud-100` → `cloud-500` 取自 logo 的层层海浪，只用于背景、海浪和装饰；`cloud-300` 及更深不放文字。
+- **底色与文字**：页面底色 `surface`，卡片和输入框 `surface-raised`，选中态用 `cloud-100`。标题和正文 `ink`，次要信息 `ink-muted`；`cloud-100` / `cloud-200` 上的蓝色文字用 `dolphin-deep`，`dolphin` 上的文字与图标用 `on-dolphin`。
+- 云朵色阶 `cloud-100` → `cloud-400` 取自 logo 的层层海浪，只用于背景、海浪和装饰；`cloud-300` 及更深不放文字。
 - 所有文字与底色的组合 ≥ 4.5:1，边框、焦点环、图标 ≥ 3:1；每个颜色的 usage 写明了它能放在哪些底色上。
 
 ## 字体
 
-- 全站一套字体 `sans`：Nunito Sans 显示数字和字母（圆润、清晰），中文由思源黑体（Noto Sans SC）显示，系统回退到苹方 / 微软雅黑。两者都从 Google Fonts 加载（`bundle.css` 已引入）。
-- 标题组：`display` 36px / 800，用于首页欢迎语和办理成功页，每屏最多一处；`title` 26px / 700 页面标题；`heading` 20px / 700 卡片和分区标题。标题字距 0.02em。
-- 正文组：`amount` 40px / 800 用于余额和金额，配等宽数字（`font-variant-numeric: tabular-nums`）；`body-lg` 18px / 600 用于按钮、入口名称、引导语；`body` 16px / 400 是最小的正文；`caption` 14px / 500 只用于时间、单位、标签。
+- 全站一套字体 `sans`：Nunito Sans 显示数字和字母（圆润、清晰），中文由思源黑体（Noto Sans SC）显示，系统回退到苹方 / 微软雅黑。设计系统的预览从 Google Fonts 加载（`bundle.css` 已引入）；正式站点自己托管同样的字体，不依赖外部服务。
+- 标题组：`display` 36px / 800，用于首页欢迎语和结果页，每屏最多一处；`title` 26px / 700 页面标题；`heading` 20px / 700 卡片和分区标题。标题字距 0.02em。
+- 正文组：`amount` 40px / 800 用于余额和金额，配等宽数字（`font-variant-numeric: tabular-nums`）；`body-lg` 18px / 600 用于按钮、入口名称、引导语；`body` 16px / 400 是最小的正文；`caption` 14px / 500 只用于时间、单位、标签，是学生能看到的最小字号；`data-label` 12px / 500 只用于后台图表和周表的标注。消息角标和存折版里仿印刷的小字不受这条限制。
 
 ## 形状：云、浪、海豚
 
 - **圆角很大，没有直角**：标签 `radius-sm`（12px），输入框、提示条、列表卡片 `radius-md`（20px），业务入口、余额卡、弹层 `radius-lg`（28px），按钮和胶囊 `radius-pill`。
 - **海浪**是连续的缓曲线，三层由浅到深（`cloud-200` → `cloud-400`），用 `WaveDivider` 收尾卡片或头图；每屏最多两处，海浪上不放内容。
 - **云朵**：大块 `cloud-100` 圆角区域托住重点信息（余额、引导）。
-- **海豚**只以 logo 的形式出现：登录页、引导气泡头像、应用图标。不另画海豚插图，不改动 logo。
+- **海豚**只以 logo 的形式出现：登录页、应用图标。不另画海豚插图，不改动 logo。
 
 ## 阴影与状态
 
 - 卡片和业务入口用 `shadow-card`：向下 6px 的实色“厚底”，不用灰色模糊阴影。主按钮用 `shadow-button`（`dolphin-deep` 厚底）。
-- 浮在页面上的元素（弹层、引导气泡、底部导航）用 `shadow-float`。
+- 浮在页面上的元素（弹层、底部导航）用 `shadow-float`。
 - 按下：元素下移 3～4px，厚底变薄。禁用：`cloud-200` 底 + `ink-muted` 字，并把原因写在按钮上（“余额不足”）。
 - 键盘焦点：`focus-ring`（一圈白 + 一圈 `dolphin-deep`），所有可点元素都有。
 - 动效的时长、缓动和每个场景的做法见“动效”一节。
@@ -65,14 +67,14 @@
 
 - 手机、平板、电脑共用一套页面，断点 `bp-tablet`（600px）和 `bp-desktop`（1024px）；导航、栏数和按钮排版随宽度切换，细则见“排版与多端适配”一节。
 - 手机上的页面操作按钮总是整行、贴底；表单里的提交按钮在所有屏幕上撑满表单宽度。
-- 间距用 `space-1` 到 `space-7`（4 → 48px）；可点区域最小 44×44px，主要按钮 56px 高；相邻可点元素至少相隔 `space-2`。
+- 间距用 `space-1` 到 `space-7`（4 → 48px）；可点区域最小 44×44px（看起来更小的控件用伪元素扩大点击区），主要按钮 56px 高；相邻可点元素至少相隔 `space-2`。电脑表格内的密集控件是唯一的例外，见“排版与多端适配”。
 
 ## 图标
 
-- 图标使用 [morphicons](https://www.morphicons.com/) 的默认图标集 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 40 个图标（21 个业务图标、12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 40 个图标（21 个业务图标、12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
 - 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
-- 图标在两种状态之间切换时（底部导航选中、展开 / 收起、办理完成打勾），用 morphicons（`npm install morphicons`）做形变过渡，时长不超过 200ms。
-- 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、导航 30px、提示条和余额卡 36px、宫格 52px。
+- 图标状态切换用 CSS 完成：导航的选中底块滑动、展开箭头旋转、完成打勾用 `dc-pop`，不引入形变动画库。
+- 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、底部导航 30px、侧边导航 26～28px、提示条和余额卡 36px、宫格 52px。
 - 需要新图标时，从 Lucide 里选，保持 2px 描边，不混用其他图标库。
 
 ## 组件
@@ -82,13 +84,14 @@
 - 颜色：`ColorRoles`（每种颜色用于什么）。
 - 布局：`AppShell`（多端外壳与导航）、`ActionBar`（页面操作栏）、`WaveDivider`。
 - 操作与导航：`Button`、`ServiceTile`、`TabBar`、`Tabs`、`Segmented`、`FilterChips`。
-- 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`Slider`、`QtyStepper`。
+- 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`QtyStepper`。
 - 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`Avatar`（账号头像，图标表示身份）、`PersonCard`、`SummaryList`、`Progress`、`ListGroup`。
-- 引导与反馈：`GuideBubble`、`Steps`、`Tag`、`Badge`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
+- 数据：`Stats`（统计数字）、`Chart`（单系列图表）、`DataTable`（数字表格）、`Attendance`（考勤）、`BatchBar`（批量管理）。用法见“数据与后台”。
+- 引导与反馈：`Tag`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
 
-选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；在范围内取值用 `Slider`；学生在普通版和存折版之间选用 `ViewSwitch`。
+选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；学生在普通版和存折版之间选用 `ViewSwitch`。
 - 动效示例：`Motion`。
 
 ## 页面示例
 
-`LoginPage`（登录）、`StudentHomePage`（学生首页）、`TxnHistoryPage`（明细）、`RankingPage`（存款排名）、`SettingsPage`（我的）、`StudentBookLogin`（存折版登录）、`StudentBookPage`（存折版）、`CounterServicePage`（柜台办理：一位学生连续办理多笔）、`CounterDepositPage`（柜台存款）、`ResultPage`（办理结果）十个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。
+`LoginPage`（登录）、`StudentHomePage`（学生首页）、`TxnHistoryPage`（明细）、`RankingPage`（存款排名）、`SettingsPage`（我的）、`StudentBookLogin`（存折版登录）、`StudentBookPage`（存折版）、`CounterServicePage`（柜台办理：一位学生连续办理多笔）八个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。

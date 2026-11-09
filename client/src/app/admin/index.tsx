@@ -4,6 +4,7 @@ import {
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { formatAmount, formatTime } from '@/lib/format';
+import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { readAll, supabase } from '@/lib/supabase';
 import { KINDS } from '@/lib/txns';
@@ -94,6 +95,8 @@ export default function Admin() {
     },
   });
 
+  const fresh = useNewRows(recent.data?.map((r) => r.id));
+
   const todos: { href: string; icon: IconName; text: string }[] = todo.data ? [
     ...(todo.data.waiting ? [{ href: '/admin/students?filter=waiting', icon: 'lock' as const, text: `${todo.data.waiting} 名学生还未设置新密码` }] : []),
     ...(todo.data.disabled ? [{ href: '/admin/staff', icon: 'warning' as const, text: `${todo.data.disabled} 个工作人员账号已停用` }] : []),
@@ -127,7 +130,7 @@ export default function Admin() {
             <ul className="dc-txns" aria-label="最近 8 笔流水">
               {recent.data.map((r, i) => (
                 <li key={r.id} style={i ? { borderTop: '2px dashed var(--line)' } : undefined}>
-                  <a className={`dc-txn ${KINDS[r.type].kind}`} style={{ color: 'inherit', textDecoration: 'none' }}
+                  <a className={`dc-txn ${KINDS[r.type].kind} ${fresh.has(r.id) ? 'is-new' : ''}`} style={{ color: 'inherit', textDecoration: 'none' }}
                     {...link(`/admin/txns?student=${r.student_no}`)}>
                     <LedgerLine row={r} />
                   </a>

@@ -21,13 +21,13 @@ test('报表: today in figures, charts and tables, the balance check, and the PD
   await expect(page).toHaveURL(/\/admin\/reports$/);
   await page.getByRole('button', { name: '今天' }).click();
   const report = page.locator('section[aria-label="报表"]');
-  await expect(report.locator('.rp-stat', { hasText: '存款' })).toContainText('35HTB · 2 笔');
-  await expect(report.locator('.rp-stat', { hasText: '存款' })).toContainText('上期为 0'); // yesterday had none
-  await expect(report.locator('.rp-stat', { hasText: '兑换' })).toContainText('28HTB · 2 笔');
+  await expect(report.locator('.dc-stat', { hasText: '存款' })).toContainText('35HTB · 2 笔');
+  await expect(report.locator('.dc-stat', { hasText: '存款' })).toContainText('上期为 0'); // yesterday had none
+  await expect(report.locator('.dc-stat', { hasText: '兑换' })).toContainText('28HTB · 2 笔');
   await expect(report.getByRole('table', { name: '按柜员' })).toContainText('柜员小林');
 
   await page.getByRole('tab', { name: '账户' }).click();
-  await expect(report.locator('.rp-stat', { hasText: '期末账面余额' })).toContainText('178');
+  await expect(report.locator('.dc-stat', { hasText: '期末账面余额' })).toContainText('178');
   await expect(report.getByRole('table', { name: '按班级' })).toContainText('八年级(3)班');
   await page.getByRole('tab', { name: '财务' }).click();
   await expect(report.locator('.dc-notice-success')).toContainText('期初 180 + 本期变动 −2 = 期末 178 HTB');
@@ -38,13 +38,13 @@ test('报表: today in figures, charts and tables, the balance check, and the PD
   await page.getByRole('button', { name: '本月' }).click();
   await page.getByRole('tab', { name: '营业' }).click();
   await expect(report.getByRole('img', { name: /^存款：/ })).toBeVisible();
-  await expect(report.locator('.rp-chart', { hasText: '存款' }).locator('.rp-grid small').first()).toHaveText(/^\d+$/);
+  await expect(report.locator('.dc-chart', { hasText: '存款' }).locator('.dc-chart-grid small').first()).toHaveText(/^\d+$/);
 
   // One student, found as at the counter; the report as a PDF, a page for each table or chart.
   await page.getByRole('button', { name: '今天' }).click();
   await page.getByRole('searchbox', { name: '搜索学生范围' }).fill('张小明');
   await page.locator('.dc-list-link', { hasText: '张小明' }).click();
-  await expect(report.locator('.rp-stat', { hasText: '存款' })).toContainText('25HTB · 1 笔');
+  await expect(report.locator('.dc-stat', { hasText: '存款' })).toContainText('25HTB · 1 笔');
   await page.getByRole('button', { name: '打印 / 导出' }).click();
   const download = page.waitForEvent('download');
   await confirmIn(page, '下载 PDF');
@@ -56,7 +56,7 @@ test('报表: today in figures, charts and tables, the balance check, and the PD
   await page.getByRole('button', { name: '每天到', exact: true }).click();
   await page.getByRole('button', { name: '0时', exact: true }).click();
   await page.getByRole('button', { name: '5分', exact: true }).click();
-  await expect(report.locator('.rp-stat', { hasText: '存款' })).toContainText('0HTB · 0 笔');
+  await expect(report.locator('.dc-stat', { hasText: '存款' })).toContainText('0HTB · 0 笔');
 });
 
 test('报表: 打印 sends the pages to the print dialog', async ({ page }) => {
@@ -64,7 +64,7 @@ test('报表: 打印 sends the pages to the print dialog', async ({ page }) => {
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/reports');
   await page.getByRole('button', { name: '今天' }).click();
-  await expect(page.locator('.rp-stat').first()).toBeVisible();
+  await expect(page.locator('.dc-stat').first()).toBeVisible();
   await page.evaluate(() => {
     // The frame printPages adds: count its pages when it asks to print.
     new MutationObserver((list) => list.forEach((m) => m.addedNodes.forEach((n) => {
@@ -115,8 +115,8 @@ test('查询 at the counter: the account and every transaction, filtered, also a
   await page.locator('.dc-seg label', { hasText: '查询' }).click();
   const query = page.locator('section[aria-label="账户查询"]');
   await expect(page.locator('aside[aria-label="办理单"]')).toHaveCount(0); // 查询 takes the whole width
-  await expect(query.locator('.rp-stat', { hasText: '累计存入' })).toContainText('70HTB');
-  await expect(query.locator('.rp-stat', { hasText: '当前余额' })).toContainText('70HTB');
+  await expect(query.locator('.dc-stat', { hasText: '累计存入' })).toContainText('70HTB');
+  await expect(query.locator('.dc-stat', { hasText: '当前余额' })).toContainText('70HTB');
   const rows = query.getByRole('list', { name: '交易记录' }).locator('.dc-txn');
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText('存款');
@@ -136,5 +136,5 @@ test('查询 at the counter: the account and every transaction, filtered, also a
   await expect(page.locator('aside[aria-label="办理单"]')).toContainText('HT');
   await page.locator('.dc-seg label', { hasText: '查询' }).click();
   await expect(rows).toHaveCount(4);
-  await expect(query.locator('.rp-stat', { hasText: '当前余额' })).toContainText('75HTB');
+  await expect(query.locator('.dc-stat', { hasText: '当前余额' })).toContainText('75HTB');
 });

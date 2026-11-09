@@ -96,7 +96,7 @@ test('resetting many staff or students prints one notice each', async ({ page })
   await recordNotices(page);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
-  const pick = (name: string) => page.locator('.bt-pick', { hasText: `选择${name}` }).click();
+  const pick = (name: string) => page.locator('.dc-batch-pick', { hasText: `选择${name}` }).click();
 
   await page.goto('/admin/staff');
   await page.getByRole('button', { name: '选择', exact: true }).click();

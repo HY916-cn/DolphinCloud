@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Desk, Icon, link, ListLoading, MoveList, Notice, TxnListLoading, type Move } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
+import { useBump } from '@/lib/motion';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 
@@ -13,8 +14,8 @@ type Problem = { title: string; text: string } | null;
 
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
 const KIND = {
-  stock_in: { label: '入库', hue: 'dc-kind-save', note: '备注', hint: '选填，例如进货批次' },
-  stock_out: { label: '出库', hue: 'dc-kind-withdraw', note: '出库原因', hint: '必填，例如损坏、赠送、盘点短少' },
+  stock_in: { label: '入库', note: '备注', hint: '选填，例如进货批次' },
+  stock_out: { label: '出库', note: '出库原因', hint: '必填，例如损坏、赠送、盘点短少' },
 } as const;
 
 // 出入库 (storekeeper, teacher): stock in or take out several products in one go with the counter's steppers, and the
@@ -58,6 +59,7 @@ export default function Stock() {
   const setQty = (p: Product, n: number) => setQtys({ ...qtys, [p.id]: Math.max(0, Math.min(max(p), n)) });
   const lines = (products.data ?? []).filter((p) => qtys[p.id] > 0);
   const total = lines.reduce((s, p) => s + qtys[p.id], 0);
+  const totalRef = useBump<HTMLElement>(total);
   const noteProblem = tried && out && !note.trim() ? '请写明出库原因' : null;
 
   function switchKind(k: Kind) {
@@ -117,15 +119,14 @@ export default function Stock() {
                 <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a>
               </div>
             ) : (
-              <div className={`dc-denoms ${KIND[kind].hue}`} role="group" aria-label={`${KIND[kind].label}数量`}>
+              <div className="dc-denoms" role="group" aria-label={`${KIND[kind].label}数量`}>
                 {products.data.map((p) => {
                   const n = qtys[p.id] ?? 0;
                   return (
-                    <div key={p.id} id={`stock-${p.id}`} className={`dc-qty ${n ? 'is-filled' : ''}`}>
+                    <div key={p.id} id={`stock-${p.id}`} className={`dc-qty is-product ${n ? 'is-filled' : ''}`}>
                       <div className="dc-qty-head">
-                        <a className="dc-qty-face" style={{ fontSize: 18, minWidth: 0, overflowWrap: 'anywhere' }}
-                          {...link(`/admin/products/${p.id}`)}>{p.name}</a>
-                        <span className="dc-qty-sum" style={{ flex: 'none' }}>库存<b>{formatAmount(p.stock)}</b></span>
+                        <a className="dc-qty-name" {...link(`/admin/products/${p.id}`)}>{p.name}</a>
+                        <span className="dc-qty-sum">库存<b>{formatAmount(p.stock)}</b></span>
                       </div>
                       <div className="dc-qty-ctrl">
                         <button className="dc-qty-btn" type="button" aria-label={`减少一件${p.name}`} disabled={!n} onClick={() => setQty(p, n - 1)}><Icon name="minus" /></button>
@@ -147,7 +148,7 @@ export default function Stock() {
           </label>
           <dl className="dc-kv" aria-live="polite">
             {lines.map((p) => <div key={p.id}><dt>{p.name}</dt><dd>{out ? '−' : '+'}{formatAmount(qtys[p.id])} 件</dd></div>)}
-            <div className="is-total"><dt>{KIND[kind].label}合计</dt><dd>{formatAmount(total)}<small>件</small></dd></div>
+            <div className="is-total"><dt>{KIND[kind].label}合计</dt><dd ref={totalRef}>{formatAmount(total)}<small>件</small></dd></div>
           </dl>
           {tried && !lines.length && <Notice tone="danger" title="还没有选择商品">请用加减按钮填写要{KIND[kind].label}的数量。</Notice>}
           {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}

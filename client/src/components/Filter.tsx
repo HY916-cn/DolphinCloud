@@ -32,7 +32,7 @@ export function FilterBar({ label, placeholder, value, onChange, kinds, suggest,
   const toggle = (k: string) => set({ kinds: value.kinds.includes(k) ? value.kinds.filter((x) => x !== k) : [...value.kinds, k] });
 
   return (
-    <form className="dc-card dc-stack fl-bar" role="search" aria-label={label} onSubmit={(e) => {
+    <form className="dc-card dc-stack dc-filter" role="search" aria-label={label} onSubmit={(e) => {
       e.preventDefault();
       if (found.length) pick(found[0]);
       else if (!suggest) set({ text });
@@ -44,7 +44,7 @@ export function FilterBar({ label, placeholder, value, onChange, kinds, suggest,
         {text && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => { setText(''); if (!suggest) set({ text: '' }); }}><Icon name="close" /></button>}
       </label>
       {found.length > 0 && (
-        <ul className="dc-list fl-found" aria-label="搜索建议">
+        <ul className="dc-list dc-filter-found" aria-label="搜索建议">
           {found.map((s) => (
             <li key={s.key}>
               <a className="dc-list-link" href="#" onClick={(e) => { e.preventDefault(); pick(s); }}>
@@ -66,14 +66,14 @@ export function FilterBar({ label, placeholder, value, onChange, kinds, suggest,
           ))}
         </div>
       )}
-      <div className="fl-row">
-        <span className="rp-pair fl-dates">
+      <div className="dc-filter-row">
+        <span className="dc-filter-pair">
           <DatePicker short label="从" value={value.from} placeholder="不限" max={value.to || now} rule="不能晚于结束日期" onChange={(from) => set({ from })} />
           <DatePicker short label="到" value={value.to} placeholder="不限" min={value.from || undefined} max={now} rule="不能早于开始日期" onChange={(to) => set({ to })} />
         </span>
         {timed && <TimeRange from={value.timeFrom} to={value.timeTo} onChange={(timeFrom, timeTo) => set({ timeFrom, timeTo })} />}
       </div>
-      <div className="fl-row">
+      <div className="dc-filter-row">
         <div className="dc-chips" role="group" aria-label="类型">
           {kinds?.map(([k, name]) => (
             <button key={k} className="dc-chip" type="button" aria-pressed={value.kinds.includes(k)} onClick={() => toggle(k)}>
@@ -87,7 +87,7 @@ export function FilterBar({ label, placeholder, value, onChange, kinds, suggest,
           )}
         </div>
         {(busy || actions) && (
-          <div className="fl-actions">
+          <div className="dc-filter-actions">
             {busy && (
               <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => { setText(''); setTimed(false); chips.forEach((c) => c.clear()); onChange(NO_FILTER); }}>
                 清除条件

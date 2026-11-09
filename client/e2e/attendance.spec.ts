@@ -42,14 +42,14 @@ test('参与考勤: the bank admin counts the bound teller and sets the pay', as
 test('下班 and 上班 record the shift of now once, and the counter waits for 上班', async ({ page: teller }) => {
   await signIn(teller, '工作人员', 'teller01');
   await teller.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  await expect(teller.locator('.at-sign')).toContainText('已上班');
+  await expect(teller.locator('.dc-duty')).toContainText('已上班');
   await endDuty(teller);
   await teller.locator('.dc-nav-item', { hasText: '办理' }).click();
   await expect(teller.getByRole('searchbox', { name: '搜索学生' })).toHaveCount(0);
   await teller.getByRole('button', { name: '上班' }).click();
   await expect(teller.getByRole('searchbox', { name: '搜索学生' })).toBeVisible();
   await teller.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  await expect(teller.locator('.rp-stat', { hasText: '待审' })).toContainText('1个班次');
+  await expect(teller.locator('.dc-stat', { hasText: '待审' })).toContainText('1个班次');
   await expect(teller.locator('section[aria-label="上下班记录"] li')).toHaveCount(2);
 });
 
@@ -64,7 +64,7 @@ test('审查 once, 补签, then 发放工资 by the week once nothing waits', as
   await confirmIn(page, '确认有效');
   await expect(page.getByText('已确认')).toBeVisible();
   await expect(week.getByRole('img', { name: /^柜员小林 .*有效$/ })).toHaveCount(1); // reviewed: shown, not opened
-  await expect(page.getByRole('button', { name: '全部确认（0）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '全部确认 0' })).toBeDisabled();
 
   await page.getByRole('button', { name: '上一周' }).click();
   await week.getByRole('button', { name: /^柜员小林 .* 中午班未上班$/ }).first().click();
@@ -87,7 +87,7 @@ test('审查 once, 补签, then 发放工资 by the week once nothing waits', as
 test('the teller sees what each shift paid', async ({ page: teller }) => {
   await signIn(teller, '工作人员', 'teller01');
   await teller.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  await expect(teller.locator('.rp-stat', { hasText: '已发' })).toContainText(`${nowPay}HTB`);
+  await expect(teller.locator('.dc-stat', { hasText: '已发' })).toContainText(`${nowPay}HTB`);
   await expect(teller.getByRole('table', { name: '本周班次' })).toContainText(`已发 ${nowPay} HTB`);
 });
 

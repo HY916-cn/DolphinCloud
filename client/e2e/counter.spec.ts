@@ -40,7 +40,7 @@ test('one visit: deposit, then an exchange from the account, then back to the se
   await confirmIn(page, '确认兑换');
   await expect(page.locator('.dc-person')).toContainText('120');
 
-  await receipt(page).getByRole('button', { name: '结束办理（已办 2 笔）' }).click();
+  await receipt(page).getByRole('button', { name: '结束办理 2 笔' }).click();
   const summary = page.locator('.dc-notice-success');
   await expect(summary).toContainText('张小明：办理完成');
   await expect(summary).toContainText('存款 +22；兑换 海豚书签 × 1 −10。当前余额 120 HTB');
@@ -80,7 +80,7 @@ test('one visit: withdraw within the limits, a cash exchange, and 冲正 from th
   await expect(page.locator('.dc-sheet')).toContainText('李思远 · 兑换 海浪中性笔 × 1 现金');
   await reverse(page, '业务选错');
   await expect(receipt(page)).toContainText('兑换 海浪中性笔 × 1（已冲正）');
-  await expect(receipt(page).getByRole('button', { name: '结束办理（已办 1 笔）' })).toBeVisible();
+  await expect(receipt(page).getByRole('button', { name: '结束办理 1 笔' })).toBeVisible();
   await expect(page.locator('.dc-person')).toContainText('42');
 });
 
@@ -122,7 +122,7 @@ test('offline deposit is registered, then uploaded once online', async ({ page, 
   await expect(receipt(page).getByRole('button', { name: /^冲正/ })).toHaveCount(0);
 
   await context.setOffline(false);
-  await receipt(page).getByRole('button', { name: '结束办理（已办 1 笔）' }).click();
+  await receipt(page).getByRole('button', { name: '结束办理 1 笔' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('存款（离线登记） +5');
   await expect(page.locator('.dc-notice', { hasText: '有 1 笔离线存款待上传' })).toBeVisible();
   await page.getByRole('button', { name: '上传' }).click();

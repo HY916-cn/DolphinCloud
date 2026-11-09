@@ -138,7 +138,7 @@ export async function renderDoc(title: string, sub: string, blocks: Block[]): Pr
       if (!b.rows.length) { text('（无）', X + 7, y + 15, 400, 9, v('ink-muted')); y += ROW; }
       for (const [i, r] of b.rows.entries()) {
         if (y + ROW > BOTTOM) { await finish(); start(); head(); }
-        if (i % 2) { ctx.fillStyle = v('surface-sunken') || '#f6f8fc'; ctx.fillRect(X, y, W - 2 * X, ROW); }
+        if (i % 2) { ctx.fillStyle = v('surface'); ctx.fillRect(X, y, W - 2 * X, ROW); }
         line(r, 500, v('ink'));
         y += ROW;
       }

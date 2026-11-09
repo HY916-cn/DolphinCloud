@@ -20,7 +20,7 @@ export async function signIn(page: Page, kind: '学生' | '工作人员', id: st
   await page.locator('.dc-seg label', { hasText: kind }).click();
   await page.getByPlaceholder(kind === '学生' ? '请输入学号' : '请输入账号').fill(id);
   await page.getByPlaceholder('请输入密码').fill(password);
-  if (save) await page.getByText('在此设备保存登录').click();
+  if (save) await page.locator('label', { hasText: '在此设备保存登录' }).click();
   await page.getByRole('button', { name: '登录', exact: true }).click();
 }
 

@@ -24,12 +24,7 @@ export default function Products() {
     <Desk title="商品">
       <div className="dc-section-head">
         <p className="dc-top-sub">{products.data && `共 ${products.data.length} 件商品，${products.data.filter((p) => p.listed).length} 件已上架`}</p>
-        {editor && (
-          <span style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/stock')}><Icon name="inbox" />出入库</a>
-            <a className="dc-btn dc-btn-primary dc-btn-sm" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a>
-          </span>
-        )}
+        {editor && <a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/stock')}><Icon name="inbox" />出入库</a>}
       </div>
       {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后刷新页面。</Notice>
         : !products.data ? <ListLoading label="正在加载商品" />
@@ -64,6 +59,7 @@ export default function Products() {
             ))}
           </ul>
         )}
+      {editor && <div className="dc-actions"><a className="dc-btn dc-btn-primary" {...link('/admin/products/new')}><Icon name="plus" />新增商品</a></div>}
     </Desk>
   );
 }

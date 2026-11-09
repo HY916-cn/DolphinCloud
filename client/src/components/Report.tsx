@@ -62,7 +62,7 @@ export function TimeRange({ from, to, onChange }: { from: string; to: string; on
   const wrong = !!from && !!to && from >= to;
   return (
     <div className={`dc-field${wrong ? ' is-error' : ''}`} role="group" aria-label="每天的时段">
-      <span className="rp-pair">
+      <span className="dc-filter-pair">
         <TimePicker label="每天从" value={from} placeholder="0:00" rule="不填为当天开始" onChange={(f) => onChange(f, to)} />
         <TimePicker label="每天到" value={to} placeholder="24:00" rule="不填为当天结束" onChange={(t) => onChange(from, t)} />
       </span>
@@ -77,10 +77,10 @@ export function TimeRange({ from, to, onChange }: { from: string; to: string; on
 // narrow page.
 export function Stats({ items }: { items: [string, ReactNode, string?, string?][] }) {
   return (
-    <div className="rp-stats-box">
-      <div className="rp-stats" data-n={items.length} style={{ '--n': items.length } as CSSProperties}>
+    <div className="dc-stats-box">
+      <div className="dc-stats" data-n={items.length} style={{ '--n': items.length } as CSSProperties}>
         {items.map(([label, value, unit, change]) => (
-          <div key={label} className="dc-card rp-stat">
+          <div key={label} className="dc-card dc-stat">
             <span>{label}</span><b>{value}{unit && <small>{unit}</small>}</b>
             {change && <em className={change.includes('+') ? 'is-up' : change.includes('-') ? 'is-down' : undefined}>{change}</em>}
           </div>
@@ -93,7 +93,7 @@ export function Stats({ items }: { items: [string, ReactNode, string?, string?][
 // The scale beside a chart: the top (rounded, niceMax), its half and zero, with gridlines across the plot.
 function Grid({ top }: { top: number }) {
   return (
-    <div className="rp-grid" aria-hidden="true">
+    <div className="dc-chart-grid" aria-hidden="true">
       {[top, top / 2, 0].map((t) => <span key={t}><small>{formatAmount(Math.round(t))}</small></span>)}
     </div>
   );
@@ -108,15 +108,15 @@ export function Columns({ title, data, kind = '', unit }: { title: string; data:
   const total = data.reduce((n, d) => n + d.value, 0);
   const every = Math.ceil(data.length / 7); // at most seven axis labels
   return (
-    <figure className={`rp-chart ${kind}`}>
+    <figure className={`dc-chart ${kind}`}>
       <figcaption>{title}<small>合计 {formatAmount(total)} {unit}</small></figcaption>
-      <div className="rp-plot">
+      <div className="dc-chart-plot">
         <Grid top={top} />
-        <div className="rp-cols" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
-          {data.map((d) => <span key={d.label} className="rp-col" data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
+        <div className="dc-chart-cols" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
+          {data.map((d) => <span key={d.label} className="dc-chart-col" data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
         </div>
       </div>
-      <div className="rp-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
+      <div className="dc-chart-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
     </figure>
   );
 }
@@ -131,19 +131,19 @@ export function Line({ title, data, unit }: { title: string; data: Point[]; unit
   const points = data.map((d, i) => `${i + 0.5},${y(d.value)}`).join(' ');
   const every = Math.ceil(n / 7);
   return (
-    <figure className="rp-chart">
+    <figure className="dc-chart">
       <figcaption>{title}<small>期末 {formatAmount(data.at(-1)?.value ?? 0)} {unit} · 最高 {formatAmount(max)} {unit}</small></figcaption>
-      <div className="rp-plot">
+      <div className="dc-chart-plot">
         <Grid top={top} />
-        <div className="rp-cols rp-line" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
+        <div className="dc-chart-cols dc-chart-line" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
           <svg viewBox={`0 0 ${n} 100`} preserveAspectRatio="none" aria-hidden="true">
             <polygon points={`0.5,100 ${points} ${n - 0.5},100`} />
             <polyline points={points} />
           </svg>
-          {data.map((d, i) => <span key={d.label} className={`rp-col${i === n - 1 ? ' is-end' : ''}`} data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
+          {data.map((d, i) => <span key={d.label} className={`dc-chart-col${i === n - 1 ? ' is-end' : ''}`} data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
         </div>
       </div>
-      <div className="rp-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
+      <div className="dc-chart-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
     </figure>
   );
 }
@@ -154,9 +154,9 @@ export function Bars({ title, data, kind = '' }: { title: string; data: { label:
   const max = Math.max(0, ...data.map((d) => d.value));
   const total = data.reduce((n, d) => n + Math.max(d.value, 0), 0);
   return (
-    <figure className={`rp-chart ${kind}`}>
+    <figure className={`dc-chart ${kind}`}>
       <figcaption>{title}<small>{data.length} 项</small></figcaption>
-      <dl className="rp-bars">
+      <dl className="dc-chart-bars">
         {data.map((d) => (
           <div key={d.label}>
             <dt title={d.label}>{d.label}</dt>
@@ -174,8 +174,8 @@ export function Table({ label, head, rows, foot }: { label: string; head: string
     <td key={i} className={typeof c === 'number' ? 'n' : undefined}>{c === null ? '—' : typeof c === 'number' ? `${c < 0 ? '−' : ''}${formatAmount(c)}` : c}</td>
   );
   return (
-    <div className="rp-scroll">
-      <table className="rp-table" aria-label={label}>
+    <div className="dc-table-scroll">
+      <table className="dc-table" aria-label={label}>
         <thead><tr>{head.map((h, i) => <th key={h} className={i ? 'n' : undefined} scope="col">{h}</th>)}</tr></thead>
         <tbody>{rows.map((r, i) => <tr key={i}>{r.map(cell)}</tr>)}</tbody>
         {foot && <tfoot><tr>{foot.map(cell)}</tr></tfoot>}

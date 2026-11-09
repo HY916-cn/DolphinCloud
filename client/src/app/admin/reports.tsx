@@ -60,16 +60,16 @@ export default function Reports() {
   return (
     <Desk title="报表">
       {/* Laid out as the FilterBar: the search, the days, then the chips with 打印 / 导出 at the bottom right. */}
-      <form className="dc-card dc-stack fl-bar dc-enter" aria-label="报表条件" onSubmit={(e) => e.preventDefault()}>
+      <form className="dc-card dc-stack dc-filter dc-enter" aria-label="报表条件" onSubmit={(e) => e.preventDefault()}>
         <ScopePicker value={scope} onChange={setScope} />
-        <div className="fl-row">
-          <span className="rp-pair fl-dates">
+        <div className="dc-filter-row">
+          <span className="dc-filter-pair">
             <DatePicker short label="从" value={from} max={to} rule="不能晚于结束日期" onChange={(f) => setRange([f, to])} />
             <DatePicker short label="到" value={to} min={from} max={now} rule="不能早于开始日期，也不能晚于今天" onChange={(t) => setRange([from, t])} />
           </span>
           {timed && <TimeRange from={timeFrom} to={timeTo} onChange={(f, t) => setTimes([f, t])} />}
         </div>
-        <div className="fl-row">
+        <div className="dc-filter-row">
           <div className="dc-chips" role="group" aria-label="期间">
             {PERIODS.map(([k, label]) => {
               const [f, t] = periodOf(k, now);
@@ -83,7 +83,7 @@ export default function Reports() {
               <Icon name="check" />按时段
             </button>
           </div>
-          <div className="fl-actions">
+          <div className="dc-filter-actions">
             <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={!r} onClick={() => setOutput(true)}>
               <Icon name="passbook" />打印 / 导出
             </button>
@@ -145,13 +145,13 @@ function Business({ r, p }: { r: Report; p: Prev }) {
       <p className="dc-top-sub">兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB；另有 {r.reversed} 笔已冲正。</p>
       {r.days.length > 1 && (
         <Section title="每日业务">
-          <div className="rp-charts">
+          <div className="dc-charts">
             <Columns title="存款" kind="dc-kind-save" unit="HTB" data={daily('deposit', '存款')} />
             <Columns title="取款" kind="dc-kind-withdraw" unit="HTB" data={daily('withdraw', '取款')} />
             <Columns title="兑换" kind="dc-kind-exchange" unit="HTB" data={daily('purchase', '兑换')} />
           </div>
           <details>
-            <summary className="dc-btn dc-btn-ghost dc-btn-sm" style={{ paddingInline: 0 }}>按日明细</summary>
+            <summary className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline">按日明细</summary>
             <Table label="按日" head={['日期', '存款笔数', '存款', '取款笔数', '取款', '兑换笔数', '兑换', '学生']}
               rows={r.days.map((d) => [d.day, d.deposit_count, d.deposit, d.withdraw_count, d.withdraw, d.purchase_count, d.purchase, d.students])} />
           </details>

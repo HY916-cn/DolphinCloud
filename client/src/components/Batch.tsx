@@ -5,7 +5,7 @@ import { AppError, explain } from '@/lib/errors';
 // picked row at once.
 export function Pick({ label, checked, onChange }: { label: string; checked: boolean; onChange: (on: boolean) => void }) {
   return (
-    <label className="dc-check bt-pick">
+    <label className="dc-check dc-batch-pick">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="dc-check-box" />
       <span className="dc-sr-only">选择{label}</span>
@@ -15,13 +15,13 @@ export function Pick({ label, checked, onChange }: { label: string; checked: boo
 
 export function BatchBar({ count, total, onAll, children }: { count: number; total: number; onAll: (on: boolean) => void; children: ReactNode }) {
   return (
-    <div className="bt-bar" role="toolbar" aria-label="批量操作">
+    <div className="dc-batch-bar" role="toolbar" aria-label="批量操作">
       <label className="dc-check">
         <input type="checkbox" checked={count > 0 && count === total} onChange={(e) => onAll(e.target.checked)} />
         <span className="dc-check-box" />
         <span>已选 {count} 个</span>
       </label>
-      <span className="bt-bar-actions">{children}</span>
+      <span className="dc-batch-actions">{children}</span>
     </div>
   );
 }

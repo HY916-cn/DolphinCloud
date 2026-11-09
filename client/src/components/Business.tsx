@@ -7,10 +7,11 @@ import { formatAmount, formatSigned } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
+import { useBump, useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
-import { CashCounter, Summary } from './Counter';
+import { CashCounter, QtySum, Summary } from './Counter';
 import { FilterBar, filtered, NO_FILTER, type Filter } from './Filter';
 import { Stats } from './Report';
 import { ConfirmSheet } from './Sheet';
@@ -44,7 +45,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
 }) {
   return (
     <aside className="dc-card is-sticky" aria-label="办理单">
-      <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>办理单</h2>
+      <h2 className="heading has-gap">办理单</h2>
       <dl className="dc-kv" aria-live="polite">
         {served.map((s, i) => (
           <div key={i} className="dc-pop" style={s.reversed ? { opacity: 0.6 } : undefined}>
@@ -52,7 +53,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
               {s.label}{s.reversed && '（已冲正）'}
               <small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small>
               {s.txnId && !s.reversed && (
-                <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" style={{ marginTop: 'var(--space-1)', paddingInline: 0 }}
+                <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" type="button" style={{ marginTop: 'var(--space-1)' }}
                   aria-label={`冲正${s.label}`} onClick={() => onReverse(s)}><Icon name="transfer" />冲正</button>
               )}
             </dt>
@@ -65,7 +66,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
       </dl>
       {served.length > 0 && (
         <button className="dc-btn dc-btn-secondary dc-btn-block" type="button" style={{ marginTop: 'var(--space-4)' }} onClick={onEnd}>
-          结束办理（已办 {served.filter((s) => !s.reversed).length} 笔）
+          结束办理 {served.filter((s) => !s.reversed).length} 笔
         </button>
       )}
     </aside>
@@ -76,6 +77,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
 function Bar({ busy, ready, label, onClick, totalLabel, total, note }: {
   busy: boolean; ready: boolean; label: string; onClick: () => void; totalLabel: string; total: number; note?: ReactNode;
 }) {
+  const totalRef = useBump<HTMLElement>(total);
   return (
     <div className="dc-actions">
       <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={busy || !ready} onClick={onClick}>
@@ -83,7 +85,7 @@ function Bar({ busy, ready, label, onClick, totalLabel, total, note }: {
       </button>
       <div className="dc-actions-total">
         <span>{totalLabel}{note && <small>{note}</small>}</span>
-        <b>{formatAmount(total)}<small>HTB</small></b>
+        <b ref={totalRef}>{formatAmount(total)}<small>HTB</small></b>
       </div>
     </div>
   );
@@ -320,13 +322,13 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
           )}
           {lines.length > 0 && (
             <>
-              <h2 className="heading" style={{ marginTop: 'var(--space-2)' }}>已选商品</h2>
+              <h2 className="heading is-section">已选商品</h2>
               <div className="dc-denoms dc-kind-exchange">
                 {lines.map((l) => (
-                  <div key={l.id} className="dc-qty is-filled">
+                  <div key={l.id} className="dc-qty is-product is-filled">
                     <div className="dc-qty-head">
-                      <span className="dc-qty-face" style={{ fontSize: 18 }}>{l.name}</span>
-                      <span className="dc-qty-sum">小计<b>{formatAmount(l.price * l.qty)}</b></span>
+                      <span className="dc-qty-name">{l.name}</span>
+                      <QtySum amount={l.price * l.qty} />
                     </div>
                     <div className="dc-qty-ctrl">
                       <button className="dc-qty-btn" type="button" aria-label={`减少一件${l.name}`} onClick={() => setQty(l, l.qty - 1)}><Icon name="minus" /></button>
@@ -336,7 +338,7 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
                   </div>
                 ))}
               </div>
-              <h2 className="heading" style={{ marginTop: 'var(--space-2)' }}>付款方式</h2>
+              <h2 className="heading is-section">付款方式</h2>
               <div className="dc-choices dc-kind-exchange" role="radiogroup" aria-label="付款方式">
                 {([['account', 'savings', '账户扣款', `可用余额 ${formatAmount(balance)} HTB`], ['cash', 'coin', '现金支付', '收款并找零']] as const)
                   .map(([value, icon, name, note]) => (
@@ -349,7 +351,7 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
               </div>
               {payment === 'cash' && (
                 <>
-                  <h2 className="heading" style={{ marginTop: 'var(--space-2)' }}>录入收到的现金</h2>
+                  <h2 className="heading is-section">录入收到的现金</h2>
                   <CashCounter faces={denominations} counts={received} onChange={setReceived} kind="dc-kind-exchange" />
                 </>
               )}
@@ -415,6 +417,7 @@ export function QueryPanel({ student, served }: Props) {
   });
   const rows = history.data?.pages.flat();
   const a = account.data;
+  const fresh = useNewRows(rows?.map((r) => r.id), JSON.stringify(filter));
   return (
     <section className="dc-stack dc-enter" aria-label="账户查询">
       {a ? (
@@ -429,7 +432,7 @@ export function QueryPanel({ student, served }: Props) {
             {rows.map((r) => {
               const t = toTxn({ ...r, txn_items: r.items });
               return (
-                <li key={r.id} className={`dc-txn ${t.kind}`} style={r.status === 'reversed' ? { opacity: 0.6 } : undefined}>
+                <li key={r.id} className={`dc-txn ${t.kind} ${fresh.has(r.id) ? 'is-new' : ''}`} style={r.status === 'reversed' ? { opacity: 0.6 } : undefined}>
                   <span className="dc-txn-icon"><Icon name={t.icon} /></span>
                   <div className="dc-txn-main">
                     <div className="dc-txn-title">{t.title}</div>

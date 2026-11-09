@@ -128,7 +128,7 @@ function Many({ roles }: { roles: Role[] }) {
       {result && <Notice tone={result.tone} title={result.title}>{result.text}</Notice>}
       <label className={`dc-field ${problems.length ? 'is-error' : ''}`}>
         <span className="dc-field-label"><Icon name="teacher" />每行一个账号</span>
-        <span className="dc-input-wrap bt-area">
+        <span className="dc-input-wrap dc-input-area">
           <textarea className="dc-input" rows={6} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false}
             placeholder={'teller03 柜员小李\nteller04 柜员小张 柜员\nstore01 库管小陈 库管'} />
         </span>

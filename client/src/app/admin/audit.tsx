@@ -5,6 +5,7 @@ import { Desk, FilterBar, filtered, Icon, link, NO_FILTER, Notice, sectionsFor, 
 import { describeCash, type Counts } from '@/lib/cash';
 import { formatTime } from '@/lib/format';
 import { findScopes } from '@/lib/search';
+import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { useStudents } from '@/lib/students';
 import { supabase } from '@/lib/supabase';
@@ -205,6 +206,7 @@ function AuditLog({ actor: initial }: { actor: string }) {
     },
   });
   const pages = list.data?.pages;
+  const fresh = useNewRows(pages?.flatMap((p) => p.entries.map((e) => e.id)), JSON.stringify(f));
 
   return (
     <Desk title="日志">
@@ -220,7 +222,7 @@ function AuditLog({ actor: initial }: { actor: string }) {
             <ul className="dc-txns">
               {pages.flatMap((p) => p.entries.map((e) => ({ e, p }))).map(({ e, p }, i) => {
                 const to = targetOf(e, p.staff);
-                return <AuditLine key={e.id} first={!i} entry={e} names={p.names} to={to && allowed(to.href) ? to : null} />;
+                return <AuditLine key={e.id} first={!i} isNew={fresh.has(String(e.id))} entry={e} names={p.names} to={to && allowed(to.href) ? to : null} />;
               })}
             </ul>
             {list.isFetchingNextPage && <TxnListLoading rows={2} />}
@@ -243,7 +245,7 @@ function AuditLog({ actor: initial }: { actor: string }) {
   );
 }
 
-function AuditLine({ entry, names, first, to }: { entry: Entry; names: Map<string, string>; first: boolean; to: Target }) {
+function AuditLine({ entry, names, first, isNew, to }: { entry: Entry; names: Map<string, string>; first: boolean; isNew: boolean; to: Target }) {
   const actor = entry.actor_id ? names.get(entry.actor_id) ?? '已删除的账号' : '系统';
   const what = subject(entry, names);
   const diff = changes(entry);
@@ -252,7 +254,7 @@ function AuditLine({ entry, names, first, to }: { entry: Entry; names: Map<strin
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>
-        <summary className="dc-txn" style={{ listStyle: 'none', cursor: open ? 'pointer' : 'default' }}>
+        <summary className={`dc-txn ${isNew ? 'is-new' : ''}`} style={{ listStyle: 'none', cursor: open ? 'pointer' : 'default' }}>
           <span className="dc-txn-icon"><Icon name={entry.action.startsWith('check.') ? 'warning' : 'bell'} /></span>
           <div className="dc-txn-main">
             <div className="dc-txn-title">{label(entry)}{what && ` · ${what}`}</div>
@@ -262,7 +264,7 @@ function AuditLine({ entry, names, first, to }: { entry: Entry; names: Map<strin
           {open && <span style={{ width: 24, flex: 'none' }}><Icon name="expand" /></span>}
         </summary>
         {open && (
-          <div className="dc-stack" style={{ paddingLeft: 'calc(52px + var(--space-3))', paddingBottom: 'var(--space-3)' }}>
+          <div className="dc-stack dc-expand-body">
             {diff.length > 0 && (
               <dl className="dc-kv">
                 {diff.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}

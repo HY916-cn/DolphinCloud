@@ -7,12 +7,19 @@ import { formatAmount } from '@/lib/format';
 import { offlineQueue, type OfflineDeposit, type RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { searchRoster } from '@/lib/search';
+import { useBump } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
 import { ListLoading } from './Skeleton';
 import { Avatar } from './Avatar';
 import { Icon, link, Notice } from './ui';
+
+// QtyStepper's 小计, whose number bumps when it changes.
+export function QtySum({ amount }: { amount: number }) {
+  const ref = useBump<HTMLElement>(amount);
+  return <span className="dc-qty-sum">小计<b ref={ref}>{formatAmount(amount)}</b></span>;
+}
 
 // QtyStepper: one card per face value, two columns, counts entered with − / + or typed.
 export function CashCounter({ faces, counts, onChange, kind }: { faces: number[]; counts: Counts; onChange: (c: Counts) => void; kind: string }) {
@@ -25,7 +32,7 @@ export function CashCounter({ faces, counts, onChange, kind }: { faces: number[]
           <div key={face} className={`dc-qty ${n ? 'is-filled' : ''}`}>
             <div className="dc-qty-head">
               <span className="dc-qty-face">{face}<small>元</small></span>
-              <span className="dc-qty-sum">小计<b>{formatAmount(face * n)}</b></span>
+              <QtySum amount={face * n} />
             </div>
             <div className="dc-qty-ctrl">
               <button className="dc-qty-btn" type="button" aria-label={`减少一张 ${face} 元`} disabled={!n} onClick={() => set(face, n - 1)}>
@@ -46,10 +53,11 @@ export function CashCounter({ faces, counts, onChange, kind }: { faces: number[]
 
 // SummaryList: name on the left, value on the right; the last row may be the total.
 export function Summary({ rows, total }: { rows: [string, ReactNode][]; total?: [string, number] }) {
+  const totalRef = useBump<HTMLElement>(total?.[1]);
   return (
     <dl className="dc-kv">
       {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-      {total && <div className="is-total"><dt>{total[0]}</dt><dd>{formatAmount(total[1])}<small>HTB</small></dd></div>}
+      {total && <div className="is-total"><dt>{total[0]}</dt><dd ref={totalRef}>{formatAmount(total[1])}<small>HTB</small></dd></div>}
     </dl>
   );
 }

@@ -18,7 +18,7 @@ function StudentAccount({ s }: { s: Student }) {
   return (
     <div className="dc-stack is-sticky dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
       <section className="dc-card">
-        <h2 className="heading" style={{ margin: '0 0 var(--space-3)' }}>我的账户</h2>
+        <h2 className="heading has-gap">我的账户</h2>
         <dl className="dc-kv">
           <div className="is-total"><dt>当前余额</dt><dd>{value(term && formatAmount(term.balance))}<small>HTB</small></dd></div>
           <div><dt>学部</dt><dd>{DIVISIONS[s.division]}</dd></div>

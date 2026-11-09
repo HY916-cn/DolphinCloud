@@ -1,6 +1,6 @@
 # Icons
 
-海豚云业务图标取自 [morphicons](https://www.morphicons.com/) 默认使用的 Lucide 图标集（lucide-static 1.56.0，ISC 许可）：24 网格、2px 圆头圆角描边、无填充。文件里的描边色：业务图标为 `dolphin`（#1f5ff5），`success` 为 `success`（#0b6e4c），`warning` 为 `danger`（#b23c0a）。
+海豚云业务图标取自 Lucide 图标集（lucide-static 1.56.0，ISC 许可）：24 网格、2px 圆头圆角描边、无填充。文件里的描边色：业务图标为 `dolphin`（#1f5ff5），`success` 为 `success`（#0b6e4c），`warning` 为 `danger`（#b23c0a）。
 
 | 文件 | 含义 | Lucide 图标 |
 | --- | --- | --- |
@@ -13,7 +13,7 @@
 | `loan` | 贷款 | `hand-coins` |
 | `transfer` | 转账 | `arrow-right-left` |
 | `passbook` | 存折 | `book-open` |
-| `calendar` | 预约 | `calendar-check` |
+| `calendar` | 考勤、预约 | `calendar-check` |
 | `clock` | 时间 | `clock` |
 | `coin` | 海豚币 | `coins` |
 | `star` | 奖励 / 闪光点 | `star` |
@@ -46,5 +46,5 @@
 | `sysadmin` | 运维员 | `wrench` |
 
 - 组件里内联同一份路径，描边写 `stroke="currentColor"`，让图标跟随文字颜色；作为 `<img>` 使用时放在 `surface`、`surface-raised`、`cloud-100` 上。
-- 常用尺寸 20 / 26 / 30 / 36 / 52px。图标总是和文字一起出现，除非是头像或纯装饰。
+- 常用尺寸 20 / 26 / 28 / 30 / 36 / 52px。图标总是和文字一起出现，除非是头像或纯装饰。
 - 账号头像（`Avatar`）的圆里就是身份图标：`student`、`teller`、`accountant`、`storekeeper`、`president`、`sysadmin`，银行管理员用 `teacher`，还没分配身份用 `help`，这台设备不知道身份的账号用 `person`。

@@ -65,8 +65,8 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
           {start}
         </div>
       ) : (
-        <div className="dc-card at-sign">
-          <span className="at-sign-main">
+        <div className="dc-card dc-duty">
+          <span className="dc-duty-main">
             <b>{d ? `已上班 · ${formatTime(d.started_at)} 起` : '未上班'}</b>
             <small className="dc-top-sub">{d ? `现在是${SHIFTS[shiftAt(new Date())]}；下班前先打印本次的业务总结，签字留存` : '13:30 之前为中午班，13:30 起为下午班'}</small>
           </span>

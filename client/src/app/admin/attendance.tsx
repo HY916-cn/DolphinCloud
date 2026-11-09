@@ -91,10 +91,7 @@ export default function AttendanceDesk() {
     <Desk title="考勤">
       {result && <Notice tone={result.tone} title={result.title}>{result.text || undefined}</Notice>}
       <div className="dc-stack dc-enter">
-        <WeekBar monday={monday} onMonday={setMonday}>
-          <button className="dc-btn dc-btn-secondary" type="button" disabled={!pending.length} onClick={() => setConfirming(true)}>全部确认（{pending.length}）</button>
-          <button className="dc-btn dc-btn-primary" type="button" disabled={!toPay.length || waiting > 0} onClick={() => setPaying(true)}><Icon name="coin" />发放工资</button>
-        </WeekBar>
+        <WeekBar monday={monday} onMonday={setMonday} />
         {waiting > 0 && toPay.length > 0 && <p className="dc-top-sub">截至 {md(sunday)} 还有 {waiting} 个待审班次，全部审查后才能发放工资。</p>}
         <Stats items={[
           ['本周有效', rows.filter((r) => r.status === 'confirmed').length, '个班次'],
@@ -107,8 +104,8 @@ export default function AttendanceDesk() {
           : !listed.length ? <Notice title="还没有参与考勤的柜员">在下面「参与考勤」里打开柜员的开关。</Notice>
           : (
             <div className="dc-card">
-              <div className="rp-scroll">
-                <table className="rp-table at-week" aria-label="本周考勤">
+              <div className="dc-table-scroll">
+                <table className="dc-table dc-week" aria-label="本周考勤">
                   <thead>
                     <tr>
                       <th scope="col">柜员</th>
@@ -125,15 +122,15 @@ export default function AttendanceDesk() {
                           <td><a {...link(`/admin/staff/${t.id}`)}>{t.display_name}</a><small>{account ? `学号 ${account}` : '未绑定工资账户'}</small></td>
                           {days.map((d) => (
                             <td key={d}>
-                              <span className="at-cell">
+                              <span className="dc-week-marks">
                                 {ORDER.map((s) => {
                                   const row = mine.find((r) => r.day === d && r.shift === s);
                                   const label = `${t.display_name} ${md(d)} ${shiftWords(s, row)}`;
                                   // A reviewed shift is only shown; a waiting one is reviewed, an unsigned one signed in.
                                   return row && row.status !== 'pending' ? (
-                                    <span key={s} className="at-cell-btn" role="img" aria-label={label}><ShiftMark shift={s} row={row} /></span>
+                                    <span key={s} className="dc-week-btn" role="img" aria-label={label}><ShiftMark shift={s} row={row} /></span>
                                   ) : (
-                                    <button key={s} className="at-cell-btn" type="button" disabled={!row && later(d, s)} aria-label={label}
+                                    <button key={s} className="dc-week-btn" type="button" disabled={!row && later(d, s)} aria-label={label}
                                       onClick={() => { setResult(null); setCell({ user: t.id, name: t.display_name, day: d, shift: s, row }); }}>
                                       <ShiftMark shift={s} row={row} />
                                     </button>
@@ -155,6 +152,10 @@ export default function AttendanceDesk() {
           )}
         <Counted tellers={tellers} counted={counted} onError={setResult} onDone={refresh} />
       </div>
+      <div className="dc-actions is-row">
+        <button className="dc-btn dc-btn-secondary" type="button" disabled={!pending.length} onClick={() => setConfirming(true)}>全部确认 {pending.length}</button>
+        <button className="dc-btn dc-btn-primary" type="button" disabled={!toPay.length || waiting > 0} onClick={() => setPaying(true)}><Icon name="coin" />发放工资</button>
+      </div>
 
       {cell && <ShiftSheet cell={cell} names={names} busy={busy} onClose={() => setCell(null)} run={run} />}
       {confirming && (
@@ -170,8 +171,8 @@ export default function AttendanceDesk() {
           text={`有效但还没发工资的班次，中午班每个 ${rates.am} HTB、下午班每个 ${rates.pm} HTB，存入各自的工资账户；发放后不能撤回。`}>
           <ul className="dc-list" aria-label="本次发放">
             {toPay.map((p) => (
-              <li key={p.name} className="at-shift">
-                <span className="at-shift-main"><b>{p.name} · {p.shifts} 个班次 · {formatAmount(p.amount)} HTB</b>
+              <li key={p.name} className="dc-shift-row">
+                <span className="dc-shift-main"><b>{p.name} · {p.shifts} 个班次 · {formatAmount(p.amount)} HTB</b>
                   <small className="dc-top-sub">{p.account ? `存入学号 ${p.account}` : '还没有绑定工资账户，本次不发放'}</small></span>
               </li>
             ))}

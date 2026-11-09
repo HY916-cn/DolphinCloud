@@ -43,8 +43,8 @@ export default function Attendance() {
             {duties.data?.length ? (
               <ul className="dc-list">
                 {duties.data.map((d) => (
-                  <li key={d.id} className="at-shift">
-                    <span className="at-shift-main">
+                  <li key={d.id} className="dc-shift-row">
+                    <span className="dc-shift-main">
                       <b>{formatTime(d.started_at)} 上班</b>
                       <small className="dc-top-sub">{d.ended_at ? `${formatTime(d.ended_at).split(' ')[1]} 下班 · 总结 ${d.txns} 笔业务` : '上班中'}</small>
                     </span>

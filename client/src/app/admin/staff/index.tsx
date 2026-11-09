@@ -69,14 +69,14 @@ export default function Staff() {
   const busy = step?.kind === 'busy';
   return (
     <Desk title="工作人员">
-      <form className="dc-card dc-stack fl-bar" role="search" onSubmit={(e) => e.preventDefault()}>
+      <form className="dc-card dc-stack dc-filter" role="search" onSubmit={(e) => e.preventDefault()}>
         <label className="dc-search">
           <Icon name="query" />
           <input type="search" aria-label="搜索工作人员" placeholder="输入姓名或账号" autoComplete="off" enterKeyHint="search"
             value={query} onChange={(e) => setQuery(e.target.value)} />
           {query && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => setQuery('')}><Icon name="close" /></button>}
         </label>
-        <div className="fl-row">
+        <div className="dc-filter-row">
           <div className="dc-chips" role="group" aria-label="筛选">
             <button className="dc-chip" type="button" aria-pressed={stopped} onClick={() => { setStopped(!stopped); setPicked(new Set()); }}>
               <Icon name="check" />已停用{staff.data && ` ${disabledCount}`}
@@ -87,7 +87,7 @@ export default function Staff() {
               </button>
             )}
           </div>
-          {managesLogins(me) && <span className="fl-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/import')}>导入</a><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>}
+          {managesLogins(me) && <span className="dc-filter-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/import')}>导入</a><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>}
         </div>
       </form>
       {staff.isError && <Notice tone="danger" title="暂时无法读取工作人员">请检查网络后刷新页面。</Notice>}
@@ -96,14 +96,14 @@ export default function Staff() {
       {staff.isPending ? <ListLoading label="正在加载工作人员" /> : list.length ? (
         <ul className="dc-list dc-enter" aria-label="工作人员">
           {list.map((p) => (
-            <li key={p.id} className={picking ? 'bt-row' : undefined}>
+            <li key={p.id} className={picking ? 'dc-batch-row' : undefined}>
               {picking && (pickable(p) ? (
                 <Pick label={p.display_name} checked={picked.has(p.id)} onChange={(on) => {
                   const next = new Set(picked);
                   if (on) next.add(p.id); else next.delete(p.id);
                   setPicked(next);
                 }} />
-              ) : <span className="bt-pick" />)}
+              ) : <span className="dc-batch-pick" />)}
               <a className="dc-list-link" {...link(`/admin/staff/${p.id}`)}>
                 <Avatar role={p.role} />
                 <span>

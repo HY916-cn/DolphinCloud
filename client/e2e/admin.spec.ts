@@ -158,7 +158,7 @@ test('批量: create two staff logins at once, stop one, which then cannot sign 
   await page.goto('/login?switch=1');
   await expect(page.getByRole('list', { name: '本机账号' })).toContainText('teller22');
 
-  const pick = async (name: string) => page.locator('.bt-pick', { hasText: `选择${name}` }).click();
+  const pick = async (name: string) => page.locator('.dc-batch-pick', { hasText: `选择${name}` }).click();
   await page.goto('/admin/staff');
   await page.getByRole('button', { name: '选择', exact: true }).click();
   await pick('柜员甲');
@@ -264,7 +264,7 @@ test('five wrong passwords lock a login', async ({ page }) => {
     await expect(page.locator('.dc-notice-danger')).toBeVisible();
   }
   await signIn(page, '学生', '20260003', '/login?add=1', reissued);
-  await expect(page.locator('.dc-notice-danger')).toContainText('密码错误次数过多');
+  await expect(page.locator('.dc-notice-danger')).toContainText('密码输错次数过多');
   await expect(page.locator('.dc-notice-danger')).toContainText('请 15 分钟后再试，或请银行管理员重置密码。');
   await expect(page).toHaveURL(/\/login\?add=1$/);
 });

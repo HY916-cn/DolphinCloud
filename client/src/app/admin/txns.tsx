@@ -7,6 +7,7 @@ import {
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { useNewRows } from '@/lib/motion';
 import { ledgerPages, ledgerQuery, ledgerSheet, NO_LEDGER, saveWorkbook, type LedgerFilter } from '@/lib/reports';
 import { findScopes } from '@/lib/search';
 import { bankAdmin, useMe } from '@/lib/session';
@@ -117,6 +118,7 @@ function Ledger({ init }: { init: LedgerFilter }) {
 
   const pages = list.data?.pages;
   const rows = pages?.flatMap((p) => p.rows.map((row) => ({ row, page: p })));
+  const fresh = useNewRows(rows?.map((r) => r.row.id), JSON.stringify(applied));
   const count = pages?.[0].count;
   async function exportExcel() {
     setExporting('excel');
@@ -154,7 +156,7 @@ function Ledger({ init }: { init: LedgerFilter }) {
             {count != null && <p className="dc-list-title">共 {formatAmount(count)} 笔</p>}
             <ul className="dc-txns">
               {rows.map(({ row, page }, i) => (
-                <TxnLine key={row.id} first={!i} row={row} page={page} teacher={teacher} onReverse={() => { setReversed(null); setReversing(row); }} />
+                <TxnLine key={row.id} first={!i} isNew={fresh.has(row.id)} row={row} page={page} teacher={teacher} onReverse={() => { setReversed(null); setReversing(row); }} />
               ))}
             </ul>
             {list.isFetchingNextPage && <TxnListLoading rows={2} />}
@@ -208,8 +210,8 @@ const PAYMENT = { account: '账户', cash: '现金' } as const;
 
 // One transaction; it opens to the full facts, links to the student and the teller (teacher), and 冲正 (teacher, on a
 // transaction that is not itself a reversal and has not been reversed).
-function TxnLine({ row, page, first, teacher, onReverse }: {
-  row: LedgerRow; page: Page; first: boolean; teacher: boolean; onReverse: () => void;
+function TxnLine({ row, page, first, isNew, teacher, onReverse }: {
+  row: LedgerRow; page: Page; first: boolean; isNew: boolean; teacher: boolean; onReverse: () => void;
 }) {
   const rev = page.reversals.get(row.id);
   const items = row.txn_items?.map((i) => (i.qty > 1 ? `${i.name} × ${i.qty}` : i.name)).join('、');
@@ -231,10 +233,10 @@ function TxnLine({ row, page, first, teacher, onReverse }: {
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>
-        <summary className={`dc-txn ${LOOK[row.type].kind}`} style={{ listStyle: 'none', cursor: 'pointer' }}>
+        <summary className={`dc-txn ${LOOK[row.type].kind} ${isNew ? 'is-new' : ''}`} style={{ listStyle: 'none', cursor: 'pointer' }}>
           <LedgerLine row={row} />
         </summary>
-        <div className="dc-stack" style={{ paddingLeft: 'calc(52px + var(--space-3))', paddingBottom: 'var(--space-3)' }}>
+        <div className="dc-stack dc-expand-body">
           <Summary rows={facts} />
           {teacher && (
             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>

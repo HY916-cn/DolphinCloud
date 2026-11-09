@@ -1,6 +1,7 @@
 import { BalanceCard, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useRanking, useTerm } from '@/components';
 import { greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
+import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 
 const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': i } as React.CSSProperties });
@@ -12,6 +13,7 @@ export default function StudentHome() {
   const term = useTerm(student.student_no);
   const ranking = useRanking(student.student_no);
   const txns = useRecent(student.student_no);
+  const fresh = useNewRows(txns.data?.map((t) => t.key));
   const r = ranking.data;
 
   return (
@@ -45,7 +47,7 @@ export default function StudentHome() {
               <h2 className="heading">最近交易</h2>
               <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/student/txns')}>查看全部</a>
             </div>
-            {!txns.data ? <TxnListLoading /> : txns.data.length ? <TxnList items={txns.data} /> : (
+            {!txns.data ? <TxnListLoading /> : txns.data.length ? <TxnList items={txns.data} fresh={fresh} /> : (
               <div className="dc-card">
                 <div className="dc-empty">
                   <span className="dc-empty-icon"><Icon name="inbox" /></span>

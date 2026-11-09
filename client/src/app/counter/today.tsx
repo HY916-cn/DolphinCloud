@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CounterPage, Icon, link, ListLoading, NeedsNetwork, Notice, ReversalSheet, Summary } from '@/components';
 import { describeTxn, useMyDay, type DayTxn } from '@/lib/counter';
 import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { useNewRows } from '@/lib/motion';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
 import { KINDS } from '@/lib/txns';
@@ -28,6 +29,7 @@ export default function Today() {
   });
   const q = query.trim().toUpperCase();
   const list = all.filter((t) => !q || t.txn_no.includes(q) || t.student_no.includes(q) || !!t.students?.name.includes(query.trim()));
+  const fresh = useNewRows(day.data?.map((t) => t.id));
   const name = (t: DayTxn) => t.students?.name ?? `学号 ${t.student_no}`;
 
   if (!online) return <CounterPage title="今日业务"><NeedsNetwork business="冲正" /></CounterPage>;
@@ -54,17 +56,17 @@ export default function Today() {
             ) : (
               <ul className="dc-txns">
                 {list.map((t) => (
-                  <li key={t.id} className={`dc-txn ${KINDS[t.type].kind}`} style={t.status === 'reversed' ? { opacity: 0.6 } : undefined}>
+                  <li key={t.id} className={`dc-txn ${KINDS[t.type].kind} ${fresh.has(t.id) ? 'is-new' : ''}`} style={t.status === 'reversed' ? { opacity: 0.6 } : undefined}>
                     <span className="dc-txn-icon"><Icon name={KINDS[t.type].icon} /></span>
                     <div className="dc-txn-main">
                       <div className="dc-txn-title">{name(t)} · {describeTxn(t)}{t.status === 'reversed' && '（已冲正）'}</div>
                       <div className="dc-txn-time">{[t.txn_no, formatTime(t.created_at), t.reason && `原因：${t.reason}`].filter(Boolean).join(' · ')}</div>
                       <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
                         {t.status === 'normal' && t.type !== 'reversal' && (
-                          <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" style={{ paddingInline: 0 }} aria-label={`冲正 ${t.txn_no}`}
+                          <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" type="button" aria-label={`冲正 ${t.txn_no}`}
                             onClick={() => { setDone(null); setReversing(t); }}><Icon name="transfer" />冲正</button>
                         )}
-                        <a className="dc-btn dc-btn-ghost dc-btn-sm" style={{ paddingInline: 0 }} aria-label={`为${name(t)}继续办理`}
+                        <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" aria-label={`为${name(t)}继续办理`}
                           {...link(`/counter?s=${t.student_no}`)}><Icon name="coin" />继续办理</a>
                       </div>
                     </div>
@@ -77,7 +79,7 @@ export default function Today() {
             )}
         </section>
         <aside className="dc-card is-sticky dc-enter" style={{ '--i': 1 } as React.CSSProperties} aria-label="今日合计">
-          <h2 className="heading" style={{ marginBottom: 'var(--space-2)' }}>今日合计</h2>
+          <h2 className="heading has-gap">今日合计</h2>
           <Summary rows={rows} />
         </aside>
       </div>

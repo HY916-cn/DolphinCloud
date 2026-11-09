@@ -15,15 +15,15 @@ const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detai
 
 // A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it.
 export function ShiftMark({ shift, row }: { shift: Shift; row?: ShiftRow }) {
-  return <i className={`at-mark is-${row?.status ?? 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
+  return <i className={`dc-shift is-${row?.status ?? 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
 }
 export const shiftWords = (shift: Shift, row?: ShiftRow) => `${SHIFTS[shift]}${row ? SHIFT_STATUS[row.status] : '未上班'}`;
 
 export function ShiftLegend() {
   return (
-    <p className="at-legend" aria-hidden="true">
+    <p className="dc-shift-legend" aria-hidden="true">
       {(['confirmed', 'pending', 'rejected', 'none'] as const).map((s) => (
-        <span key={s}><i className={`at-mark is-${s}`}>中</i>{s === 'none' ? '未上班' : SHIFT_STATUS[s]}</span>
+        <span key={s}><i className={`dc-shift is-${s}`}>中</i>{s === 'none' ? '未上班' : SHIFT_STATUS[s]}</span>
       ))}
     </p>
   );
@@ -33,18 +33,16 @@ const md = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8))}日`;
 
 // The week shown (Monday to Sunday): the weeks before and after, any day's week from the calendar, and back to 本周.
 // `children` go at the row's end.
-export function WeekBar({ monday, onMonday, children }: { monday: string; onMonday: (monday: string) => void; children?: ReactNode }) {
+export function WeekBar({ monday, onMonday }: { monday: string; onMonday: (monday: string) => void }) {
   const now = today();
   const sunday = shiftDay(monday, 6);
   return (
-    <div className="at-weekbar">
+    <div className="dc-weekbar">
       <button className="dc-icon-btn" type="button" aria-label="上一周" onClick={() => onMonday(shiftDay(monday, -7))}><Icon name="back" /></button>
       <DatePicker bare label="选择日期，显示它所在的一周" value={monday} max={now} rule="选一天，显示它所在的一周"
         shown={`${md(monday)} – ${md(sunday)}`} onChange={(d) => onMonday(weekOf(d)[0])} />
       <button className="dc-icon-btn" type="button" aria-label="下一周" disabled={sunday >= now} onClick={() => onMonday(shiftDay(monday, 7))}><Icon name="next" /></button>
       {monday !== weekOf(now)[0] && <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => onMonday(weekOf(now)[0])}>本周</button>}
-      {children && <span style={{ flex: 1 }} />}
-      {children}
     </div>
   );
 }
@@ -53,10 +51,10 @@ export function WeekBar({ monday, onMonday, children }: { monday: string; onMond
 export function WeekShifts({ monday, rows, names }: { monday: string; rows: ShiftRow[]; names?: Map<string, string> }) {
   const now = today();
   const cell = (shift: Shift, r?: ShiftRow) => {
-    if (!r) return <span className="at-week-cell"><ShiftMark shift={shift} /><span className="dc-top-sub">未上班</span></span>;
+    if (!r) return <span className="dc-week-cell"><ShiftMark shift={shift} /><span className="dc-top-sub">未上班</span></span>;
     const makeup = r.signed_by !== r.user_id;
     return (
-      <span className="at-week-cell">
+      <span className="dc-week-cell">
         <ShiftMark shift={r.shift} row={r} />
         <span>{SHIFT_STATUS[r.status]}<small>{makeup ? `${names?.get(r.signed_by) ?? '银行管理员'}补签` : `${formatTime(r.signed_at).split(' ')[1]} 打卡`}
           {r.note && ` · ${r.note}`}{r.pay != null && ` · 已发 ${r.pay} HTB`}</small></span>
@@ -65,8 +63,8 @@ export function WeekShifts({ monday, rows, names }: { monday: string; rows: Shif
   };
   return (
     <div className="dc-card">
-      <div className="rp-scroll">
-        <table className="rp-table at-week" aria-label="本周班次">
+      <div className="dc-table-scroll">
+        <table className="dc-table dc-week" aria-label="本周班次">
           <thead><tr><th scope="col">日期</th><th scope="col">{SHIFTS.am}</th><th scope="col">{SHIFTS.pm}</th></tr></thead>
           <tbody>
             {Array.from({ length: 7 }, (_, i) => shiftDay(monday, i)).filter((d) => d <= now).map((d) => (
@@ -96,9 +94,9 @@ export function DayShifts({ day, rows, names, shifts = ORDER, action }: {
           const r = rows.find((x) => x.day === day && x.shift === s);
           const makeup = r && r.signed_by !== r.user_id;
           return (
-            <li key={s} className="at-shift">
+            <li key={s} className="dc-shift-row">
               <ShiftMark shift={s} row={r} />
-              <span className="at-shift-main">
+              <span className="dc-shift-main">
                 <b>{SHIFTS[s]} · {r ? SHIFT_STATUS[r.status] : '未上班'}</b>
                 {r && (
                   <small className="dc-top-sub">
@@ -170,7 +168,7 @@ export function SalaryAccount({ userId, payroll, readOnly, admin }: { userId: st
         ) : account && !editing ? (
           <>
             <Summary rows={[...(payroll?.students ? [['学生', payroll.students.name] as [string, string]] : []), ['学号', account]]} />
-            {!readOnly && <div className="at-buttons">
+            {!readOnly && <div className="dc-duty-actions">
               <button className="dc-btn dc-btn-secondary" type="button" onClick={() => { setResult(null); setEditing(true); }}>更换账户</button>
               {!payroll?.attendance && <button className="dc-btn dc-btn-ghost is-danger" type="button" onClick={() => setUnbinding(true)}>解除绑定</button>}
             </div>}
@@ -189,7 +187,7 @@ export function SalaryAccount({ userId, payroll, readOnly, admin }: { userId: st
                 <span className="dc-field-hint">连续输错 5 次，该学生账号会锁定 15 分钟</span>
               </label>
             )}
-            <div className="at-buttons">
+            <div className="dc-duty-actions">
               {account && <button className="dc-btn dc-btn-ghost" type="button" onClick={() => setEditing(false)}>取消</button>}
               <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || !no.trim() || (!admin && !password)}>绑定</button>
             </div>
