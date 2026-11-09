@@ -1,0 +1,349 @@
+# DolphinCloud 前端全面审查报告
+
+- **日期**：2026-11-09
+- **对象**：`client/`（Expo Router Web + 自托管 Supabase）
+- **基线**：`2c1b884 (main) + 当前工作树 86 files, +710/-703`
+- **运行环境**：干净容器 `dolphin-audit:18445`（37 migrations + seed），Expo Web `localhost:8081`
+- **结论**：**工程基线健康，但不满足发布条件**。4 个 P1、3 个 P2、4 个 P3 未解决。
+
+## 一、结论摘要
+
+- `typecheck`、`lint`、9 个单测、生产构建全部通过。
+- 36 个页面、30 个组件定义、62 个实例完成核对；62 个实例均有处置计划，11 个问题均有修复任务。
+- 58 个页面/视口运行检查：无 pageerror、无横向溢出；管理总览导航时出现查询取消的 `net::ERR_ABORTED`，不是功能错误。
+- 已运行复现 4 个缺陷：离线存款闸门、工资 0 HTB 确认、学生批量隐藏操作、ConfirmSheet 焦点逃逸。
+- 发布门禁：3 项失败、3 项阻塞、2 项通过。**不能以“覆盖已核对”代替“可发布”**。
+
+## 二、范围与方法
+
+- **范围**：`client/src` 的路由、页面、共享组件、数据层、Web 构建与 PWA；所有角色入口（学生、柜员、teacher、president、sysadmin）。
+- **方法**：源码走查 + 干净环境运行 + 定向失败注入 + 构建/单测；不修改应用源码。
+- **排除**：服务端 RLS 深度渗透、生产监控/回滚演练、真机原生性能、真实 2000 人批量打印测量。
+- **证据分层**：P1-1/P1-2/P1-3/P2-1 已用 Playwright 定向复现；P1-4、P2-2、P2-3、P3-1~4 由源码控制流确认，修复后须补运行时回归。
+
+## 三、验证结果
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck` | 通过 |
+| `npm run lint` | 通过 |
+| `npm test` | 通过，9 个单测 |
+| `npm run build` | 通过，49 个预缓存 URL / 3.27MB；xlsx chunk 493KB |
+| 运行 sweep | 58 个页面/视口，无 pageerror、无横向溢出 |
+| 历史数据 | 干净种子：7 个登录账号、3 名学生、7 笔交易 |
+
+## 四、问题清单
+
+
+### P1-1 保存登录的柜员在缓存“未上班”后离线，无法登记存款
+
+- **位置**：[`counter/index.tsx:94`](../client/src/app/counter/index.tsx#L94) / CMP-019。
+- **已运行复现**：在线确认未上班，使 `dolphin.duty:<uid>=null`；断网后重载 `/counter`。页面显示“离线登记”和“未上班”DutyCard，“上班”按钮禁用，没有搜索框。
+- **影响**：最常见的保存登录设备在断网时无法办理存款，核心离线业务被阻断。
+- **根因**：`(online || duty.data === null)` 把缓存的 `null` 当成必须上班；DutyCard 的上班按钮又要求在线，形成死锁。
+- **修复**：闸门限定为 `online`。离线时直接进入 `FindStudent`，保留“离线登记”提示；或给 DutyCard 离线态增加“登记离线存款”入口。
+- **复验**：cached-null 离线重载后有搜索框；登记一笔存款；恢复在线后可上传入账。
+
+### P1-2 工资费率加载失败时，确认弹层显示并可发放 0 HTB
+
+- **位置**：[`admin/attendance.tsx:33`](../client/src/app/admin/attendance.tsx#L33)、`:157`、`:168`；CMP-045。
+- **已运行复现**：插入 1 个 confirmed 班次并绑定工资账户；拦截 `settings` 请求后，页面显示“每班工资 0/0”，发放按钮仍可用；弹层显示“1 个班次 · 0 HTB”，确认按钮“发放 0 HTB”可用。服务端按实际 settings 发放 10 HTB。
+- **影响**：教师确认的金额与实际扣款/入账不一致，破坏财务授权与对账。
+- **根因**：`rates = useSalaryRate().data ?? NO_RATES` 用 0 兜底；发放按钮只看 `toPay`/`waiting`，未看费率请求状态。
+- **修复**：用 `rateQuery.isPending/isError` 控制发放按钮；只有费率成功时计算 `toPay` 和确认金额；失败显示可重试提示。
+- **复验**：拦截 settings → 发放按钮禁用且不出现 0 HTB 确认；恢复后确认金额 10 HTB，与服务端一致。
+
+### P1-3 学生批量操作包含已被搜索隐藏的学生
+
+- **位置**：[`admin/students/index.tsx:51`](../client/src/app/admin/students/index.tsx#L51)；CMP-033、CMP-058。
+- **已运行复现**：勾选 1 名学生，搜索“不存在XYZ”，列表 0 行，但底部批量条仍显示“已选 1 个”，冻结/恢复/毕业/重置/注销全部可用。
+- **影响**：用户可能在看不到对象的情况下批量重置密码或注销账号，造成账号不可用和恢复成本。
+- **根因**：`chosen = all.filter(picked)` 按全量集合计算；搜索只 `setQuery`，不清 `picked`；`list` 已被 query/onlyWaiting/limit 缩小。
+- **修复**：query、onlyWaiting、limit 变化时清空 `picked`；或把 `chosen` 改为 `list.filter(picked)`；确认弹层列出姓名/学号。
+- **复验**：选择 → 搜索无结果 → 批量条为 0 且动作禁用；清空搜索后不恢复隐藏选择。
+
+### P1-4 名册分批导入中途失败时，已创建账号的初始密码通知单被丢弃
+
+- **位置**：[`admin/students/import.tsx`](../client/src/app/admin/students/import.tsx) 的 `run()`；PAGE-020。
+- **源码确认**：每批 100 人；失败时 `catch` 只 `setStage({kind:'pick', error})` 并返回，之前批次累计的 `created` 通知单不展示、不保存。已创建账号仍在数据库，但初始密码无处可取。
+- **影响**：>100 人的开学导入若后续批次失败，前几批学生只能逐个重置密码。
+- **根因**：`created` 是 `run()` 局部变量，失败分支提前返回，没有把它带到错误页。
+- **修复**：把 `created` 提升为页面状态；失败页保留“已创建 N 人”的通知单下载；参考 `staff/import.tsx` 的 done 保留策略。
+- **复验**：150 行名册，第二批 `import_roster` 失败 → 页面仍可下载前 100 人通知单，学号与密码齐全。
+
+### P2-1 ConfirmSheet 无焦点陷阱，关闭后不归还触发按钮
+
+- **位置**：[`components/Sheet.tsx`](../client/src/components/Sheet.tsx)；CMP-045、CMP-058。
+- **已运行复现**：打开工资确认弹层，初始焦点在“取消”；连续 Tab 8 次后焦点到侧栏“出入库”；Esc 关闭后焦点仍在“出入库”，没有回到“发放工资”。
+- **影响**：键盘和读屏用户可以操作被遮挡的后台导航，关闭后迷失位置；影响所有确认/输出流程。
+- **根因**：没有 focus trap，也没有记录 opener；`onClose` 依赖 `animationend`。
+- **修复**：挂载时记录 `document.activeElement`；Tab/Shift+Tab 循环，或改用原生 `<dialog>`；关闭后 restore focus；动画禁用时加超时兜底。
+- **复验**：任一 ConfirmSheet → Tab 循环留在弹层；Esc/取消后焦点回到触发按钮；reduced-motion 下也能关闭。
+
+### P2-2 新设备离线且无名册缓存时，搜索只显示“没有找到”
+
+- **位置**：[`lib/counter.ts`](../client/src/lib/counter.ts) 的 `useRoster`；[`components/Counter.tsx`](../client/src/components/Counter.tsx#FindStudent)。
+- **源码确认**：5 秒超时后失败回退 `cachedRoster`；无缓存时 `indexRoster([])` 得到空索引，UI 不区分“网络失败”和“没有这个学生”。
+- **影响**：新设备离线时用户误以为学生不存在，无法判断是网络问题还是数据问题。
+- **根因**：失败与空名册被合并成同一个空索引。
+- **修复**：`useRoster` 返回 `{index, source:'network'|'cache'|'empty', error}`；FindStudent 增加“尚未缓存名册”空态和重试按钮。
+- **复验**：清除 IndexedDB roster → 离线 → `/counter` → 显示“本机尚未缓存名册，请联网后重试”。
+
+### P2-3 通知单一次性保留全部 JPEG，2000 人规模内存风险
+
+- **位置**：[`components/Notices.tsx:99`](../client/src/components/Notices.tsx#L99)；CMP-036、CMP-040。
+- **源码确认**：每页创建 canvas，`toBlob` 后把所有 JPEG `Uint8Array` 放进 `pages`，最后一起交给 PDF；文件注释估算 144dpi 每页约 140KB，2000 人约 280MB。
+- **影响**：低内存设备在开学批量打印时可能卡顿或崩溃，打印任务失败。
+- **根因**：没有分批生成或流式写入，峰值内存随人数线性增长。
+- **修复**：按班级/每 100 页分批生成并释放 canvas/JPEG；UI 显示批次进度和失败重试。
+- **复验**：生成 500/2000 页通知单，记录峰值内存和完成时间；失败时可按班级重试。
+
+### P3-1 通知单印章使用浏览器本地日期
+
+- **位置**：[`components/Notices.tsx:134`](../client/src/components/Notices.tsx#L134)。
+- **源码确认**：印章用 `new Date()` 的 `getFullYear/getMonth/getDate`，而 `today()` 按 Asia/Shanghai。
+- **影响**：设备时区与银行不一致时，正式凭证日期可能跨日。
+- **修复**：统一复用 `formatTime/formatDate` 的 Asia/Shanghai 格式化。
+- **复验**：浏览器时区设为 America/New_York，生成通知单，日期与银行当天一致。
+
+### P3-2 TimePicker 空值滚到 00 不触发选择
+
+- **位置**：[`components/TimePicker.tsx`](../client/src/components/TimePicker.tsx)。
+- **源码确认**：`x !== (current || items[0])` 把空值与 `"00"` 当成同一值；空值滚到 00 不触发 `onPick`；“确定”不校验/补全。
+- **影响**：无法用滚轮选 00 点/00 分，只能点数字；空值可能提交。
+- **修复**：区分 `null` 与 `"00"`；滚动停止始终 `onPick`；确定前校验，无值则选中当前轮值或禁用。
+- **复验**：空值 → 滚到 00:00 → 确定，值为 00:00；空值直接确定不关闭或提示。
+
+### P3-3 参数 Stepper 可清空后保存 0
+
+- **位置**：[`admin/settings.tsx`](../client/src/app/admin/settings.tsx) 的 `Stepper`；CMP-061。
+- **源码确认**：输入可清空；保存时 `Number('') = 0`；客户端不拦截，服务端 `set_settings` 拒绝。
+- **影响**：用户可以提交明显无效参数，增加往返和困惑；不会写入错误数据。
+- **修复**：保留编辑字符串，blur/保存前校验 1..max；空值显示错误并禁用保存。
+- **复验**：清空单笔限额 → 显示“请输入 1–N”，保存禁用；0/NaN 不能提交。
+
+### P3-4 报表/流水日期区间非法时仍下发查询
+
+- **位置**：[`components/Report.tsx`](../client/src/components/Report.tsx#TimeRange)、[`admin/reports.tsx`](../client/src/app/admin/reports.tsx)；CMP-031、CMP-010。
+- **源码确认**：`TimeRange` 显示“开始日期不能晚于结束日期”，但 `from/to` 仍进入 query；`badTime` 只用于展示，不阻断查询。
+- **影响**：空结果和误导性报表，用户可能误以为没有业务。
+- **修复**：把 valid 状态提升到页面，非法时 `enabled:false` 并禁用导出；保留上一次有效结果。
+- **复验**：from > to → 不发请求、不导出、显示错误；修正后自动恢复。
+
+
+## 五、页面覆盖
+
+下表为 36 个 in-scope 页面。检查数为页面级 4 项加其组件实例的 8 项；“通过/失败”包含基线检查。
+
+| PAGE | 路由 | 页面 | 实例 | 通过/失败 | 关联问题 |
+|---|---|---|---|---|---|
+| PAGE-001 | `/login` | 登录 | 3 | 28/0 | — |
+| PAGE-002 | `/change-password` | 修改密码 | 2 | 20/0 | — |
+| PAGE-003 | `/student` | 学生首页 | 3 | 28/0 | — |
+| PAGE-004 | `/student/txns` | 交易明细 | 2 | 20/0 | FND-011 |
+| PAGE-005 | `/student/ranking` | 存款排名 | 1 | 12/0 | — |
+| PAGE-006 | `/student/me` | 学生我的 | 1 | 12/0 | — |
+| PAGE-007 | `/book` | 存折账户页 | 2 | 20/0 | — |
+| PAGE-008 | `/book/txns` | 存折交易明细 | 1 | 12/0 | — |
+| PAGE-009 | `/book/ranking` | 存折排名 | 1 | 12/0 | — |
+| PAGE-010 | `/book/me` | 存折我的 | 1 | 12/0 | — |
+| PAGE-011 | `/counter` | 柜台办理 | 7 | 55/5 | FND-001,FND-006 |
+| PAGE-012 | `/counter/today` | 今日业务 | 1 | 12/0 | — |
+| PAGE-013 | `/counter/attendance` | 柜员考勤 | 1 | 12/0 | — |
+| PAGE-014 | `/counter/me` | 柜员我的 | 1 | 12/0 | — |
+| PAGE-015 | `/admin` | 管理总览 | 1 | 12/0 | — |
+| PAGE-016 | `/admin/txns` | 流水 | 3 | 26/2 | FND-009,FND-011 |
+| PAGE-017 | `/admin/reports` | 报表 | 3 | 26/2 | FND-011 |
+| PAGE-018 | `/admin/students` | 学生管理 | 3 | 24/4 | FND-003,FND-005 |
+| PAGE-019 | `/admin/students/[no]` | 学生详情 | 1 | 12/0 | — |
+| PAGE-020 | `/admin/students/import` | 导入名册 | 2 | 16/4 | FND-004,FND-007,FND-008 |
+| PAGE-021 | `/admin/staff` | 工作人员 | 1 | 12/0 | — |
+| PAGE-022 | `/admin/staff/[id]` | 工作人员详情 | 1 | 12/0 | — |
+| PAGE-023 | `/admin/staff/new` | 新增账号 | 1 | 12/0 | — |
+| PAGE-024 | `/admin/staff/import` | 导入工作人员 | 1 | 12/0 | FND-007,FND-008 |
+| PAGE-025 | `/admin/products` | 商品 | 1 | 12/0 | — |
+| PAGE-026 | `/admin/products/[id]` | 商品编辑 | 1 | 12/0 | — |
+| PAGE-027 | `/admin/stock` | 出入库 | 1 | 12/0 | — |
+| PAGE-028 | `/admin/attendance` | 考勤与工资 | 2 | 16/4 | FND-002,FND-005 |
+| PAGE-029 | `/admin/settings` | 参数 | 2 | 18/2 | FND-010 |
+| PAGE-030 | `/admin/audit` | 日志 | 1 | 12/0 | — |
+| PAGE-031 | `/admin/me` | 管理员我的 | 1 | 12/0 | — |
+| PAGE-032 | `/` | 根布局 | 1 | 12/0 | — |
+| PAGE-033 | `/student` | 学生布局 | 2 | 20/0 | — |
+| PAGE-034 | `/book` | 存折布局 | 2 | 20/0 | — |
+| PAGE-035 | `/counter` | 柜台布局 | 2 | 20/0 | — |
+| PAGE-036 | `/admin` | 后台布局 | 2 | 20/0 | — |
+
+### 重点页面
+
+- **`/counter`**：离线闸门与无名册空态都集中在这里；在线搜索、存取、兑换、查询主流程正常。
+- **`/admin/students`**：批量选择与隐藏筛选组合是最高风险操作路径；单个学生详情/重置/注销正常。
+- **`/admin/attendance`**：考勤周视图、补签、工资列表正常；费率请求失败时的确认金额错误。
+- **`/admin/students/import`**：名册校验与分批导入正常；后续批次失败时通知单恢复路径缺失。
+- **`/book`**：桌面双页、手机单页、翻页/键盘/滑动正常；首次“补打”动画约 1.5–6 秒，属设计取舍，不计缺陷。
+
+## 六、组件蓝图与处置
+
+共 30 个组件定义、62 个实例。处置为 `retain`（保持契约）或 `refactor`（按任务修改）；所有实例均有回归场景。
+
+| DEF | 组件 | 类型 | 实例 | 处置 | 任务/问题 |
+|---|---|---|---|---|---|
+| DEF-001 | Account | 账户与交易展示 | 1 | retain | — |
+| DEF-002 | Accounts | 本机账号与保存登录 | 1 | retain | — |
+| DEF-003 | Attendance | 考勤周视图与工资账户 | 2 | retain | — |
+| DEF-004 | Avatar | 身份头像 | 2 | retain | — |
+| DEF-005 | Batch | 批量选择与批量条 | 1 | refactor | TASK-003；FND-003 |
+| DEF-006 | Book | 存折壳、封面与翻页 | 1 | retain | — |
+| DEF-007 | Business | 柜台存款/取款/兑换/查询面板 | 4 | retain | — |
+| DEF-008 | Close | 注销账号流程 | 1 | retain | — |
+| DEF-009 | Counter | 学生搜索、现金计数器与离线待上传 | 1 | refactor | TASK-006；FND-006 |
+| DEF-010 | DatePicker | 日期/区间选择 | 2 | refactor / retain | TASK-011；FND-011 |
+| DEF-011 | Desk | 后台页面壳 | 3 | retain | — |
+| DEF-012 | Duty | 上班卡与下班总结 | 1 | refactor | TASK-001；FND-001 |
+| DEF-013 | Filter | 流水筛选与建议 | 3 | retain | — |
+| DEF-014 | Gate | 登录/角色/改密闸门 | 5 | retain | — |
+| DEF-015 | Ledger | 流水行与列表 | 3 | retain | — |
+| DEF-016 | Me | 我的页面 | 3 | retain | — |
+| DEF-017 | Notices | 通知单与期初核对表 | 2 | refactor / retain | TASK-004、TASK-007、TASK-008；FND-004、FND-007、FND-008 |
+| DEF-018 | Output | 打印/下载/导出弹层 | 1 | retain | — |
+| DEF-019 | Passbook | 存折页与表格 | 4 | retain | — |
+| DEF-020 | Ranking | 排名榜与名次 | 2 | retain | — |
+| DEF-021 | Report | 报表范围、图表与表格 | 1 | retain | — |
+| DEF-022 | Reversal | 冲正弹层 | 1 | retain | — |
+| DEF-023 | Sheet | 通用确认/输出弹层 | 2 | refactor | TASK-002、TASK-003、TASK-005；FND-002、FND-005 |
+| DEF-024 | Shell | 应用壳、导航与页面动效 | 4 | retain | — |
+| DEF-025 | Skeleton | 加载骨架 | 1 | retain | — |
+| DEF-026 | Stock | 库存变动列表 | 1 | retain | — |
+| DEF-027 | TimePicker | 时间滚轮选择 | 1 | refactor | TASK-009；FND-009 |
+| DEF-028 | Welcome | 登录/改密欢迎头部 | 2 | retain | — |
+| DEF-029 | ui | 图标、Notice、Loading、链接等基础件 | 5 | retain | — |
+| DEF-030 | SettingsStepper | 参数数值步进器（局部组件） | 1 | refactor | TASK-010；FND-010 |
+
+### 关键目标契约
+
+- **ConfirmSheet**：焦点陷阱、opener 记录与归还、Esc/遮罩关闭、动画兜底；所有确认/输出共用。
+- **DutyCard / 柜台闸门**：`online` 才用未上班闸门；离线直达学生搜索，保留离线登记提示。
+- **BatchBar / 学生批量**：选择集合与当前可见 list 绑定；确认层列出姓名/学号。
+- **Notices**：按班级/页数分批生成并释放 canvas；日期统一 Asia/Shanghai。
+- **FindStudent**：区分“无搜索结果”“名册未缓存”“网络失败”，提供重试。
+- **TimePicker / Stepper / TimeRange**：空值、00、非法区间与数字边界在客户端显式校验。
+
+<details>
+<summary>62 个组件实例明细</summary>
+
+| CMP | 页面 | DEF | 实例 | 关键性 | 处置 | 任务 | 问题 |
+|---|---|---|---|---|---|---|---|
+| CMP-001 | PAGE-001 | DEF-002 | 本机账号列表与切换 | high | retain | — | — |
+| CMP-002 | PAGE-001 | DEF-028 | 登录欢迎头部 | normal | retain | — | — |
+| CMP-003 | PAGE-001 | DEF-029 | 登录提示/图标/Loading | normal | retain | — | — |
+| CMP-004 | PAGE-002 | DEF-028 | 改密欢迎头部 | normal | retain | — | — |
+| CMP-005 | PAGE-002 | DEF-029 | 改密密码输入与提示 | normal | retain | — | — |
+| CMP-006 | PAGE-003 | DEF-001 | 余额卡与最近交易 | high | retain | — | — |
+| CMP-007 | PAGE-003 | DEF-020 | 存款排名卡 | normal | retain | — | — |
+| CMP-008 | PAGE-003 | DEF-025 | 加载骨架 | normal | retain | — | — |
+| CMP-009 | PAGE-004 | DEF-015 | 交易明细列表 | high | retain | — | — |
+| CMP-010 | PAGE-004 | DEF-013 | 类型与日期筛选 | normal | retain | — | — |
+| CMP-011 | PAGE-005 | DEF-020 | 排名榜与我的名次 | normal | retain | — | — |
+| CMP-012 | PAGE-006 | DEF-016 | 学生我的 | normal | retain | — | — |
+| CMP-013 | PAGE-007 | DEF-006 | 存折壳与翻页 | high | retain | — | — |
+| CMP-014 | PAGE-007 | DEF-019 | 存折账户页与最近交易 | high | retain | — | — |
+| CMP-015 | PAGE-008 | DEF-019 | 存折月收支与明细页 | high | retain | — | — |
+| CMP-016 | PAGE-009 | DEF-019 | 存折排名页 | normal | retain | — | — |
+| CMP-017 | PAGE-010 | DEF-019 | 存折户主/印鉴页 | normal | retain | — | — |
+| CMP-018 | PAGE-011 | DEF-009 | 学生搜索与今日办理 | high | refactor | TASK-006 | FND-006 |
+| CMP-019 | PAGE-011 | DEF-012 | 上班卡 | high | refactor | TASK-001 | FND-001 |
+| CMP-020 | PAGE-011 | DEF-007 | 存款面板 | high | retain | — | — |
+| CMP-021 | PAGE-011 | DEF-007 | 取款面板 | high | retain | — | — |
+| CMP-022 | PAGE-011 | DEF-007 | 兑换面板 | high | retain | — | — |
+| CMP-023 | PAGE-011 | DEF-007 | 查询面板 | high | retain | — | — |
+| CMP-062 | PAGE-011 | DEF-022 | 冲正原因与确认 | high | retain | — | — |
+| CMP-024 | PAGE-012 | DEF-015 | 今日业务列表 | high | retain | — | — |
+| CMP-025 | PAGE-013 | DEF-003 | 柜员考勤周视图 | normal | retain | — | — |
+| CMP-026 | PAGE-014 | DEF-016 | 柜员我的 | normal | retain | — | — |
+| CMP-027 | PAGE-015 | DEF-011 | 总览工作台 | normal | retain | — | — |
+| CMP-028 | PAGE-016 | DEF-013 | 流水筛选 | high | retain | — | — |
+| CMP-029 | PAGE-016 | DEF-015 | 流水列表与分页 | high | retain | — | — |
+| CMP-030 | PAGE-017 | DEF-021 | 报表主体 | high | retain | — | — |
+| CMP-031 | PAGE-017 | DEF-010 | 报表日期区间 | normal | refactor | TASK-011 | FND-011 |
+| CMP-032 | PAGE-017 | DEF-018 | 报表打印/导出 | high | retain | — | — |
+| CMP-033 | PAGE-018 | DEF-005 | 学生批量条 | high | refactor | TASK-003 | FND-003 |
+| CMP-034 | PAGE-018 | DEF-011 | 学生页壳 | normal | retain | — | — |
+| CMP-035 | PAGE-019 | DEF-008 | 学生注销确认 | high | retain | — | — |
+| CMP-036 | PAGE-020 | DEF-017 | 开户/重置通知单输出 | high | refactor | TASK-004、TASK-007、TASK-008 | FND-004、FND-007、FND-008 |
+| CMP-037 | PAGE-021 | DEF-004 | 工作人员列表头像 | normal | retain | — | — |
+| CMP-038 | PAGE-022 | DEF-004 | 工作人员详情头像 | normal | retain | — | — |
+| CMP-039 | PAGE-023 | DEF-029 | 新增账号表单控件 | normal | retain | — | — |
+| CMP-040 | PAGE-024 | DEF-017 | 工作人员通知单输出 | high | retain | — | — |
+| CMP-041 | PAGE-025 | DEF-011 | 商品页壳 | normal | retain | — | — |
+| CMP-042 | PAGE-026 | DEF-029 | 商品图片与成本表单 | normal | retain | — | — |
+| CMP-043 | PAGE-027 | DEF-026 | 库存变动列表 | normal | retain | — | — |
+| CMP-044 | PAGE-028 | DEF-003 | 后台考勤周视图 | high | retain | — | — |
+| CMP-045 | PAGE-028 | DEF-023 | 工资发放确认 | high | refactor | TASK-002、TASK-005 | FND-002、FND-005 |
+| CMP-046 | PAGE-029 | DEF-010 | 升年级日期 | normal | retain | — | — |
+| CMP-047 | PAGE-030 | DEF-013 | 日志筛选 | normal | retain | — | — |
+| CMP-048 | PAGE-031 | DEF-016 | 管理员我的 | normal | retain | — | — |
+| CMP-049 | PAGE-032 | DEF-014 | 根 Gate | high | retain | — | — |
+| CMP-050 | PAGE-033 | DEF-014 | 学生 Gate | high | retain | — | — |
+| CMP-051 | PAGE-033 | DEF-024 | 学生 Shell | high | retain | — | — |
+| CMP-052 | PAGE-034 | DEF-014 | 存折 Gate | high | retain | — | — |
+| CMP-053 | PAGE-034 | DEF-024 | 存折 Shell | high | retain | — | — |
+| CMP-054 | PAGE-035 | DEF-014 | 柜台 Gate | high | retain | — | — |
+| CMP-055 | PAGE-035 | DEF-024 | 柜台 Shell | high | retain | — | — |
+| CMP-056 | PAGE-036 | DEF-014 | 后台 Gate | high | retain | — | — |
+| CMP-057 | PAGE-036 | DEF-024 | 后台 Shell | high | retain | — | — |
+| CMP-058 | PAGE-018 | DEF-023 | 学生批量重置确认 | high | refactor | TASK-003、TASK-005 | FND-005 |
+| CMP-059 | PAGE-020 | DEF-029 | 名册文件选择输入 | normal | retain | — | — |
+| CMP-060 | PAGE-016 | DEF-027 | 时段选择器 | normal | refactor | TASK-009 | FND-009 |
+| CMP-061 | PAGE-029 | DEF-030 | 参数数值步进器 | normal | refactor | TASK-010 | FND-010 |
+
+</details>
+
+## 七、修复计划与验收
+
+按 P1 → P2 → P3 实施；任务均为 `planned`，修复后需把对应场景改为通过并补运行证据。
+
+| TASK | 阶段 | 修复 | 位置 | 验收 |
+|---|---|---|---|---|
+| TASK-001 | P1 | 修复离线柜台闸门 | client/src/app/counter/index.tsx:94；client/src/components/Duty.tsx#DutyCard | 离线重载后有搜索框；可登记并上传一条离线存款 |
+| TASK-002 | P1 | 工资发放只在费率已知时可用 | client/src/app/admin/attendance.tsx:33,157,168-171；client/src/lib/attendance.ts#useSalaryRate | 费率失败时按钮禁用；恢复后确认金额与实发一致 |
+| TASK-003 | P1 | 学生批量选择随筛选收敛 | client/src/app/admin/students/index.tsx:44-51,116；client/src/components/Batch.tsx#BatchBar | 搜索无结果时批量条为 0；动作禁用且不误操作隐藏学生 |
+| TASK-004 | P1 | 名册导入失败保留已创建通知单 | client/src/app/admin/students/import.tsx#run；client/src/app/admin/staff/import.tsx | 第二批失败仍可下载前 100 人通知单；文案不再要求重新导入全量 |
+| TASK-005 | P2 | ConfirmSheet 焦点陷阱与归还 | client/src/components/Sheet.tsx#ConfirmSheet | Tab 不出 dialog；Esc 后回触发按钮 |
+| TASK-006 | P2 | 离线名册空态可诊断 | client/src/lib/counter.ts#useRoster；client/src/components/Counter.tsx#FindStudent | 无名册离线显示明确提示；联网后可重试 |
+| TASK-007 | P2 | 通知单分批生成/释放内存 | client/src/components/Notices.tsx:99-107,239-240 | 500 页峰值内存可控；2000 页不崩溃或可分批完成 |
+| TASK-008 | P3 | 通知单日期统一 Asia/Shanghai | client/src/components/Notices.tsx:134-136；client/src/lib/format.ts#formatTime | 非中国时区生成日期正确 |
+| TASK-009 | P3 | TimePicker 空值与 00 选择 | client/src/components/TimePicker.tsx | 空值滚到 00 可选；空值不能确认 |
+| TASK-010 | P3 | 参数步进器空值校验 | client/src/app/admin/settings.tsx#Stepper | 清空后显示错误且不能保存 |
+| TASK-011 | P3 | 非法日期区间阻断查询/导出 | client/src/components/Report.tsx#TimeRange；client/src/app/admin/reports.tsx#badTime；client/src/components/Filter.tsx | from>to 不发请求；修正后自动恢复 |
+
+### 发布门禁
+
+| GATE | 名称 | 状态 | 说明 |
+|---|---|---|---|
+| GATE-001 | 核心旅程、异常恢复及关键可访问性已验证 | failed | 离线存款被阻挡、工资确认金额错误、学生批量隐藏操作、ConfirmSheet 焦点缺陷均未修复。 |
+| GATE-002 | 身份、对象、租户与字段权限在受信任边界执行 | blocked | 前端路由守卫已核对；服务端 RLS/RPC 未做渗透与越权矩阵验证，不能宣称权限通过。 |
+| GATE-003 | 写操作的一致性、重试、取消与结果未知语义已验证 | failed | 离线写路径存在闸门死锁；工资写确认金额与服务端不一致。 |
+| GATE-004 | 生产构建、配置与依赖安装可复现 | passed | typecheck/lint/9 单测/build 均通过；仍建议补 CI 与锁定依赖。 |
+| GATE-005 | 目标环境下的性能、布局与长时间使用符合约定 | failed | 布局无溢出；但通知单 2000 页内存风险无预算，未做长时间运行。 |
+| GATE-006 | 错误可诊断，监控与日志数据满足隐私约定 | blocked | 无前端遥测/错误上报证据；生产日志与隐私策略不在本次访问范围。 |
+| GATE-007 | 发布、新旧版本兼容与恢复路径已验证 | blocked | PWA skipWaiting/更新路径已读，但无发布回滚演练与版本兼容矩阵。 |
+| GATE-008 | 审查范围、基线一致性及尚存风险已明确 | passed | 范围、基线、排除项与未验证风险已记录；旧容器差异已排除。 |
+
+## 八、已排除的假阳性
+
+- **president 看不到商品成本**：运行验证成本值为 4，保存 payload 含 `p_cost:4`；`has_role` 让 president 通过 teacher 检查。不是缺陷。
+- **工作人员批量隐藏行**：`chosen = list.filter(...)`，搜索后批量条为 0，不会操作隐藏账号；与学生页不同。
+- **存折翻页“永久卡死”**：额外 sheet 是加载页，继续翻页会触发 `fetchNextPage`，不是永久卡死。
+- **旧 `dolphin-dev` 容器 staff 登录 400**：旧种子账号/邮箱与仓库不一致；干净种子全部可登录，不计产品缺陷。
+- **存折首次空白/延迟**：`is-printing` 补打动画导致，最多约 6 秒显现，不是数据缺失。
+
+## 九、复验命令
+
+```bash
+cd /Users/huang/Desktop/Project/DolphinCloud/client
+npm run typecheck && npm run lint && npm test && npm run build
+```
+
+- 构建通过是发布前提，不等于业务验收通过。
+- 运行时复验使用临时容器 `dolphin-audit`（18445）与 Expo 8081；审查结束后容器与开发服务器已停止。
+- 修复顺序：先 TASK-001~004，再 TASK-005~007，最后 TASK-008~011。
