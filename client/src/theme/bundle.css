@@ -1206,3 +1206,13 @@ span.dc-week-btn { cursor: default; }
   .dc-batch-actions { flex-wrap: nowrap; width: 100%; overflow-x: auto; }
   .dc-batch-actions > .dc-btn { flex: none; }
 }
+
+/* Sheet：批量确认的对象列表 */
+.dc-sheet-list { list-style: none; box-sizing: border-box; max-height: 216px; margin: var(--space-3) 0 0; padding: 0 var(--space-3); overflow-y: auto; border: 2px solid var(--line); border-radius: var(--radius-sm); }
+.dc-sheet-list:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dc-sheet-list li { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); padding: var(--space-2) 0; }
+.dc-sheet-list li + li { border-top: 1px solid var(--line); }
+.dc-sheet-list small { color: var(--ink-muted); font: 500 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+
+/* QtyStepper：有范围的数值输入有误 */
+.dc-qty-ctrl.is-error { border-color: var(--danger); animation: dc-nudge var(--motion-enter) ease-in-out; }

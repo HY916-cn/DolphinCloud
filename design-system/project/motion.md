@@ -55,7 +55,7 @@
 | `AppShell` | 侧边导航和图标导航的选中底块上下滑动（240ms，纯 CSS，各项等高）；进入新页面时内容区加 `dc-page-forward`，返回加 `dc-page-back`，导航栏不动。 |
 | `ActionBar` | 跟随页面出现，不单独移动；`dc-actions-total` 里的金额变化时加 `dc-bump`。 |
 | `ChoiceCard` | 选中时描边、底色过渡（160ms），图标底轻轻弹一下（320ms，`--ease-bounce`）。 |
-| `QtyStepper` | 加减按钮按下变深；卡片有张数后描边变色（160ms）；小计数字变化时加 `dc-bump`。 |
+| `QtyStepper` | 加减按钮按下变深；卡片有张数后描边变色（160ms）；小计数字变化时加 `dc-bump`；`is-error` 时控件左右轻摆一次（4px）。 |
 | `SummaryList` | 合计数字变化时加 `dc-bump`；列表加 `dc-stagger` 时逐行进入。 |
 | `PersonCard` | 识别到学生时以 `dc-enter` 进入；余额可用 `data-count` 滚动显示。 |
 | `Switch` | 圆钮滑动、轨道变色（160ms）。 |
