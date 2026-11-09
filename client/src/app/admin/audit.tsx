@@ -23,7 +23,7 @@ const ACTIONS: Record<string, string> = {
   'roster.import': '名册导入', 'user.reset_password': '重置密码', 'txn.reverse': '冲正', 'check.mismatch': '余额自检不一致',
   'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
   'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
-  'user.close': '注销账号',
+  'user.close': '注销账号', 'salary.bind': '绑定工资账户', 'staff.import': '工作人员导入',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
@@ -100,6 +100,7 @@ function subject(e: Entry, names: Map<string, string>) {
   if (e.action.startsWith('settings.')) return SETTINGS[String(r.key)] ?? String(r.key ?? '');
   if (e.action === 'check.mismatch') return `${Array.isArray(e.after) ? e.after.length : 0} 处不一致`;
   if (e.action === 'salary.pay') return `${r.from} 至 ${r.to}`;
+  if (e.action === 'salary.bind') return [names.get(profileOf(e) ?? ''), r.name, r.student_no].filter(Boolean).join(' · ');
   if (e.action.startsWith('attendance.') || e.action.startsWith('staff_payroll.'))
     return [names.get(String(r.user_id)), r.day, r.shift && WORDS[String(r.shift)]].filter(Boolean).join(' · ');
   return [...new Set([r.batch_no, r.txn_no, r.name ?? r.display_name, r.student_no ?? r.login_id])].filter((v) => v != null && v !== '').join(' · ');

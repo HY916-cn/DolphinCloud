@@ -3,7 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, noticePages, openingPages, OutputSheet, Pick,
-  today, type NoticeAccount,
+  ResetNoticeSheet, today, type NoticeAccount,
 } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
@@ -21,7 +21,7 @@ type Status = 'normal' | 'frozen' | 'graduated';
 const TO: Record<Status, string> = { frozen: '冻结', normal: '恢复正常', graduated: '标记毕业' };
 type Result = { tone: 'success' | 'danger' | 'info'; title: string; text: string };
 type Step = { kind: 'status'; to: Status } | { kind: 'reset' } | { kind: 'close' } | { kind: 'reissue' } | { kind: 'busy' }
-  | { kind: 'notices'; accounts: NoticeAccount[] } | { kind: 'opening' };
+  | { kind: 'notices'; accounts: NoticeAccount[]; resetAt?: Date } | { kind: 'opening' };
 
 // 学生: find any student by name, pinyin, class or number, or only those who have not set a new password
 // (?filter=waiting, linked from 总览); import the roster (teacher) and print the opening balance check sheet; print the
@@ -96,7 +96,7 @@ export default function Students() {
     if (failed.length) setResult({ tone: 'danger', title: `${failed.length} 人未能重置密码`, text: failures(failed) });
     setPicked(new Set());
     refresh();
-    setStep(accounts.length ? { kind: 'notices', accounts } : null);
+    setStep(accounts.length ? { kind: 'notices', accounts, resetAt: new Date() } : null);
   }
 
   // Each student's 'opening' transaction (at most one, txns_one_opening); a student without one opened at 0.
@@ -184,7 +184,7 @@ export default function Students() {
       )}
       {step?.kind === 'reset' && (
         <ConfirmSheet title={`为 ${chosen.length} 名学生重置密码？`} confirm="重置并生成通知单" onClose={() => setStep(null)} onConfirm={reset}
-          text="原密码立即失效。随后打印或下载新的开户通知单（每人一页），发给学生本人。" />
+          text="原密码立即失效。随后打印或下载重置密码通知单（每人一页），发给学生本人。" />
       )}
       {step?.kind === 'reissue' && (
         <ConfirmSheet title={`为 ${waiting.length} 名学生重新生成初始密码？`} confirm="生成通知单" onClose={() => setStep(null)} onConfirm={reissue}
@@ -194,11 +194,11 @@ export default function Students() {
         <CloseSheet people={chosen.map((s) => ({ id: s.user_id, name: s.name, balance: s.accounts?.balance }))}
           onClose={() => setStep(null)} onDone={(r) => { setStep(null); done(r); }} />
       )}
-      {step?.kind === 'notices' && (
-        <OutputSheet title={`${step.accounts.length} 份开户通知单已生成`} name={`开户通知单-${today()}-${step.accounts.length}人.pdf`}
-          text="通知单上是新的初始密码，关闭后不能再看到。请打印或下载后发给学生本人。"
-          make={() => noticePages(step.accounts)} onClose={() => setStep(null)} />
-      )}
+      {step?.kind === 'notices' && (step.resetAt
+        ? <ResetNoticeSheet count={step.accounts.length} make={() => noticePages(step.accounts, step.resetAt)} onClose={() => setStep(null)} />
+        : <OutputSheet title={`${step.accounts.length} 份开户通知单已生成`} name={`开户通知单-${today()}-${step.accounts.length}人.pdf`}
+            text="通知单上是新的初始密码，关闭后不能再看到。请打印或下载后发给学生本人。"
+            make={() => noticePages(step.accounts)} onClose={() => setStep(null)} />)}
       {step?.kind === 'opening' && (
         <OutputSheet title="期初余额核对表" name={`期初余额核对表-${today()}.pdf`} text="每个班一页，列出系统里的期初余额，留空一栏与原账本逐人核对。"
           make={openings} onClose={() => setStep(null)} />

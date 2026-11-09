@@ -1,8 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Avatar, CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SalaryAccount, SkeletonGroup, Summary } from '@/components';
-import { usePayroll } from '@/lib/attendance';
+import {
+  Avatar, CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, ResetNoticeSheet, SalaryAccount, SkeletonGroup, staffNotice, staffNoticePages, Summary,
+  type StaffNotice,
+} from '@/components';
+import { readPayroll, usePayroll } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -24,6 +27,7 @@ export default function StaffLogin() {
   const [role, setRole] = useState<Role | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [closing, setClosing] = useState(false);
+  const [notice, setNotice] = useState<{ staff: StaffNotice; at: Date } | null>(null);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
   const canManage = !!p && p.role !== 'teacher' && managesLogins(me);
   const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
@@ -32,9 +36,12 @@ export default function StaffLogin() {
   async function run(a: Action) {
     setAction(null);
     try {
+      // A teller's notice names the pay account; read it first, so a failed read costs no password.
+      const pay = a.fn === 'reset_password' ? (await readPayroll()).find((x) => x.user_id === p!.id) : undefined;
       const r = await call<{ password?: string } | null>(a.fn, a.args);
-      // reset_password answers with the new initial password, shown this once.
-      setResult({ tone: 'success', title: a.done, text: r?.password ? `新的初始密码：${r.password}。请转交本人，下次登录时需要设置新密码；这个密码只显示这一次。` : '' });
+      // reset_password answers with the new initial password, which goes out once, on the notice.
+      if (r?.password) setNotice({ staff: staffNotice(p!, r.password, pay), at: new Date() });
+      setResult({ tone: 'success', title: a.done, text: r?.password ? '新的初始密码在通知单上，请转交本人，下次登录时需要设置新密码。' : '' });
       setRole(null);
       queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
       queryClient.invalidateQueries({ queryKey: ['payroll'] });
@@ -83,7 +90,7 @@ export default function StaffLogin() {
                     </li>
                   </ul>
                 </div>
-                <SalaryAccount userId={p.id} payroll={payroll.data?.find((x) => x.user_id === p.id)} readOnly={!managesLogins(me)} />
+                <SalaryAccount userId={p.id} payroll={payroll.data?.find((x) => x.user_id === p.id)} readOnly={!managesLogins(me)} admin={managesLogins(me)} />
               </>
             )}
             <ul className="dc-list" aria-label="相关记录">
@@ -118,7 +125,7 @@ export default function StaffLogin() {
               </button>
               <button className="dc-btn dc-btn-secondary" type="button"
                 onClick={() => setAction({ title: `重置 ${p.display_name} 的密码？`,
-                  text: '将生成新的初始密码，只在这里显示一次；下次登录时需要设置新密码，已登录的设备会退出登录。',
+                  text: '将生成新的初始密码，随后打印或下载通知单转交本人；下次登录时需要设置新密码，已登录的设备会退出登录。',
                   confirm: '重置密码', fn: 'reset_password', args: { p_user_id: p.id }, done: '密码已重置' })}>
                 重置密码
               </button>
@@ -150,6 +157,7 @@ export default function StaffLogin() {
             router.navigate('/admin/staff');
           }} />
       )}
+      {notice && <ResetNoticeSheet count={1} make={() => staffNoticePages([notice.staff], notice.at)} onClose={() => setNotice(null)} />}
       {action && <ConfirmSheet title={action.title} text={action.text} confirm={action.confirm} onClose={() => setAction(null)} onConfirm={() => run(action)} />}
     </Desk>
   );

@@ -1,25 +1,13 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Download, type Page } from '@playwright/test';
-import { confirmIn, resetData, signIn } from './helpers';
+import { expect, test, type Download } from '@playwright/test';
+import { confirmIn, downloadNotices, drawnNotices, noticePassword, recordNotices, resetData, signIn } from './helpers';
 
 // The back office's logins (M4, PHASE-1.md §6.4–6.5): the teacher imports a roster and a new student signs in for the
 // first time; staff logins are created and managed.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 
-// The 开户通知单 PDF is drawn on a canvas: record every text drawn, before the page loads.
-const recordNotices = (page: Page) => page.addInitScript(() => {
-  const drawn: string[] = ((window as unknown as { notices: string[] }).notices = []);
-  const fill = CanvasRenderingContext2D.prototype.fillText;
-  CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
-    drawn.push(String(text));
-    return fill.call(this, text, ...rest);
-  };
-});
-// The initial password on a student's notice: the text after the first 初始密码 label that follows their number.
-const noticePassword = (page: Page, no: string) =>
-  page.evaluate((no) => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('初始密码', t.indexOf(no)) + 1] ?? ''; }, no);
 // The downloaded PDF has one page per notice.
 async function noticePages(download: Download) {
   expect(download.suggestedFilename()).toMatch(/^开户通知单-\d{4}-\d{2}-\d{2}-\d+人\.pdf$/);
@@ -89,22 +77,31 @@ test('the teacher imports a roster, the new student signs in and must set a new 
   await expect(page.locator('.dc-balance-amount')).toContainText('30');
 });
 
-test('the teacher resets a student password to a new initial one, shown once', async ({ page }) => {
+test('the teacher resets a student password to a new initial one, on a notice that says so', async ({ page }) => {
+  await recordNotices(page);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/students/20269001');
   await expect(page.locator('.dc-kv')).toContainText('已设置新密码');
   await page.getByRole('button', { name: '重置密码' }).click();
   await confirmIn(page, '重置密码');
+  await expect(page.locator('.dc-sheet')).toContainText('1 份重置密码通知单');
   await expect(page.locator('.dc-notice-success')).toContainText('密码已重置');
+  await expect(page.locator('.dc-notice-success')).not.toContainText(/\d{8}/);
   await expect(page.locator('.dc-kv')).toContainText('还未设置新密码');
-  const password = (await page.locator('.dc-notice-success').innerText()).match(/新的初始密码：(\d{8})/)?.[1];
-  expect(password).toBeTruthy();
+  const file = await downloadNotices(page);
+  expect(file.suggestedFilename()).toMatch(/^重置密码通知单-\d{4}-\d{2}-\d{2}-1人\.pdf$/);
+  const texts = await drawnNotices(page);
+  expect(texts.some((t) => t.endsWith('同学，密码已重置'))).toBe(true);
+  expect(texts.some((t) => /· 密码已重置 · \d{4}年\d+月\d+日 \d{2}:\d{2}$/.test(t))).toBe(true);
+  const password = await noticePassword(page, '20269001');
+  expect(password).toMatch(/^\d{8}$/);
   await signIn(page, '学生', '20269001', '/login?add=1', password);
   await expect(page).toHaveURL(/\/change-password$/);
 });
 
 test('staff logins: create one, change its role, stop it; a sysadmin cannot touch a teacher', async ({ page }) => {
+  await recordNotices(page);
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '人员' }).click();
   await page.getByRole('link', { name: '新增账号' }).click();
@@ -112,7 +109,14 @@ test('staff logins: create one, change its role, stop it; a sysadmin cannot touc
   await page.getByPlaceholder('如 柜员小王').fill('柜员小周');
   await page.getByRole('button', { name: '创建账号' }).click();
   await expect(page.locator('.dc-notice-success')).toContainText('teller09 已创建');
-  await expect(page.locator('.dc-notice-success')).toContainText(/初始密码 \d{8}。/);
+  await expect(page.locator('.dc-notice-success')).not.toContainText(/\d{8}/);
+  await expect(page.locator('.dc-sheet')).toContainText('1 份账号通知单');
+  expect((await downloadNotices(page)).suggestedFilename()).toMatch(/^工作人员通知单-\d{4}-\d{2}-\d{2}-1人\.pdf$/);
+  expect(await noticePassword(page, 'teller09')).toMatch(/^\d{8}$/);
+  const notice = await drawnNotices(page);
+  expect(notice).toContain('柜员小周，你好');
+  expect(notice).toContain('未绑定');
+  await confirmIn(page, '取消');
 
   await page.goto('/admin/staff');
   await page.locator('.dc-list-link', { hasText: '柜员小周' }).click();
@@ -139,16 +143,16 @@ test('批量: create two staff logins at once, stop one, which then cannot sign 
   await page.goto('/admin/staff/new');
   await page.getByLabel('每行一个账号').fill('teller21 柜员甲\nteller22 柜员乙 柜员');
   await page.getByRole('button', { name: '创建 2 个账号' }).click();
-  await expect(page.locator('.dc-sheet')).toContainText('2 个账号的初始密码');
-  const download = page.waitForEvent('download');
-  await confirmIn(page, '下载 PDF');
-  expect((await download).suggestedFilename()).toMatch(/^工作人员初始密码-\d{4}-\d{2}-\d{2}\.pdf$/);
-  const password = await page.evaluate(() => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('teller21') + 1]; });
+  await expect(page.locator('.dc-sheet')).toContainText('2 份账号通知单');
+  const file = await downloadNotices(page);
+  expect(file.suggestedFilename()).toMatch(/^工作人员通知单-\d{4}-\d{2}-\d{2}-2人\.pdf$/);
+  expect((await readFile(await file.path())).toString('latin1').match(/\/Type \/Page /g)?.length).toBe(2);
+  const password = await noticePassword(page, 'teller21');
   expect(password).toMatch(/^\d{8}$/);
   await confirmIn(page, '取消');
   // 柜员乙 signs in on this device too, in another tab; 切换账号 lists it.
   const other = await page.context().newPage();
-  await signIn(other, '工作人员', 'teller22', '/login?add=1', await page.evaluate(() => { const t = (window as unknown as { notices: string[] }).notices; return t[t.indexOf('teller22') + 1]; }));
+  await signIn(other, '工作人员', 'teller22', '/login?add=1', await noticePassword(page, 'teller22'));
   await expect(other).toHaveURL(/\/change-password$/);
   await other.close();
   await page.goto('/login?switch=1');

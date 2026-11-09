@@ -1,15 +1,17 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, OutputSheet, passwordPages, Pick, today,
-  type StaffPassword,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, Pick, ResetNoticeSheet, staffNotice, staffNoticePages,
+  type StaffNotice,
 } from '@/components';
+import { readPayroll, type Payroll } from '@/lib/attendance';
+import { explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
 import { managesLogins, ROLES, useMe } from '@/lib/session';
 import { useStaff, type StaffLogin } from '@/lib/staff';
 
 type Result = { tone: 'success' | 'danger'; title: string; text: string };
-type Step = { kind: 'disable' | 'enable' | 'reset' | 'close' | 'busy' } | { kind: 'passwords'; rows: StaffPassword[] };
+type Step = { kind: 'disable' | 'enable' | 'reset' | 'close' | 'busy' } | { kind: 'notices'; rows: StaffNotice[]; at: Date };
 
 // 工作人员: every staff login with its role, found by name or account; stopped logins (已停用) only when asked for.
 // 新增 opens the form (one, or many pasted at once); a row opens the login. 选择 stops, restores, resets the password of
@@ -49,13 +51,19 @@ export default function Staff() {
 
   async function reset() {
     setStep({ kind: 'busy' });
-    const { done: rows, failed } = await eachOf(chosen, async (p): Promise<StaffPassword> => ({
-      name: p.display_name, login_id: p.login_id, role: p.role ? ROLES[p.role] : '',
-      password: (await call<{ password: string }>('reset_password', { p_user_id: p.id })).password,
-    }));
+    // Read before anything changes: a teller's notice names the pay account, and a failed read must cost no password.
+    let payroll: Payroll[];
+    try {
+      payroll = await readPayroll();
+    } catch {
+      setStep(null);
+      return setResult({ tone: 'danger', ...explain('') });
+    }
+    const { done: rows, failed } = await eachOf(chosen, async (p) => staffNotice(p,
+      (await call<{ password: string }>('reset_password', { p_user_id: p.id })).password, payroll.find((x) => x.user_id === p.id)));
     done(failed.length ? { tone: 'danger', title: `${failed.length} 个账号未能重置密码`, text: failures(failed) }
       : { tone: 'success', title: `已重置 ${rows.length} 个账号的密码`, text: '' });
-    setStep(rows.length ? { kind: 'passwords', rows } : null);
+    setStep(rows.length ? { kind: 'notices', rows, at: new Date() } : null);
   }
 
   const busy = step?.kind === 'busy';
@@ -79,7 +87,7 @@ export default function Staff() {
               </button>
             )}
           </div>
-          {managesLogins(me) && <span className="fl-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>}
+          {managesLogins(me) && <span className="fl-actions"><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/import')}>导入</a><a className="dc-btn dc-btn-secondary dc-btn-sm" {...link('/admin/staff/new')}>新增账号</a></span>}
         </div>
       </form>
       {staff.isError && <Notice tone="danger" title="暂时无法读取工作人员">请检查网络后刷新页面。</Notice>}
@@ -133,16 +141,13 @@ export default function Staff() {
       )}
       {step?.kind === 'reset' && (
         <ConfirmSheet title={`为 ${chosen.length} 个账号重置密码？`} confirm="重置" onClose={() => setStep(null)} onConfirm={reset}
-          text="原密码立即失效，账号退出登录。新的初始密码（8 位数字）随后打印或下载，转交本人。" />
+          text="原密码立即失效，账号退出登录。随后打印或下载重置密码通知单（每人一页），转交本人。" />
       )}
       {step?.kind === 'close' && (
         <CloseSheet people={chosen.map((p) => ({ id: p.id, name: p.display_name }))} onClose={() => setStep(null)}
           onDone={(r) => { setStep(null); done(r); }} />
       )}
-      {step?.kind === 'passwords' && (
-        <OutputSheet title={`${step.rows.length} 个账号的初始密码`} name={`工作人员初始密码-${today()}.pdf`}
-          text="关闭后不能再看到这些密码。请打印或下载后转交本人签收。" make={() => passwordPages(step.rows)} onClose={() => setStep(null)} />
-      )}
+      {step?.kind === 'notices' && <ResetNoticeSheet count={step.rows.length} make={() => staffNoticePages(step.rows, step.at)} onClose={() => setStep(null)} />}
     </Desk>
   );
 }

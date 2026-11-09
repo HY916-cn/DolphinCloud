@@ -119,7 +119,8 @@ export function DayShifts({ day, rows, names, shifts = ORDER, action }: {
 // 工资账户: the student account a teller's pay goes to, bound with that account's password, by the teller or by the
 // bank admin or sysadmin for them. A counted teller changes it by binding another; unbinding waits until they are not.
 // `readOnly` (a president): the account, without changing it.
-export function SalaryAccount({ userId, payroll, readOnly }: { userId: string; payroll?: Payroll; readOnly?: boolean }) {
+// `admin`: the bank admin or the sysadmin binds without the student's password (PHASE-2.md §5.2).
+export function SalaryAccount({ userId, payroll, readOnly, admin }: { userId: string; payroll?: Payroll; readOnly?: boolean; admin?: boolean }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [no, setNo] = useState('');
@@ -132,10 +133,10 @@ export function SalaryAccount({ userId, payroll, readOnly }: { userId: string; p
 
   async function bind(e: FormEvent) {
     e.preventDefault();
-    if (busy || !no.trim() || !password) return;
+    if (busy || !no.trim() || (!admin && !password)) return;
     setBusy(true);
     try {
-      const r = await bindSalaryAccount(userId, no.trim(), password);
+      const r = await bindSalaryAccount(userId, no.trim(), admin ? null : password);
       setResult({ tone: 'success', title: '工资账户已绑定', text: `工资将发到 ${r.name}（学号 ${no.trim()}）的账户。` });
       setEditing(false);
       setNo('');
@@ -176,19 +177,21 @@ export function SalaryAccount({ userId, payroll, readOnly }: { userId: string; p
           </>
         ) : (
           <form className="dc-stack" onSubmit={bind} noValidate aria-label="绑定工资账户">
-            <p className="dc-top-sub">{account ? '' : '还没有绑定工资账户，工资暂不发放。'}输入要收工资的学生账户的学号和登录密码。</p>
+            <p className="dc-top-sub">{account ? '' : '还没有绑定工资账户，工资暂不发放。'}输入要收工资的学生账户的学号{admin ? '' : '和登录密码'}。</p>
             <label className="dc-field">
               <span className="dc-field-label"><Icon name="me" />学号</span>
               <span className="dc-input-wrap"><input className="dc-input" inputMode="numeric" autoComplete="off" value={no} onChange={(e) => setNo(e.target.value)} /></span>
             </label>
-            <label className="dc-field">
-              <span className="dc-field-label"><Icon name="lock" />该学生账户的密码</span>
-              <span className="dc-input-wrap"><input className="dc-input" type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} /></span>
-              <span className="dc-field-hint">连续输错 5 次，该学生账号会锁定 15 分钟</span>
-            </label>
+            {!admin && (
+              <label className="dc-field">
+                <span className="dc-field-label"><Icon name="lock" />该学生账户的密码</span>
+                <span className="dc-input-wrap"><input className="dc-input" type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} /></span>
+                <span className="dc-field-hint">连续输错 5 次，该学生账号会锁定 15 分钟</span>
+              </label>
+            )}
             <div className="at-buttons">
               {account && <button className="dc-btn dc-btn-ghost" type="button" onClick={() => setEditing(false)}>取消</button>}
-              <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || !no.trim() || !password}>绑定</button>
+              <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || !no.trim() || (!admin && !password)}>绑定</button>
             </div>
           </form>
         )}

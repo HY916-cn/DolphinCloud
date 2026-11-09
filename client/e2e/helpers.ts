@@ -40,3 +40,26 @@ export async function endDuty(page: Page, skip = false) {
 }
 
 export const confirmIn = (page: Page, name: string) => page.locator('.dc-sheet').getByRole('button', { name }).click();
+
+// A notice is drawn on a canvas: record every text drawn, before the page loads.
+export const recordNotices = (page: Page) => page.addInitScript(() => {
+  const drawn: string[] = ((window as unknown as { notices: string[] }).notices = []);
+  const fill = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+    drawn.push(String(text));
+    return fill.call(this, text, ...rest);
+  };
+});
+export const drawnNotices = (page: Page) => page.evaluate(() => (window as unknown as { notices: string[] }).notices);
+
+// Downloads the notices of the open sheet and gives the file; the initial password of a login or student number is
+// then the text after the first 初始密码 label that follows it.
+export async function downloadNotices(page: Page) {
+  const download = page.waitForEvent('download');
+  await confirmIn(page, '下载 PDF');
+  return download;
+}
+export async function noticePassword(page: Page, id: string) {
+  const texts = await drawnNotices(page);
+  return texts[texts.indexOf('初始密码', texts.indexOf(id)) + 1] ?? '';
+}

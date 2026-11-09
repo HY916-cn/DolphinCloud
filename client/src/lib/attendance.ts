@@ -37,15 +37,14 @@ export function useShifts(from: string, to: string, userId?: string) {
 }
 
 // Who is counted and where their pay goes; the student's name is readable by the teller, and the bank admin.
+export async function readPayroll() {
+  const { data, error } = await supabase.from('staff_payroll').select('user_id,attendance,account,students(name)');
+  if (error) throw error;
+  return data as unknown as Payroll[];
+}
+
 export function usePayroll() {
-  return useQuery({
-    queryKey: ['payroll'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('staff_payroll').select('user_id,attendance,account,students(name)');
-      if (error) throw error;
-      return data as unknown as Payroll[];
-    },
-  });
+  return useQuery({ queryKey: ['payroll'], queryFn: readPayroll });
 }
 
 // The pay of a 中午班 and of a 下午班.
@@ -66,7 +65,7 @@ export const earned = (rows: ShiftRow[], rates: Record<Shift, number>) =>
 export const NO_RATES: Record<Shift, number> = { am: 0, pm: 0 };
 
 // bind_salary_account answers a wrong password instead of raising it (the lockout count must stay).
-export async function bindSalaryAccount(userId: string, studentNo: string, password: string) {
+export async function bindSalaryAccount(userId: string, studentNo: string, password: string | null) {
   const r = await call<{ error?: string; name?: string }>('bind_salary_account', { p_user_id: userId, p_student_no: studentNo, p_password: password });
   if (r.error) throw new AppError(r.error);
   return r;

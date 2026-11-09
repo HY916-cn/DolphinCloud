@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { resetData, signIn } from './helpers';
+import { confirmIn, downloadNotices, noticePassword, recordNotices, resetData, signIn } from './helpers';
 
 // Acceptance items of PHASE-1.md §12.2 that no other spec walks through, on the seed data: 张小明 (20260001,
 // balance 108, 15 HTB withdrawn today) and 王小雨 (20260003, balance 0).
@@ -61,6 +61,7 @@ test('with too little balance, 取款 and an exchange from the account show the 
 test('财务, 库管 and 运维员 first see their 总览', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
+  await recordNotices(page);
   const logins: [string, string, string][] = [['acct31', '财务小郑', '财务'], ['keep31', '库管小吴', '库管']];
   const passwords: string[] = [];
   for (const [login, name, role] of logins) {
@@ -69,7 +70,9 @@ test('财务, 库管 and 运维员 first see their 总览', async ({ page }) => 
     await page.getByPlaceholder('如 柜员小王').fill(name);
     await page.getByRole('combobox').selectOption({ label: role });
     await page.getByRole('button', { name: '创建账号' }).click();
-    passwords.push((await page.locator('.dc-notice-success').innerText()).match(/初始密码 ([A-Za-z0-9]{8})。/)![1]);
+    await downloadNotices(page);
+    passwords.push(await noticePassword(page, login));
+    await confirmIn(page, '取消');
   }
   for (const [i, [login]] of logins.entries()) {
     await signIn(page, '工作人员', login, '/login?add=1', passwords[i]);

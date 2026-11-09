@@ -1,15 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Desk, eachOf, Icon, Notice, OutputSheet, passwordPages, today, type StaffPassword } from '@/components';
+import { Desk, eachOf, Icon, Notice, staffNotice, StaffNoticeSheet, type StaffNotice } from '@/components';
 import { AppError, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
 import { ROLES, type Role } from '@/lib/session';
 
 const LOGIN = /^[a-z0-9][a-z0-9_.-]{1,31}$/;
 
-// 新增账号: one staff login with one role, on an initial password the server makes up and shows once (create_staff);
-// or many at once, pasted one per line, with their passwords printed as one list. The one 银行管理员 already exists.
+// 新增账号: one staff login with one role, on an initial password the server makes up (create_staff); or many at once,
+// pasted one per line. Either way the passwords go out once, on one notice each. The one 银行管理员 already exists.
 export default function NewStaff() {
   const queryClient = useQueryClient();
   const roles = (Object.keys(ROLES) as Role[]).filter((r) => r !== 'teacher');
@@ -20,6 +20,7 @@ export default function NewStaff() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ title: string; text: string } | null>(null);
   const [created, setCreated] = useState<string | null>(null);
+  const [notice, setNotice] = useState<StaffNotice | null>(null);
   const id = login.trim().toLowerCase();
   const loginOk = LOGIN.test(id);
 
@@ -32,7 +33,8 @@ export default function NewStaff() {
     try {
       const r = await call<{ password: string }>('create_staff', { p_login_id: id, p_name: name.trim(), p_role: role });
       queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
-      setCreated(`${name.trim()}（${ROLES[role]}）的账号 ${id} 已创建，初始密码 ${r.password}。请转交本人，首次登录后需要设置新密码；这个密码只显示这一次。`);
+      setCreated(`${name.trim()}（${ROLES[role]}）的账号 ${id} 已创建。初始密码在通知单上，请转交本人，首次登录后需要设置新密码。`);
+      setNotice(staffNotice({ login_id: id, display_name: name.trim(), role }, r.password));
       setLogin('');
       setName('');
       setTried(false);
@@ -74,6 +76,7 @@ export default function NewStaff() {
         <button className="dc-btn dc-btn-primary dc-btn-block" type="submit" disabled={busy}>{busy ? '正在创建' : '创建账号'}</button>
       </form>
       <Many roles={roles} />
+      {notice && <StaffNoticeSheet staff={[notice]} onClose={() => setNotice(null)} />}
     </Desk>
   );
 }
@@ -100,7 +103,7 @@ function Many({ roles }: { roles: Role[] }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
-  const [created, setCreated] = useState<StaffPassword[] | null>(null);
+  const [created, setCreated] = useState<StaffNotice[] | null>(null);
   const { rows, problems } = parse(text, roles);
 
   async function submit(e: React.FormEvent) {
@@ -108,10 +111,8 @@ function Many({ roles }: { roles: Role[] }) {
     if (!rows.length || problems.length || busy) return;
     setBusy(true);
     setResult(null);
-    const { done, failed } = await eachOf(rows, async (r): Promise<StaffPassword> => ({
-      name: r.name, login_id: r.login, role: ROLES[r.role],
-      password: (await call<{ password: string }>('create_staff', { p_login_id: r.login, p_name: r.name, p_role: r.role })).password,
-    }));
+    const { done, failed } = await eachOf(rows, async (r) => staffNotice({ login_id: r.login, display_name: r.name, role: r.role },
+      (await call<{ password: string }>('create_staff', { p_login_id: r.login, p_name: r.name, p_role: r.role })).password));
     queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
     setBusy(false);
     setResult(failed.length
@@ -139,11 +140,7 @@ function Many({ roles }: { roles: Role[] }) {
       <button className={`dc-btn dc-btn-secondary dc-btn-block ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || !rows.length || !!problems.length}>
         {busy ? '正在创建' : `创建 ${rows.length} 个账号`}
       </button>
-      {created && (
-        <OutputSheet title={`${created.length} 个账号的初始密码`} name={`工作人员初始密码-${today()}.pdf`}
-          text="关闭后不能再看到这些密码。请打印或下载后转交本人签收；首次登录后需要设置新密码。"
-          make={() => passwordPages(created)} onClose={() => setCreated(null)} />
-      )}
+      {created && <StaffNoticeSheet staff={created} onClose={() => setCreated(null)} />}
     </form>
   );
 }

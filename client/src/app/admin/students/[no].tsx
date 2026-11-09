@@ -1,7 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Avatar, CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, PersonLoading, SkeletonGroup, Summary, TxnList, TxnListLoading } from '@/components';
+import {
+  Avatar, CloseSheet, ConfirmSheet, Desk, Icon, KvLoading, link, Notice, noticePages, PersonLoading, ResetNoticeSheet, SkeletonGroup, Summary, TxnList, TxnListLoading,
+  type NoticeAccount,
+} from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -54,6 +57,7 @@ export default function Student() {
   });
   const [confirm, setConfirm] = useState<'reset' | 'close' | Status | null>(null);
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ account: NoticeAccount; at: Date } | null>(null);
   const s = student.data;
 
   async function run(action: 'reset' | Status) {
@@ -61,7 +65,8 @@ export default function Student() {
     try {
       if (action === 'reset') {
         const r = await call<{ password: string }>('reset_password', { p_user_id: s!.user_id });
-        setResult({ tone: 'success', title: '密码已重置', text: `新的初始密码：${r.password}。请转交${s!.name}，下次登录时需要设置新密码；这个密码只显示这一次。` });
+        setNotice({ account: { ...s!, password: r.password }, at: new Date() });
+        setResult({ tone: 'success', title: '密码已重置', text: `新的初始密码在通知单上，请转交${s!.name}，下次登录时需要设置新密码。` });
       } else {
         await call('set_student_status', { p_student_no: s!.student_no, p_status: action });
         setResult({ tone: 'success', title: CHANGE[action].done, text: '' });
@@ -122,8 +127,9 @@ export default function Student() {
       )}
       {confirm === 'reset' && s && (
         <ConfirmSheet title={`重置 ${s.name} 的密码？`} confirm="重置密码" onClose={() => setConfirm(null)} onConfirm={() => run('reset')}
-          text={<>将生成新的初始密码，只在这里显示一次；{s.name} 下次登录时需要设置新密码，已登录的设备会退出登录。</>} />
+          text={<>将生成新的初始密码，随后打印或下载通知单转交本人；{s.name} 下次登录时需要设置新密码，已登录的设备会退出登录。</>} />
       )}
+      {notice && <ResetNoticeSheet count={1} make={() => noticePages([notice.account], notice.at)} onClose={() => setNotice(null)} />}
       {confirm === 'close' && s && (
         <CloseSheet people={[{ id: s.user_id, name: s.name, balance: s.accounts?.balance }]} onClose={() => setConfirm(null)}
           onDone={(r) => {

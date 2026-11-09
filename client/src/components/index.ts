@@ -12,7 +12,7 @@ export { CashCounter, CounterPage, FindStudent, NeedsNetwork, Summary } from './
 export { DepositPanel, QueryPanel, ShopPanel, WithdrawPanel, servedAmount, type Served } from './Business';
 export { ReversalSheet } from './Reversal';
 export { MoveList, type Move } from './Stock';
-export { noticePages, openingPages, type NoticeAccount, type NoticeStudent } from './Notices';
+export { noticePages, openingPages, ResetNoticeSheet, staffNotice, StaffNoticeSheet, staffNoticePages, type NoticeAccount, type NoticeStudent, type StaffNotice } from './Notices';
 export { Bars, Columns, Line, SCOPE_ICON, ScopePicker, Stats, Table, TimeRange } from './Report';
 export { DayShifts, SalaryAccount, ShiftLegend, ShiftMark, shiftWords, WeekBar, WeekShifts } from './Attendance';
 export { MeView } from './Me';
@@ -21,7 +21,7 @@ export { OutputSheet } from './Output';
 export { TimePicker } from './TimePicker';
 export { DutyCard } from './Duty';
 export { CloseSheet, type Closing } from './Close';
-export { BatchBar, eachOf, passwordPages, Pick, type StaffPassword } from './Batch';
+export { BatchBar, eachOf, Pick } from './Batch';
 export { FilterBar, filtered, NO_FILTER, type Chip, type Filter, type Suggestion } from './Filter';
 export { Passbook, PassbookPage, PassbookRows, PassbookSeal } from './Passbook';
 export { BookCover, BookPages, BookShell, useCloseBook, useLines, useWide, ViewSwitch } from './Book';

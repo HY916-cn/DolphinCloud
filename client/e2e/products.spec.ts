@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { resetData, signIn } from './helpers';
+import { confirmIn, downloadNotices, noticePassword, recordNotices, resetData, signIn } from './helpers';
 
 // 商品 and 出入库 (PHASE-1.md §1.1): admin adds a product with a picture, stocks it in and out, then takes it off the shelf.
 test.beforeAll(resetData);
@@ -68,6 +68,7 @@ test('add a product, stock it in and out, then unlist it', async ({ page }) => {
 });
 
 test('the accountant reads products with their cost, without editing them', async ({ page }) => {
+  await recordNotices(page);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/staff/new');
@@ -75,7 +76,9 @@ test('the accountant reads products with their cost, without editing them', asyn
   await page.getByPlaceholder('如 柜员小王').fill('财务小陈');
   await page.getByRole('combobox').selectOption({ label: '财务' });
   await page.getByRole('button', { name: '创建账号' }).click();
-  const password = (await page.locator('.dc-notice-success').innerText()).match(/初始密码 ([A-Za-z0-9]{8})。/)?.[1];
+  await downloadNotices(page);
+  const password = await noticePassword(page, 'acct09');
+  await confirmIn(page, '取消');
 
   await signIn(page, '工作人员', 'acct09', '/login?add=1', password);
   await expect(page).toHaveURL(/\/change-password$/);
