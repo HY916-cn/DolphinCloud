@@ -1,0 +1,24 @@
+# PAGE-027 出入库
+
+- 路由：`/admin/stock`
+- 源码：`client/src/app/admin/stock.tsx`
+- 角色/变体：桌面 1280x900；手机 390x844；按 Gate 角色进入
+- 运行证据：EV-005/EV-006/EV-021
+- 关联问题：无
+
+## 组件实例
+
+| CMP | DEF | 观察/源码定位 | 关键性 | CHK/SCN | FND | 处置 | BP/TASK |
+|---|---|---|---|---|---|---|---|
+| CMP-043 | DEF-026 | 库存变动列表；`src/app/admin/stock.tsx; src/components/Stock.tsx` | normal | SCN-CMP-043 | — | retain | BP-026 — |
+
+## 状态与交互
+
+| SCN | 前提 | 动作 | 预期 | 实际 | 状态 |
+|---|---|---|---|---|---|
+| SCN-PAGE-027 | 对应角色登录 | 访问 `/admin/stock` | 页面可渲染、无异常/溢出 | Playwright 已加载 | passed |
+| SCN-CMP-043 | 入库/出库/新行 | 主交互 | 状态/权限/数据符合契约 | 基线场景通过（EV-005/006） | passed |
+
+## 本页迁移与回归
+
+保留现有实现；后续改动需回归本页 SCN 与共享组件 BP。
