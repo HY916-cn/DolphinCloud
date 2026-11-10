@@ -80,14 +80,15 @@ insert into tests.matrix values
     'select upsert_product(gen_random_uuid(), ''x'', 1, p_listed => true)', '{storekeeper,president,teacher}'),
   ('stock_in(uuid,integer,text)', 'select stock_in(gen_random_uuid(), 1, null)', '{storekeeper,president,teacher}'),
   ('stock_move(text,jsonb,text)', 'select stock_move(''stock_in'', ''[]'', null)', '{storekeeper,president,teacher}'),
-  -- 考勤、工资、参数、发行
+  -- 考勤、工资、参数
   ('set_attendance(uuid,boolean)', 'select set_attendance(gen_random_uuid(), false)', '{president,teacher}'),
   ('makeup_attendance(uuid,date,text,text)', 'select makeup_attendance(gen_random_uuid(), current_date, ''am'', '''')', '{president,teacher}'),
   ('review_attendance(uuid[],text,text)', 'select review_attendance(''{}'', ''nonsense'', null)', '{president,teacher}'),
   ('pay_salaries(date)', 'select pay_salaries(null)', '{president,teacher}'),
   ('set_setting(text,jsonb)', 'select set_setting(''nonsense'', ''1'')', '{president,teacher}'),
   ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{president,teacher}'),
-  ('register_issue(text,date,jsonb,text,text)', 'select register_issue('''', current_date, ''{}'', '''', '''')', '{president,teacher}'),
+  -- 登记发行: the bank admin alone (PHASE-2.md §3)
+  ('register_issue(text,date,jsonb,text,text)', 'select register_issue('''', current_date, ''{}'', '''', '''')', '{teacher}'),
   -- 账号管理: the bank admin, the sysadmin where §4.2 says so, never the president
   ('import_roster(jsonb)', 'select import_roster(''[{}]'')', '{teacher}'),
   ('set_student_status(text,text)', 'select set_student_status(''nobody'', ''frozen'')', '{teacher}'),

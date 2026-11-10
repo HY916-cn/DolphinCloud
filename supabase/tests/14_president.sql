@@ -36,6 +36,7 @@ select is(tests.err(:'p1', format($$select set_role(%L, 'accountant')$$, :'t1'))
 select is(tests.err(:'p1', format($$select set_user_disabled(%L, true)$$, :'t1')), 'FORBIDDEN', 'no 停用');
 select is(tests.err(:'p1', format($$select bind_salary_account(%L, 's1', '123456')$$, :'t1')), 'FORBIDDEN', 'no 工资账户');
 select is(tests.err(:'p1', format($$select unbind_salary_account(%L)$$, :'t1')), 'FORBIDDEN', 'nor unbinding one');
+select is(tests.err(:'p1', $$select register_issue('P1', current_date, '{"10":1}', '开学发行', '王行长')$$), 'FORBIDDEN', 'no 登记发行');
 select is((select count(*)::int from app_private.login_attempts), 0, 'and no student login is tried');
 
 -- One bank admin still.
