@@ -1,15 +1,26 @@
 /// <reference types="node" />
 import { execFileSync } from 'node:child_process';
-import { expect, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-// Puts the test container back to the seeded data (snapshot taken by docker/e2e-test.sh); every spec file starts
-// with `test.beforeAll(resetData)`, so no spec depends on another one's changes or order. Skipped without
-// E2E_CONTAINER, i.e. when the tests run against a server that docker/e2e-test.sh did not start.
+// The longest a spec file runs: one that would cross midnight (Asia/Shanghai) waits for it first, since a duty begun
+// before today takes no more business (STALE_DUTY).
+const SPEC_WINDOW = 3 * 60_000;
+
+// Puts the test container back to freshly seeded data: the migrated state saved by docker/e2e-test.sh, then
+// supabase/seed.sql, so teller01's duty and the seeded business are from today. Every spec file starts with
+// `test.beforeAll(resetData)`, so no spec depends on another one's changes or order. Skipped without E2E_CONTAINER,
+// i.e. when the tests run against a server that docker/e2e-test.sh did not start.
 export function resetData() {
   const name = process.env.E2E_CONTAINER;
   if (!name) return;
+  const toMidnight = 86_400_000 - ((Date.now() + 8 * 3_600_000) % 86_400_000); // Asia/Shanghai is UTC+8 all year
+  if (toMidnight < SPEC_WINDOW) {
+    test.setTimeout(toMidnight + 60_000);
+    execFileSync('sleep', [String(Math.ceil(toMidnight / 1000) + 1)]);
+  }
   execFileSync('docker', ['exec', name, 'sh', '-ec', `
-    psql -U postgres -v ON_ERROR_STOP=1 -q -1 -f /tmp/e2e-seed.sql >/dev/null
+    psql -U postgres -v ON_ERROR_STOP=1 -q -1 -f /tmp/e2e-base.sql >/dev/null
+    psql -U postgres -v ON_ERROR_STOP=1 -q -f /tmp/e2e-seed.sql
     find /data/storage -mindepth 1 -delete
     tar -xf /tmp/e2e-storage.tar -C /data`], { stdio: ['ignore', 'ignore', 'inherit'] });
 }

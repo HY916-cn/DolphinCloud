@@ -67,7 +67,7 @@ npm --prefix client run lint
 | --- | --- |
 | `docker/db-test.sh` | 在镜像上逐个运行 `supabase/tests/*.sql`（pgTAP） |
 | `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、加密备份与恢复、容器重启 |
-| `docker/e2e-test.sh` | 导入种子数据后运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端；每个 spec 从种子数据开始）；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
+| `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
 
