@@ -67,7 +67,7 @@ export default function ImportRoster() {
         const e = err instanceof AppError ? err : new AppError('');
         const at = typeof e.detail.row === 'number' ? rows[i + e.detail.row - 1] : null;
         const { title, text } = explain(e.code, { ...e.detail, row: undefined });
-        const error = { title, text: `${at ? `学号 ${at.student_no}：` : ''}${text}前 ${i} 人已导入${created.length ? `，其中新开户 ${created.length} 人，请先保存这些人的开户通知单` : ''}；改好后重新导入整个名册，已导入的学号只更新信息。` };
+        const error = { title, text: `${at ? `学号 ${at.student_no}：` : ''}${text}前 ${i} 人已导入${created.length ? `，其中新开户 ${created.length} 人，请先保存这些人的开户通知单` : ''}；改好名册后再导入一次即可，已导入的学号只更新信息，不会重复开户。` };
         // Batches already imported have passwords shown nowhere else: keep their notices within reach.
         setStage(created.length ? { kind: 'done', created, updated, error } : { kind: 'pick', error });
         return;

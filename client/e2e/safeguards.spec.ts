@@ -232,7 +232,7 @@ test.describe(() => {
     await expect(page.locator('h1.display')).toHaveText('导入中断', { timeout: 120_000 });
     await expect(page.locator('.dc-result-lead')).toContainText('新开户 100 人');
     await expect(page.locator('.dc-notice-danger')).toContainText('前 100 人已导入，其中新开户 100 人，请先保存这些人的开户通知单');
-    await expect(page.locator('.dc-notice-danger')).toContainText('已导入的学号只更新信息');
+    await expect(page.locator('.dc-notice-danger')).toContainText('改好名册后再导入一次即可，已导入的学号只更新信息，不会重复开户。');
     await page.getByRole('button', { name: '开户通知单' }).click();
     const file = await downloadNotices(page);
     expect((await readFile(await file.path())).toString('latin1').match(/\/Type \/Page /g)?.length).toBe(100);

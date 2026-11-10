@@ -67,7 +67,7 @@ export default function ImportStaff() {
         const e = err instanceof AppError ? err : new AppError('');
         const at = typeof e.detail.row === 'number' ? rows[i + e.detail.row - 1] : null;
         const { title, text } = explain(e.code, { ...e.detail, row: undefined });
-        const error = { title, text: `${at ? `账号 ${at.login_id}：` : ''}${text}前 ${i} 人已导入；改好后重新导入整个表格即可，已导入的账号只会更新信息。` };
+        const error = { title, text: `${at ? `账号 ${at.login_id}：` : ''}${text}前 ${i} 人已导入；改好表格后再导入一次即可，已导入的账号只更新信息，不会重复创建账号。` };
         // Batches already imported have passwords shown nowhere else: keep their notices within reach.
         setStage(created.length ? { kind: 'done', created, updated, bound, error } : { kind: 'pick', error });
         return;
