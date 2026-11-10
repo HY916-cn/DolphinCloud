@@ -386,3 +386,38 @@ test('a duty left open overnight is ended before the counter serves anyone again
   await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
   await expect(receipt).toContainText('5 元 × 1 张 · HT');
 });
+
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' }); // page.route sees the balance read
+  test('a visit ended while its balance is still being read stays ended', async ({ page, context }) => {
+    await signIn(page, '工作人员', 'teller01');
+    await expect(search(page)).toBeVisible();
+    await page.waitForLoadState('networkidle'); // the roster is kept for offline searches
+    await context.setOffline(true);
+    await search(page).fill('lsy');
+    await page.locator('.dc-list-link', { hasText: '李思远' }).click();
+    await page.getByLabel('增加一张 5 元').click();
+    await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
+    const visit = page.locator('aside[aria-label="办理单"]');
+    await expect(visit).toContainText('存款（离线登记）');
+
+    // Back online, the balance of the student found offline is read again; it answers only after 结束办理.
+    let answer = () => {};
+    const held = new Promise<void>((ok) => { answer = ok; });
+    await page.route('**/rest/v1/rpc/lookup_student', async (route) => { await held; await route.continue(); });
+    const asked = page.waitForRequest('**/rest/v1/rpc/lookup_student');
+    await context.setOffline(false);
+    await asked;
+    await visit.getByRole('button', { name: '结束办理 1 笔' }).click();
+    await expect(search(page)).toBeVisible();
+    const answered = page.waitForResponse('**/rest/v1/rpc/lookup_student');
+    answer();
+    await answered;
+    await page.waitForTimeout(500);
+    await expect(search(page)).toBeVisible();
+    await expect(page.locator('.dc-person')).toHaveCount(0);
+
+    await page.getByRole('button', { name: '上传' }).click();
+    await expect(page.locator('.dc-notice', { hasText: '待上传' })).toHaveCount(0);
+  });
+});

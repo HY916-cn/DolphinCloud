@@ -44,7 +44,10 @@ export default function Serve() {
   const [reversing, setReversing] = useState<Served | null>(null);
   const current: Business = online ? business : 'deposit';
 
-  const refresh = (no: string) => lookupStudent(no).then(setStudent, () => {}); // a stale balance is checked again by the server
+  // A stale balance is checked again by the server. An answer that comes after 结束办理 (or after another student was
+  // opened) is dropped, so it never reopens the visit.
+  const refresh = (no: string) =>
+    lookupStudent(no).then((s) => setStudent((now) => (now?.student_no === s.student_no ? s : now)), () => {});
   const changed = () => queryClient.invalidateQueries({ queryKey: ['my-day', me.profile.id] });
   // A student found offline has no balance yet; read it once the counter is back online.
   useEffect(() => {
