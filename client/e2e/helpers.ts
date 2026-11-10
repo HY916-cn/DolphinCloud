@@ -27,6 +27,12 @@ export async function signIn(page: Page, kind: '学生' | '工作人员', id: st
   await page.getByRole('button', { name: '登录', exact: true }).click();
 }
 
+// 上班: the 备用金 card opens with the last one, and it is confirmed as it is.
+export async function startDuty(page: Page) {
+  await page.getByRole('button', { name: '上班', exact: true }).click();
+  await page.getByRole('button', { name: '确认上班' }).click();
+}
+
 // 下班: the summary is kept as a PDF, then the duty ends; `skip` goes on without it.
 export async function endDuty(page: Page, skip = false) {
   await page.getByRole('button', { name: '下班' }).click();

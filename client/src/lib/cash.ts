@@ -27,3 +27,9 @@ export const describeCash = (counts: Counts) =>
 
 // Only the faces with notes, as the RPCs take them.
 export const nonEmpty = (counts: Counts): Counts => Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
+
+// A number in the 下班总结 cash table: notes short as "少 N 张", an amount short with −; `short` draws it in danger.
+export const cashCell = (n: number, notes: boolean) => ({
+  text: n >= 0 ? n.toLocaleString('en-US') : notes ? `少 ${-n} 张` : `−${(-n).toLocaleString('en-US')}`,
+  short: n < 0,
+});

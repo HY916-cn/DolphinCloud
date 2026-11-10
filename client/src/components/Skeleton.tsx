@@ -104,6 +104,21 @@ export function TilesLoading({ count = 4 }: { count?: number }) {
   );
 }
 
+// QtyStepper cards: face and 小计, then the stepper.
+export function DenomsLoading({ count = 4, label }: { count?: number; label: string }) {
+  if (useSlow()) return <SlowNotice />;
+  return (
+    <div className="dc-denoms" aria-busy="true" aria-label={label}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="dc-qty" aria-hidden="true">
+          <Bone style={{ width: '40%', height: 32 }} />
+          <Bone style={{ width: '100%', height: 56, borderRadius: 'var(--radius-md)' }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // The app shell while the session and profile load: navigation column, title row and content blocks.
 export function ShellLoading() {
   const slow = useSlow();

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { renderDoc } from './doc';
+import type { Counts } from './cash';
+import { renderDoc, type CashGroup } from './doc';
 import { AppError } from './errors';
 import { formatAmount, formatTime, shanghai } from './format';
 import { readKept, writeKept } from './accounts';
@@ -59,6 +60,14 @@ export function useDuties(uid: string, from: string, to: string) {
   });
 }
 
+// The notes in the cash box at the teller's last 上班 (its 备用金), or null before the first.
+export async function lastFloat(uid: string) {
+  const { data, error } = await supabase.from('duty').select('started_at,cash_counts!inner(float)').eq('user_id', uid)
+    .order('started_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return (data?.cash_counts as { float: Counts } | undefined)?.float ?? null;
+}
+
 type Row = {
   txn_no: string; type: keyof typeof KINDS; amount: number; balance_delta: number; payment: 'account' | 'cash' | null;
   status: 'normal' | 'reversed'; created_at: string; student_no: string; name: string | null;
@@ -72,6 +81,16 @@ async function dutyTxns() {
   return data as Row[];
 }
 
+// The cash of the open duty by face value (duty_cash): the 备用金, what came in and went out, and what the box should
+// hold, leaving out the transactions reversed within the duty.
+type CashPart = Omit<CashGroup, 'label' | 'strong'>;
+export type DutyCash = { denominations: number[]; float: CashPart; income: CashPart; payout: CashPart; expected: CashPart };
+async function dutyCash() {
+  const { data, error } = await supabase.rpc('duty_cash');
+  if (error) throw error;
+  return data as DutyCash;
+}
+
 // How many transactions the teller made since 上班: what end_duty checks when 下班 skips the summary.
 export async function dutyCount() {
   return (await dutyTxns()).length;
@@ -80,7 +99,7 @@ export async function dutyCount() {
 // 下班总结: every transaction the teller made since 上班, by time, with the totals and lines to sign. Answers the
 // pages and how many transactions they list (end_duty checks the number).
 export async function dutySummary(duty: Duty, teller: string) {
-  const rows = await dutyTxns();
+  const [rows, cash] = await Promise.all([dutyTxns(), dutyCash()]);
   const live = rows.filter((r) => r.status === 'normal');
   const sum = (type: string) => live.filter((r) => r.type === type).reduce((s, r) => s + r.amount, 0);
   const count = (type: string) => rows.filter((r) => r.type === type).length;
@@ -95,6 +114,10 @@ export async function dutySummary(duty: Duty, teller: string) {
       rows: rows.map((r) => [formatTime(r.created_at).split(' ')[1], r.txn_no, r.name ?? '',
         r.student_no, KINDS[r.type].title + (r.type === 'purchase' ? (r.payment === 'cash' ? '（现金）' : '（账户）') : ''), r.amount,
         r.status === 'reversed' ? '已冲正' : '正常']) },
+    { kind: 'cash', title: '本次上班现金（不含已冲正的业务）', faces: cash.denominations, blank: '实点', groups: [
+      { label: '备用金', ...cash.float }, { label: '收入', ...cash.income }, { label: '付出', ...cash.payout },
+      { label: '应有', ...cash.expected, strong: true },
+    ] },
     { kind: 'text', text: '核对无误后签字，交银行管理员留存。' },
     { kind: 'sign', labels: ['柜员签字', '复核人签字', '日期'] },
   ]);

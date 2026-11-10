@@ -1,3 +1,4 @@
+import { cashCell, type Counts } from './cash';
 import { formatAmount, niceMax } from './format';
 import { A4, jpegPdf, type PdfPage } from './pdf';
 
@@ -6,6 +7,8 @@ import { A4, jpegPdf, type PdfPage } from './pdf';
 // for its page continues on the next under its header again. Every page carries the document's title and its number.
 type Cell = string | number | null;
 export type Point = { label: string; value: number };
+// One group of the cash table: notes and their amounts per face value, and the amount in all.
+export type CashGroup = { label: string; counts: Counts; amounts: Counts; total: number; strong?: boolean };
 export type Block =
   | { kind: 'page' }
   | { kind: 'heading'; text: string; sub?: string }
@@ -14,7 +17,10 @@ export type Block =
   | { kind: 'table'; head: string[]; rows: Cell[][]; foot?: Cell[] }
   | { kind: 'columns' | 'line'; title: string; data: Point[]; unit: string; color?: string }
   | { kind: 'bars'; title: string; data: Point[]; unit: string; color?: string }
-  | { kind: 'sign'; labels: string[] };
+  | { kind: 'sign'; labels: string[] }
+  // The 下班总结 cash table (design system data.md 现金表): two lines per group, then `blank` with lines to write the
+  // notes counted on; never split across pages.
+  | { kind: 'cash'; title: string; faces: number[]; groups: CashGroup[]; blank: string };
 
 const SCALE = 2;
 const W = A4.width;
@@ -35,7 +41,7 @@ export async function renderDoc(title: string, sub: string, blocks: Block[]): Pr
   const v = (name: string) => css.getPropertyValue(`--${name}`).trim();
   const family = v('font-sans') || 'sans-serif';
   const font = (weight: number, size: number) => `${weight} ${size}px ${family}`;
-  const words = [title, sub, ...blocks.flatMap((b) => Object.values(b).flat(3).map(String))].join('');
+  const words = [title, sub, JSON.stringify(blocks), '张数金额少元合计'].join(''); // every glyph drawn, to load its font
   await Promise.all([400, 600, 700, 800].map((w) => document.fonts.load(font(w, 12), words).catch(() => {})));
 
   const text = (value: string, x: number, y: number, weight: number, size: number, color: string, align: CanvasTextAlign = 'left', max?: number) => {
@@ -48,6 +54,16 @@ export async function renderDoc(title: string, sub: string, blocks: Block[]): Pr
       shown += '…';
     }
     ctx.fillText(shown, x, y);
+  };
+  // A number right-aligned at x with every digit in a cell as wide as the widest one (canvas has no tabular-nums).
+  const figures = (value: string, x: number, y: number, weight: number, size: number, color: string) => {
+    ctx.font = font(weight, size);
+    const cell = Math.max(...[...'0123456789'].map((d) => ctx.measureText(d).width));
+    for (const ch of [...value].reverse()) {
+      const w = /\d/.test(ch) ? cell : ctx.measureText(ch).width;
+      text(ch, x - w / 2, y, weight, size, color, 'center');
+      x -= w;
+    }
   };
   const rule = (y: number, color = v('line'), width = 1) => {
     ctx.strokeStyle = color;
@@ -148,6 +164,52 @@ export async function renderDoc(title: string, sub: string, blocks: Block[]): Pr
         line(b.foot, 800, v('ink'));
         y += ROW;
       }
+      rule(y, v('line-strong'));
+      y += 14;
+    } else if (b.kind === 'cash') {
+      await room(20 + ROW * (2 + b.groups.length * 2) + 18);
+      text(b.title, X, y + 12, 700, 11, v('ink'));
+      y += 20;
+      // Row name, 张数 / 金额, one column per face, 合计.
+      const faces = [...b.faces].sort((p, q) => p - q);
+      const first = 56;
+      const kind = 48;
+      const sum = 84;
+      const each = (W - 2 * X - first - kind - sum) / faces.length;
+      const right = (i: number) => X + first + kind + each * (i + 1) - 7; // i = faces.length is 合计
+      ctx.fillStyle = v('cloud-100');
+      ctx.fillRect(X, y, W - 2 * X, ROW);
+      faces.forEach((f, i) => text(`${f}元`, right(i), y + 15, 700, 9, v('ink'), 'right'));
+      text('合计', right(faces.length), y + 15, 700, 9, v('ink'), 'right');
+      y += ROW;
+      b.groups.forEach((g, gi) => {
+        if (gi) rule(y, v('line'), 2);
+        const weight = g.strong ? 800 : 500;
+        const cell = (n: number, notes: boolean, x: number, suffix = '') => {
+          const c = cashCell(n, notes);
+          figures(c.text + suffix, x, y + 15, weight, 9, c.short ? v('danger') : v('ink'));
+        };
+        text(g.label, X + 7, y + 15, g.strong ? 800 : 700, 9, v('ink'));
+        text('张数', X + first + 7, y + 15, weight, 9, v('ink-muted'));
+        faces.forEach((f, i) => cell(g.counts[f] ?? 0, true, right(i)));
+        y += ROW;
+        text('金额', X + first + 7, y + 15, weight, 9, v('ink-muted'));
+        faces.forEach((f, i) => cell(g.amounts[f] ?? 0, false, right(i)));
+        cell(g.total, false, right(faces.length), ' HTB');
+        y += ROW;
+      });
+      rule(y, v('line'), 2);
+      text(b.blank, X + 7, y + 19, 700, 9, v('ink'));
+      text('张数', X + first + 7, y + 19, 500, 9, v('ink-muted'));
+      ctx.strokeStyle = v('ink');
+      ctx.lineWidth = 0.8;
+      for (let i = 0; i <= faces.length; i++) {
+        ctx.beginPath();
+        ctx.moveTo(right(i) - (i < faces.length ? each : sum) + 14, y + 21);
+        ctx.lineTo(right(i), y + 21);
+        ctx.stroke();
+      }
+      y += ROW + 4;
       rule(y, v('line-strong'));
       y += 14;
     } else if (b.kind === 'sign') {

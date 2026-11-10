@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmIn, endDuty, resetData, signIn } from './helpers';
+import { confirmIn, endDuty, resetData, signIn, startDuty } from './helpers';
 
 // The counter (M3, PHASE-1.md §7.5–7.7) on the seed data (supabase/seed.sql): teller01 serves 张小明 (20260001,
 // balance 108) and 李思远 (20260002, balance 70). Tests run in order and each one builds on the balances before it.
@@ -277,6 +277,6 @@ test('下班 may skip printing the summary, and 办理 waits for 上班 again', 
   await endDuty(page, true);
   await page.locator('.dc-nav-item', { hasText: '办理' }).click();
   await expect(page.locator('.dc-empty', { hasText: '未上班' })).toBeVisible();
-  await page.getByRole('button', { name: '上班' }).click();
+  await startDuty(page);
   await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeVisible();
 });

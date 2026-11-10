@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { confirmIn, endDuty, resetData, signIn } from './helpers';
+import { confirmIn, endDuty, resetData, signIn, startDuty } from './helpers';
 
 // 考勤与工资 (PHASE-1.md §6.9, §7.5, §7.9) on the seed data: teller01 (柜员小林, on duty) binds 李思远's account
 // (20260002) as the 工资账户; the bank admin counts the teller, whose 下班 and 上班 record the shift of now; the bank
@@ -46,7 +46,7 @@ test('下班 and 上班 record the shift of now once, and the counter waits for 
   await endDuty(teller);
   await teller.locator('.dc-nav-item', { hasText: '办理' }).click();
   await expect(teller.getByRole('searchbox', { name: '搜索学生' })).toHaveCount(0);
-  await teller.getByRole('button', { name: '上班' }).click();
+  await startDuty(teller);
   await expect(teller.getByRole('searchbox', { name: '搜索学生' })).toBeVisible();
   await teller.locator('.dc-nav-item', { hasText: '考勤' }).click();
   await expect(teller.locator('.dc-stat', { hasText: '待审' })).toContainText('1个班次');

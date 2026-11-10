@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmIn, downloadNotices, endDuty, resetData, signIn, sql } from './helpers';
+import { confirmIn, downloadNotices, endDuty, resetData, signIn, sql, startDuty } from './helpers';
 
 // What keeps a slip or a lost network from doing harm, on the seed data: the offline counter, salary rates that could not
 // be read, batches and their confirmations, an import cut short, the sheet's focus, a device without a roster, and the
@@ -41,7 +41,7 @@ test('a teller whose device knows they are off duty still registers deposits off
   await page.getByRole('button', { name: '上传' }).click();
   await expect(page.locator('.dc-notice', { hasText: '待上传' })).toHaveCount(0);
   expect(sql(`select balance from public.accounts where student_no = '20260001'`)).toBe('113');
-  await page.getByRole('button', { name: '上班' }).click();
+  await startDuty(page);
   await expect(search(page)).toBeVisible();
 });
 
@@ -379,7 +379,7 @@ test('a duty left open overnight is ended before the counter serves anyone again
   await page.locator('.dc-nav-item', { hasText: '办理' }).click();
 
   await endDuty(page, true);
-  await page.getByRole('button', { name: '上班' }).click();
+  await startDuty(page);
   await search(page).fill('zxm');
   await page.locator('.dc-list-link', { hasText: '张小明' }).click();
   await page.getByLabel('增加一张 5 元').click();
