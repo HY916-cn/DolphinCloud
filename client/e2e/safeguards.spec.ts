@@ -352,3 +352,37 @@ test.describe(() => {
     await expect(page.locator('.dc-txn').first()).toBeVisible();
   });
 });
+
+test('a duty left open overnight is ended before the counter serves anyone again', async ({ page }) => {
+  test.skip(!process.env.E2E_CONTAINER, 'needs the test container');
+  const receipt = page.locator('aside[aria-label="办理单"]');
+  await signIn(page, '工作人员', 'teller01');
+  await expect(search(page)).toBeVisible();
+  await search(page).fill('zxm');
+  await page.locator('.dc-list-link', { hasText: '张小明' }).click();
+
+  // The duty began yesterday: the server refuses the deposit, and ending the visit leaves only the card asking for 下班.
+  sql(`update public.duty set started_at = started_at - interval '1 day' where ended_at is null
+    and user_id = (select id from public.profiles where login_id = 'teller01')`);
+  await page.getByLabel('增加一张 5 元').click();
+  await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
+  await expect(page.locator('.dc-notice-danger')).toContainText('上次上班还没下班');
+  await expect(page.locator('.dc-notice-danger')).toContainText('已经跨天。请先下班，再重新上班办理业务。');
+  await page.getByRole('button', { name: '返回', exact: true }).click();
+  const card = page.locator('section[aria-label="上下班"] .dc-empty');
+  await expect(card).toContainText('上次上班还没下班');
+  await expect(card).toContainText('已经跨天。先下班，再重新上班。');
+  await expect(card.locator('.dc-empty-icon.is-danger')).toBeVisible();
+  await expect(search(page)).toHaveCount(0);
+  await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
+  await expect(page.locator('.dc-duty.is-stale')).toContainText('上次上班还没下班');
+  await page.locator('.dc-nav-item', { hasText: '办理' }).click();
+
+  await endDuty(page, true);
+  await page.getByRole('button', { name: '上班' }).click();
+  await search(page).fill('zxm');
+  await page.locator('.dc-list-link', { hasText: '张小明' }).click();
+  await page.getByLabel('增加一张 5 元').click();
+  await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
+  await expect(receipt).toContainText('5 元 × 1 张 · HT');
+});

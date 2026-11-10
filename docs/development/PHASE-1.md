@@ -669,7 +669,7 @@ client/
 | `USER_NOT_FOUND`、`PRODUCT_NOT_FOUND` | 未找到 | 请刷新后重试。 |
 | `SELF_SERVICE_FORBIDDEN` | 不能为自己办理 | 这是你本人或你的工资账户，请由其他柜员办理。 |
 | `OFF_DUTY` | 还没有上班 | 请先点「上班」，再办理业务。 |
-| `STALE_DUTY` | 上次上班还没下班 | 这次上班从 {started_at}（M月D日 HH:mm）开始，已经跨天。请先在「考勤」下班，再重新上班办理业务。 |
+| `STALE_DUTY` | 上次上班还没下班 | 这次上班从 {started_at}（M月D日 HH:mm）开始，已经跨天。请先下班，再重新上班办理业务。 |
 | `LAST_SYSADMIN` | 至少保留一个运维员 | 这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。 |
 | `SUMMARY_STALE` | 下班总结已过时 | 打印后又办理了业务，请重新打印下班总结。 |
 | `ATTENDANCE_REVIEWED` | 已经审查过 | 审查后的班次不能再修改。 |

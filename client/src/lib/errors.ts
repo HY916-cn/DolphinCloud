@@ -1,3 +1,12 @@
+// 11月9日 07:45 on the school's clock (Asia/Shanghai). Written here rather than taken from lib/format, so this file loads
+// on its own, as the unit tests load it.
+function shanghaiTime(iso: string) {
+  const t = Object.fromEntries(new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  return `${t.month}月${t.day}日 ${t.hour}:${t.minute}`;
+}
+
 // Error codes from the database functions (app_private.fail) as the counter shows them (PHASE-1.md §7.6).
 export type Detail = Record<string, unknown>;
 
@@ -48,6 +57,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ATTENDANCE_PENDING': return { title: '还有班次没审查', text: `截至这周日还有 ${d.count} 个待审班次，全部审查后才能发放工资。` };
     case 'ATTENDANCE_ON': return { title: '正在参与考勤', text: '先关闭参与考勤，才能解除工资账户；更换账户可以直接绑定新的。' };
     case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: '柜员绑定学生账户作为工资账户后，才能参与考勤。' };
+    case 'STALE_DUTY':
+      return { title: '上次上班还没下班', text: `这次上班从 ${shanghaiTime(String(d.started_at))} 开始，已经跨天。请先下班，再重新上班办理业务。` };
     case 'OFF_DUTY': return { title: '还没有上班', text: '请先在「考勤」点「上班」，再办理业务。' };
     case 'SUMMARY_STALE': return { title: '总结需要重新生成', text: `上班后又办理了业务（共 ${d.txns} 笔），请重新生成并打印总结后再下班。` };
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };

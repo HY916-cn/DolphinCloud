@@ -44,6 +44,9 @@ export default function Login() {
       const locked = e.message.includes('LOGIN_LOCKED');
       return setError({ ...loginError(locked ? 'LOGIN_LOCKED' : e.code), n: (error?.n ?? 0) + 1 });
     }
+    // The sign-in hook cannot see this device: note_login adds its device id, IP and browser to the login.ok just recorded.
+    // Only here, after a password: switching accounts or refreshing the token does not sign in again. Not waited for.
+    supabase.rpc('note_login').then(() => {}, () => {});
     if (!known) await setSaved(data.user.id, save);
     queryClient.clear();
     router.replace('/');

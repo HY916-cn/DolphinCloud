@@ -5,7 +5,7 @@ import {
   Avatar, CounterPage, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, type IconName, type Served,
 } from '@/components';
 import { classOf, lookupStudent, useMyDay, useSettings, type Student, type TxnResult } from '@/lib/counter';
-import { useDuty } from '@/lib/duty';
+import { staleDuty, useDuty } from '@/lib/duty';
 import { formatAmount } from '@/lib/format';
 import { useRolling } from '@/lib/motion';
 import type { RosterEntry } from '@/lib/offline-queue';
@@ -91,9 +91,10 @@ export default function Serve() {
     changed();
   }
 
-  // Online the counter is closed until the server says the teller is on duty. Offline it opens straight to the search,
-  // for offline deposits only: the server takes those without 上班 (require_duty, PHASE-1.md §7.5).
-  if (!student && !duty.data && online) {
+  // Online the counter is closed until the server says the teller is on duty, and while a duty is left open overnight.
+  // Offline it opens straight to the search, for offline deposits only: the server takes those without 上班
+  // (require_duty, PHASE-1.md §7.5). A visit refused for a stale duty ends first (useStaleRefusal).
+  if (!student && online && (!duty.data || staleDuty(duty.data))) {
     return <CounterPage title="办理"><DutyCard me={me} whole /></CounterPage>;
   }
   if (!student) {

@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { renderDoc } from './doc';
-import { formatAmount, formatTime } from './format';
+import { AppError } from './errors';
+import { formatAmount, formatTime, shanghai } from './format';
 import { readKept, writeKept } from './accounts';
 import { supabase } from './supabase';
 import { KINDS } from './txns';
@@ -30,6 +31,19 @@ export function useDuty(uid: string) {
       return data as Duty | null;
     },
   });
+}
+
+// A duty left open overnight: the open one began before today (Asia/Shanghai). The counter does nothing until it ends.
+const dayOf = (d: Date) => { const t = shanghai(d); return `${t.year}-${t.month.padStart(2, '0')}-${t.day.padStart(2, '0')}`; };
+export const staleDuty = (d: Duty | null | undefined) => !!d && dayOf(new Date(d.started_at)) < dayOf(new Date());
+
+// A business the server refused for a duty left open overnight (STALE_DUTY): 上班 is read again, so once the visit ends
+// the counter shows the card that asks for 下班.
+export function useStaleRefusal() {
+  const queryClient = useQueryClient();
+  return (err: unknown) => {
+    if (err instanceof AppError && err.code === 'STALE_DUTY') queryClient.invalidateQueries({ queryKey: ['duty'] });
+  };
 }
 
 // The duties that began in a week, newest first.

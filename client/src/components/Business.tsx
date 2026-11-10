@@ -8,6 +8,7 @@ import { call } from '@/lib/rpc';
 import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { useBump, useNewRows } from '@/lib/motion';
+import { useStaleRefusal } from '@/lib/duty';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { toTxn, type TxnRow } from '@/lib/txns';
@@ -98,6 +99,7 @@ export function DepositPanel({ student, served, onDone, onEnd, onReverse }: Prop
   const online = useOnline();
   const { denominations } = useSettings();
   const queryClient = useQueryClient();
+  const stale = useStaleRefusal();
   const [counts, setCounts] = useState<Counts>({});
   const [id, setId] = useState(newId);
   const [busy, setBusy] = useState(false);
@@ -130,6 +132,7 @@ export function DepositPanel({ student, served, onDone, onEnd, onReverse }: Prop
         finish(await deposit(id, student.student_no, nonEmpty(counts)));
       }
     } catch (e) {
+      stale(e);
       const { err, problem } = failure(e);
       if (err.code === 'NETWORK') {
         await queue();
@@ -163,6 +166,7 @@ export function DepositPanel({ student, served, onDone, onEnd, onReverse }: Prop
 // 取款: the amount, the notes to pay out, and what is still allowed today.
 export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Props) {
   const settings = useSettings();
+  const stale = useStaleRefusal();
   const [text, setText] = useState('');
   const [id, setId] = useState(newId);
   const [busy, setBusy] = useState(false);
@@ -193,6 +197,7 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
       setText('');
       setId(newId());
     } catch (e) {
+      stale(e);
       setError(failure(e).problem);
     } finally {
       setBusy(false);
@@ -251,6 +256,7 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
       return data as Product[];
     },
   });
+  const stale = useStaleRefusal();
   const [cart, setCart] = useState<Record<string, number>>({});
   const [payment, setPayment] = useState<'account' | 'cash'>('account');
   const [received, setReceived] = useState<Counts>({});
@@ -289,6 +295,7 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
       setReceived({});
       setId(newId());
     } catch (e) {
+      stale(e);
       const { err, problem } = failure(e);
       setError(problem);
       if (err.code === 'OUT_OF_STOCK' || err.code === 'PRODUCT_UNLISTED' || err.code === 'PRODUCT_NOT_FOUND') products.refetch();

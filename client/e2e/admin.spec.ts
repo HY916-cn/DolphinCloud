@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Download } from '@playwright/test';
-import { confirmIn, downloadNotices, drawnNotices, noticePassword, recordNotices, resetData, signIn } from './helpers';
+import { confirmIn, downloadNotices, drawnNotices, noticePassword, recordNotices, resetData, signIn, sql } from './helpers';
 
 // The back office's logins (M4, PHASE-1.md §6.4–6.5): the teacher imports a roster and a new student signs in for the
 // first time; staff logins are created and managed.
@@ -267,6 +267,17 @@ test('five wrong passwords lock a login', async ({ page }) => {
   await expect(page.locator('.dc-notice-danger')).toContainText('密码输错次数过多');
   await expect(page.locator('.dc-notice-danger')).toContainText('请 15 分钟后再试，或请银行管理员重置密码。');
   await expect(page).toHaveURL(/\/login\?add=1$/);
+});
+
+test('a sign-in with a password notes this device, its IP and its browser on the login.ok', async ({ page }) => {
+  test.skip(!process.env.E2E_CONTAINER, 'needs the test container');
+  await signIn(page, '工作人员', 'ops01');
+  await expect(page).not.toHaveURL(/\/login/);
+  const device = await page.evaluate(() => localStorage.getItem('dolphin.device'));
+  const userAgent = await page.evaluate(() => navigator.userAgent);
+  const noted = () => sql(`select concat_ws('|', device_id, ip <> '', user_agent) from public.audit_log where action = 'login.ok'
+    and actor_id = (select id from public.profiles where login_id = 'ops01') order by id desc limit 1`);
+  await expect.poll(noted).toBe(`${device}|t|${userAgent}`);
 });
 
 test('行长 has every bank page, and reads students and staff without managing their logins', async ({ page }) => {

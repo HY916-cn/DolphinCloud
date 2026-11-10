@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { newId, reverseTxn, type TxnResult } from '@/lib/counter';
+import { useStaleRefusal } from '@/lib/duty';
 import { AppError, explain } from '@/lib/errors';
 import { ConfirmSheet } from './Sheet';
 import { Icon, Notice } from './ui';
@@ -16,6 +17,7 @@ export function ReversalSheet({ txn, onClose, onDone }: {
   const [other, setOther] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ title: string; text: string } | null>(null);
+  const stale = useStaleRefusal();
   const full = reason === '其他' ? `其他：${other.trim()}` : reason;
   const ready = !!reason && (reason !== '其他' || !!other.trim());
 
@@ -25,6 +27,7 @@ export function ReversalSheet({ txn, onClose, onDone }: {
     try {
       onDone(await reverseTxn(id, txn.id, full));
     } catch (e) {
+      stale(e);
       const err = e instanceof AppError ? e : new AppError('');
       setError(explain(err.code, err.detail));
       setBusy(false);

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { SHIFTS } from '@/lib/attendance';
-import { dutyCount, dutySummary, useDuty } from '@/lib/duty';
+import { dutyCount, dutySummary, staleDuty, useDuty } from '@/lib/duty';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime, shiftAt } from '@/lib/format';
 import { useOnline } from '@/lib/online';
@@ -13,8 +13,8 @@ import { Icon, Notice } from './ui';
 
 // 上班 / 下班 (PHASE-1.md §7.5): 上班 opens the counter (and signs the shift for a counted teller); 下班 first prints
 // the summary of every transaction since 上班, then, once it is signed, closes the duty; 跳过打印 goes straight to
-// the confirmation. `whole`: the card is all the
-// page has (办理 before 上班), so it is drawn large.
+// the confirmation. A duty left open overnight (is-stale) asks for 下班 before anything else. `whole`: the card is all
+// the page has (办理 before 上班, or after a duty left open overnight), so it is drawn large.
 export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
   const queryClient = useQueryClient();
   const online = useOnline();
@@ -25,6 +25,8 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
   const [printed, setPrinted] = useState(true);
   const [problem, setProblem] = useState<{ title: string; text: string } | null>(null);
   const d = duty.data;
+  const stale = staleDuty(d);
+  const staleText = d && `从 ${formatTime(d.started_at)} 开始，已经跨天。先下班，再重新上班。`;
   const refresh = () => Promise.all(['duty', 'attendance'].map((k) => queryClient.invalidateQueries({ queryKey: [k] })));
 
   async function run(fn: string, args: Record<string, unknown>) {
@@ -45,6 +47,12 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
     <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!online || busy || duty.isPending}
       onClick={() => run('start_duty', {})}><Icon name="check" />上班</button>
   );
+  // A duty left open overnight ends as any other, through the summary.
+  const end = (
+    <button className="dc-btn dc-btn-primary" type="button" disabled={!online || busy} onClick={() => setStep('print')}>
+      <Icon name="logout" />下班
+    </button>
+  );
 
   return (
     <section className="dc-stack" aria-label="上下班">
@@ -57,6 +65,21 @@ export function DutyCard({ me, whole }: { me: Me; whole?: boolean }) {
             <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => duty.refetch()}>重试</button>
           </Notice>
         ) : <div className="dc-card dc-skeleton" style={{ height: 200 }} role="status" aria-label="正在读取上班状态" />
+      ) : whole && stale ? (
+        <div className="dc-card dc-empty">
+          <span className="dc-empty-icon is-danger"><Icon name="warning" /></span>
+          <h3>上次上班还没下班</h3>
+          <p>{staleText}</p>
+          {end}
+        </div>
+      ) : stale ? (
+        <div className="dc-card dc-duty is-stale">
+          <span className="dc-duty-main">
+            <b>上次上班还没下班</b>
+            <small className="dc-top-sub"><Icon name="warning" />{staleText}</small>
+          </span>
+          {end}
+        </div>
       ) : whole && !d ? (
         <div className="dc-card dc-empty">
           <span className="dc-empty-icon"><Icon name="clock" /></span>
