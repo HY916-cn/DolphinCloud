@@ -769,7 +769,7 @@ create table job_runs (                       -- 定时任务进度
 | `CREDIT_TOO_LOW` | 信用分不够 | 信用分 400 分以上才能贷款，你现在是 N 分。 |
 | `OVER_CREDIT_LIMIT` | 超过贷款额度 | 按你现在的信用分，最多能贷 N HTB。 |
 | `TERM_TOO_LONG` | 期限超过学期末 | 本学期 M 月 D 日结束，最长只能选 N 周。 |
-| `TERM_OPEN_ITEMS` | 还有没结束的贷款或定期 | 先处理完这些，再结转学期。 |
+| `TERM_OPEN_ITEMS` | 还不能结转 | 下面这些处理完后，再结转学期。 |
 | `TERM_OVERLAP` | 学期日期重叠 | 和「{term}」的日期重叠，请调整开始日或结束日。 |
 | `TERM_NOT_ENDED` | 学期还没结束 | {ends_on} 之后才能结转。 |
 | `TERM_CLOSED` | 学期已结转 | 结转后的学期不能再修改。 |
