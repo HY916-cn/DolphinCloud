@@ -95,7 +95,9 @@ function Wheel({ ref, name, items, current, onPick }: {
   const settle = () => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      const x = items[Math.round(ref.current!.scrollTop / ROW)];
+      // Closed mid-scroll (确定 right after a tap), the hidden wheel reports a last scroll at the top: not a pick.
+      if (!ref.current?.offsetParent) return;
+      const x = items[Math.round(ref.current.scrollTop / ROW)];
       // an empty field shows the first row without having picked it
       if (x && x !== (current || items[0])) onPick(x);
     }, 120);
