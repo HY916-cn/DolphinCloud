@@ -1217,3 +1217,10 @@ span.dc-week-btn { cursor: default; }
 
 /* QtyStepper：有范围的数值输入有误 */
 .dc-qty-ctrl.is-error { border-color: var(--danger); animation: dc-nudge var(--motion-enter) ease-in-out; }
+
+/* Attendance：跨天未下班 */
+.dc-duty.is-stale { border-color: var(--danger); }
+.dc-duty.is-stale small { display: flex; align-items: flex-start; gap: var(--space-1); color: var(--danger); }
+.dc-duty.is-stale small .dc-icon { width: 20px; height: 20px; color: inherit; }
+.dc-empty-icon.is-danger { background: var(--danger-soft); }
+.dc-empty-icon.is-danger .dc-icon { color: var(--danger); }
