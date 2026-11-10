@@ -217,7 +217,7 @@ select tests.call(:'teacher', $$select set_setting('ranking_size', '2')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$) #- '{me,near}',
   ('{"division":"primary","total":5,"anonymous":true,"me":{"rank":1,"balance":900,"above":null,"behind":4},"top":[{"me":true,"name":"欧**明","rank":1,"cohort":' || :p4 || ',"balance":900,"class_label":"四年级(4)班"},
     {"me":false,"name":"陈*","rank":2,"cohort":' || :p4 || ',"balance":800,"class_label":"四年级(4)班"}]}')::jsonb, 'top N of the caller''s division, masked names, own place');
-select is(tests.call(:'teacher', $$select deposit_ranking('junior')$$) -> 'top' -> 0 ->> 'balance', '1000', 'junior students rank separately');
+select is(tests.call(:'r1', $$select deposit_ranking('junior')$$) -> 'top' -> 0 ->> 'balance', '1000', 'junior students rank separately');
 select tests.student('r4', 800, p_name => '同分') as r4 \gset
 select is((tests.call(:'r4', $$select deposit_ranking()$$) -> 'me') - 'near', '{"rank":2,"balance":800,"above":{"rank":1,"balance":900},"behind":3}'::jsonb,
   'the place just above: a tie shares the place, so above is the nearest higher balance, and three have less');
@@ -226,7 +226,7 @@ select is(jsonb_path_query_array(tests.call(:'r4', $$select deposit_ranking()$$)
   'the caller with the students right before and after');
 select tests.call(:'teacher', $$select set_setting('ranking_anonymous', 'false')$$);
 select is(tests.call(:'r1', $$select deposit_ranking()$$) -> 'top' -> 1 ->> 'name', '陈晨', 'full names when not anonymous');
-select is(tests.call(:'t1', $$select deposit_ranking()$$) -> 'me', 'null', 'staff without an account have no place');
+select is(tests.err(:'t1', $$select deposit_ranking()$$), 'FORBIDDEN', 'the ranking is the students''');
 
 -- create-admin and reset-admin
 select throws_ok($$select app_private.create_admin('head')$$, 'P0001', 'ONE_BANK_ADMIN', 'create_admin refuses a second teacher');
