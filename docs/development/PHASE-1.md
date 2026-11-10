@@ -756,6 +756,7 @@ docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）
   upgrade-test.sh       从指定的旧提交升级到新镜像：迁移、升级前备份、余额与库存不变、自检
+  rollback-test.sh      从指定的旧提交升级到新镜像再按 9.5 回滚：库结构与余额、库存恢复到备份时，旧镜像正常办理
   db-test.sh            在镜像上运行 supabase/tests 的 pgTAP 测试（M1）
   perf-test.sh          全校规模（2000 名学生、10 万笔流水）的性能与越权修改检查
   Caddyfile
@@ -802,7 +803,11 @@ docker/e2e-test.sh
 docker/upgrade-test.sh <生产环境当前的提交>
 ```
 
-`e2e-test.sh` 用镜像起一个新容器（`https://localhost:18445`），导入种子数据并留一份数据快照，再运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷。每个 spec 开始前把数据恢复到快照（只清空、重灌表数据和图片文件，服务连接不断），互不依赖执行顺序。Chromium（1180×820）跑全部，WebKit 跑柜台和学生端，iPhone 13 尺寸跑学生端。首次运行前执行一次 `npx --prefix client playwright install chromium webkit`。
+```bash
+docker/rollback-test.sh <生产环境当前的提交>
+```
+
+`e2e-test.sh` 用镜像起一个新容器（端口由 Docker 分配本机空闲端口），导入种子数据并留一份数据快照，再运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷。每个 spec 开始前把数据恢复到快照（只清空、重灌表数据和图片文件，服务连接不断），互不依赖执行顺序。Chromium（1180×820）跑全部，WebKit 跑柜台和学生端，iPhone 13 尺寸跑学生端。首次运行前执行一次 `npx --prefix client playwright install chromium webkit`。
 
 前端检查：`npm --prefix client run typecheck`、`npm --prefix client run lint`（ESLint，`eslint-config-expo`）、`npm --prefix client test`。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto`、`dblink` 仅测试用），不依赖 Supabase 托管版独有扩展。
 
@@ -853,7 +858,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin reset-admin` | 银行管理员忘记密码时，生成并打印新的初始密码，解除停用和登录锁定，下次登录设置新密码 |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
-| `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 恢复数据库与图片 → 启动；恢复前自动再备份一次当前数据。加密备份从标准输入读私钥：`docker exec -i dolphin-cloud dolphin restore <文件名> < backup-key.txt` |
+| `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 把备份恢复到一个新库，成功后替换原库（备份之后新增的表、函数等不会留下；恢复失败时原库不变）→ 恢复图片 → 启动；恢复前自动再备份一次当前数据。加密备份从标准输入读私钥：`docker exec -i dolphin-cloud dolphin restore <文件名> < backup-key.txt` |
 | `dolphin check` | 运行 `app_private.check_balances()` 并输出结果；有不一致时退出码为 1 |
 | `dolphin status` | 各进程状态、版本、最近一次备份时间、备份是否加密 |
 | `dolphin health` | 镜像的 `HEALTHCHECK`：Auth、PostgREST、Storage 各自应答且 Caddy 在运行 |
@@ -872,9 +877,88 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 1. 拉取新版本镜像。
 2. `docker stop dolphin-cloud && docker rm dolphin-cloud`。
 3. 用同样的参数和数据卷以新标签启动；入口脚本自动备份并执行迁移。
-4. 回滚：用旧标签启动，并 `dolphin restore` 升级前的备份。
+4. 回滚：用旧标签启动，再用新镜像里的 `dolphin` 恢复升级前的备份，步骤见下面的「回滚演练」第 5 步。
 
 升级安排在非营业时段进行。
+
+#### 回滚演练
+
+在正式服务器上完整做一次升级 → 回滚 → 再升级，确认出问题时能退回旧版本。安排在非营业时段，从第 2 步备份到第 5 步恢复之间不办理任何业务：恢复会退回到备份时的数据，期间办理的业务不会保留。`docker/rollback-test.sh` 在测试机上按同样的步骤运行，CI 每周从一周前的 `main` 跑一次。
+
+下面的命令以容器名 `dolphin-cloud` 为例；`docker run` 的参数用该服务器平时启动时的那一组（数据卷、端口、`DOLPHIN_DOMAIN`、`BACKUP_RECIPIENT` 等），只换镜像标签。
+
+1. **记下当前镜像标签**（即旧标签），并确认现状正常：
+
+   ```bash
+   docker inspect -f '{{.Config.Image}}' dolphin-cloud
+   ```
+
+   ```bash
+   docker exec dolphin-cloud dolphin health && docker exec dolphin-cloud dolphin check
+   ```
+
+2. **备份并记下文件名与抽查数字**。`dolphin backup` 最后一行是备份文件路径，记下文件名；再记下账户数、余额合计、库存合计和两三个学生的余额：
+
+   ```bash
+   docker exec dolphin-cloud dolphin backup
+   ```
+
+   ```bash
+   docker exec dolphin-cloud psql -U postgres -qAt -c "select count(*), sum(balance) from accounts" -c "select sum(stock) from products" -c "select student_no, balance from accounts order by student_no limit 3"
+   ```
+
+3. **升级**：拉取新标签，按 9.5 第 2、3 步换成新标签启动；入口脚本会再备份一次并执行迁移。`dolphin status` 里的 `version` 变为新版本、`dolphin health` 通过即启动完成。
+
+4. **验证新版本**：`dolphin health`、`dolphin check` 通过；用一个工作账号登录，打开柜台和后台首页；第 2 步的数字不变。
+
+5. **回滚**。先从新镜像取出 `dolphin`：新镜像的 `restore` 把整个库换成备份时的样子；`fccdee6` 等较早的镜像自带的 `restore` 逐个删除并重建备份里的对象，会被新版本加在旧表上的外键挡住，也不会删除新版本新增的表和函数。
+
+   ```bash
+   docker run --rm --entrypoint cat <新标签> /usr/local/bin/dolphin > dolphin-restore
+   ```
+
+   ```bash
+   docker stop dolphin-cloud && docker rm dolphin-cloud
+   ```
+
+   用第 1 步记下的旧标签、同样的参数启动，等 `dolphin health` 通过；此时库仍是新版本的结构，立即接着恢复，其间不要办理业务或运行其他 `dolphin` 命令（`create-admin`、`reset-admin` 要等恢复后才能用）。
+
+   ```bash
+   docker cp dolphin-restore dolphin-cloud:/tmp/dolphin-restore
+   ```
+
+   把离线保管的私钥 `backup-key.txt` 临时放到服务器上，恢复第 2 步的备份（私钥从标准输入读入），完成后删除服务器上的私钥：
+
+   ```bash
+   docker exec -i dolphin-cloud bash /tmp/dolphin-restore restore <第 2 步的备份文件名> < backup-key.txt
+   ```
+
+   ```bash
+   rm backup-key.txt dolphin-restore
+   ```
+
+   恢复前会自动备份一次升级后的数据，输出里的 `Backing up current data first:` 就是这份备份。
+
+6. **回滚后的验证**：
+
+   ```bash
+   docker exec dolphin-cloud dolphin health && docker exec dolphin-cloud dolphin check && docker exec dolphin-cloud dolphin status
+   ```
+
+   `dolphin status` 的 `version` 为旧版本；再运行第 2 步的抽查命令，账户数、余额合计、库存合计和抽查学生的余额与第 2 步记下的一致；用一个工作账号登录，打开柜台和后台首页。
+
+7. **重新升级**：演练到此结束，按第 3、4 步再换回新标签。
+
+8. **记录**：在 [ACCEPTANCE.md](ACCEPTANCE.md) 新增一节「日期 · 回滚演练」，写明：
+   - 日期、操作人、服务器；
+   - 旧标签与新标签（含 `sha-` 提交号）；
+   - 第 2 步的备份文件名，第 5 步恢复前自动生成的备份文件名；
+   - 每一步的开始时间，以及从停止旧容器到回滚后验证通过、从回滚到重新升级完成的停机时长；
+   - 第 1、4、6 步 `dolphin health`、`dolphin check` 的结果，第 6 步 `dolphin status` 显示的版本；
+   - 第 2 步与第 6 步的账户数、余额合计、库存合计和抽查学生的余额，是否一致；
+   - 遇到的问题和处理办法；没有问题也写明「无」。
+
+   记录完成后，GATE-007 的「正式服务器上的镜像回滚演练」即有了证据。
 
 ### 9.6 安全
 
@@ -898,7 +982,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；新设备读到上班状态前断网仍能离线登记；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按搜索（学生、柜员、交易号）、时段、类型筛选与冲正、流水导出；报表数字、标签页、时段与 PDF 导出；柜台查询全部交易记录与筛选；柜员上班才能办理、下班打印总结；柜员绑定工资账户 → 银行管理员开启考勤 → 上下班记下班次 → 审查、全部确认、补签、发放工资 → 柜员看到已发工资、学生明细里有工资；批量管理学生与工作人员、注销账号；我的页与在此设备保存登录（未保存的账号重新打开后须登录）；行长看到全部业务页面、学生与工作人员只读；总览待办、页面间跳转、参数开关、日志；学生明细（按类型、搜索）与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 
-CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh` 和 `docker/upgrade-test.sh`，后者从一周前的 `main` 升级到当前镜像。
+CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
 
 ---
 
