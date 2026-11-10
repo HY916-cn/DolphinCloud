@@ -485,9 +485,10 @@ create table attendance (                      -- 每个柜员每个班次一行
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `set_attendance(p_user_id, p_on)` | teacher | 设置柜员是否参与考勤；开启前须已绑定工资账户（`SALARY_UNBOUND`），已停用的账号不能开启 |
-| `start_duty()` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），已上班时返回原记录，返回值带 `stale`：这次上班开始于上海时间今天以前（跨天未下班）时为 `true`，此时不记班次，前端提示柜员先下班；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
+| `start_duty(p_float)` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），同时登记备用金（`cash_counts`，见 PHASE-2.md §7.1；`p_float` 为各面额张数，不传时取本人上次的备用金，从未上过班则全为 0），已上班时返回原记录、不改备用金，返回值带 `float`（各面额张数）和 `stale`：这次上班开始于上海时间今天以前（跨天未下班）时为 `true`，此时不记班次，前端提示柜员先下班；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
 | `duty_txns()` | teller | 下班总结：本人当前上班以来办理的全部业务（按办理时间，含学生姓名），与 `end_duty` 的计数口径相同（含离线补传和冲正）。柜员只能读当天流水，跨午夜的上班也由它完整列出；未上班时 `OFF_DUTY` |
-| `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理 |
+| `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理。下班时把按面额算出的应有写进 `cash_counts.expected`，状态改为待复核 `pending` |
+| `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 下班总结的现金表（PHASE-2.md §4）：备用金、收入、付出、应有，各面额张数、金额与合计；不传时为本人当前的上班（未上班时 `OFF_DUTY`），柜员只能查本人的上班 |
 | `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 补签：今天已开始的班次或以前的班次，须写说明，直接计为有效；已有记录时 `ALREADY_EXISTS` |
 | `review_attendance(p_ids, p_status, p_note)` | teacher | 审查待审班次：设为有效（`confirmed`）或未通过（`rejected`）；审查后不能再改（`ATTENDANCE_REVIEWED`） |
 | `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`）；只能绑定在读（`normal`）的账户（`STUDENT_INACTIVE`） |

@@ -64,9 +64,11 @@ insert into tests.matrix values
   ('purchase(uuid,text,jsonb,text,jsonb)', 'select purchase(gen_random_uuid(), ''nobody'', ''[]'', ''account'', null)', '{teller}'),
   ('student_txns(text,bigint,integer,date,date,time without time zone,time without time zone,txn_type[],text)',
     'select student_txns(''nobody'')', '{teller}'),
-  ('start_duty()', 'select start_duty()', '{teller}'),
+  ('start_duty(jsonb)', 'select start_duty()', '{teller}'),
   ('duty_txns()', 'select duty_txns()', '{teller}'),
   ('end_duty(integer)', 'select end_duty(-1)', '{teller}'),
+  -- 下班总结的现金表: the teller their own duty, the accountant, president and bank admin any (PHASE-2.md §4)
+  ('duty_cash(uuid)', 'select duty_cash()', '{teller,accountant,president,teacher}'),
   -- 冲正: the teller their own of today, the president and bank admin any (§6.3)
   ('reverse_txn(uuid,uuid,text)', 'select reverse_txn(gen_random_uuid(), gen_random_uuid(), ''金额录错'')', '{teller,president,teacher}'),
   -- 工资账户: the teller their own, the bank admin and sysadmin anyone's (§6.9, PHASE-2.md §5.2)
@@ -151,6 +153,7 @@ insert into tests.writes values
   ('user_roles', 'insert into user_roles (user_id, role) values (auth.uid(), ''teacher'')'),
   ('settings', 'update settings set value = ''0'''),
   ('duty', 'update duty set ended_at = now()'),
+  ('cash_counts', 'update cash_counts set status = ''done'''),
   ('attendance', 'update attendance set status = ''confirmed'''),
   ('staff_payroll', 'update staff_payroll set attendance = true'),
   ('currency_issues', 'delete from currency_issues'),
