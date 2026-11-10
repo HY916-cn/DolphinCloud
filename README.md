@@ -110,7 +110,9 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin backups` | 列出备份文件 |
 | `dolphin restore <文件名>` | 恢复指定备份，恢复前自动再备份一次当前数据；加密备份从标准输入读私钥 |
 | `dolphin check` | 核对余额与流水，有不一致时退出码为 1 |
-| `dolphin status` | 各进程状态、版本、最近一次备份、备份是否加密 |
+| `dolphin jobs` | 定时任务处理到哪天、最后成功时间、有没有失败，以及当前学期 |
+| `dolphin jobs run` | 立即补跑定时任务；有任务失败时退出码为 1 |
+| `dolphin status` | 各进程状态、版本、最近一次备份、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像健康检查：Auth、PostgREST、Storage 应答且 Caddy 在运行 |
 | `dolphin reset-admin` | 银行管理员忘记密码时生成新的初始密码，解除停用和登录锁定 |
 

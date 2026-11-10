@@ -91,6 +91,9 @@ insert into tests.matrix values
   ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{president,teacher}'),
   -- 登记发行: the bank admin alone (PHASE-2.md §3)
   ('register_issue(text,date,jsonb,text,text)', 'select register_issue('''', current_date, ''{}'', '''', '''')', '{teacher}'),
+  -- 学期: the bank admin alone (PHASE-2.md §3)
+  ('upsert_term(uuid,text,date,date)', 'select upsert_term(null, '''', current_date, current_date)', '{teacher}'),
+  ('close_term(uuid)', 'select close_term(gen_random_uuid())', '{teacher}'),
   -- 账号管理: the bank admin, the sysadmin where §4.2 says so, never the president
   ('import_roster(jsonb)', 'select import_roster(''[{}]'')', '{teacher}'),
   ('set_student_status(text,text)', 'select set_student_status(''nobody'', ''frozen'')', '{teacher}'),
@@ -157,6 +160,8 @@ insert into tests.writes values
   ('attendance', 'update attendance set status = ''confirmed'''),
   ('staff_payroll', 'update staff_payroll set attendance = true'),
   ('currency_issues', 'delete from currency_issues'),
+  ('terms', 'update terms set closed_at = now()'),
+  ('job_runs', 'update job_runs set last_err = null'),
   ('audit_log', 'delete from audit_log');
 select is(tests.verdict(w.id, x.stmt), 'denied', format('%s: write %s', w.name, x.tbl))
 from tests.writes x cross join tests.who w where w.name in ('anon', 'student', 'teller', 'accountant', 'storekeeper', 'president', 'teacher', 'sysadmin')

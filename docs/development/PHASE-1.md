@@ -86,7 +86,7 @@
 | PostgREST | `postgrest/postgrest` 镜像中的静态二进制 | 表查询与 RPC |
 | Storage API | `supabase/storage-api`，在 `node:<ver>-bookworm-slim` 中按标签构建 | 商品图片，文件存放在 `/data/storage` |
 | Caddy | `caddy` 镜像中的二进制 | HTTPS 与路由 |
-| supervisord | Debian 包 | 进程管理；每日备份由它托管的定时脚本执行 |
+| supervisord | Debian 包 | 进程管理；每日备份和定时任务（`dolphin-jobs`，PHASE-2.md §13）由它托管的脚本执行 |
 
 版本统一写在 `docker/Dockerfile` 开头的 `ARG` 中，取自 Supabase 官方 self-hosted `docker-compose.yml`（2026 年 10 月）：Auth `v2.197.0`、PostgREST `v14.18`、Storage `v1.81.0`、Postgres `17`、Caddy `2.10`、Node `24`。Postgres 主版本与 `supabase/config.toml` 的 `db.major_version` 一致；升级任一组件后先跑 `docker/smoke-test.sh`，再跑第 10 节的集成测试。
 
@@ -762,7 +762,7 @@ docker/
   Caddyfile
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
-  bin/                  入口脚本、迁移执行、定时备份、运维命令 dolphin（见 9.3）
+  bin/                  入口脚本、迁移执行、定时备份、定时任务、运维命令 dolphin（见 9.3）
 docs/
 design-system/
 ```
@@ -858,9 +858,11 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin reset-admin` | 银行管理员忘记密码时，生成并打印新的初始密码，解除停用和登录锁定，下次登录设置新密码 |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
-| `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程 → 把备份恢复到一个新库，成功后替换原库（备份之后新增的表、函数等不会留下；恢复失败时原库不变）→ 恢复图片 → 启动；恢复前自动再备份一次当前数据。加密备份从标准输入读私钥：`docker exec -i dolphin-cloud dolphin restore <文件名> < backup-key.txt` |
+| `dolphin restore <文件名>` | 恢复指定备份：停止 API 进程和定时任务 → 把备份恢复到一个新库，成功后替换原库（备份之后新增的表、函数等不会留下；恢复失败时原库不变）→ 恢复图片 → 启动；恢复前自动再备份一次当前数据。加密备份从标准输入读私钥：`docker exec -i dolphin-cloud dolphin restore <文件名> < backup-key.txt` |
 | `dolphin check` | 运行 `app_private.check_balances()` 并输出结果；有不一致时退出码为 1 |
-| `dolphin status` | 各进程状态、版本、最近一次备份时间、备份是否加密 |
+| `dolphin jobs` | 定时任务（PHASE-2.md §13）每个任务处理到哪天、最后成功时间、最近一次失败，以及当前学期 |
+| `dolphin jobs run` | 立即补跑定时任务到昨天（周任务到今天的周一）；有任务失败时停在那天，退出码为 1 |
+| `dolphin status` | 各进程状态、版本、最近一次备份时间、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像的 `HEALTHCHECK`：Auth、PostgREST、Storage 各自应答且 Caddy 在运行 |
 
 ### 9.4 备份

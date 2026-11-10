@@ -1,5 +1,5 @@
 #!/bin/bash
-# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | status | health
+# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | jobs [run] | status | health
 # With BACKUP_RECIPIENT (an age public key) backups are encrypted to it (.tar.gz.age); restoring one reads the
 # matching private key from stdin: docker exec -i dolphincloud dolphin restore <file> < backup-key.txt
 set -euo pipefail
@@ -47,7 +47,9 @@ restore() {
   [ -f "$tmp/db.dump" ] || { echo "Not a dolphin backup: $file" >&2; exit 1; }
   echo "Backing up current data first: $(backup)"
   supervisorctl stop caddy auth rest storage backup-schedule >/dev/null
-  trap 'supervisorctl start auth rest storage caddy backup-schedule >/dev/null' EXIT
+  # dolphin-jobs is not in images before M7, where a rollback runs this script. Started again, it catches up at once.
+  supervisorctl stop dolphin-jobs >/dev/null 2>&1 || true
+  trap 'supervisorctl start auth rest storage caddy backup-schedule >/dev/null; supervisorctl start dolphin-jobs >/dev/null 2>&1 || true' EXIT
   # The backup goes into a new database that then replaces postgres, so whatever came after the backup (a later version's
   # tables, functions, foreign keys to the backed-up tables, default privileges) neither blocks the restore nor stays
   # behind. A backup that does not restore leaves postgres as it was; a database left by such a run is dropped next time.
@@ -106,6 +108,45 @@ check() {
   [ -n "${BACKUP_RECIPIENT:-}" ] || echo "Warning: BACKUP_RECIPIENT is not set, so backups are not encrypted" >&2
 }
 
+# The scheduled jobs (PHASE-2.md §13): how far each has got, its last success and its last failure, and the current term.
+jobs_show() {
+  ready
+  psql_ -qAt <<'SQL'
+select format('%-6s done to %s, last ok %s%s', job, done_to,
+  coalesce(to_char(last_ok at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI'), 'never'), ', FAILED ' || last_err)
+from public.job_runs order by job;
+select case when t.id is null then 'term:  none (holiday)' else format('term:  %s (%s to %s)', t.name, t.starts_on, t.ends_on) end
+from (select (app_private.current_term(app_private.cn_date(now()))).*) t;
+SQL
+}
+
+# Catches up to yesterday (and today's Monday) now; exits 1 when a job fails, which stops at that day.
+jobs_run() {
+  local out
+  ready
+  out=$(psql_ -qAt <<'SQL'
+with r as materialized (select app_private.run_jobs() as j)
+select line from (
+  select i, format('%s %s %s', e ->> 'job', e ->> 'day', e ->> 'status') as line
+  from r, jsonb_array_elements(j -> 'ran') with ordinality x(e, i)
+  union all
+  select 0, format('FAILED %s %s: %s', j -> 'failed' ->> 'job', j -> 'failed' ->> 'day', j -> 'failed' ->> 'error')
+  from r where j -> 'failed' <> 'null'
+) l order by i = 0, i;
+SQL
+)
+  echo "${out:-Nothing to catch up}"
+  ! grep -q '^FAILED' <<<"$out"
+}
+
+# One line for `dolphin status`.
+jobs_status() {
+  psql_ -qAt -c "select case when bool_or(last_err is not null)
+      then 'jobs: FAILED ' || string_agg(job || ' ' || last_err, '; ') filter (where last_err is not null)
+      else 'jobs: ok, daily done to ' || max(done_to) filter (where job = 'daily') end from public.job_runs" 2>/dev/null \
+    || echo "jobs: unknown (database not ready)"
+}
+
 # The container's HEALTHCHECK: every service answers on its own port, Caddy is running and migrate has not failed.
 health() {
   curl -fsS -o /dev/null http://127.0.0.1:9999/health
@@ -119,11 +160,13 @@ case "${1:-}" in
   create-admin) create_admin "${2:-}" ;;
   reset-admin) reset_admin ;;
   check)   check ;;
+  jobs)    if [ "${2:-}" = run ]; then jobs_run; else jobs_show; fi ;;
   backup)  backup ;;
   backups) ls -1t "$BACKUPS" | grep -E '^dolphin-.*\.tar\.gz(\.age)?$' || true ;;
   restore) restore "${2:-}" ;;
   status)  supervisorctl status || true; echo "version: $DOLPHIN_VERSION"; echo "latest backup: $(ls -1t "$BACKUPS" | head -1)"
-           if [ -n "${BACKUP_RECIPIENT:-}" ]; then echo "backups encrypted to: $BACKUP_RECIPIENT"; else echo "backups encrypted: no (set BACKUP_RECIPIENT)"; fi ;;
+           if [ -n "${BACKUP_RECIPIENT:-}" ]; then echo "backups encrypted to: $BACKUP_RECIPIENT"; else echo "backups encrypted: no (set BACKUP_RECIPIENT)"; fi
+           jobs_status ;;
   health)  health ;;
-  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | status | health" >&2; exit 2 ;;
+  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | jobs [run] | status | health" >&2; exit 2 ;;
 esac

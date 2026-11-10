@@ -1,7 +1,8 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
 # HTTP → HTTPS redirect, security headers, non-root services, migration checksums, health check, login, lockout,
-# password rule, create-admin, RPC, image upload and public read, encrypted backup → change → restore, container restart.
+# password rule, create-admin, RPC, image upload and public read, encrypted backup → change → restore, the scheduled jobs and
+# their catch-up after a restart, container restart.
 # Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes only the container and volume it created.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -56,7 +57,7 @@ pass "HTTP on port 80 redirects to the same path over HTTPS"
 http "$BASE/" >/dev/null
 grep -qi '^x-frame-options: DENY' "$WORK/headers" && grep -qi "^content-security-policy:.*frame-ancestors 'none'" "$WORK/headers" \
   || fail "site headers: $(cat "$WORK/headers")"
-for p in auth rest storage caddy migrate backup-schedule; do
+for p in auth rest storage caddy migrate backup-schedule dolphin-jobs; do
   pid=$(docker exec "$NAME" supervisorctl pid "$p" || true) # 0 and exit 1 once migrate has finished
   [ "$pid" = 0 ] || [ "$(docker exec "$NAME" stat -c %U "/proc/$pid")" = dolphin ] || fail "$p does not run as dolphin"
 done
@@ -74,6 +75,15 @@ pass "applied migrations are checksummed; a changed one stops dolphin-migrate"
 docker exec "$NAME" dolphin health || fail "dolphin health"
 [ "$(docker inspect -f '{{.Config.Healthcheck.Test}}' "$NAME")" = '[CMD dolphin health]' ] || fail "image has no HEALTHCHECK"
 pass "the image's health check passes"
+
+docker exec "$NAME" supervisorctl status dolphin-jobs | grep -q RUNNING || fail "dolphin-jobs is not running"
+YESTERDAY=$(sql "select app_private.cn_date(now()) - 1")
+JOBS=$(docker exec "$NAME" dolphin jobs) || fail "dolphin jobs"
+grep -q "^daily  done to $YESTERDAY, last ok " <<<"$JOBS" && grep -q '^weekly done to ' <<<"$JOBS" && grep -q '^term:  none' <<<"$JOBS" \
+  || fail "dolphin jobs: $JOBS"
+docker exec "$NAME" dolphin status | grep -q "^jobs: ok, daily done to $YESTERDAY" || fail "dolphin status has no jobs line"
+[ "$(docker exec "$NAME" dolphin jobs run)" = "Nothing to catch up" ] || fail "dolphin jobs run when up to date"
+pass "dolphin-jobs runs; dolphin jobs and dolphin status show the jobs up to yesterday"
 
 USER_ID=$(sql "select app_private.create_login('admin@staff.dolphin.internal', 'Smoke-pass-1')")
 TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
@@ -138,8 +148,16 @@ wait_ready
 [ "$(http "$BASE/storage/v1/object/public/product-images/smoke/logo.png")" = 200 ] && cmp -s "$WORK/body" "$LOGO" || fail "image lost in restore"
 pass "encrypted backup → change → restore with the key brings back the backed-up state"
 
+# Three days missed: dolphin-jobs catches up when the container starts again.
+sql "update public.job_runs set done_to = done_to - 3 where job = 'daily'"
 docker restart "$NAME" >/dev/null
 wait_ready
+for _ in $(seq 1 30); do
+  [ "$(sql "select done_to from public.job_runs where job = 'daily'")" = "$YESTERDAY" ] && break
+  sleep 2
+done
+[ "$(sql "select done_to from public.job_runs where job = 'daily'")" = "$YESTERDAY" ] || fail "jobs not caught up after a restart: $(docker exec "$NAME" dolphin jobs)"
+pass "after a restart dolphin-jobs catches up the days missed"
 TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
 [ -n "$TOKEN" ] && [ "$(http -X POST "$BASE/rest/v1/rpc/whoami" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN")" = 200 ] || fail "after restart"
 pass "data and services survive a container restart"

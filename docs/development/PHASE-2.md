@@ -162,6 +162,9 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 - 银行管理员在后台「学期」页登记：名称（如「2026 学年第一学期」）、开始日、结束日。
 - 学期不能重叠；结束日不早于开始日；已开始的学期不能改开始日，已结转的学期不能改。
+- 已经过去的日子不移进、也不移出学期：结束日只有新旧两个日期都不早于今天时才能改；未开始的学期改开始日时，新开始日不早于今天。新登记的学期可以从过去的日子开始（如上线时登记正在进行的学期），定时任务已经处理过的日子不补算。
+- 学期名称不能重复（`ALREADY_EXISTS`）；与其他学期日期重叠时返回 `TERM_OVERLAP`，详情 `{"term": "重叠的学期名称"}`；改已结转的学期返回 `TERM_CLOSED`；不能改的日期返回 `INVALID_INPUT`（`field` 为 `starts_on` 或 `ends_on`）。
+- 所有登录身份都能读学期表 `terms`；某天所在的学期由 `app_private.current_term(d)` 给出，需要当前学期的业务调用 `app_private.require_term()`，假期里报 `NO_TERM`。
 - 下一学期要在本学期结束前登记，否则开学后没有「当前学期」：不计息、不结息，不能办贷款和定期（`NO_TERM`），其他业务照常。
 - 两个学期之间是假期。
 
@@ -172,8 +175,8 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 ### 6.3 结转
 
-- 学期结束日之后，银行管理员在「学期」页点「结转」（二次确认）。
-- 前提：没有未结清的贷款、没有未到期的定期（因为期限都不跨学期末，正常情况下到期已全部处理完；逾期贷款要先结清或由银行管理员处理）。不满足时返回 `TERM_OPEN_ITEMS`，并列出名单。
+- 学期结束日之后，银行管理员在「学期」页点「结转」（二次确认）。结束日当天及以前返回 `TERM_NOT_ENDED`，详情 `{"ends_on": "结束日"}`；已结转的返回 `TERM_CLOSED`。
+- 前提：没有未结清的贷款、没有未到期的定期（因为期限都不跨学期末，正常情况下到期已全部处理完；逾期贷款要先结清或由银行管理员处理），每天的任务已处理完学期最后一天。不满足时返回 `TERM_OPEN_ITEMS`，详情 `{"items": [...]}` 列出名单，每项带 `kind`：`job` 为每天的任务还没处理完（`{"kind":"job","job":"daily","done_to":"…"}`，补跑后再结转）；M10、M11 加入定期和贷款。名单由 `app_private.term_open_items(term)` 给出。
 - 结转后余额、信用分原样转入下学期，不生成流水。
 - 上学期的流水、利息、贷款、定期、轧账归档为只读（它们本来就不能修改）；报表、流水查询、学生明细都可以按学期筛选。
 - 结转写一条日志 `term.close`。
@@ -526,9 +529,16 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 | 每天 00:05 | `app_private.run_daily(d)` | 对前一天 d（学期内）：活期计息；贷款计息；到期的定期转回活期；应还日到期的分期自动扣款或记逾期；逾期贷款自动扣款 |
 | 每周一 00:10 | `app_private.run_weekly(w)` | 学期内：活期结息；信用分的每周加减分；计算并公布本周锚点 |
 
-- 先跑完每天的再跑每周的。
-- 运维命令新增 `dolphin jobs`：显示每个任务最后处理到哪天、有没有失败；`dolphin jobs run` 立即补跑。
-- 任务失败写日志（`job.failed`），并在运维员总览上提示。
+- 先跑完每天的再跑每周的。补跑时按日子先后交替进行：周一的每周任务排在周日的每天任务之后、周一的每天任务之前，与每天按时运行的顺序相同，所以停机后补跑的结果与没有停机时相同。
+- `app_private.run_jobs(today)` 补跑：从每天任务的 `done_to` 的下一天开始，每天的任务做到昨天，每周的任务做到今天（周一）。`dolphin-jobs` 在容器启动、数据库迁移完成后补跑一次，之后每天 00:05 以后补跑一次；`dolphin jobs run` 立即补跑。
+- `run_daily(d)` 只接受 `done_to` 的下一天且早于今天；`run_weekly(w)` 只接受周一，且每天的任务已做完前一天。已做过的日子直接跳过（`skipped`），同一天重复执行结果不变。各项计算只用 `d`、`w`，不用当前时间。
+- 只处理学期内的日子：假期里的日子和周一记为 `holiday`，只推进 `done_to`。学期内的周一里，学期开始后的第一个周一带 `first: true`（上一周的周一不在本学期），锚点不调整（9.1）。
+- 学期结束日之后的周一在假期里，不再结息：学期结束日不是周日时，最后不满一周的利息在学期结束日的 `run_daily` 里结清（M9）。
+- 任一任务失败时停在那一天：之前的日子保留，这一天的改动撤销，`job_runs.last_err` 记下日期和原因，写日志 `job.failed`（`{"job","day","error"}`）。下一次补跑（第二天 00:05、容器重启或 `dolphin jobs run`）从这一天重试，成功后清空 `last_err`。
+- 上线（本迁移执行）之前的日子不补跑：`job_runs` 两个任务的 `done_to` 初始为迁移当天的前一天。
+- 运维命令新增 `dolphin jobs`：显示每个任务最后处理到哪天、最后成功时间、有没有失败，以及当前学期；`dolphin jobs run` 立即补跑；`dolphin status` 加一行任务状态。
+- 任务失败写日志（`job.failed`），并在运维员总览上提示：运维员和银行管理员（含行长）可直接读 `job_runs`，`last_err` 不为空即为失败。
+- 留给后续里程碑的位置：`run_daily` 里依次是活期计息（M9）、贷款计息（M11）、到期定期转回活期（M10）、分期自动扣款或记逾期与逾期扣款（M11）；`run_weekly` 里依次是结息（M9）、信用分每周加减分（M8）、本周锚点（M9）。
 
 ---
 
@@ -701,7 +711,7 @@ create table risk_alerts (
 
 create table job_runs (                       -- 定时任务进度
   job      text primary key,                  -- daily / weekly
-  done_to  date not null,
+  done_to  date not null,                     -- 已处理到的日子（weekly 为最后处理的周一）
   last_ok  timestamptz,
   last_err text
 );
@@ -736,7 +746,7 @@ create table job_runs (                       -- 定时任务进度
 | `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 第 4 节的现金表；柜员只能查本人的上班，不传时为本人当前的上班 |
 | `end_duty(p_txns, p_count, p_note)` | 改动 | 下班时录入实点；有差额时 `p_note` 必填（`NOTE_REQUIRED`） |
 | `review_cash_count(p_duty_id, p_count, p_note)` | accountant | 复核；`p_count` 为空表示与柜员一致 |
-| `upsert_term(p_id, p_name, p_starts, p_ends)` / `close_term(p_id)` | teacher | 第 6 节 |
+| `upsert_term(p_id, p_name, p_starts, p_ends)` / `close_term(p_id)` | teacher（行长不可） | 第 6 节；返回学期一行 |
 | `open_term_deposit(p_id, p_student_no, p_amount, p_weeks)` | teller | 10.2 |
 | `withdraw_term_early(p_term_id)` | teller | 10.2 |
 | `loan_quote(p_student_no)` | teller | 信用分、额度、本周利率、可选期限、是否能贷 |
@@ -760,6 +770,9 @@ create table job_runs (                       -- 定时任务进度
 | `OVER_CREDIT_LIMIT` | 超过贷款额度 | 按你现在的信用分，最多能贷 N HTB。 |
 | `TERM_TOO_LONG` | 期限超过学期末 | 本学期 M 月 D 日结束，最长只能选 N 周。 |
 | `TERM_OPEN_ITEMS` | 还有没结束的贷款或定期 | 先处理完这些，再结转学期。 |
+| `TERM_OVERLAP` | 学期日期重叠 | 和「{term}」的日期重叠，请调整开始日或结束日。 |
+| `TERM_NOT_ENDED` | 学期还没结束 | {ends_on} 之后才能结转。 |
+| `TERM_CLOSED` | 学期已结转 | 结转后的学期不能再修改。 |
 | `NOTE_REQUIRED` | 请写明原因 | 现金和应有不一致，写明原因后才能下班。 |
 | `REPAY_TOO_MUCH` | 还多了 | 这笔贷款现在一共只需还 N HTB。 |
 
@@ -815,7 +828,7 @@ create table job_runs (                       -- 定时任务进度
 | 类别 | 内容 |
 | --- | --- |
 | 数据库（pgTAP） | 锚点公式的边界与限幅；活期每天计息与结息零头；定期到期与提前支取；等额本金计划、按天计息、提前还款、多还重排；自动扣款、逾期、罚息、扣分；终止；信用分每条规则；分档与额度；有贷款不能开定期；期限不跨学期末；假期不计息；结转前提；各新类型的冲正；轧账比对；风险提醒的触发与终止；货币监控等式；免密码绑定只限管理员；`import_staff` |
-| 定时任务 | 用固定的「今天」跑 `run_daily`、`run_weekly`：重复执行结果不变；停机三天后补跑结果与每天都跑相同 |
+| 定时任务 | 用固定的「今天」跑 `run_daily`、`run_weekly`：重复执行结果不变；停机三天后补跑结果与每天都跑相同；失败时停在出错的那天并记录（`supabase/tests/22_terms_jobs.sql`）；冒烟测试检查 `dolphin-jobs` 在运行、`dolphin jobs` 的输出和重启后的补跑 |
 | 端到端 | 柜台办贷款（账户 / 现金）、还款、开定期、提前支取；上班登记备用金、下班实点不平写原因、财务复核；风险提醒终止贷款；学生「信用」页；工作人员导入与通知单 |
 | 模拟 | 2000 名学生跑满一学期（18 周）的随机业务，检查锚点保持在 1%～4%、每天自检通过、单次 `run_daily` 在 30 秒内完成 |
 
