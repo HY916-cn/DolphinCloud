@@ -102,6 +102,12 @@ code=$(http -X POST "$BASE/rest/v1/rpc/whoami" -H "apikey: $ANON")
 [ "$code" = 401 ] || [ "$code" = 404 ] || fail "anon may call whoami ($code)"
 pass "RPC returns the caller's id; anon is refused"
 
+TOKEN=$(login admin@staff.dolphin.internal Smoke-pass-1)
+[ "$(http -X POST "$BASE/rest/v1/rpc/note_login" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" -H 'X-Device-Id: smoke-pad')" = 200 ] \
+  && [ "$(jq -r .noted "$WORK/body")" = true ] || fail "note_login: $(cat "$WORK/body")"
+[ -n "$(sql "select ip from public.audit_log where action = 'login.ok' and device_id = 'smoke-pad' and ip <> ''")" ] || fail "sign-in IP not recorded"
+pass "a sign-in notes its device and IP through Caddy"
+
 OBJ="$BASE/storage/v1/object/product-images/smoke/logo.png"
 code=$(http -X POST "$OBJ" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: image/png' --data-binary @"$LOGO")
 [ "$code" -ge 400 ] || fail "user without upload policy could upload ($code)"

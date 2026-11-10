@@ -76,7 +76,7 @@ select is((select jsonb_agg(jsonb_build_object('class', c ->> 'class_label', 'st
     'deposit', c -> 'deposit', 'spent', c -> 'spent')) from jsonb_array_elements(:'r'::jsonb -> 'classes') c),
   '[{"class": "四年级(4)班", "spent": 20, "balance": 120, "deposit": 20, "students": 2},
     {"class": "七年级(4)班", "spent": 0, "balance": 5, "deposit": 5, "students": 1}]', 'by class, 小学部 first');
-select is(:'r'::jsonb -> 'students', '{"max": 90, "total": 3, "active": 3, "frozen": 0, "median": 30, "normal": 3, "balance": 125, "graduated": 0}',
+select is(:'r'::jsonb -> 'students', '{"max": 90, "total": 3, "active": 3, "closed": 0, "frozen": 0, "median": 30, "normal": 3, "balance": 125, "graduated": 0}',
   'accounts at the end of the period');
 select is((select array_agg((b ->> 'count')::int) from jsonb_array_elements(:'r'::jsonb -> 'distribution') b), '{0,1,1,1,0,0}',
   'students by balance at the end of the period');

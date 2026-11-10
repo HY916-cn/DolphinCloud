@@ -11,13 +11,14 @@ select tests.student('s2', 0, '李四') as s2 \gset
 delete from duty where user_id = :'t1';
 select is(tests.err(:'t1', $$select duty_txns()$$), 'OFF_DUTY', 'the summary needs an open duty');
 select app_private.cn_date(now())::timestamp at time zone 'Asia/Shanghai' as midnight \gset
-insert into duty (user_id, started_at) values (:'t1', :'midnight'::timestamptz - interval '2 hours');
+insert into duty (user_id) values (:'t1');
 select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000061', 's2', '{"10":1}')$$);
--- Rows are immutable; the test moves this one back past midnight with the triggers off.
+select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000062', 's2', '{"1":2}')$$);
+-- Rows are immutable; the test moves the duty and its first deposit back past midnight with the triggers off.
 set session_replication_role = replica;
+update duty set started_at = :'midnight'::timestamptz - interval '2 hours' where user_id = :'t1' and ended_at is null;
 update txns set created_at = :'midnight'::timestamptz - interval '1 hour' where id = '00000000-0000-4000-8000-000000000061';
 set session_replication_role = origin;
-select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000062', 's2', '{"1":2}')$$);
 select is(tests.call(:'t1', $$select count(*) from txns where operator_id = auth.uid()$$)::int, 1, 'the teller reads only today''s 流水');
 select is(jsonb_array_length(tests.call(:'t1', $$select duty_txns()$$)), 2, 'duty_txns lists the whole duty');
 select is(tests.call(:'t1', $$select duty_txns()$$) -> 0 ->> 'name', '李四', 'by time, with the student''s name');

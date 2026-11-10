@@ -362,6 +362,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 - 触发器记录 `profiles`、`user_roles`、`students`、`products`、`currency_issues`、`settings`、`staff_payroll`、`attendance`、`duty` 的每次变更（前后值）；班次被发放工资时不逐条记录，每次发放另写一条 `salary.pay`。
 - 流水本身即账务审计；导入名册、重置密码、冲正、注销账号（`user.close`）等函数另写一条 `audit_log`。
 - IP、设备号、User-Agent 取自 PostgREST 传入的请求头：`current_setting('request.headers', true)::json`，其中 IP 取 Caddy 写入的 `X-Forwarded-For`，设备号取前端发送的 `X-Device-Id`。
+- 登录钩子由 Auth 调用，拿不到请求头，`login.ok` 先记下账号；前端登录成功后随即调用 `note_login()`，为这条记录补上设备号、IP 和 User-Agent（存法同上）。`login.failed`、`login.locked` 不带设备与 IP。
 
 ---
 
@@ -416,6 +417,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回与流水不一致的记录（`kind`：余额、库存、办理后余额衔接 `balance_after`、累计 `total_in` / `total_out` / `total_spent`、兑换明细合计 `txn_items`），并写 `audit_log`；不经 API 开放 |
 | `public.hook_password_verification_attempt(event)` | Auth 登录钩子 | 每次密码校验后调用：同一账号 15 分钟内输错 5 次即锁定 15 分钟（期间密码正确也拒绝，返回 `LOGIN_LOCKED`），登录成败记入 `audit_log`（`login.ok` / `login.failed` / `login.locked`）；只授予 `supabase_auth_admin`；事件里没有 `user_id` 时交给 Auth 自行处理 |
+| `note_login()` | 已登录的任何账号 | 登录成功后由前端调用：为本人最近 5 分钟内最新的一条 `login.ok` 补上设备号、IP 和 User-Agent；这条已有设备信息或找不到时不改动，返回 `{"noted": true / false}`；重复调用无副作用。只授予 `authenticated` |
 | `app_private.create_admin(p_login_id)` | `dolphin create-admin` | 创建银行管理员账号，显示名为「银行管理员」，返回随机初始密码；已有银行管理员时拒绝；不经 API 开放。运维员和其他工作账号由银行管理员在后台创建 |
 
 ### 6.5 名册导入与账号创建
@@ -469,7 +471,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `student_txns(p_student_no, p_before, p_limit, p_from, p_to, p_time_from, p_time_to, p_types, p_search)` | teller | 柜台「查询」：该生的全部交易，最新在前，每次 `p_limit` 笔（1–50，默认 10），`p_before` 为上一页最后一笔的 `seq`；可按上海时区的日期、每天的时段（不含结束时刻）、类型和交易号或商品名里的文字筛选；每笔含交易号、类型、金额、余额变动、办理后余额、支付方式、状态、原因、时间、经办人和兑换的商品。柜员不能查自己的学生账户（`SELF_SERVICE_FORBIDDEN`） |
-| `bank_report(p_from, p_to, p_division, p_cohort, p_class_no, p_student_no, p_time_from, p_time_to)` | accountant / teacher | 报表：上海时区的日期 `p_from`–`p_to`（最长 366 天），范围为全行、一个学部、一个班（学部 + 学届 + 班号）或一位学生，可只取每天 `p_time_from`–`p_time_to` 之间（不含结束时刻）。返回 `business`（存款、取款、账户兑换、现金兑换各几笔多少，办理过业务的学生数，均不含已冲正的）、`reversals`、`reversed`、`openings`、`balance`（期初、期末账面余额和本期按类型的余额变动，期初 + 变动 = 期末）、`cash`（柜面现金收入、付出）、`days`（每天各业务笔数金额与余额变动）、`hours`、`tellers`、`classes`、`students`（人数、办理过业务、状态、余额合计、中位数、最高）、`distribution`（期末余额分档人数）、`products`（兑换数量、金额、成本）、`stock`（期初、入库、出库、兑出、期末），以及早期登记的 `issues`（前端不再显示） |
+| `bank_report(p_from, p_to, p_division, p_cohort, p_class_no, p_student_no, p_time_from, p_time_to)` | accountant / teacher | 报表：上海时区的日期 `p_from`–`p_to`（最长 366 天），范围为全行、一个学部、一个班（学部 + 学届 + 班号）或一位学生，可只取每天 `p_time_from`–`p_time_to` 之间（不含结束时刻）。返回 `business`（存款、取款、账户兑换、现金兑换各几笔多少，办理过业务的学生数，均不含已冲正的）、`reversals`、`reversed`、`openings`、`balance`（期初、期末账面余额和本期按类型的余额变动，期初 + 变动 = 期末）、`cash`（柜面现金收入、付出）、`days`（每天各业务笔数金额与余额变动）、`hours`、`tellers`、`classes`、`students`（人数、办理过业务、各状态人数 `normal` / `frozen` / `graduated` / `closed`、余额合计、中位数、最高；人数含已注销的账户）、`distribution`（期末余额分档人数）、`products`（兑换数量、金额、成本）、`stock`（期初、入库、出库、兑出、期末），以及早期登记的 `issues`（前端不再显示） |
 | `cn_time(txns)` | 表查询 | 流水的上海时间时刻，供「流水」按时段筛选：`txns?cn_time=gte.12:00&cn_time=lt.13:30` |
 
 - 期初、期末余额取每位学生在期间开始前、结束前最后一笔流水的 `balance_after`；余额核对始终按整天计算，不受时段影响。范围内的学生为期末前已开户或已有流水的学生。
@@ -482,9 +484,9 @@ create table attendance (                      -- 每个柜员每个班次一行
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `set_attendance(p_user_id, p_on)` | teacher | 设置柜员是否参与考勤；开启前须已绑定工资账户（`SALARY_UNBOUND`），已停用的账号不能开启 |
-| `start_duty()` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），已上班时返回原记录；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
+| `start_duty()` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），已上班时返回原记录，返回值带 `stale`：这次上班开始于上海时间今天以前（跨天未下班）时为 `true`，此时不记班次，前端提示柜员先下班；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
 | `duty_txns()` | teller | 下班总结：本人当前上班以来办理的全部业务（按办理时间，含学生姓名），与 `end_duty` 的计数口径相同（含离线补传和冲正）。柜员只能读当天流水，跨午夜的上班也由它完整列出；未上班时 `OFF_DUTY` |
-| `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次 |
+| `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理 |
 | `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 补签：今天已开始的班次或以前的班次，须写说明，直接计为有效；已有记录时 `ALREADY_EXISTS` |
 | `review_attendance(p_ids, p_status, p_note)` | teacher | 审查待审班次：设为有效（`confirmed`）或未通过（`rejected`）；审查后不能再改（`ATTENDANCE_REVIEWED`） |
 | `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`）；只能绑定在读（`normal`）的账户（`STUDENT_INACTIVE`） |
@@ -492,7 +494,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 | `pay_salaries(p_week)` | teacher | 由银行管理员手动发放。到 `p_week` 所在周日为止还有待审班次时拒绝（`ATTENDANCE_PENDING`，附待审数量）；否则发放这一周（周一至周日）及以前所有有效、未发放的班次：每个柜员一笔 `salary` 流水存入其工资账户（金额 = 中午班数 × 中午班工资 + 下午班数 × 下午班工资，`cash_delta` 为 0，原因写日期和两种班次各几个，如「10月27日至11月1日，中午班 3 个、下午班 2 个」），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的柜员这次跳过，下次发放时补发；已停用的柜员不发放；重复发放不会重复付。返回发放和跳过的名单 |
 
 - 柜员不能为本人的工资账户办理业务（`SELF_SERVICE_FORBIDDEN`，与本人的学生账户相同）。
-- 柜员未上班时不能办理存款、取款、兑换和冲正（`txns` 上的触发器 `require_duty`，`OFF_DUTY`）；离线登记的存款补传时不受此限。
+- 柜员未上班时不能办理存款、取款、兑换和冲正（`txns` 上的触发器 `require_duty`，`OFF_DUTY`）；进行中的上班开始于上海时间今天以前（跨天未下班）时同样不能办理（`STALE_DUTY`，附 `started_at`），须先下班再重新上班。离线登记的存款补传时不受这两条限制。
 - `salary` 流水不能冲正；报表的余额核对把它列为「工资」，不计入营业笔数。
 
 ### 6.7 图片存储
@@ -666,6 +668,7 @@ client/
 | `USER_NOT_FOUND`、`PRODUCT_NOT_FOUND` | 未找到 | 请刷新后重试。 |
 | `SELF_SERVICE_FORBIDDEN` | 不能为自己办理 | 这是你本人或你的工资账户，请由其他柜员办理。 |
 | `OFF_DUTY` | 还没有上班 | 请先点「上班」，再办理业务。 |
+| `STALE_DUTY` | 上次上班还没下班 | 这次上班从 {started_at}（M月D日 HH:mm）开始，已经跨天。请先在「考勤」下班，再重新上班办理业务。 |
 | `LAST_SYSADMIN` | 至少保留一个运维员 | 这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。 |
 | `SUMMARY_STALE` | 下班总结已过时 | 打印后又办理了业务，请重新打印下班总结。 |
 | `ATTENDANCE_REVIEWED` | 已经审查过 | 审查后的班次不能再修改。 |
@@ -879,7 +882,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 - 除 Postgres（自行降权）和证书监视外，各服务以低权限用户 `dolphin` 运行；Caddy 通过 `cap_net_bind_service` 监听 80/443。入口脚本每次启动把 `/data/run`、`/data/storage`、`/data/caddy`、`/data/backups` 交给 `dolphin`。
 - Auth 关闭注册与邮件发送；访问令牌有效期 1 小时，刷新令牌 7 天未使用即失效。
 - 学校出口 NAT 时所有校内设备共用一个公网 IP：Auth 的登录限速按 IP 计算，需将 `GOTRUE_RATE_LIMIT_TOKEN_REFRESH`、`GOTRUE_RATE_LIMIT_VERIFY` 等调到能容纳全校同时登录的水平，并让 Auth 信任 Caddy 传入的 `X-Forwarded-For`。
-- 初始密码每人不同，只印在本人的开户通知单上，通知单当面发放；本人发现无法登录时由银行管理员重置。登录成败都记入 `audit_log`，后台「日志」可查连续失败与锁定。
+- 初始密码每人不同，只印在本人的开户通知单上，通知单当面发放；本人发现无法登录时由银行管理员重置。登录成败都记入 `audit_log`，后台「日志」可查连续失败与锁定；成功的登录由 `note_login` 补记设备与 IP。
 - 不采集身份证号、家庭住址、家长信息。
 
 ---
@@ -888,7 +891,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 | 层级 | 工具 | 覆盖内容 |
 | --- | --- | --- |
-| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户；柜台查询翻页与经办人，报表各项数字（不含已冲正的、期初 + 变动 = 期末、库存期初 + 入库 − 出库 − 兑出 = 期末）、时段、学部 / 班级 / 学生范围与以前的期间；上班才能办理、上下班记下班次（一个班次只记一次）、下班总结笔数核对、补签与审核的权限（审查一次）、参与考勤前须绑定工资账户、工资账户的密码与锁定计数、不能为工资账户办理业务、有待审班次时不能发放、停用柜员不发放、按周发放与不重复发放（两台设备同时发放也只发一次）、`salary` 流水不能冲正且不破坏余额自检；8 位数字初始密码；注销账号（余额清零、不能注销自己和银行管理员、余额自检一致）；跨午夜的下班总结、最后一个运维员、工资账户须在读、发行登记日期不晚于今天；行长（多个、有银行管理员的业务权限、管理账号的函数全部拒绝）；柜台查询按类型、商品和日期筛选。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
+| 数据库 | pgTAP（`supabase/tests/`） | 每个函数的角色校验；禁止透支；单笔 / 单日限额；每个账号一种身份；幂等重复提交；库存不足与并发兑换（两个会话同时买最后一件，只有一个成功）；冲正的四条规则；流水不可删改；`check_balances()` 能发现人为制造的不一致；导入重复学号不重复开户；柜台查询翻页与经办人，报表各项数字（不含已冲正的、期初 + 变动 = 期末、库存期初 + 入库 − 出库 − 兑出 = 期末）、时段、学部 / 班级 / 学生范围与以前的期间；上班才能办理、跨天未下班不能办理（下班后重新上班可办理）、上下班记下班次（一个班次只记一次）、下班总结笔数核对、补签与审核的权限（审查一次）、参与考勤前须绑定工资账户、工资账户的密码与锁定计数、不能为工资账户办理业务、有待审班次时不能发放、停用柜员不发放、按周发放与不重复发放（两台设备同时发放也只发一次）、`salary` 流水不能冲正且不破坏余额自检；8 位数字初始密码；注销账号（余额清零、不能注销自己和银行管理员、余额自检一致）；跨午夜的下班总结、最后一个运维员、工资账户须在读、发行登记日期不晚于今天；行长（多个、有银行管理员的业务权限、管理账号的函数全部拒绝）；柜台查询按类型、商品和日期筛选；登录后补记设备与 IP（只改本人最近一次登录，重复调用不改动）；报表统计已注销人数。运行：`docker/db-test.sh [镜像]`，在临时容器中逐个执行 `supabase/tests/*.sql` |
 | 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序，学生范围里的班级与学部；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额、时间、报表期间（周一起算）、姓名脱敏与班次（13:30 分界）；`roster.ts` 名册模板逐行校验与年级推算 |
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；新设备读到上班状态前断网仍能离线登记；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按搜索（学生、柜员、交易号）、时段、类型筛选与冲正、流水导出；报表数字、标签页、时段与 PDF 导出；柜台查询全部交易记录与筛选；柜员上班才能办理、下班打印总结；柜员绑定工资账户 → 银行管理员开启考勤 → 上下班记下班次 → 审查、全部确认、补签、发放工资 → 柜员看到已发工资、学生明细里有工资；批量管理学生与工作人员、注销账号；我的页与在此设备保存登录（未保存的账号重新打开后须登录）；行长看到全部业务页面、学生与工作人员只读；总览待办、页面间跳转、参数开关、日志；学生明细（按类型、搜索）与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
