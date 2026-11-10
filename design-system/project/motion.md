@@ -12,6 +12,7 @@
 | `--motion-quick` | 160ms | 选中、切换、颜色变化 |
 | `--motion-enter` | 240ms | 卡片、提示、弹层出现，输入有误的轻摆 |
 | `--motion-page` | 320ms | 页面切换、办理成功的对勾 |
+| `--motion-count` | 600ms | 余额和信用分的数字滚动、信用仪表盘的指针转动 |
 | `--ease-out` | cubic-bezier(.22, 1, .36, 1) | 出现、进入：快进慢停 |
 | `--ease-in` | cubic-bezier(.4, 0, 1, 1) | 离开、关闭 |
 | `--ease-bounce` | cubic-bezier(.34, 1.56, .64, 1) | 只用于对勾、徽章这类小元素的轻微回弹 |
@@ -56,6 +57,7 @@
 | `ActionBar` | 跟随页面出现，不单独移动；`dc-actions-total` 里的金额变化时加 `dc-bump`。 |
 | `ChoiceCard` | 选中时描边、底色过渡（160ms），图标底轻轻弹一下（320ms，`--ease-bounce`）。 |
 | `QtyStepper` | 加减按钮按下变深；卡片有张数后描边变色（160ms）；小计数字变化时加 `dc-bump`；`is-error` 时控件左右轻摆一次（4px）。 |
+| `CreditGauge` | 分数变化时圆钮沿弧线转到新位置，中间的数字同时滚动（600ms，`--ease-out`）；首次显示不转。 |
 | `SummaryList` | 合计数字变化时加 `dc-bump`；列表加 `dc-stagger` 时逐行进入。 |
 | `PersonCard` | 识别到学生时以 `dc-enter` 进入；余额可用 `data-count` 滚动显示。 |
 | `Switch` | 圆钮滑动、轨道变色（160ms）。 |

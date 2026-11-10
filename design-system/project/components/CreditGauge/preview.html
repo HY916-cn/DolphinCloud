@@ -1,0 +1,37 @@
+<!-- @dsCard group="账户" height=1080 -->
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>CreditGauge</title><style>body{padding:24px}</style></head>
+<body>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;max-width:1040px">
+<div class="dc-card" style="display:flex;flex-direction:column;align-items:center;gap:8px"><p class="dc-list-title" style="margin:0;align-self:flex-start">大 · 680 分（点按钮换分数）</p><div id="live"><div class="dc-gauge is-lg"><div class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="680" aria-valuetext="海豚信用分 680 分" style="--score:680"><span class="dc-gauge-arc"></span><span class="dc-gauge-tick"></span><span class="dc-gauge-mark">可贷款</span><span class="dc-gauge-pointer"></span><b class="dc-gauge-score">680<small>分</small></b></div><p class="dc-gauge-foot">贷款额度 <b>165 HTB</b></p><p class="dc-gauge-next">再涨 8 分，额度加 5 HTB</p></div></div><button class="dc-btn dc-btn-secondary dc-btn-sm" type="button" id="swap">换一个分数</button></div>
+<div class="dc-card" style="display:flex;flex-direction:column;align-items:center;gap:8px"><p class="dc-list-title" style="margin:0;align-self:flex-start">大 · 1000 分</p><div class="dc-gauge is-lg"><div class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="1000" aria-valuetext="海豚信用分 1000 分" style="--score:1000"><span class="dc-gauge-arc"></span><span class="dc-gauge-tick"></span><span class="dc-gauge-mark">可贷款</span><span class="dc-gauge-pointer"></span><b class="dc-gauge-score">1000<small>分</small></b></div><p class="dc-gauge-foot">贷款额度 <b>300 HTB</b></p></div></div>
+<div class="dc-card" style="display:flex;flex-direction:column;align-items:center;gap:8px"><p class="dc-list-title" style="margin:0;align-self:flex-start">中 · 399 分</p><div class="dc-gauge is-md"><div class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="399" aria-valuetext="海豚信用分 399 分" style="--score:399"><span class="dc-gauge-arc"></span><span class="dc-gauge-tick"></span><span class="dc-gauge-mark">可贷款</span><span class="dc-gauge-pointer"></span><b class="dc-gauge-score">399<small>分</small></b></div><p class="dc-gauge-foot">400 分以上才能贷款</p></div></div>
+<div class="dc-card" style="display:flex;flex-direction:column;align-items:center;gap:8px"><p class="dc-list-title" style="margin:0;align-self:flex-start">中 · 400 分</p><div class="dc-gauge is-md"><div class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="400" aria-valuetext="海豚信用分 400 分" style="--score:400"><span class="dc-gauge-arc"></span><span class="dc-gauge-tick"></span><span class="dc-gauge-mark">可贷款</span><span class="dc-gauge-pointer"></span><b class="dc-gauge-score">400<small>分</small></b></div><p class="dc-gauge-foot">贷款额度 <b>50 HTB</b></p></div></div>
+<div class="dc-card" style="display:flex;flex-direction:column;align-items:center;gap:8px"><p class="dc-list-title" style="margin:0;align-self:flex-start">中 · 600 分</p><div class="dc-gauge is-md"><div class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="600" aria-valuetext="海豚信用分 600 分" style="--score:600"><span class="dc-gauge-arc"></span><span class="dc-gauge-tick"></span><span class="dc-gauge-mark">可贷款</span><span class="dc-gauge-pointer"></span><b class="dc-gauge-score">600<small>分</small></b></div><p class="dc-gauge-foot">贷款额度 <b>130 HTB</b></p></div></div>
+<div class="dc-card"><p class="dc-list-title" style="margin:0">小 · 列表里的一行</p><ul style="list-style:none;margin:0;padding:0"><li style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><span>林小雨 · 学号 20260003</span><span class="dc-gauge is-sm"><span class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" aria-valuetext="海豚信用分 0 分" style="--score:0"><span class="dc-gauge-arc"></span><span class="dc-gauge-pointer"></span></span><b class="dc-gauge-score" aria-hidden="true">0</b></span></li><li style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><span>陈一鸣 · 学号 20260004</span><span class="dc-gauge is-sm"><span class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="399" aria-valuetext="海豚信用分 399 分" style="--score:399"><span class="dc-gauge-arc"></span><span class="dc-gauge-pointer"></span></span><b class="dc-gauge-score" aria-hidden="true">399</b></span></li><li style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><span>张小明 · 学号 20260001</span><span class="dc-gauge is-sm"><span class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="600" aria-valuetext="海豚信用分 600 分" style="--score:600"><span class="dc-gauge-arc"></span><span class="dc-gauge-pointer"></span></span><b class="dc-gauge-score" aria-hidden="true">600</b></span></li><li style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><span>周可欣 · 学号 20260005</span><span class="dc-gauge is-sm"><span class="dc-gauge-dial" role="meter" aria-label="海豚信用分" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="1000" aria-valuetext="海豚信用分 1000 分" style="--score:1000"><span class="dc-gauge-arc"></span><span class="dc-gauge-pointer"></span></span><b class="dc-gauge-score" aria-hidden="true">1000</b></span></li></ul></div>
+</div>
+<script>
+(function () {
+  var scores = [680, 420, 120, 900, 400, 1000, 0];
+  var i = 0;
+  var dial = document.querySelector('#live .dc-gauge-dial');
+  var score = dial.querySelector('.dc-gauge-score');
+  var foot = document.querySelector('#live .dc-gauge-foot');
+  var next = document.querySelector('#live .dc-gauge-next');
+  function limit(s) { return s < 400 ? null : Math.floor((50 + (s - 400) / 600 * 250) / 5) * 5; }
+  function more(s) { var l = limit(s); if (l === null || l >= 300) return null; var t = s; while (limit(t) === l) t++; return t - s; }
+  document.getElementById('swap').addEventListener('click', function () {
+    var s = scores[i = (i + 1) % scores.length];
+    dial.style.setProperty('--score', s);
+    dial.setAttribute('aria-valuenow', s);
+    dial.setAttribute('aria-valuetext', '海豚信用分 ' + s + ' 分');
+    score.firstChild.nodeValue = s;
+    var l = limit(s), n = more(s);
+    foot.innerHTML = l === null ? '400 分以上才能贷款' : '贷款额度 <b>' + l + ' HTB</b>';
+    if (next) { next.hidden = !n; next.textContent = n ? '再涨 ' + n + ' 分，额度加 5 HTB' : ''; }
+  });
+})();
+</script>
+</body>
+</html>

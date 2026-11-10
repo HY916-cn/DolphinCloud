@@ -3,7 +3,7 @@
 /* 海豚云 — 组件样式。颜色、间距、圆角、阴影全部来自 tokens.json 生成的变量。 */
 
 /* Motion — 动效时长与缓动（tokens.json 不收动效，统一在这里定义；规则见“动效”一节） */
-:root { --motion-press: 100ms; --motion-quick: 160ms; --motion-enter: 240ms; --motion-page: 320ms; --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-in: cubic-bezier(.4, 0, 1, 1); --ease-bounce: cubic-bezier(.34, 1.56, .64, 1); }
+:root { --motion-press: 100ms; --motion-quick: 160ms; --motion-enter: 240ms; --motion-page: 320ms; --motion-count: 600ms; --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-in: cubic-bezier(.4, 0, 1, 1); --ease-bounce: cubic-bezier(.34, 1.56, .64, 1); }
 body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 26px; font-weight: 400; background: var(--surface); color: var(--ink); }
 .dc-icon { display: block; flex: none; color: var(--dolphin); }
 
@@ -1224,3 +1224,24 @@ span.dc-week-btn { cursor: default; }
 .dc-duty.is-stale small .dc-icon { width: 20px; height: 20px; color: inherit; }
 .dc-empty-icon.is-danger { background: var(--danger-soft); }
 .dc-empty-icon.is-danger .dc-icon { color: var(--danger); }
+
+/* CreditGauge：海豚信用分仪表盘。弧线从左到右是 0～1000 分，400 分以下 danger，400 起 coin-ink → success（72° 即 400 分） */
+@property --score { syntax: '<number>'; inherits: true; initial-value: 0; }
+.dc-gauge { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
+.dc-gauge-dial { --w: 200px; --t: 16px; --knob: 22px; position: relative; flex: none; width: var(--w); height: calc(var(--w) / 2); margin: var(--space-5) calc(var(--knob) / 2) 0; transition: --score var(--motion-count) var(--ease-out); }
+.dc-gauge.is-lg .dc-gauge-dial { --w: 280px; --t: 20px; --knob: 26px; }
+.dc-gauge-arc { position: absolute; inset: 0; border-radius: calc(var(--w) / 2) calc(var(--w) / 2) 0 0; background: conic-gradient(from -90deg at 50% 100%, var(--danger) 0deg 72deg, var(--coin-ink) 72deg, var(--success) 180deg); -webkit-mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 1px)); mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 1px)); }
+.dc-gauge-tick { position: absolute; left: 50%; bottom: -1.5px; width: calc(var(--w) / 2 + 6px); height: 3px; transform-origin: 0 50%; transform: rotate(-108deg); background: linear-gradient(to right, transparent calc(100% - var(--t) - 6px), var(--surface-raised) 0 calc(100% - 6px), var(--ink-muted) 0); }
+.dc-gauge-mark { position: absolute; left: calc(50% - 0.309 * (var(--w) / 2 + 10px)); bottom: calc(0.951 * (var(--w) / 2 + 10px)); transform: translateX(-50%); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); white-space: nowrap; }
+.dc-gauge-pointer { position: absolute; left: 50%; bottom: 0; width: calc(var(--w) / 2 - var(--t) / 2); transform-origin: 0 0; transform: rotate(calc(var(--score) * 0.18deg - 180deg)); }
+.dc-gauge-pointer::after { content: ''; position: absolute; right: calc(var(--knob) / -2); top: calc(var(--knob) / -2); box-sizing: border-box; width: var(--knob); height: var(--knob); border: 4px solid var(--ink); border-radius: var(--radius-pill); background: var(--surface-raised); }
+.dc-gauge-score { position: absolute; left: 0; right: 0; bottom: -4px; font: 800 32px/36px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); }
+.dc-gauge.is-lg .dc-gauge-score { font: 800 40px/44px var(--font-sans); }
+.dc-gauge-score small { margin-left: 2px; font: 600 16px/26px var(--font-sans); color: var(--ink-muted); }
+.dc-gauge-foot { margin: var(--space-2) 0 0; font: 600 18px/28px var(--font-sans); }
+.dc-gauge-foot b { font-variant-numeric: tabular-nums; }
+.dc-gauge-next { margin: 0; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-gauge.is-sm { display: inline-flex; flex-direction: row; align-items: flex-end; gap: var(--space-1); vertical-align: -2px; }
+.dc-gauge.is-sm .dc-gauge-dial { --w: 28px; --t: 5px; --knob: 9px; margin: 0 calc(var(--knob) / 2) 0; }
+.dc-gauge.is-sm .dc-gauge-pointer::after { border-width: 2px; }
+.dc-gauge.is-sm .dc-gauge-score { position: static; font: 700 16px/20px var(--font-sans); }
