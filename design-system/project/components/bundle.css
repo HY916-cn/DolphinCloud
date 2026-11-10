@@ -1245,3 +1245,10 @@ span.dc-week-btn { cursor: default; }
 .dc-gauge.is-sm .dc-gauge-dial { --w: 28px; --t: 5px; --knob: 9px; margin: 0 calc(var(--knob) / 2) 0; }
 .dc-gauge.is-sm .dc-gauge-pointer::after { border-width: 2px; }
 .dc-gauge.is-sm .dc-gauge-score { position: static; font: 700 16px/20px var(--font-sans); }
+
+/* DatePicker：锁定（这一项不能再改） */
+.dc-date-trigger:disabled { background: var(--cloud-100); border-color: var(--line); color: var(--ink-muted); cursor: default; }
+.dc-date-trigger:disabled .dc-icon { color: var(--ink-muted); }
+
+/* Notice：命令和原始错误信息 */
+.dc-notice code { padding: 1px 6px; border-radius: var(--radius-xs); background: var(--surface-raised); font: 500 14px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
