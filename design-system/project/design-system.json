@@ -323,7 +323,8 @@
     "readme": "project/README.md",
     "sections": [
       "project/layout.md",
-      "project/motion.md"
+      "project/motion.md",
+      "project/data.md"
     ]
   },
   "lastChange": {
