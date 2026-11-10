@@ -1,14 +1,13 @@
 #!/bin/bash
 # Database tests: run the image in a throwaway container and run every supabase/tests/*.sql (pgTAP) against it.
-# Usage: docker/db-test.sh [image]   (default dolphin-cloud:dev). Removes its own container and volume.
+# Usage: docker/db-test.sh [image]   (default dolphin-cloud:dev). Removes only the container and volume it created.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
-NAME=dolphin-dbtest
+NAME=dolphin-dbtest-$$  # unique per run: parallel runs never touch each other's container or volume
 TESTS="$(cd "$(dirname "$0")/.." && pwd)/supabase/tests"
 
 remove() { docker rm -f "$NAME" >/dev/null 2>&1 || true; docker volume rm "$NAME-data" >/dev/null 2>&1 || true; }
 trap remove EXIT
-remove
 docker run -d --name "$NAME" -e DOLPHIN_DOMAIN=localhost -v "$NAME-data:/data" -v "$TESTS:/tests:ro" "$IMAGE" >/dev/null
 for _ in $(seq 1 90); do
   docker exec "$NAME" test -f /data/run/image-version 2>/dev/null && break

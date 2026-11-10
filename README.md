@@ -61,12 +61,12 @@ npm --prefix client test
 npm --prefix client run lint
 ```
 
-以下脚本都接受镜像名作参数（默认 `dolphin-cloud:dev`），各自起临时容器，结束后删除容器和数据卷。
+以下脚本都接受镜像名作参数（默认 `dolphin-cloud:dev`），各自起临时容器，结束后（包括失败和中断）删除本次创建的容器和数据卷。容器名带进程号（如 `dolphin-smoke-12345`），端口由 Docker 分配到本机空闲端口，多个脚本可以同时运行。
 
 | 脚本 | 内容 |
 | --- | --- |
 | `docker/db-test.sh` | 在镜像上逐个运行 `supabase/tests/*.sql`（pgTAP） |
-| `docker/smoke-test.sh` | 安全头、健康检查、登录与锁定、`create-admin`、图片上传、加密备份与恢复、容器重启 |
+| `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、加密备份与恢复、容器重启 |
 | `docker/e2e-test.sh` | 导入种子数据后运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端；每个 spec 从种子数据开始）；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |

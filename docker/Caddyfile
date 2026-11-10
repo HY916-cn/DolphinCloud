@@ -3,6 +3,11 @@
 	skip_install_trust
 }
 
+# Port 80 always sends visitors to the public address, https://$DOLPHIN_DOMAIN, whatever port Caddy listens on for HTTPS.
+http://{$DOLPHIN_DOMAIN} {
+	redir https://{$DOLPHIN_DOMAIN}{uri} 308
+}
+
 {$DOLPHIN_DOMAIN}:{$DOLPHIN_PORT} {
 	# Written by the entrypoint: certificate files from /certs when mounted, otherwise automatic HTTPS.
 	import /data/run/tls.caddy

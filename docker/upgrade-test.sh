@@ -3,13 +3,12 @@
 # image on the same volume and check that it migrates, backs up first, keeps every balance and stock, still passes
 # `dolphin check`, and that a seed login still signs in over HTTPS.
 # Usage: docker/upgrade-test.sh <old git ref> [new image]   (e.g. the commit running in production; default dolphin-cloud:dev).
-# Removes its own containers, volume and old image.
+# Removes only the containers, volume and old image it created.
 set -euo pipefail
 OLD_REF=${1:?usage: docker/upgrade-test.sh <old git ref> [new image]}
 IMAGE=${2:-dolphin-cloud:dev}
-OLD_IMAGE=dolphin-cloud:upgrade-old
-NAME=dolphin-upgrade
-PORT=18447
+OLD_IMAGE=dolphin-cloud:upgrade-old-$$
+NAME=dolphin-upgrade-$$  # unique per run: parallel runs never touch each other's container or volume
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK=$(mktemp -d)
 
@@ -19,7 +18,8 @@ fail() { echo "FAIL: $*" >&2; docker logs --tail 40 "$NAME" >&2 || true; exit 1;
 pass() { echo "PASS: $*"; }
 sql() { docker exec "$NAME" psql -U postgres -d postgres -qAt -v ON_ERROR_STOP=1 -c "$1"; }
 start() { # start <image> <number of migrations it must apply>
-  docker run -d --name "$NAME" -p "$PORT:443" -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$1" >/dev/null
+  docker run -d --name "$NAME" -p 127.0.0.1::443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$1" >/dev/null
+  PORT=$(docker port "$NAME" 443/tcp | head -1 | sed 's/.*://') # Docker picks a free host port
   for _ in $(seq 1 90); do
     [ "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost:$PORT/auth/v1/health")" = 200 ] \
       && [ "$(sql "select count(*) from public.app_migrations" 2>/dev/null)" = "$2" ] && return 0
@@ -31,8 +31,6 @@ ledger() { sql "select string_agg(student_no || '=' || balance, ' ' order by stu
   && sql "select string_agg(name || '=' || stock, ' ' order by name) from public.products"; }
 
 git -C "$ROOT" archive --format=tar "$OLD_REF" | docker build -q --build-arg DOLPHIN_VERSION=upgrade-old -t "$OLD_IMAGE" -f docker/Dockerfile - >/dev/null
-docker volume rm "$NAME-data" >/dev/null 2>&1 || true
-remove
 start "$OLD_IMAGE" "$(git -C "$ROOT" ls-tree --name-only "$OLD_REF" supabase/migrations/ | grep -c '\.sql$')"
 git -C "$ROOT" show "$OLD_REF:supabase/seed.sql" | docker exec -i "$NAME" psql -U postgres -v ON_ERROR_STOP=1 -q
 docker exec "$NAME" dolphin check >/dev/null || fail "old image: dolphin check"

@@ -1,13 +1,11 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
-# security headers, non-root services, migration checksums, health check, login, lockout, password rule, create-admin,
-# RPC, image upload and public read, encrypted backup → change → restore, container restart.
-# Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes its own container and volume.
+# HTTP → HTTPS redirect, security headers, non-root services, migration checksums, health check, login, lockout,
+# password rule, create-admin, RPC, image upload and public read, encrypted backup → change → restore, container restart.
+# Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes only the container and volume it created.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
-NAME=dolphin-smoke
-PORT=18443
-BASE="https://localhost:$PORT"
+NAME=dolphin-smoke-$$  # unique per run: parallel runs never touch each other's container or volume
 WORK=$(mktemp -d)
 LOGO="$(cd "$(dirname "$0")/.." && pwd)/design-system/project/assets/Logos/dolphin-cloud-logo.png"
 
@@ -17,7 +15,9 @@ fail() { echo "FAIL: $*" >&2; docker logs --tail 40 "$NAME" >&2 || true; exit 1;
 pass() { echo "PASS: $*"; }
 sql() { docker exec "$NAME" psql -U postgres -d postgres -qAt -v ON_ERROR_STOP=1 -c "$1"; }
 http() { curl -sS --cacert "$WORK/root.crt" -o "$WORK/body" -D "$WORK/headers" -w '%{http_code}' "$@"; }
+port() { docker port "$NAME" "$1/tcp" | head -1 | sed 's/.*://'; } # Docker picks free host ports, anew on restart
 wait_ready() {
+  BASE="https://localhost:$(port 443)"
   for _ in $(seq 1 90); do
     if docker exec "$NAME" test -f /data/caddy/caddy/pki/authorities/local/root.crt 2>/dev/null; then
       docker cp -q "$NAME:/data/caddy/caddy/pki/authorities/local/root.crt" "$WORK/root.crt"
@@ -35,10 +35,9 @@ login() { # login <email> <password> → prints access token, empty on failure
   jq -r '.access_token // empty' "$WORK/body"
 }
 
-remove
 docker run --rm --entrypoint age-keygen "$IMAGE" > "$WORK/backup-key.txt" 2>/dev/null
 RECIPIENT=$(sed -n 's/^# public key: //p' "$WORK/backup-key.txt")
-docker run -d --name "$NAME" -p "$PORT:443" -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com \
+docker run -d --name "$NAME" -p 127.0.0.1::443 -p 127.0.0.1::80 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com \
   -e BACKUP_RECIPIENT="$RECIPIENT" "$IMAGE" >/dev/null
 wait_ready
 ANON=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$ANON_KEY"')
@@ -47,6 +46,12 @@ SERVICE=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$SERVICE_ROLE_
 [ "$(http "$BASE/")" = 200 ] && grep -q 海豚云 "$WORK/body" || fail "static site"
 [ "$(http "$BASE/config.js")" = 200 ] && grep -q "$ANON" "$WORK/body" && ! grep -q "$SERVICE" "$WORK/body" || fail "config.js"
 pass "HTTPS static site and config.js (anon key only)"
+
+code=$(http "http://localhost:$(port 80)/smoke/path?q=1")
+location=$(awk 'tolower($1) == "location:" { print $2 }' "$WORK/headers" | tr -d '\r')
+{ [ "$code" = 301 ] || [ "$code" = 308 ]; } && [ "$location" = "https://localhost/smoke/path?q=1" ] \
+  || fail "port 80 answered $code, Location: $location"
+pass "HTTP on port 80 redirects to the same path over HTTPS"
 
 http "$BASE/" >/dev/null
 grep -qi '^x-frame-options: DENY' "$WORK/headers" && grep -qi "^content-security-policy:.*frame-ancestors 'none'" "$WORK/headers" \

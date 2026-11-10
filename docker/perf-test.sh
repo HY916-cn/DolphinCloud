@@ -2,17 +2,17 @@
 # Performance at full school size (PHASE-1.md §10): a fresh container with the seed, 2000 students imported through
 # import_roster in batches of 100, and 100 000 transactions. Times the reads and functions the acceptance names and
 # times 报表 and the 流水 export, and checks that no role can change balances, stock or the ledger through the API.
-# Usage: docker/perf-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container on https://localhost:18446.
+# Usage: docker/perf-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
-NAME=dolphin-perf
-BASE=https://localhost:18446
+NAME=dolphin-perf-$$  # unique per run: parallel runs never touch each other's container or volume
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 remove() { docker rm -f "$NAME" >/dev/null 2>&1 || true; docker volume rm "$NAME-data" >/dev/null 2>&1 || true; }
 [ "${KEEP:-}" = 1 ] || trap remove EXIT
-remove
-docker run -d --name "$NAME" -p 18446:443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$IMAGE" >/dev/null
+docker run -d --name "$NAME" -p 127.0.0.1::443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$IMAGE" >/dev/null
+BASE="https://localhost:$(docker port "$NAME" 443/tcp | head -1 | sed 's/.*://')" # Docker picks a free host port
+[ "${KEEP:-}" != 1 ] || echo "KEEP=1: $NAME stays on $BASE"
 for _ in $(seq 1 90); do
   [ "$(curl -sk -o /dev/null -w '%{http_code}' "$BASE/auth/v1/health")" = 200 ] \
     && [ "$(docker exec "$NAME" psql -U postgres -qAt -c "select count(*) from public.app_migrations" 2>/dev/null)" = "$(ls "$ROOT"/supabase/migrations/*.sql | wc -l | tr -d ' ')" ] && break
