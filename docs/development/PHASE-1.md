@@ -413,7 +413,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 | `close_accounts(p_user_ids)` | teacher / sysadmin | 注销账号，不能撤销：学生账户的余额由一笔 `closing`（注销清零）流水清零，状态为 `closed`；账号永久停用（`profiles.closed_at`）、结束会话，从所有名单里消失，交易、考勤与日志保留；用作工资账户的学生账户解除绑定并让该柜员退出考勤。不能注销自己和银行管理员。返回注销人数和清零金额。至少保留一个在用的运维员：最后一个不能停用、注销或改为其他身份（`LAST_SYSADMIN`，数据库触发器检查） |
 | `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 新增或编辑商品（`p_listed` 必填；`p_safety_stock` 新商品默认 5，编辑时不传则保持原值）；单件商品入库 |
 | `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
-| `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围 |
+| `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围（第二阶段的参数见 PHASE-2.md §14.3） |
 | `set_settings(p_values)` | teacher | 一次保存多项参数（`{key: value}`），逐项按 `set_setting` 校验，全部成功或全部不保存；「参数」页保存用它 |
 | `deposit_ranking(p_division)` | 学生 | 返回该学部前 N 名（按参数脱敏）与本人名次；`p_division` 为空时取本人所在学部 |
 | `app_private.check_balances()` | 定时任务、`dolphin check` | 返回与流水不一致的记录（`kind`：余额、库存、办理后余额衔接 `balance_after`、累计 `total_in` / `total_out` / `total_spent`、兑换明细合计 `txn_items`），并写 `audit_log`；不经 API 开放 |
@@ -465,7 +465,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 
 `products.cost` 不对 `authenticated` 开放；成本经视图 `product_costs (id, cost)` 读取，只有库管、财务、银行管理员能读到数据。
 
-柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、学届、班号、年级、班级名称、余额，以及该生当天已取款合计。运维员可读 `profiles`、`user_roles`、`audit_log` 和 `students`（为学生重置密码时查找学生，不含余额）；财务可读工作账号的 `profiles` 和 `user_roles`（流水里的柜员姓名，按柜员筛选）。
+柜员查询学生用函数 `lookup_student(p_student_no)`，返回学号、姓名、学部、学届、班号、年级、班级名称、余额、该生当天已取款合计，以及信用分（`credit`，见 PHASE-2.md §8.1）。信用分表 `credit_scores`、`credit_events` 学生读本人的，财务、行长、银行管理员读全部，柜员只经 `lookup_student` 看到正在办理的学生。运维员可读 `profiles`、`user_roles`、`audit_log` 和 `students`（为学生重置密码时查找学生，不含余额）；财务可读工作账号的 `profiles` 和 `user_roles`（流水里的柜员姓名，按柜员筛选）。
 
 ### 6.8 查询与报表
 
