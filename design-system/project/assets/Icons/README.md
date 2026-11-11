@@ -29,6 +29,7 @@
 | `ranking` | 排名 | `trophy` |
 | `gauge` | 信用分 | `gauge` |
 | `school` | 学期 | `school` |
+| `rate` | 利率、利息 | `badge-percent` |
 | `plus` | 增加 | `plus` |
 | `minus` | 减少 | `minus` |
 | `back` | 返回 | `chevron-left` |
