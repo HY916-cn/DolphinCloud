@@ -30,6 +30,11 @@ wait_ready() {
   done
   fail "services not ready"
 }
+migrate_exited_ok() { # migrate may finish between `supervisorctl pid` and `stat`; supervisorctl status shows no exit code
+  docker exec "$NAME" python3 -c 'from xmlrpc.client import ServerProxy; from supervisor.xmlrpc import SupervisorTransport
+i = ServerProxy("http://supervisor", SupervisorTransport(None, None, "unix:///run/supervisor.sock")).supervisor.getProcessInfo("migrate")
+exit(not (i["pid"] == 0 and i["statename"] == "EXITED" and i["exitstatus"] == 0))'
+}
 login() { # login <email> <password> → prints access token, empty on failure
   http -X POST "$BASE/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H 'Content-Type: application/json' \
     -d "{\"email\":\"$1\",\"password\":\"$2\"}" >/dev/null
@@ -59,7 +64,8 @@ grep -qi '^x-frame-options: DENY' "$WORK/headers" && grep -qi "^content-security
   || fail "site headers: $(cat "$WORK/headers")"
 for p in auth rest storage caddy migrate backup-schedule dolphin-jobs; do
   pid=$(docker exec "$NAME" supervisorctl pid "$p" || true) # 0 and exit 1 once migrate has finished
-  [ "$pid" = 0 ] || [ "$(docker exec "$NAME" stat -c %U "/proc/$pid")" = dolphin ] || fail "$p does not run as dolphin"
+  [ "$pid" = 0 ] || [ "$(docker exec "$NAME" stat -c %U "/proc/$pid")" = dolphin ] \
+    || { [ "$p" = migrate ] && migrate_exited_ok; } || fail "$p does not run as dolphin"
 done
 pass "the site cannot be framed; services run as dolphin"
 
