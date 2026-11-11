@@ -1293,3 +1293,5 @@ span.dc-week-btn { cursor: default; }
 
 /* DataTable：刚加上的一行（如调整信用分后的变动），同 TxnList 的 is-new */
 .dc-table tr.is-new td { animation: dc-highlight 1200ms ease-out; }
+/* 存折字段里的小号仪表盘：顶端对齐，不撑高这一行 */
+.dc-pb-fields .dc-gauge.is-sm { vertical-align: top; }
