@@ -1252,3 +1252,6 @@ span.dc-week-btn { cursor: default; }
 
 /* Notice：命令和原始错误信息 */
 .dc-notice code { padding: 1px 6px; border-radius: var(--radius-xs); background: var(--surface-raised); font: 500 14px/22px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
+/* DatePicker：出错（与 Field 的 is-error 相同） */
+.dc-field.is-error .dc-date-trigger { border-color: var(--danger); animation: dc-nudge var(--motion-enter) ease-in-out; }
