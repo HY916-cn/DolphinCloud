@@ -396,7 +396,7 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
 const HISTORY = 10;
 type HistoryRow = Omit<TxnRow, 'txn_items'> & { seq: number; txn_no: string; balance_after: number; operator: string; items: { name: string; qty: number }[] };
 
-const QUERY_KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['opening', '期初']] as const;
+const QUERY_KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['opening', '期初']] as const;
 
 // 查询: the student's account totals and every transaction, also other tellers' and earlier days', newest first,
 // ten at a time (student_txns), filtered as 流水 is: the days, a 时段, the types, and words of a 交易号 or a product.

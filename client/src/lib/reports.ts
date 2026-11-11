@@ -13,7 +13,7 @@ type Count = { count: number; amount: number };
 export type Report = {
   business: { deposit: Count; withdraw: Count; purchase_account: Count; purchase_cash: Count; students: number };
   reversals: Count; reversed: number; openings: Count;
-  balance: { opening: number; closing: number; changes: Partial<Record<'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'closing', number>> };
+  balance: { opening: number; closing: number; changes: Partial<Record<'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'interest' | 'closing', number>> };
   cash: { in: number; out: number };
   days: { day: string; deposit: number; deposit_count: number; withdraw: number; withdraw_count: number; purchase: number; purchase_count: number; students: number; change: number }[];
   hours: { hour: number; count: number }[];
@@ -60,7 +60,7 @@ export function ledgerQuery(select: string, f: LedgerFilter, count?: 'exact') {
 
 type Cell = string | number | null;
 type Sheet = [string, Cell[][]];
-const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', salary: '工资', closing: '注销清零' } as const;
+const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', salary: '工资', interest: '利息', closing: '注销清零' } as const;
 const PAYMENT = { account: '账户', cash: '现金' } as const;
 
 // Every transaction the filters choose, oldest first.
@@ -107,7 +107,7 @@ export function dailyBalance(r: Report) {
 
 // The changes of the balance check, in the order 报表 shows them.
 export const CHANGES = [['opening', '期初余额导入'], ['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换（账户支付）'],
-  ['reversal', '冲正'], ['salary', '工资'], ['closing', '注销清零']] as const;
+  ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['closing', '注销清零']] as const;
 export const dayLabel = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice(8))}`;
 export const classLabel = (c: Report['classes'][number]) => c.class_label ?? `${c.cohort} 届 ${c.class_no} 班`;
 

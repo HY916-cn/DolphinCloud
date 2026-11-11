@@ -14,6 +14,7 @@ export const TXN_TABS = {
   withdraw: { label: '取款', empty: '还没有取款记录', hint: '在柜台取款后，这里会显示每一笔取款。' },
   purchase: { label: '兑换', empty: '还没有兑换记录', hint: '在柜台兑换商品后，这里会显示每一笔兑换。' },
   salary: { label: '工资', empty: '还没有工资记录', hint: '担任柜员并参与考勤后，工资每周发到这里。' },
+  interest: { label: '利息', empty: '还没有利息记录', hint: '学期内活期余额每天计息，每周一把满 1 HTB 的利息存入这里。' },
 } as const;
 export type TxnTab = keyof typeof TXN_TABS;
 

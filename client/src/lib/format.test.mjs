@@ -1,6 +1,6 @@
 // node src/lib/format.test.mjs — checks the wording rules the screens rely on.
 import assert from 'node:assert/strict';
-const { formatAmount, formatSigned, formatTime, maskName, periodOf, shanghai, shiftAt, shiftDay } = await import('./format.ts');
+const { formatAmount, formatCenti, formatPercent, formatPoints, formatRate, formatSigned, formatTime, maskName, periodOf, shanghai, shiftAt, shiftDay } = await import('./format.ts');
 assert.equal(formatAmount(1280), '1,280');
 assert.equal(formatSigned(50), '+50');
 assert.equal(formatSigned(-20), '−20');
@@ -23,3 +23,20 @@ assert.equal(shiftAt(new Date('2026-11-02T16:00:00Z')), 'am'); // 00:00 the next
 assert.deepEqual((({ year, month, day, hour, minute }) => [year, month, day, hour, minute])(shanghai(new Date('2026-08-31T16:05:00Z'))), ['2026', '9', '1', '00', '05']); // past midnight in Shanghai
 
 console.log('format ok');
+
+// 利率 without trailing zeros, at most 4 decimals; 待入账利息 always with two.
+assert.equal(formatRate(2.08), '2.08%');
+assert.equal(formatRate(2), '2%');
+assert.equal(formatRate(6.2667), '6.2667%');
+assert.equal(formatRate(2.6), '2.6%');
+assert.equal(formatRate(1.23456), '1.2346%');
+assert.equal(formatCenti(37), '0.37');
+assert.equal(formatCenti(0), '0.00');
+assert.equal(formatCenti(105), '1.05');
+assert.equal(formatCenti(123456), '1,234.56');
+assert.equal(formatPoints(0.25), '+0.25');
+assert.equal(formatPoints(-0.5), '−0.50');
+assert.equal(formatPoints(0), '0.00');
+assert.equal(formatPercent(40), '40.0%');
+assert.equal(formatPercent(2.3456, true), '+2.3%');
+assert.equal(formatPercent(-1.25, true), '−1.3%');

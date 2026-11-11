@@ -21,7 +21,7 @@ function byDay(rows: TxnRow[]) {
 }
 
 // 明细: every business of the account newest first, 30 at a time, under its day; by type on the tabs (存款, 取款, 兑换,
-// 工资), found by words of a 交易号 or a product and by days; beside it, this month from last month's closing balance
+// 工资, 利息), found by words of a 交易号 or a product and by days; beside it, this month from last month's closing balance
 // to now.
 export default function StudentTxns() {
   const student = useMe().data!.student!;

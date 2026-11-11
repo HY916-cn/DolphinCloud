@@ -48,6 +48,7 @@ const SETTINGS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限',
   ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期', salary_per_shift: '班次工资',
   credit_curve: '信用分计算参数', credit_rules: '加减分规则',
+  anchor_params: '锚点参数', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数',
 };
 const COLUMNS: Record<string, string> = {
   name: '名称', display_name: '姓名', login_id: '账号', disabled: '停用', must_change_password: '需要修改密码', role: '身份',

@@ -7,14 +7,14 @@ import { formatTime } from './format';
 export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; paid: number; note: string; after?: number };
 
 export type TxnRow = {
-  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'closing'; amount: number; balance_delta: number;
+  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'interest' | 'closing'; amount: number; balance_delta: number;
   payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; reason: string | null; created_at: string; balance_after?: number;
   txn_items?: { name: string; qty: number }[];
 };
 
 // Icon and category colour per business (design system ColorRoles): savings, withdrawals, exchanges; a reversal is
-// a correction and keeps the account blue; 工资 is the bank's pay for a teller's shifts; 注销清零 clears the balance of
-// a closed account.
+// a correction and keeps the account blue; 工资 is the bank's pay for a teller's shifts; 利息 is the week's 活期 interest,
+// paid by the system; 注销清零 clears the balance of a closed account.
 export const KINDS = {
   opening: { icon: 'savings', title: '期初余额', kind: 'dc-kind-save' },
   deposit: { icon: 'deposit', title: '存款', kind: 'dc-kind-save' },
@@ -22,6 +22,7 @@ export const KINDS = {
   purchase: { icon: 'exchange', title: '兑换', kind: 'dc-kind-exchange' },
   reversal: { icon: 'transfer', title: '冲正', kind: '' },
   salary: { icon: 'invest', title: '工资', kind: 'dc-kind-reward' },
+  interest: { icon: 'rate', title: '利息', kind: 'dc-kind-reward' },
   closing: { icon: 'close', title: '注销清零', kind: '' },
 } as const;
 
@@ -30,7 +31,7 @@ export const KINDS = {
 export function toTxn(t: TxnRow): Txn {
   const detail =
     t.type === 'purchase' ? t.txn_items?.map((i) => (i.qty > 1 ? `${i.name} × ${i.qty}` : i.name)).join('、')
-    : t.type === 'reversal' || t.type === 'salary' ? t.reason
+    : ['reversal', 'salary', 'interest'].includes(t.type) ? t.reason
     : null;
   return {
     key: t.id,

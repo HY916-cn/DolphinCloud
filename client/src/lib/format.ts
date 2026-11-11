@@ -2,6 +2,15 @@
 export const formatAmount = (n: number) => Math.abs(n).toLocaleString('en-US');
 export const formatSigned = (n: number) => `${n < 0 ? '−' : '+'}${formatAmount(n)}`;
 
+// 利率 (design system data.md 利率): a weekly percentage without trailing zeros, at most 4 decimals: 2.08%, 2%, 6.2667%.
+export const formatRate = (r: number) => `${Number(r.toFixed(4))}%`;
+// 待入账利息 from 0.01 HTB, always with two decimals: 37 → 0.37, 0 → 0.00.
+export const formatCenti = (c: number) => `${formatAmount(Math.trunc(c / 100))}.${String(c % 100).padStart(2, '0')}`;
+// A change of the anchor in percentage points, two decimals: +0.25, −0.50, 0.00.
+export const formatPoints = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(2)}`;
+// 存贷比 40.0%, 增速 +2.3% (`signed`), one decimal.
+export const formatPercent = (n: number, signed = false) => `${n < 0 ? '−' : signed && n > 0 ? '+' : ''}${Math.abs(n).toFixed(1)}%`;
+
 // A moment as the school's clock reads it (Asia/Shanghai): year, month, day, hour and minute, hour and minute two digits.
 const SHANGHAI = new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Asia/Shanghai', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',

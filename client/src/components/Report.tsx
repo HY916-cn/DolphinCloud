@@ -82,7 +82,7 @@ export function Stats({ items }: { items: [string, ReactNode, string?, string?][
         {items.map(([label, value, unit, change]) => (
           <div key={label} className="dc-card dc-stat">
             <span>{label}</span><b>{value}{unit && <small>{unit}</small>}</b>
-            {change && <em className={change.includes('+') ? 'is-up' : change.includes('-') ? 'is-down' : undefined}>{change}</em>}
+            {change && <em className={change.includes('+') ? 'is-up' : /[-−]/.test(change) ? 'is-down' : undefined}>{change}</em>}
           </div>
         ))}
       </div>

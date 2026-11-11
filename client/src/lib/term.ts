@@ -11,6 +11,9 @@ export type TermState = 'upcoming' | 'current' | 'ended' | 'closed';
 export const termState = (t: Term, today: string): TermState =>
   t.closed_at ? 'closed' : today < t.starts_on ? 'upcoming' : today <= t.ends_on ? 'current' : 'ended';
 
+// 学期内: today falls between a term's first and last day (closed or not). Holidays accrue no interest (PHASE-2.md §9.3).
+export const inTerm = (terms: Pick<Term, 'starts_on' | 'ends_on'>[], today: string) => terms.some((t) => t.starts_on <= today && today <= t.ends_on);
+
 // 2027-01-20 → 1月20日.
 export const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8, 10))}日`;
 

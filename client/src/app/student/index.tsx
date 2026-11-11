@@ -1,7 +1,7 @@
 import {
-  BalanceCard, CreditFailed, CreditGauge, CreditGaugeLoading, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useCredit, useGaugeCurve, useRanking, useTerm,
+  BalanceCard, CreditFailed, CreditGauge, CreditGaugeLoading, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useCredit, useGaugeCurve, useInterest, useRanking, useTerm,
 } from '@/components';
-import { greeting } from '@/lib/format';
+import { formatCenti, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
@@ -17,6 +17,7 @@ export default function StudentHome() {
   const ranking = useRanking(student.student_no);
   const txns = useRecent(student.student_no);
   const credit = useCredit();
+  const interest = useInterest();
   const curve = useGaugeCurve();
   const c = credit.data;
   const fresh = useNewRows(txns.data?.map((t) => t.key));
@@ -33,14 +34,17 @@ export default function StudentHome() {
               {term.data ? <BalanceCard amount={term.data.balance} term={term.data} />
                 : <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />}
             </div>
-            {/* 信用摘要: only the gauge until 利息, 定期 and 贷款 come (M9–M11). */}
+            {/* 信用摘要: 待入账利息 beside the gauge; 定期 and 贷款 join it with M10 and M11. */}
             <section className="dc-card dc-credit-summary dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
               {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
-                : !c ? <CreditGaugeLoading size="md" /> : (
+                : !c || interest.isPending ? <CreditGaugeLoading size="md" /> : <>
+                  <dl className="dc-kv">
+                    <div><dt>待入账利息</dt><dd>{interest.data ? `${formatCenti(interest.data.pending_centi)} HTB` : '—'}</dd></div>
+                  </dl>
                   <a className="dc-credit-summary-gauge" aria-label={`海豚信用分 ${c.score} 分，查看信用`} {...link('/student/credit')}>
                     <CreditGauge score={c.score} size="md" limit={c.loan_limit} {...curve} />
                   </a>
-                )}
+                </>}
             </section>
             {ranking.error ? <Notice tone="danger" title="暂时无法读取排名">请检查网络后刷新页面。</Notice>
               : !r ? <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} /> : r.me && (

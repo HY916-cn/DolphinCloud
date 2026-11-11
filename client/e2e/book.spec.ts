@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { resetData, signIn } from './helpers';
+import { resetData, signIn, sql } from './helpers';
 
 // 存折版 (/book), for students only, on the seed data (supabase/seed.sql): 张小明 (20260001, 小学部) has an opening
 // balance of 120, then a deposit of 25, a withdrawal of 15 and an exchange of 22: 108 now, the first of two.
@@ -119,4 +119,27 @@ test('the 存折版 is for students: a staff login there goes to its own pages',
   await expect(page).toHaveURL(/\/admin/);
   await page.goto('/book');
   await expect(page).toHaveURL(/\/admin/);
+});
+
+// Last, as it adds a business: a week's 活期 interest paid by the system.
+test('明细 prints a sixth tab, 利息; on a phone all six share a row and the page fits without scrolling', async ({ page }) => {
+  sql(`insert into public.interest_accruals (student_no, day, balance, rate, centi) values ('20260001', current_date - 2, 108, 2.08, 230);
+       select app_private.settle_interest(now())`);
+  await openBook(page);
+  await mark(page, '明细').click();
+  const panel = page.getByRole('tabpanel');
+  await turnTo(page, panel);
+  await expect(page.getByRole('tab')).toHaveText(['全部', '存款', '取款', '兑换', '工资', '利息']);
+  await expect(panel.locator('.dc-txn')).toHaveCount(5);
+  await page.getByRole('tab', { name: '利息' }).click();
+  await expect(panel.locator('.dc-txn')).toHaveCount(1);
+  await expect(panel.locator('.dc-txn')).toContainText('活期利息');
+  const sheet = page.getByRole('region', { name: '交易明细' });
+  await page.getByRole('tab', { name: '全部' }).click();
+  await expect(panel.locator('.dc-txn')).toHaveCount(5);
+  expect(await sheet.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollHeight <= innerHeight)).toBe(true);
+  if (test.info().project.name === 'phone') { // the six share one row
+    expect(new Set(await page.getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().top))).size).toBe(1);
+  }
 });

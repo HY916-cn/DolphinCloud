@@ -1,6 +1,6 @@
 // node src/lib/term.test.mjs — checks the term's start as the school reads it.
 import assert from 'node:assert/strict';
-const { jobFailure, openItem, termStart, termState } = await import('./term.ts');
+const { inTerm, jobFailure, openItem, termStart, termState } = await import('./term.ts');
 assert.equal(termStart(new Date('2026-11-03T04:00:00Z')), '2026-09-01');
 assert.equal(termStart(new Date('2026-08-31T15:59:00Z')), '2026-02-01'); // 23:59 on 8月31日 in Shanghai
 assert.equal(termStart(new Date('2026-08-31T16:00:00Z')), '2026-09-01'); // 00:00 on 9月1日 in Shanghai
@@ -21,3 +21,11 @@ assert.deepEqual(jobFailure({ job: 'daily', done_to: '2026-11-09', last_err: '20
 assert.deepEqual(jobFailure({ job: 'weekly', done_to: '2026-11-02', last_err: 'boom' }), { job: '每周的任务', done: '11月2日', day: null, reason: 'boom' });
 
 console.log('term ok');
+
+// 学期内 from the first day to the last, both included; between terms it is the holidays.
+const terms = [{ starts_on: '2026-09-01', ends_on: '2027-01-20' }, { starts_on: '2027-02-15', ends_on: '2027-06-30' }];
+assert.equal(inTerm(terms, '2026-09-01'), true);
+assert.equal(inTerm(terms, '2027-01-20'), true);
+assert.equal(inTerm(terms, '2027-01-21'), false);
+assert.equal(inTerm(terms, '2027-02-15'), true);
+assert.equal(inTerm([], '2026-11-12'), false);
