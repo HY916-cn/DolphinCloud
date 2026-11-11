@@ -203,6 +203,10 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-nav nav:has(> .dc-nav-item:nth-child(10)) { --nav-count: 10; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(11)) { --nav-count: 11; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(12)) { --nav-count: 12; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(13)) { --nav-count: 13; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(14)) { --nav-count: 14; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(15)) { --nav-count: 15; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(16)) { --nav-count: 16; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(2)[aria-current="page"]) { --nav-index: 1; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(3)[aria-current="page"]) { --nav-index: 2; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(4)[aria-current="page"]) { --nav-index: 3; }
@@ -214,6 +218,10 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-nav nav:has(> .dc-nav-item:nth-child(10)[aria-current="page"]) { --nav-index: 9; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(11)[aria-current="page"]) { --nav-index: 10; }
 .dc-nav nav:has(> .dc-nav-item:nth-child(12)[aria-current="page"]) { --nav-index: 11; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(13)[aria-current="page"]) { --nav-index: 12; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(14)[aria-current="page"]) { --nav-index: 13; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(15)[aria-current="page"]) { --nav-index: 14; }
+.dc-nav nav:has(> .dc-nav-item:nth-child(16)[aria-current="page"]) { --nav-index: 15; }
 .dc-nav nav:has(> [aria-current="page"])::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: calc(100% / var(--nav-count)); border-radius: var(--radius-md); background: var(--cloud-100); transform: translateY(calc(var(--nav-index) * 100%)); transition: transform var(--motion-enter) var(--ease-out); }
 .dc-nav-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -1224,8 +1232,8 @@ span.dc-week-btn { cursor: default; }
 .dc-empty-icon.is-danger { background: var(--danger-soft); }
 .dc-empty-icon.is-danger .dc-icon { color: var(--danger); }
 
-/* CreditGauge：海豚信用分仪表盘。浅色轨道上，实色进度从 0 走到当前分数（72° 即 400 分），
-   400 分以上用 success，400 分以下（is-low）用 danger；圆钮停在进度末端。 */
+/* CreditGauge：海豚信用分仪表盘。浅色轨道上，实色进度从 0 走到当前分数（每分 0.18°），
+   能贷款的最低分（--min，默认 400）以上用 success，以下（is-low）用 danger；圆钮停在进度末端。 */
 @property --score { syntax: '<number>'; inherits: true; initial-value: 0; }
 .dc-gauge { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
 .dc-gauge-dial { --w: 200px; --t: 14px; --knob: 24px; --gauge-color: var(--success); --gauge-from: var(--gauge-color); --gauge-from: color-mix(in oklch, var(--gauge-color) 70%, var(--surface-raised)); position: relative; flex: none; width: var(--w); height: calc(var(--w) / 2); margin: var(--space-5) calc(var(--knob) / 2) 0; transition: --score var(--motion-count) var(--ease-out); }
@@ -1236,8 +1244,8 @@ span.dc-week-btn { cursor: default; }
 .dc-gauge-dial::before, .dc-gauge-dial::after { content: ''; position: absolute; bottom: calc(var(--t) / -2); width: var(--t); height: var(--t); border-radius: var(--radius-pill); }
 .dc-gauge-dial::before { left: 0; background: var(--gauge-from); }
 .dc-gauge-dial::after { right: 0; background: var(--cloud-100); }
-.dc-gauge-tick { position: absolute; left: 50%; bottom: -1.5px; width: calc(var(--w) / 2 + 8px); height: 3px; transform-origin: 0 50%; transform: rotate(-108deg); background: linear-gradient(to right, transparent calc(100% - var(--t) - 8px), var(--surface-raised) 0 calc(100% - 8px), transparent 0 calc(100% - 4px), var(--ink-muted) 0); }
-.dc-gauge-mark { position: absolute; left: calc(50% - 0.309 * (var(--w) / 2 + 10px)); bottom: calc(0.951 * (var(--w) / 2 + 10px)); transform: translateX(-50%); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); white-space: nowrap; }
+.dc-gauge-tick { position: absolute; left: 50%; bottom: -1.5px; width: calc(var(--w) / 2 + 8px); height: 3px; transform-origin: 0 50%; transform: rotate(calc(var(--min, 400) * 0.18deg - 180deg)); background: linear-gradient(to right, transparent calc(100% - var(--t) - 8px), var(--surface-raised) 0 calc(100% - 8px), transparent 0 calc(100% - 4px), var(--ink-muted) 0); }
+.dc-gauge-mark { position: absolute; left: calc(50% + cos(180deg - var(--min, 400) * 0.18deg) * (var(--w) / 2 + 10px)); bottom: calc(sin(180deg - var(--min, 400) * 0.18deg) * (var(--w) / 2 + 10px)); transform: translateX(-50%); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); white-space: nowrap; }
 .dc-gauge-pointer { position: absolute; left: 50%; bottom: 0; width: calc(var(--w) / 2 - var(--t) / 2); transform-origin: 0 0; transform: rotate(calc(var(--score) * 0.18deg - 180deg)); }
 .dc-gauge-pointer::after { content: ''; position: absolute; right: calc(var(--knob) / -2); top: calc(var(--knob) / -2); box-sizing: border-box; width: var(--knob); height: var(--knob); border: 4px solid var(--gauge-color); border-radius: var(--radius-pill); background: var(--surface-raised); box-shadow: 0 2px 6px rgba(19, 40, 92, 0.22); }
 .dc-gauge-score { position: absolute; left: 0; right: 0; bottom: -2px; font: 800 36px/40px var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--ink); }
@@ -1282,3 +1290,6 @@ span.dc-week-btn { cursor: default; }
 .dc-list-link small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 /* PersonCard：姓名后的状态标签 */
 .dc-person-name .dc-tag { margin-left: var(--space-2); vertical-align: 2px; }
+
+/* DataTable：刚加上的一行（如调整信用分后的变动），同 TxnList 的 is-new */
+.dc-table tr.is-new td { animation: dc-highlight 1200ms ease-out; }
