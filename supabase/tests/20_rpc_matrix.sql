@@ -91,6 +91,9 @@ insert into tests.matrix values
   ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{president,teacher}'),
   -- 登记发行: the bank admin alone (PHASE-2.md §3)
   ('register_issue(text,date,jsonb,text,text)', 'select register_issue('''', current_date, ''{}'', '''', '''')', '{teacher}'),
+  -- 信用分: the student their own, the accountant, president and bank admin anyone's; 手动调整 the bank admin alone (PHASE-2.md §3)
+  ('credit_profile(text)', 'select credit_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
+  ('adjust_credit(text,integer,text)', 'select adjust_credit(''nobody'', 1, ''x'')', '{teacher}'),
   -- 学期: the bank admin alone (PHASE-2.md §3)
   ('upsert_term(uuid,text,date,date)', 'select upsert_term(null, '''', current_date, current_date)', '{teacher}'),
   ('close_term(uuid)', 'select close_term(gen_random_uuid())', '{teacher}'),
@@ -161,6 +164,8 @@ insert into tests.writes values
   ('staff_payroll', 'update staff_payroll set attendance = true'),
   ('currency_issues', 'delete from currency_issues'),
   ('terms', 'update terms set closed_at = now()'),
+  ('credit_scores', 'update credit_scores set score = 1000'),
+  ('credit_events', 'insert into credit_events (student_no, delta, score, rule, reason) values (''s1'', 400, 1000, ''manual'', ''x'')'),
   ('job_runs', 'update job_runs set last_err = null'),
   ('audit_log', 'delete from audit_log');
 select is(tests.verdict(w.id, x.stmt), 'denied', format('%s: write %s', w.name, x.tbl))
