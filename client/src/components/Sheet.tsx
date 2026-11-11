@@ -17,17 +17,19 @@ function keepTab(e: KeyboardEvent, sheet: HTMLElement) {
 }
 
 // Everyone a batch confirmation reaches (design system Sheet): name and number, scrolling in its box past five rows.
-export function SheetList({ people }: { people: [string, string][] }) {
-  return <ul className="dc-sheet-list" tabIndex={0} aria-label="本次涉及">{people.map(([name, no]) => <li key={no}><b>{name}</b><small>{no}</small></li>)}</ul>;
+// Also what still holds something up, each with how it stands, under its own `label`.
+export function SheetList({ people, label = '本次涉及' }: { people: [string, string][]; label?: string }) {
+  return <ul className="dc-sheet-list" tabIndex={0} aria-label={label}>{people.map(([name, no], i) => <li key={i}><b>{name}</b><small>{no}</small></li>)}</ul>;
 }
 
 // Confirmation sheet (design system Sheet): rises from the foot on phones, a centred dialog on wider screens.
 // Esc or a tap on the scrim cancels; closing plays the leaving animation before the sheet is removed. `children`
 // holds the choices a confirmation needs (e.g. a reason); `ready` keeps the confirm button off until they are made.
 // Focus starts on the first button, stays in the sheet, and goes back to what opened it when the sheet is gone.
-// `alt` adds a second way to go on beside the confirm button (下载 PDF beside 打印).
+// `alt` adds a second way to go on beside the confirm button (下载 PDF beside 打印); `cancel={null}` leaves the
+// confirm button alone (知道了).
 export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = true, busy = false, alt, onConfirm, onClose, children }: {
-  title: string; text: ReactNode; confirm: string; cancel?: string; ready?: boolean; busy?: boolean;
+  title: string; text?: ReactNode; confirm: string; cancel?: string | null; ready?: boolean; busy?: boolean;
   alt?: { label: string; onClick: () => void }; onConfirm: () => void; onClose: () => void; children?: ReactNode;
 }) {
   const [leaving, setLeaving] = useState(false);
@@ -54,12 +56,12 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = 
       onAnimationEnd={(e) => leaving && e.target === e.currentTarget && onClose()}>
       <div ref={sheet} className="dc-sheet" role="dialog" aria-modal="true" aria-labelledby="dc-sheet-title">
         <h2 className="dc-sheet-title" id="dc-sheet-title">{title}</h2>
-        <p className="dc-sheet-text">{text}</p>
+        {text && <p className="dc-sheet-text">{text}</p>}
         {children}
         <div className="dc-sheet-actions">
-          <button ref={first} className="dc-btn dc-btn-secondary" type="button" onClick={() => setLeaving(true)}>{cancel}</button>
+          {cancel !== null && <button ref={first} className="dc-btn dc-btn-secondary" type="button" onClick={() => setLeaving(true)}>{cancel}</button>}
           {alt && <button className="dc-btn dc-btn-secondary" type="button" disabled={!ready || busy} onClick={alt.onClick}>{alt.label}</button>}
-          <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!ready || busy} onClick={onConfirm}>{confirm}</button>
+          <button ref={cancel === null ? first : undefined} className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!ready || busy} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>
     </div>

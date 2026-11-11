@@ -6,6 +6,8 @@ function shanghaiTime(iso: string) {
   }).formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
   return `${t.month}月${t.day}日 ${t.hour}:${t.minute}`;
 }
+// 2027-01-20 → 1月20日.
+const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8, 10))}日`;
 
 // Error codes from the database functions (app_private.fail) as the counter shows them (PHASE-1.md §7.6).
 export type Detail = Record<string, unknown>;
@@ -26,6 +28,7 @@ const FIELDS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限', ranking_size: '排名人数',
   promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', salary_per_shift: '班次工资',
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '补签说明', status: '审核结果', week: '发放的周',
+  name: '名称', starts_on: '开始日', ends_on: '结束日',
 };
 
 export function explain(code: string, d: Detail = {}): { title: string; text: string } {
@@ -64,6 +67,11 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };
     case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
     case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码输错次数过多，请 15 分钟后再试。' };
+    case 'NO_TERM': return { title: '现在不在学期内', text: '还没有登记当前学期，暂时不能办理贷款和定期。' };
+    case 'TERM_OPEN_ITEMS': return { title: '还不能结转', text: '下面这些处理完后，再结转学期。' };
+    case 'TERM_OVERLAP': return { title: '学期日期重叠', text: `和「${d.term}」的日期重叠，请调整开始日或结束日。` };
+    case 'TERM_NOT_ENDED': return { title: '学期还没结束', text: `${monthDay(String(d.ends_on))} 之后才能结转。` };
+    case 'TERM_CLOSED': return { title: '学期已结转', text: '结转后的学期不能再修改。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }

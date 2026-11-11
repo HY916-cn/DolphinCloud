@@ -7,6 +7,7 @@ import { formatAmount, formatTime } from '@/lib/format';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { readAll, supabase } from '@/lib/supabase';
+import { jobFailure } from '@/lib/term';
 import { KINDS } from '@/lib/txns';
 
 const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
@@ -23,7 +24,20 @@ export default function Admin() {
   const money = has('accountant', 'teacher', 'president');
   const logins = has('teacher', 'sysadmin');
   const goods = has('storekeeper', 'teacher', 'president');
+  const ops = has('sysadmin');
   const day = today();
+
+  // A scheduled job that failed (PHASE-2.md §13); the notice goes once the job next succeeds.
+  const jobs = useQuery({
+    queryKey: ['job-runs'],
+    enabled: ops,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('job_runs').select('job,done_to,last_err').not('last_err', 'is', null).order('job');
+      if (error) throw error;
+      return data as { job: string; done_to: string; last_err: string }[];
+    },
+  });
 
   const mismatch = useQuery({
     queryKey: ['check-mismatch'],
@@ -205,6 +219,14 @@ export default function Admin() {
 
   return (
     <Desk title="总览">
+      {!!jobs.data?.length && (
+        <Notice tone="danger" title="定时任务没有完成">
+          {jobs.data.map(jobFailure).map((f) => (
+            <span key={f.job}>{f.job}已处理到 {f.done}，{f.day ? `${f.day} ` : ''}没有完成：<code>{f.reason}</code>。</span>
+          ))}
+          在服务器上运行 <code>dolphin jobs</code> 查看，用 <code>dolphin jobs run</code> 重试。
+        </Notice>
+      )}
       {mismatch.data && (
         <Notice tone="danger" title="余额自检发现不一致">
           {formatTime(mismatch.data.at)} 的自检有 {mismatch.data.after.length} 处余额或库存与流水不符，请在服务器上运行 dolphin check 核对。

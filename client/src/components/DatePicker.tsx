@@ -24,10 +24,11 @@ const shortDate = (s: string) => { const [y, m, d] = parts(s); return `${String(
 // DatePicker (design system): a trigger that opens a month calendar, Monday first; its title opens a month panel
 // to jump by year. `min`/`max` bound the days that can be picked; `rule` says why the others cannot. With
 // `placeholder` the field may stay empty and the footer can clear it. `shown` replaces the date on the trigger (a
-// week), `short` shows it briefly (two pickers side by side), and `bare` leaves the label to screen readers.
-export function DatePicker({ label, value, onChange, min, max, rule, placeholder, shown, bare, short }: {
+// week), `short` shows it briefly (two pickers side by side), and `bare` leaves the label to screen readers. `locked`
+// keeps the date as it is and says why; `error` marks the field with what is wrong.
+export function DatePicker({ label, value, onChange, min, max, rule, placeholder, shown, bare, short, locked, error }: {
   label: string; value: string; onChange: (v: string) => void; min?: string; max?: string; rule: string; placeholder?: string;
-  shown?: string; bare?: boolean; short?: boolean;
+  shown?: string; bare?: boolean; short?: boolean; locked?: string; error?: string;
 }) {
   const id = useId();
   const now = today();
@@ -105,13 +106,14 @@ export function DatePicker({ label, value, onChange, min, max, rule, placeholder
   }
 
   return (
-    <div className={`dc-field dc-date${bare ? ' is-bare' : ''}`} ref={root}>
+    <div className={`dc-field dc-date${bare ? ' is-bare' : ''}${error ? ' is-error' : ''}`} ref={root}>
       <label className={bare ? 'dc-sr-only' : 'dc-field-label'} htmlFor={id}>{!bare && <Icon name="calendar" />}{label}</label>
       <button ref={trigger} className="dc-date-trigger" id={id} type="button" aria-haspopup="dialog" aria-expanded={open}
-        aria-controls={`${id}-cal`} onClick={() => (open ? close() : show())}>
+        aria-controls={`${id}-cal`} disabled={!!locked} onClick={() => (open ? close() : show())}>
         <span style={value ? undefined : { color: 'var(--ink-muted)' }}>{shown ?? (value ? (short ? shortDate(value) : formatDate(value)) : placeholder)}</span>
-        <Icon name="calendar" />
+        <Icon name={locked ? 'lock' : 'calendar'} />
       </button>
+      {(error || locked) && <span className="dc-field-hint">{error ? <><Icon name="warning" />{error}</> : locked}</span>}
       <div ref={cal} className={`dc-cal ${months ? 'is-months' : ''}`} id={`${id}-cal`} role="dialog" aria-label={`选择${label}`} hidden={!open} onKeyDown={key}
         style={{ minWidth: `min(${CAL}px, calc(100vw - 32px))`, ...(right ? { left: 'auto', right: 0 } : null) }}>
         <div className="dc-cal-head">
