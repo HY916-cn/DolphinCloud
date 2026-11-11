@@ -943,7 +943,7 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-rules::before { content: attr(aria-label); display: block; margin: 0 0 var(--space-1) calc(-1 * var(--space-5)); font-weight: 800; letter-spacing: .3em; }
 @container app (max-width: 599px) {
   .dc-pb-types { gap: 4px; }
-  .dc-pb-types button { min-height: 40px; padding: 0 10px; font-size: 13px; letter-spacing: .04em; }
+  .dc-pb-types button { flex: 1 1 0; min-height: 40px; padding: 0 4px; font-size: 13px; letter-spacing: .04em; }
 }
 @container app (min-width: 1024px) {
   /* 打开的存折：每页带着自己那半边蓝封皮（渐变按整本书算，两半拼起来和一整张一样），打开时左页才能连着封皮一起翻过来。
