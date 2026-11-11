@@ -1,7 +1,7 @@
 # CI (PHASE-1.md §10): every push and pull request runs the dependency audit, type check, lint and unit tests, then
 # builds the image and runs the pgTAP, smoke and end-to-end tests on it. A push to main that passes publishes the image
-# to GitHub Container Registry. The performance, upgrade and rollback tests (docker/perf-test.sh, upgrade-test.sh,
-# rollback-test.sh) run weekly and on manual dispatch.
+# to GitHub Container Registry. The performance, simulation, upgrade and rollback tests (docker/perf-test.sh, sim-test.sh,
+# upgrade-test.sh, rollback-test.sh) run weekly and on manual dispatch.
 name: CI
 
 on:
@@ -109,6 +109,8 @@ jobs:
           cache-from: type=gha
       - name: Performance test (2000 students, 100 000 transactions)
         run: docker/perf-test.sh dolphin-cloud:dev
+      - name: Simulation (2000 students, one 18-week term)
+        run: docker/sim-test.sh dolphin-cloud:dev
 
   upgrade:
     needs: image
