@@ -751,7 +751,7 @@ client/                 Expo 前端
 supabase/
   migrations/           数据库迁移（开发与生产共用）
   tests/                pgTAP 测试（`helpers/setup.psql` 为公用辅助）
-  seed.sql              开发种子数据（银行管理员、柜员、三名学生、商品与几笔交易；密码均为固定测试密码 `a12345678`）
+  seed.sql              开发种子数据（银行管理员 `admin`、运维员 `ops01`、柜员 `teller01`、行长 `president01`、财务 `accountant01`、库管 `keeper01`、三名学生、商品与几笔交易；密码均为固定测试密码 `a12345678`）
 docker/
   Dockerfile            多阶段构建，开头 ARG 锁定组件版本
   smoke-test.sh         单容器冒烟测试（M0）

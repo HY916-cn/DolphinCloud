@@ -2,8 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 海豚信用分 (PHASE-2.md §8) on the seed data (supabase/seed.sql): every student starts at 600. The counter's card, the
-// back office's 信用分 page with the bank admin's adjustment, the president who only reads it, and the 信用分 group
-// of 参数. Tests run in order: the adjustment of the third is what the student sees.
+// back office's 信用分 page with the bank admin's adjustment, the president and the accountant who only read it, the
+// storekeeper who has no 信用分, and the 信用分 group of 参数. Tests run in order: the adjustment of the third is what
+// the student and the accountant see.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 
@@ -87,6 +88,40 @@ test('银行管理员 adjusts a score in two steps, and the student sees it', as
   await expect(student.locator('.dc-gauge.is-lg').getByRole('meter')).toHaveAttribute('aria-valuenow', '550');
   await expect(student.locator('.dc-txn').first()).toContainText('银行管理员调整：损坏公物');
   await student.context().close();
+});
+
+test('财务 reads a student’s score and changes, without 调整信用分 or 参数', async ({ page }) => {
+  await signIn(page, '工作人员', 'accountant01');
+  await expect(page).toHaveURL(/\/admin$/);
+  const nav = page.getByRole('navigation', { name: '主导航' });
+  await expect(nav.getByRole('link', { name: '参数', exact: true })).toHaveCount(0);
+  await nav.getByRole('link', { name: '信用分', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/credit$/);
+  await findStudent(page, '20260001', '张小明');
+  await expect(page.locator('.dc-gauge.is-lg').getByRole('meter')).toHaveAttribute('aria-valuenow', '550');
+  await expect(page.getByRole('table', { name: '信用分变动' }).locator('tbody tr').first()).toContainText('银行管理员调整：损坏公物');
+  await expect(page.getByRole('button', { name: '调整信用分' })).toHaveCount(0);
+  await expect(page.getByRole('table', { name: '加减分规则' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
+  await page.goto('/admin/settings');
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
+test('库管 has no 信用分 or 学期: the addresses go back to 总览 and read nothing', async ({ page }) => {
+  const read: string[] = [];
+  page.on('request', (r) => { if (/\/rest\/v1\/(credit_|terms)/.test(r.url())) read.push(r.url()); });
+  await signIn(page, '工作人员', 'keeper01');
+  await expect(page).toHaveURL(/\/admin$/);
+  const nav = page.getByRole('navigation', { name: '主导航' });
+  await expect(nav.getByRole('link', { name: '商品', exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: '信用分', exact: true })).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: '学期', exact: true })).toHaveCount(0);
+  for (const path of ['/admin/credit', '/admin/terms']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.locator('.dc-top-title')).toContainText('总览');
+  }
+  expect(read).toEqual([]);
 });
 
 test('参数 → 信用分: a wrong value or order is marked and never sent; a right one is saved', async ({ page }) => {

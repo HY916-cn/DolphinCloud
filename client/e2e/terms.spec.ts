@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, resetData, signIn, sql } from './helpers';
 
-// 学期 (PHASE-2.md §6): the bank admin registers, changes and closes terms; the president only reads them. And the
+// 学期 (PHASE-2.md §6): the bank admin registers, changes and closes terms; the president and the accountant only read them. And the
 // sysadmin's overview while a scheduled job has failed (§13). The tests build on each other's terms.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
@@ -126,6 +126,16 @@ test('the president reads the terms without a way to change them', async ({ page
   await expect(page.getByText('学期由银行管理员登记和结转')).toBeVisible();
   await expect(row(page, FIRST)).toContainText('已结转');
   await expect(row(page, '2025 学年第二学期')).toContainText('已结束未结转');
+  await expect(page.getByRole('table', { name: '学期' }).getByRole('button')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '登记学期' })).toHaveCount(0);
+});
+
+test('the accountant reads the terms without a way to change them', async ({ page }) => {
+  await signIn(page, '工作人员', 'accountant01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '学期' }).click();
+  await expect(page.getByText('学期由银行管理员登记和结转')).toBeVisible();
+  await expect(row(page, FIRST)).toContainText('已结转');
   await expect(page.getByRole('table', { name: '学期' }).getByRole('button')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '登记学期' })).toHaveCount(0);
 });

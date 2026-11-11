@@ -1,11 +1,11 @@
 -- Development data: psql -f supabase/seed.sql against a fresh local container (never production).
 -- Every login uses the fixed test password a12345678 (real logins get random ones) and has one identity: admin (teacher),
--- ops01 (sysadmin), teller01 (teller), president01 (president), three students. All but 20260003 are past their first
--- sign-in; 20260003 still has to set a new password.
+-- ops01 (sysadmin), teller01 (teller), president01 (president), accountant01 (accountant), keeper01 (storekeeper), three
+-- students. All but 20260003 are past their first sign-in; 20260003 still has to set a new password.
 begin;
 do $$
 declare
-  v_teacher uuid; v_admin uuid; v_teller uuid; v_president uuid; v_uid uuid; v_book uuid; v_pen uuid;
+  v_teacher uuid; v_admin uuid; v_teller uuid; v_president uuid; v_accountant uuid; v_keeper uuid; v_uid uuid; v_book uuid; v_pen uuid;
   v_row record;
 begin
   v_teacher := (app_private.create_admin('admin') ->> 'user_id')::uuid;
@@ -21,6 +21,12 @@ begin
   v_president := app_private.create_login('president01@staff.dolphin.internal', 'a12345678');
   insert into profiles (id, login_kind, login_id, display_name) values (v_president, 'staff', 'president01', '王行长');
   insert into user_roles values (v_president, 'president');
+  v_accountant := app_private.create_login('accountant01@staff.dolphin.internal', 'a12345678');
+  insert into profiles (id, login_kind, login_id, display_name) values (v_accountant, 'staff', 'accountant01', '财务小郑');
+  insert into user_roles values (v_accountant, 'accountant');
+  v_keeper := app_private.create_login('keeper01@staff.dolphin.internal', 'a12345678');
+  insert into profiles (id, login_kind, login_id, display_name) values (v_keeper, 'staff', 'keeper01', '库管小吴');
+  insert into user_roles values (v_keeper, 'storekeeper');
 
   for v_row in select * from (values
       ('20260001', '张小明', 'primary', app_private.grade_of('primary', 0) - 4, 1, 120),

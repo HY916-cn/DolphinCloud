@@ -33,7 +33,7 @@ docker build -f docker/Dockerfile -t dolphin-cloud:dev .
 docker run -d --name dolphin-dev -e DOLPHIN_DOMAIN=localhost -p 127.0.0.1:18444:443 -v dolphin-dev-data:/data dolphin-cloud:dev
 ```
 
-导入种子数据（银行管理员 `admin`、运维员 `ops01`、柜员 `teller01` 与三名学生，密码均为测试密码 `a12345678`，只用于本地）：
+导入种子数据（银行管理员 `admin`、运维员 `ops01`、柜员 `teller01`、行长 `president01`、财务 `accountant01`、库管 `keeper01` 与三名学生，密码均为测试密码 `a12345678`，只用于本地）：
 
 ```bash
 docker exec -i dolphin-dev psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/seed.sql
