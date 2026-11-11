@@ -141,6 +141,8 @@ select is((select count(*) from credit_events), :'week_events'::bigint, 'countin
 -- 2025 (18 weeks); 夏季 from Wednesday 16 July.
 update students set status = 'frozen' where status = 'normal';
 insert into terms (name, starts_on, ends_on) values ('春季', '2025-03-03', '2025-07-06'), ('夏季', '2025-07-16', '2025-08-31');
+-- No 活期利息 here (an anchor of 0): the scores below count the deposits alone.
+update settings set value = value || '{"initial":0,"min":0,"max":0}' where key = 'anchor_params';
 update job_runs set done_to = '2025-03-01', last_ok = null, last_err = null;
 -- 一学期 (§8.2): no loan, a deposit every Wednesday, never below 100: opened the first day of term with 120.
 select tests.old('saver', 120, '2025-03-03');

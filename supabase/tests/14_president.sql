@@ -23,7 +23,7 @@ select is(tests.err(:'p1', format($$select set_attendance(%L, false)$$, :'t1')),
 select is(tests.err(:'p1', $$select upsert_product(null, '海豚书签', 2, 1)$$) is distinct from 'FORBIDDEN', true, '商品');
 select is((tests.call(:'p1', $$select count(*) from audit_log$$))::int > 0, true, '日志');
 select is((tests.call(:'p1', $$select count(*) from accounts$$))::int, 2, 'every balance');
-select is((tests.call(:'p1', $$select count(*) from profiles where login_kind = 'staff'$$))::int, 5, 'the staff list, to read');
+select is((tests.call(:'p1', $$select count(*) from profiles where login_kind = 'staff' and closed_at is null$$))::int, 5, 'the staff list, to read');
 
 -- Not managing logins.
 select is(tests.err(:'p1', $$select import_roster('[]')$$), 'FORBIDDEN', 'no 导入名册');

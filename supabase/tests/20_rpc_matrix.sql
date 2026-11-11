@@ -94,6 +94,9 @@ insert into tests.matrix values
   -- 信用分: the student their own, the accountant, president and bank admin anyone's; 手动调整 the bank admin alone (PHASE-2.md §3)
   ('credit_profile(text)', 'select credit_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
   ('adjust_credit(text,integer,text)', 'select adjust_credit(''nobody'', 1, ''x'')', '{teacher}'),
+  -- 利率与利息: the student their own, the accountant, president and bank admin anyone's and the 利率 page (PHASE-2.md §3)
+  ('interest_profile(text)', 'select interest_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
+  ('rate_overview()', 'select rate_overview()', '{accountant,president,teacher}'),
   -- 学期: the bank admin alone (PHASE-2.md §3)
   ('upsert_term(uuid,text,date,date)', 'select upsert_term(null, '''', current_date, current_date)', '{teacher}'),
   ('close_term(uuid)', 'select close_term(gen_random_uuid())', '{teacher}'),

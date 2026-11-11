@@ -26,7 +26,7 @@ select is((select row(type, amount, balance_delta, balance_after, cash_delta)::t
   row('closing', 30, -30, 0, 0)::text, 'one 注销清零 transaction takes the balance to 0 and brings no cash');
 select is((select count(*)::int from txns where student_no = 's2' and type = 'closing'), 0, 'an empty account needs none');
 select is((select array_agg(status order by student_no) from students), '{closed,closed}', 'both accounts are closed');
-select is((select count(*)::int from profiles where closed_at is not null and disabled), 2, 'and their logins stopped for good');
+select is((select count(*)::int from profiles where closed_at is not null and disabled and login_kind = 'student'), 2, 'and their logins stopped for good');
 select is((select count(*)::int from auth.users where id in (:'s1', :'s2') and banned_until > now()), 2, 'Auth refuses them');
 select is((select row(attendance, account)::text from staff_payroll where user_id = :'t1'), row(false, null)::text,
   'a teller whose 工资账户 was closed is no longer counted');
