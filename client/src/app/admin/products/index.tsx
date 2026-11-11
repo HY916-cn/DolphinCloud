@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Desk, Icon, link, ListLoading, Notice } from '@/components';
+import { Desk, Icon, link, ListLoading, MorphIcon, Notice } from '@/components';
 import { formatAmount } from '@/lib/format';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
@@ -51,7 +51,7 @@ export default function Products() {
                     <small className="dc-top-sub">价格 {formatAmount(p.price)} HTB · 库存 {p.stock}</small>
                   </span>
                   <span className={`dc-tag ${p.listed ? '' : 'dc-tag-danger'}`} style={{ flex: 'none' }}>
-                    <Icon name={p.listed ? 'check' : 'warning'} />{p.listed ? '已上架' : '已下架'}
+                    <MorphIcon name={p.listed ? 'check' : 'warning'} />{p.listed ? '已上架' : '已下架'}
                   </span>
                   <Icon name="next" />
                 </a>

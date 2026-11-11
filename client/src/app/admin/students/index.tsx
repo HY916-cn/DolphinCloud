@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, noticePages, openingPages, OutputSheet, Pick,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, MorphIcon, Notice, noticePages, openingPages, OutputSheet, Pick,
   ResetNoticeSheet, SheetList, today, type NoticeAccount,
 } from '@/components';
 import { classOf } from '@/lib/counter';
@@ -156,7 +156,7 @@ export default function Students() {
           </ul>
         ) : students.data && (
           <div className="dc-empty">
-            <span className="dc-empty-icon"><Icon name={query ? 'query' : 'me'} /></span>
+            <span className="dc-empty-icon"><MorphIcon name={query ? 'query' : 'me'} /></span>
             <h3>{query ? `没有找到「${query.trim()}」` : onlyWaiting ? '所有学生都已设置新密码' : '还没有学生'}</h3>
             <p>{query ? '换个写法试试：姓名、拼音首字母、班级或学号。' : onlyWaiting ? '取消「未设置密码」筛选可以查看全部学生。' : '导入名册后，这里会列出全部学生。'}</p>
           </div>

@@ -1,5 +1,7 @@
 import { router, type Href } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import { svgToIcon } from 'morphicons/adapters';
+import { MorphIcon as Morph } from 'morphicons/react';
 import { icons, type IconName } from '@/theme/icons';
 
 export type { IconName };
@@ -10,6 +12,15 @@ export function Icon({ name }: { name: IconName }) {
     <svg className="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"
       strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: icons[name] }} />
   );
+}
+
+// An Icon whose strokes morph into the next one when `name` changes (motion.md "图标变形"): only for an element
+// that swaps icons as its state changes. It first draws without a morph and swaps instantly under reduced motion.
+export function MorphIcon({ name }: { name: IconName }) {
+  // Wrapped in fill="none": svgToIcon reads bare markup as a filled icon, and morphing that throws and blanks the page.
+  // Memoised because a new object would restart the morph every render.
+  const icon = useMemo(() => svgToIcon(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${icons[name]}</svg>`), [name]);
+  return <Morph className="dc-icon" icon={icon} spring={{ stiffness: 1150, damping: 67.8 }} reducedMotion="user" />;
 }
 
 // Props for an <a> that navigates inside the app without reloading the page.

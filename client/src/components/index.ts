@@ -2,7 +2,7 @@ export { BalanceCard, signed, TxnList, TxnListLoading, useTerm } from './Account
 export { DIVISIONS, medal, Podium, RankNext, rankNext, RankRow, RankSummary, useRanking, type Ranking } from './Ranking';
 export { Page, SECTIONS, Shell, sectionsFor } from './Shell';
 export { ConfirmSheet, SheetList, SignOut } from './Sheet';
-export { Icon, Loading, Notice, link, type IconName } from './ui';
+export { Icon, Loading, MorphIcon, Notice, link, type IconName } from './ui';
 export { Welcome } from './Welcome';
 export { Gate, SignOutBlock } from './Gate';
 export { Desk } from './Desk';

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, Notice, Pick, ResetNoticeSheet, SheetList, staffNotice, staffNoticePages,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, MorphIcon, Notice, Pick, ResetNoticeSheet, SheetList, staffNotice, staffNoticePages,
   type StaffNotice,
 } from '@/components';
 import { readPayroll, type Payroll } from '@/lib/attendance';
@@ -120,7 +120,7 @@ export default function Staff() {
         </ul>
       ) : staff.data && (
         <div className="dc-empty">
-          <span className="dc-empty-icon"><Icon name={q ? 'query' : 'teacher'} /></span>
+          <span className="dc-empty-icon"><MorphIcon name={q ? 'query' : 'teacher'} /></span>
           <h3>{q ? `没有找到「${query.trim()}」` : stopped ? '没有停用的账号' : '还没有工作人员'}</h3>
         </div>
       )}
