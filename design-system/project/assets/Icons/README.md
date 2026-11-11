@@ -47,6 +47,7 @@
 | `president` | 行长 | `landmark` |
 | `sysadmin` | 运维员 | `wrench` |
 
+- 同一位置换图标时的变形过渡用 morphicons（MIT），图标路径仍取这里的文件，见“动效”的“图标变形”。
 - 组件里内联同一份路径，描边写 `stroke="currentColor"`，让图标跟随文字颜色；作为 `<img>` 使用时放在 `surface`、`surface-raised`、`cloud-100` 上。
 - 常用尺寸 20 / 26 / 28 / 30 / 36 / 52px。图标总是和文字一起出现，除非是头像或纯装饰。
 - 账号头像（`Avatar`）的圆里就是身份图标：`student`、`teller`、`accountant`、`storekeeper`、`president`、`sysadmin`，银行管理员用 `teacher`，还没分配身份用 `help`，这台设备不知道身份的账号用 `person`。
