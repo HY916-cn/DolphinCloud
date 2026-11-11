@@ -1255,3 +1255,22 @@ span.dc-week-btn { cursor: default; }
 
 /* DatePicker：出错（与 Field 的 is-error 相同） */
 .dc-field.is-error .dc-date-trigger { border-color: var(--danger); animation: dc-nudge var(--motion-enter) ease-in-out; }
+
+/* 学生首页：余额下面的信用摘要（左边几行，右边中号仪表盘，点它进入“信用”页） */
+.dc-credit-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-4) var(--space-6); }
+.dc-credit-summary:has(> .dc-credit-summary-gauge:only-child) { grid-template-columns: 1fr; justify-items: center; }
+.dc-credit-summary .dc-kv dt { white-space: nowrap; }
+.dc-credit-summary-gauge { display: block; margin: calc(var(--space-2) * -1); padding: var(--space-2); border-radius: var(--radius-md); color: inherit; text-decoration: none; }
+.dc-credit-summary-gauge:hover { background: var(--cloud-100); }
+.dc-credit-summary-gauge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@container app (max-width: 599px) {
+  .dc-credit-summary { grid-template-columns: 1fr; }
+  .dc-credit-summary-gauge { order: -1; justify-self: center; }
+}
+/* SummaryList：需要注意的一行（贷款逾期） */
+.dc-kv .is-danger :is(dt, dd) { color: var(--danger); }
+.dc-kv .is-danger dd .dc-icon { display: inline-block; width: 20px; height: 20px; margin-right: var(--space-1); vertical-align: -4px; color: inherit; }
+/* ListGroup：链接下面一行说明 */
+.dc-list-link small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+/* PersonCard：姓名后的状态标签 */
+.dc-person-name .dc-tag { margin-left: var(--space-2); vertical-align: 2px; }

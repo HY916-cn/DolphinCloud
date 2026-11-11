@@ -72,7 +72,7 @@
 
 ## 图标
 
-- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 40 个图标（21 个业务图标、12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 42 个图标（23 个业务图标、12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
 - 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
 - 图标状态切换用 CSS 完成：导航的选中底块滑动、展开箭头旋转、完成打勾用 `dc-pop`，不引入形变动画库。
 - 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、底部导航 30px、侧边导航 26～28px、提示条和余额卡 36px、宫格 52px。
@@ -86,7 +86,7 @@
 - 布局：`AppShell`（多端外壳与导航）、`ActionBar`（页面操作栏）、`WaveDivider`。
 - 操作与导航：`Button`、`ServiceTile`、`TabBar`、`Tabs`、`Segmented`、`FilterChips`。
 - 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`QtyStepper`。
-- 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`Avatar`（账号头像，图标表示身份）、`PersonCard`、`SummaryList`、`Progress`、`CreditGauge`（海豚信用分仪表盘）、`ListGroup`。
+- 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`Avatar`（账号头像，图标表示身份）、`PersonCard`、`SummaryList`、`Progress`、`CreditGauge`（海豚信用分仪表盘，用法见 `StudentCreditPage` 和“数据与后台”）、`ListGroup`。
 - 数据：`Stats`（统计数字）、`Chart`（单系列图表）、`DataTable`（数字表格）、`Attendance`（考勤）、`BatchBar`（批量管理）。用法见“数据与后台”。
 - 引导与反馈：`Tag`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
 
@@ -95,4 +95,4 @@
 
 ## 页面示例
 
-`LoginPage`（登录）、`StudentHomePage`（学生首页）、`TxnHistoryPage`（明细）、`RankingPage`（存款排名）、`SettingsPage`（我的）、`StudentBookLogin`（存折版登录）、`StudentBookPage`（存折版）、`CounterServicePage`（柜台办理：一位学生连续办理多笔）八个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。
+`LoginPage`（登录）、`StudentHomePage`（学生首页）、`TxnHistoryPage`（明细）、`StudentCreditPage`（信用）、`RankingPage`（存款排名）、`SettingsPage`（我的）、`StudentBookLogin`（存折版登录）、`StudentBookPage`（存折版）、`CounterServicePage`（柜台办理：一位学生连续办理多笔）九个页面示例，各自并排展示手机、平板、电脑三种宽度下的同一份页面结构，是组合组件的参考写法。

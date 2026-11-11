@@ -27,6 +27,8 @@
 | `success` | 成功 | `circle-check` |
 | `warning` | 警示 | `triangle-alert` |
 | `ranking` | 排名 | `trophy` |
+| `gauge` | 信用分 | `gauge` |
+| `school` | 学期 | `school` |
 | `plus` | 增加 | `plus` |
 | `minus` | 减少 | `minus` |
 | `back` | 返回 | `chevron-left` |

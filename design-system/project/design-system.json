@@ -56,6 +56,8 @@
         "success.svg",
         "warning.svg",
         "ranking.svg",
+        "gauge.svg",
+        "school.svg",
         "plus.svg",
         "minus.svg",
         "back.svg",
@@ -314,6 +316,18 @@
           "name": "sysadmin.svg",
           "size": 393,
           "type": "image/svg+xml"
+        },
+        "gauge.svg": {
+          "name": "gauge.svg",
+          "blob": "fda7cdef925e41101082c928475a3914",
+          "size": 256,
+          "type": "image/svg+xml"
+        },
+        "school.svg": {
+          "name": "school.svg",
+          "blob": "f5f030779e4524de16205010057fc6c3",
+          "size": 492,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -329,8 +343,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-11T05:51:24Z",
+    "at": "2026-11-11T06:06:03Z",
     "via": "Claude Code",
-    "note": "学期页主操作放进操作栏，日期选择器出错样式"
+    "note": "M8 信用分：信用页、首页信用摘要、柜台卡片、后台信用分页、参数分组；新增 gauge、school 图标"
   }
 }
