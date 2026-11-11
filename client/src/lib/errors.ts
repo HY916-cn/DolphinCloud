@@ -28,7 +28,7 @@ const FIELDS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限', ranking_size: '排名人数',
   promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', salary_per_shift: '班次工资',
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '补签说明', status: '审核结果', week: '发放的周',
-  name: '名称', starts_on: '开始日', ends_on: '结束日',
+  name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
 };
 
 export function explain(code: string, d: Detail = {}): { title: string; text: string } {

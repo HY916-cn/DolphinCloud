@@ -24,7 +24,7 @@ const ACTIONS: Record<string, string> = {
   'roster.import': '名册导入', 'user.reset_password': '重置密码', 'txn.reverse': '冲正', 'check.mismatch': '余额自检不一致',
   'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
   'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
-  'user.close': '注销账号', 'salary.bind': '绑定工资账户', 'staff.import': '工作人员导入',
+  'user.close': '注销账号', 'salary.bind': '绑定工资账户', 'staff.import': '工作人员导入', 'credit.adjust': '调整信用分',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
@@ -47,6 +47,7 @@ type AuditFilter = Filter & { actor: string; student: { no: string; id: string |
 const SETTINGS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限',
   ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期', salary_per_shift: '班次工资',
+  credit_curve: '信用分计算参数', credit_rules: '加减分规则',
 };
 const COLUMNS: Record<string, string> = {
   name: '名称', display_name: '姓名', login_id: '账号', disabled: '停用', must_change_password: '需要修改密码', role: '身份',

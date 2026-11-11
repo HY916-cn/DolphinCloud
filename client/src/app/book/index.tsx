@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
-import { BookPages, DIVISIONS, link, Notice, PassbookPage, PassbookRows, PassbookSeal, signed, TxnListLoading, useLines, useRanking, useTerm } from '@/components';
+import {
+  BookPages, CreditGauge, DIVISIONS, link, Notice, PassbookPage, PassbookRows, PassbookSeal, signed, TxnListLoading, useCredit, useGaugeCurve, useLines, useRanking, useTerm, useWide,
+} from '@/components';
 import { formatAmount, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { useMe } from '@/lib/session';
 
-// 账户: the account's page with the balance under the bank's seal, this term's money in and out and the place in the
-// division; facing it (on a phone, the next page), the latest businesses a page holds with the balance after each, the
+// 账户: the account's page with the balance under the bank's seal, the 海豚信用分 on a small gauge, this term's money in
+// and out and, when two pages face each other, the place in the division (a phone's page gives that line to 信用分); facing it (on a phone, the next page), the latest businesses a page holds with the balance after each, the
 // ones new since this device last opened it printed as you watch.
 export default function BookAccount() {
   const student = useMe().data!.student!;
   const term = useTerm(student.student_no);
   const ranking = useRanking(student.student_no);
   const txns = useRecent(student.student_no);
+  const credit = useCredit();
+  const curve = useGaugeCurve();
+  const wide = useWide();
   const lines = useLines();
   const recent = txns.data?.slice(0, lines);
   const r = ranking.data;
@@ -39,9 +44,10 @@ export default function BookAccount() {
             <PassbookSeal />
           </div>
           <dl className="dc-pb-fields dc-pb-sums">
+            {!credit.isError && <><dt>信用分</dt><dd>{credit.data ? <CreditGauge score={credit.data.score} size="sm" {...curve} /> : '…'}</dd></>}
             <dt>本学期存入</dt><dd className="is-in">{term.data ? signed(term.data.saved) : '…'}</dd>
             <dt>本学期支出</dt><dd>{term.data ? signed(term.data.spent) : '…'}</dd>
-            {r?.me && <><dt>存款排名</dt><dd>第 {r.me.rank} 名<small>{DIVISIONS[r.division]} {r.total} 人</small></dd></>}
+            {wide && r?.me && <><dt>存款排名</dt><dd>第 {r.me.rank} 名<small>{DIVISIONS[r.division]} {r.total} 人</small></dd></>}
           </dl>
         </>}
         <ol className="dc-pb-rules" aria-label="存折须知">

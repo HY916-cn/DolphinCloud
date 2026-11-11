@@ -38,7 +38,17 @@ test('the cover is the lock: a wrong password keeps it shut, a student’s 学�
   const account = page.getByRole('region', { name: '储蓄存折' });
   await expect(account.locator('.dc-pb-fields').first()).toContainText('账号20260001');
   await expect(account.locator('.dc-pb-balance dd')).toHaveText('108HTB');
-  await expect(account.locator('.dc-pb-sums')).toContainText('存款排名第 1 名小学部 2 人');
+  // 信用分 under the balance on the small gauge. Two facing pages also print 存款排名; a phone's one page gives that line
+  // to 信用分 and fits without scrolling.
+  await expect(account.locator('.dc-pb-sums').getByRole('meter', { name: '海豚信用分' })).toHaveAttribute('aria-valuenow', '600');
+  await expect(account.locator('.dc-pb-sums .dc-gauge-score')).toHaveText('600');
+  if (test.info().project.name === 'phone') {
+    await expect(account.locator('.dc-pb-sums')).not.toContainText('存款排名');
+    expect(await account.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  } else {
+    await expect(account.locator('.dc-pb-sums')).toContainText('存款排名第 1 名小学部 2 人');
+  }
+  expect(await page.evaluate(() => document.scrollingElement!.scrollHeight <= innerHeight)).toBe(true);
   await expect(account.locator('.dc-pb-foot')).toContainText('第 1 页');
   await turnTo(page, page.getByRole('region', { name: '交易记录' }));
   const lines = page.getByRole('region', { name: '交易记录' }).locator('.dc-txn');

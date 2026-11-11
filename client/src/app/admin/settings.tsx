@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import { DatePicker, Desk, FormLoading, SkeletonGroup, Icon, Notice, today, type IconName } from '@/components';
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { DatePicker, Desk, FormLoading, SkeletonGroup, Icon, Notice, outside, Stepper, today, Toast, type IconName, type Range } from '@/components';
+import {
+  curveDraft, curveProblems, preview, ruleProblem, RULES, rulesDraft, rulesValue, type Curve, type CurveDraft, type Rules,
+} from '@/lib/credit';
 import { AppError, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
@@ -11,19 +13,21 @@ type Limit = { junior: number; primary: number };
 type Problem = { title: string; text: string } | null;
 
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
-const digits = (v: string) => v.replace(/\D/g, '').slice(0, 7);
 
 // The notes the bank can print; 1 is always one of them (the counter makes change with it).
 const FACES = [1, 2, 5, 10, 20, 50, 100];
 const pad = (n: number) => String(n).padStart(2, '0');
 
 // The numbers set_settings takes; an empty or out-of-range one is said so here and never saved.
-type Range = { min: number; max: number };
 const LIMIT: Range = { min: 1, max: 1_000_000 };
 const RANKING: Range = { min: 1, max: 100 };
 const PAY: Range = { min: 1, max: 10_000 };
-const outside = (value: string, { min, max }: Range) => value === '' || Number(value) < min || Number(value) > max;
 const allowed = ({ min, max }: Range) => `请输入 ${min} 到 ${max} 的整数`;
+const MIN_SCORE: Range = { min: 0, max: 999 };
+const CREDIT_LIMIT: Range = { min: 1, max: 10_000 };
+const RULE: Range = { min: 0, max: 100 };
+// A value as jsonb keeps it: an object's keys in any order compare equal.
+const stable = (v: unknown) => JSON.stringify(v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort()) : v);
 
 function Field({ icon, label, hint, error, children }: { icon: IconName; label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
@@ -35,19 +39,92 @@ function Field({ icon, label, hint, error, children }: { icon: IconName; label: 
   );
 }
 
-// QtyStepper control (design system): minus, the number (typed or stepped) and plus; the buttons keep within the range.
-function Stepper({ label, value, onChange, step, range }: {
-  label: string; value: string; onChange: (v: string) => void; step: number; range: Range;
+// 信用分 (design system data.md 参数页分组): 分数与额度, 系数, a preview of what the values being edited give, and the
+// points of each rule, unsigned (a loss is saved negative). Every value is checked here as set_setting checks it.
+function CreditGroup({ curve, problems, onCurve, rules, onRule }: {
+  curve: CurveDraft; problems: Partial<Record<keyof Curve, string>>; onCurve: (k: keyof Curve, v: string) => void;
+  rules: Record<keyof Rules, string>; onRule: (k: keyof Rules, v: string) => void;
 }) {
-  const n = Number(value);
-  const { min, max } = range;
-  const to = (v: number) => onChange(String(Math.min(max, Math.max(min, v))));
+  const limitError = problems.limit_min ?? problems.limit_max;
+  const ok = !Object.keys(problems).length;
+  const rows = ok ? preview(Object.fromEntries(Object.entries(curve).map(([k, v]) => [k, Number(v)])) as Curve) : null;
+  const factor = (key: keyof Curve, label: string) => (
+    <label className={`dc-field ${problems[key] ? 'is-error' : ''}`}>
+      <span className="dc-field-label"><Icon name="gauge" />{label}</span>
+      <span className="dc-input-wrap">
+        <span className="dc-input-unit">×</span>
+        <input className="dc-input" inputMode="decimal" aria-label={label} value={curve[key]}
+          onChange={(e) => onCurve(key, e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} />
+      </span>
+      {problems[key] && <span className="dc-field-hint"><Icon name="warning" />{problems[key]}</span>}
+    </label>
+  );
   return (
-    <div className={`dc-qty-ctrl ${outside(value, range) ? 'is-error' : ''}`}>
-      <button className="dc-qty-btn" type="button" aria-label={`${label}减少 ${step}`} disabled={n <= min} onClick={() => to(n - step)}><Icon name="minus" /></button>
-      <input className="dc-qty-input" inputMode="numeric" aria-label={label} value={value} onChange={(e) => onChange(digits(e.target.value))} />
-      <button className="dc-qty-btn" type="button" aria-label={`${label}增加 ${step}`} disabled={n >= max} onClick={() => to(n + step)}><Icon name="plus" /></button>
-    </div>
+    <section className="dc-stack">
+      <h2 className="heading is-section">信用分</h2>
+      <div className="dc-card dc-stack">
+        <p className="dc-list-title">分数与额度</p>
+        <Field icon="gauge" label="能贷款的最低分（分）" hint="0 到 999" error={problems.min_score}>
+          <Stepper label="能贷款的最低分" value={curve.min_score} onChange={(v) => onCurve('min_score', v.slice(0, 4))} step={10} range={MIN_SCORE} />
+        </Field>
+        <Field icon="coin" label="贷款额度（HTB）" hint="1 到 10000" error={limitError}>
+          <div className="dc-denoms">
+            {([['limit_min', '最低分时'], ['limit_max', '1000 分时']] as const).map(([key, name]) => (
+              <div key={key} className="dc-qty is-product">
+                <div className="dc-qty-head"><span className="dc-qty-name">{name}</span></div>
+                <Stepper label={`${name}的额度`} value={curve[key]} onChange={(v) => onCurve(key, v.slice(0, 5))} step={5} range={CREDIT_LIMIT}
+                  invalid={!!problems[key]} />
+              </div>
+            ))}
+          </div>
+        </Field>
+        <Field icon="coin" label="取整单位（HTB）" hint="额度向下取整到它的倍数，不大于最低分时的额度" error={problems.limit_step}>
+          <Stepper label="取整单位" value={curve.limit_step} onChange={(v) => onCurve('limit_step', v.slice(0, 5))} step={1} range={CREDIT_LIMIT}
+            invalid={!!problems.limit_step} />
+        </Field>
+        <p className="dc-list-title">系数</p>
+        <div className="dc-denoms">
+          {factor('loan_max', '最低分时的贷款系数')}
+          {factor('loan_min', '1000 分时的贷款系数')}
+          {factor('saving_min', '0 分时的储蓄系数')}
+          {factor('saving_max', '1000 分时的储蓄系数')}
+        </div>
+        <p className="dc-list-title">按当前填写预览</p>
+        <div className="dc-table-scroll">
+          <table className="dc-table" aria-label="按当前填写预览">
+            <thead><tr><th scope="col">分数</th><th scope="col" className="n">额度</th><th scope="col" className="n">贷款系数</th><th scope="col" className="n">储蓄系数</th></tr></thead>
+            <tbody>
+              {(rows ?? [400, 600, 800, 1000].map((score) => ({ score, limit: undefined, loan: undefined, saving: undefined }))).map((r) => (
+                <tr key={r.score}>
+                  <td>{r.score} 分</td>
+                  <td className="n">{r.limit === undefined ? '—' : r.limit === null ? '不能贷款' : `${r.limit} HTB`}</td>
+                  <td className="n">{r.loan == null ? '—' : `×${r.loan}`}</td>
+                  <td className="n">{r.saving === undefined ? '—' : `×${r.saving}`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="dc-list-title">加减分规则</p>
+        {RULES.map((r) => {
+          const wrong = ruleProblem(rules[r.key]);
+          return (
+            <div key={r.key} className={`dc-field ${wrong ? 'is-error' : ''}`}>
+              <div className="dc-section-head">
+                <span>{r.event}<small className="dc-top-sub" style={{ display: 'block' }}>{r.when}</small></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flex: 'none', width: 200 }}>
+                  {r.loss ? '减' : '加'}
+                  <span style={{ flex: 1 }}>
+                    <Stepper label={`${r.event}${r.loss ? '减' : '加'}的分`} value={rules[r.key]} onChange={(v) => onRule(r.key, v.slice(0, 3))} step={1} range={RULE} />
+                  </span>
+                </span>
+              </div>
+              {wrong && <span className="dc-field-hint"><Icon name="warning" />{wrong}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -66,23 +143,6 @@ function LimitPair({ label, hint, primary, junior }: {
         ))}
       </div>
     </Field>
-  );
-}
-
-// Toast (design system): one short result for 3 seconds. Rendered at the end of <body> in its own viewport-sized
-// .dc-app, as ConfirmSheet is, so it stays in the viewport corner; the wrapper lets clicks through.
-function Toast({ text, onDone }: { text: string; onDone: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 3000);
-    return () => clearTimeout(t);
-    // Not onDone: it is a new function on every render and would restart the timer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
-  return createPortal(
-    <div className="dc-app" style={{ position: 'fixed', inset: 0, zIndex: 20, minHeight: 0, background: 'none', pointerEvents: 'none' }}>
-      <div className="dc-toasts" role="status"><div className="dc-toast is-success"><Icon name="success" />{text}</div></div>
-    </div>,
-    document.body,
   );
 }
 
@@ -122,6 +182,8 @@ function SettingsForm({ saved }: { saved: Values }) {
   const [month, setMonth] = useState(promoMonth);
   const [day, setDay] = useState(promoDay);
   const [anonymous, setAnonymous] = useState(saved.ranking_anonymous === true);
+  const [curve, setCurve] = useState(() => curveDraft(saved.credit_curve as Curve));
+  const [rules, setRules] = useState(() => rulesDraft(saved.credit_rules as Rules));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -136,12 +198,15 @@ function SettingsForm({ saved }: { saved: Values }) {
     ranking_size: Number(rankingSize),
     salary_per_shift: { am: Number(payAm), pm: Number(payPm) },
     promotion_date: `${pad(month)}-${pad(Math.min(day, days))}`,
+    credit_curve: Object.fromEntries(Object.entries(curve).map(([k, v]) => [k, Number(v)])),
+    credit_rules: rulesValue(rules),
   };
+  const curveWrong = curveProblems(curve);
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
   const toggleFace = (f: number) => setFaces(faces.includes(f) ? faces.filter((x) => x !== f) : [...faces, f]);
-  const changed = Object.keys(next).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(saved[k]));
+  const changed = Object.keys(next).filter((k) => stable(next[k]) !== stable(saved[k]));
   const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING], [payAm, PAY], [payPm, PAY]] as const)
-    .some(([value, range]) => outside(value, range));
+    .some(([value, range]) => outside(value, range)) || Object.keys(curveWrong).length > 0 || Object.values(rules).some((v) => ruleProblem(v));
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
@@ -183,64 +248,60 @@ function SettingsForm({ saved }: { saved: Values }) {
   return (
     <form className="dc-stack dc-enter" onSubmit={save} noValidate aria-label="参数">
       {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
-      <div className="dc-split">
-        <div className="dc-stack">
-          <div>
-            <p className="dc-list-title">柜台</p>
-            <div className="dc-card dc-stack">
-              <Field icon="coin" label="面额（元）" hint="柜台点钞按这些面额录入；1 元必须保留">
-                <div className="dc-chips" role="group" aria-label="面额">
-                  {allFaces.map((f) => (
-                    <button key={f} className="dc-chip" type="button" aria-pressed={faces.includes(f)} disabled={f === 1}
-                      onClick={() => toggleFace(f)}><Icon name="check" />{f} 元</button>
-                  ))}
-                </div>
-              </Field>
-              <LimitPair label="单笔取款上限" primary={[singlePrimary, setSinglePrimary]} junior={[singleJunior, setSingleJunior]} />
-              <LimitPair label="单日取款上限" hint="当天累计" primary={[dailyPrimary, setDailyPrimary]} junior={[dailyJunior, setDailyJunior]} />
-            </div>
-          </div>
-        </div>
-        <div className="dc-stack">
-          <div>
-            <p className="dc-list-title">排名</p>
-            <ul className="dc-list">
-              <li>
-                <label className="dc-switch">
-                  <span className="dc-switch-text"><b>排名匿名</b><small>开启后排名中的姓名显示为「张*明」</small></span>
-                  <input type="checkbox" role="switch" checked={anonymous} disabled={busy} onChange={(e) => switchAnonymous(e.target.checked)} />
-                  <span className="dc-switch-track" />
-                </label>
-              </li>
-              <li>
-                <Field icon="ranking" label="排名人数（名）" hint="每个学部显示前几名，1 到 100" error={outside(rankingSize, RANKING) ? allowed(RANKING) : undefined}>
-                  <Stepper label="排名人数" value={rankingSize} onChange={(v) => setRankingSize(v.slice(0, 3))} step={1} range={RANKING} />
-                </Field>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <p className="dc-list-title">考勤</p>
-            <div className="dc-card dc-stack">
-              {([['中午班', '13:30 之前', payAm, setPayAm], ['下午班', '13:30 起', payPm, setPayPm]] as const).map(([name, when, value, set]) => (
-                <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB`} error={outside(value, PAY) ? allowed(PAY) : undefined}>
-                  <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} range={PAY} />
-                </Field>
+      <section className="dc-stack">
+        <h2 className="heading is-section">柜台</h2>
+        <div className="dc-card dc-stack">
+          <Field icon="coin" label="面额（元）" hint="柜台点钞按这些面额录入；1 元必须保留">
+            <div className="dc-chips" role="group" aria-label="面额">
+              {allFaces.map((f) => (
+                <button key={f} className="dc-chip" type="button" aria-pressed={faces.includes(f)} disabled={f === 1}
+                  onClick={() => toggleFace(f)}><Icon name="check" />{f} 元</button>
               ))}
             </div>
-          </div>
-          <div>
-            <p className="dc-list-title">学年</p>
-            <div className="dc-card">
-              {/* Only the month and day count; the calendar shows them in this year, and 29 February becomes the 28th. */}
-              <DatePicker label="升年级日期" value={`${today().slice(0, 4)}-${pad(month)}-${pad(Math.min(day, days))}`}
-                shown={`${month}月${Math.min(day, days)}日`} rule="每年从这天起，所有学生的年级加一"
-                onChange={(d) => { const [m, dd] = d.slice(5).split('-').map(Number); setMonth(m); setDay(m === 2 ? Math.min(dd, 28) : dd); }} />
-              <p className="dc-top-sub" style={{ margin: 'var(--space-2) 0 0' }}>每年从这天起，所有学生的年级加一</p>
-            </div>
-          </div>
+          </Field>
+          <LimitPair label="单笔取款上限" primary={[singlePrimary, setSinglePrimary]} junior={[singleJunior, setSingleJunior]} />
+          <LimitPair label="单日取款上限" hint="当天累计" primary={[dailyPrimary, setDailyPrimary]} junior={[dailyJunior, setDailyJunior]} />
         </div>
-      </div>
+      </section>
+      <section className="dc-stack">
+        <h2 className="heading is-section">排名</h2>
+        <ul className="dc-list">
+          <li>
+            <label className="dc-switch">
+              <span className="dc-switch-text"><b>排名匿名</b><small>开启后排名中的姓名显示为「张*明」</small></span>
+              <input type="checkbox" role="switch" checked={anonymous} disabled={busy} onChange={(e) => switchAnonymous(e.target.checked)} />
+              <span className="dc-switch-track" />
+            </label>
+          </li>
+          <li>
+            <Field icon="ranking" label="排名人数（名）" hint="每个学部显示前几名，1 到 100" error={outside(rankingSize, RANKING) ? allowed(RANKING) : undefined}>
+              <Stepper label="排名人数" value={rankingSize} onChange={(v) => setRankingSize(v.slice(0, 3))} step={1} range={RANKING} />
+            </Field>
+          </li>
+        </ul>
+      </section>
+      <section className="dc-stack">
+        <h2 className="heading is-section">考勤</h2>
+        <div className="dc-card dc-stack">
+          {([['中午班', '13:30 之前', payAm, setPayAm], ['下午班', '13:30 起', payPm, setPayPm]] as const).map(([name, when, value, set]) => (
+            <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB`} error={outside(value, PAY) ? allowed(PAY) : undefined}>
+              <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} range={PAY} />
+            </Field>
+          ))}
+        </div>
+      </section>
+      <section className="dc-stack">
+        <h2 className="heading is-section">学年</h2>
+        <div className="dc-card">
+          {/* Only the month and day count; the calendar shows them in this year, and 29 February becomes the 28th. */}
+          <DatePicker label="升年级日期" value={`${today().slice(0, 4)}-${pad(month)}-${pad(Math.min(day, days))}`}
+            shown={`${month}月${Math.min(day, days)}日`} rule="每年从这天起，所有学生的年级加一"
+            onChange={(d) => { const [m, dd] = d.slice(5).split('-').map(Number); setMonth(m); setDay(m === 2 ? Math.min(dd, 28) : dd); }} />
+          <p className="dc-top-sub" style={{ margin: 'var(--space-2) 0 0' }}>每年从这天起，所有学生的年级加一</p>
+        </div>
+      </section>
+      <CreditGroup curve={curve} problems={curveWrong} onCurve={(k, v) => setCurve({ ...curve, [k]: v })}
+        rules={rules} onRule={(k, v) => setRules({ ...rules, [k]: v })} />
       <div className="dc-actions">
         <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || invalid || !changed.length}>
           {busy ? '正在保存' : '保存参数'}

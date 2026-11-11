@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { resetData, signIn } from './helpers';
+import { resetData, signIn, sql } from './helpers';
 
 // 学生端首页、明细、排名与我的 (PHASE-1.md §1.1) on the seed data (supabase/seed.sql): 张小明 (20260001, 小学部) has an
 // opening balance of 120 from 20 days ago, then a deposit of 25, a withdrawal of 15 and an exchange of 22: 108 now, the
@@ -113,4 +113,42 @@ test('我的: who I am, 页面样式 to the 存折版, and my account’s balanc
   await style.getByText('存折版').click();
   await expect(page).toHaveURL(/\/book$/);
   await expect(page.locator('.dc-book-open')).toBeVisible();
+});
+
+test('信用: five entries in the navigation, my score on the gauge from 首页, and its changes 20 at a time', async ({ page }) => {
+  // 25 older weekly changes, then a −5 and a +8: 603 now.
+  sql(`insert into public.credit_events (student_no, at, delta, score, rule, reason)
+         select '20260001', now() - interval '30 days' + g * interval '1 hour', 1, 591 + g % 2, 'deposit_week', '上周有存款'
+         from generate_series(1, 25) g;
+       insert into public.credit_events (student_no, at, delta, score, rule, reason) values
+         ('20260001', now() - interval '2 days', -5, 595, 'withdraw_half', '上周取款合计超过上周初余额的一半'),
+         ('20260001', now() - interval '1 day', 8, 603, 'manual', '银行管理员调整：值日认真');
+       update public.credit_scores set score = 603 where student_no = '20260001';`);
+  await signIn(page, '学生', '20260001');
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link')).toHaveText(['首页', '明细', '信用', '排名', '我的']);
+
+  // 首页: the medium gauge, a link to 信用.
+  const summary = page.getByRole('link', { name: '海豚信用分 603 分，查看信用' });
+  await expect(summary.getByRole('meter', { name: '海豚信用分' })).toHaveAttribute('aria-valuenow', '603');
+  await expect(summary).toContainText('贷款额度 130 HTB');
+  await summary.click();
+  await expect(page).toHaveURL(/\/student\/credit$/);
+
+  const gauge = page.locator('.dc-gauge.is-lg');
+  await expect(gauge.getByRole('meter')).toHaveAttribute('aria-valuetext', '海豚信用分 603 分');
+  await expect(gauge.locator('.dc-gauge-score')).toHaveText('603分');
+  await expect(gauge.locator('.dc-gauge-foot')).toHaveText('贷款额度 130 HTB');
+  await expect(gauge.locator('.dc-gauge-next')).toHaveText('再涨 1 分，额度加 5 HTB');
+  await expect(gauge.locator('.dc-gauge-ends')).toHaveText('01000');
+
+  const rows = page.locator('.dc-txns .dc-txn');
+  await expect(rows).toHaveCount(20);
+  await expect(rows.nth(0)).toContainText('银行管理员调整：值日认真');
+  await expect(rows.nth(0)).toContainText('变动后 603 分');
+  await expect(rows.nth(0).locator('.dc-txn-amount')).toHaveText('+8加分');
+  await expect(rows.nth(1).locator('.dc-txn-amount')).toHaveText('−5减分');
+  await page.getByRole('button', { name: '加载更多' }).click();
+  await expect(rows).toHaveCount(27);
+  await expect(page.getByRole('button', { name: '加载更多' })).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Counts } from './cash';
+import type { CreditProfile } from './credit';
 import { formatAmount } from './format';
 import { cachedRoster, saveRoster } from './offline-queue';
 import { call, withTimeout } from './rpc';
@@ -9,6 +10,7 @@ import { readAll, supabase } from './supabase';
 export type Student = {
   student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number;
   class_label: string | null; status: string; balance: number | null; withdrawn_today: number | null;
+  credit?: CreditProfile; // from lookup_student; a student found offline has none
 };
 export type TxnResult = {
   id: string; txn_no: string; type: string; amount: number; balance_after: number; denominations: Counts | null;

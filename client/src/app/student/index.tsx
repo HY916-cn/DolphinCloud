@@ -1,4 +1,6 @@
-import { BalanceCard, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useRanking, useTerm } from '@/components';
+import {
+  BalanceCard, CreditFailed, CreditGauge, CreditGaugeLoading, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useCredit, useGaugeCurve, useRanking, useTerm,
+} from '@/components';
 import { greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { useNewRows } from '@/lib/motion';
@@ -6,13 +8,17 @@ import { useMe } from '@/lib/session';
 
 const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': i } as React.CSSProperties });
 
-// 学生首页: the balance with this term's money in and out, the place in the division with the students right before
-// and after, and the nine latest businesses of the account, cash exchanges included.
+// 学生首页: the balance with this term's money in and out, the 海豚信用分 under it (a link to 信用), the place in the
+// division with the students right before and after, and the nine latest businesses of the account, cash exchanges
+// included.
 export default function StudentHome() {
   const student = useMe().data!.student!;
   const term = useTerm(student.student_no);
   const ranking = useRanking(student.student_no);
   const txns = useRecent(student.student_no);
+  const credit = useCredit();
+  const curve = useGaugeCurve();
+  const c = credit.data;
   const fresh = useNewRows(txns.data?.map((t) => t.key));
   const r = ranking.data;
 
@@ -27,9 +33,18 @@ export default function StudentHome() {
               {term.data ? <BalanceCard amount={term.data.balance} term={term.data} />
                 : <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />}
             </div>
+            {/* 信用摘要: only the gauge until 利息, 定期 and 贷款 come (M9–M11). */}
+            <section className="dc-card dc-credit-summary dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
+              {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
+                : !c ? <CreditGaugeLoading size="md" /> : (
+                  <a className="dc-credit-summary-gauge" aria-label={`海豚信用分 ${c.score} 分，查看信用`} {...link('/student/credit')}>
+                    <CreditGauge score={c.score} size="md" limit={c.loan_limit} {...curve} />
+                  </a>
+                )}
+            </section>
             {ranking.error ? <Notice tone="danger" title="暂时无法读取排名">请检查网络后刷新页面。</Notice>
               : !r ? <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} /> : r.me && (
-                <section className="dc-card dc-rank-card dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
+                <section className="dc-card dc-rank-card dc-enter" style={{ '--i': 2 } as React.CSSProperties}>
                   <div className="dc-rank-head">
                     <h2 className="heading"><Icon name="ranking" />存款排名</h2>
                     <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/student/ranking')}>查看排名</a>
@@ -42,7 +57,7 @@ export default function StudentHome() {
                 </section>
               )}
           </div>
-          <section {...enter(2)}>
+          <section {...enter(3)}>
             <div className="dc-section-head">
               <h2 className="heading">最近交易</h2>
               <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/student/txns')}>查看全部</a>

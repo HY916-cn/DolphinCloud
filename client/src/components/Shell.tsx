@@ -14,6 +14,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'president', 'sysadmin'] },
   { href: '/admin/attendance', icon: 'calendar', label: '考勤', roles: ['teacher', 'president'] },
   { href: '/admin/terms', icon: 'school', label: '学期', roles: ['teacher', 'president', 'accountant'] },
+  { href: '/admin/credit', icon: 'gauge', label: '信用分', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher', 'president'] },
   { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'president', 'sysadmin'] },
 ];
@@ -25,6 +26,7 @@ function navItems(me: Me): { href: string; icon: IconName; label: string; exact?
     return [
       { href: '/student', icon: 'home', label: '首页', exact: true },
       { href: '/student/txns', icon: 'passbook', label: '明细' },
+      { href: '/student/credit', icon: 'gauge', label: '信用' },
       { href: '/student/ranking', icon: 'ranking', label: '排名' },
       { href: '/student/me', icon: 'me', label: '我的' },
     ];

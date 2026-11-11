@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Avatar, CounterPage, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, type IconName, type Served,
+  Avatar, CounterPage, CreditGauge, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, WithdrawPanel, servedAmount, useGaugeCurve, type IconName, type Served,
 } from '@/components';
 import { classOf, lookupStudent, useMyDay, useSettings, type Student, type TxnResult } from '@/lib/counter';
 import { staleDuty, useDuty } from '@/lib/duty';
@@ -33,6 +33,7 @@ export default function Serve() {
   const me = useMe().data!;
   const online = useOnline();
   const settings = useSettings();
+  const curve = useGaugeCurve();
   const queryClient = useQueryClient();
   const day = useMyDay(me.profile.id, online);
   const duty = useDuty(me.profile.id);
@@ -125,7 +126,9 @@ export default function Serve() {
           <div className="dc-person-name">{student.name}</div>
           <div className="dc-person-meta">{classOf(student)} · 学号 {student.student_no}</div>
           <div className="dc-person-meta">
-            {left === null ? '离线时不显示余额' : `今日还可取 ${formatAmount(left)} HTB`}{STATUS[student.status] && ` · 账户${STATUS[student.status]}`}
+            {left === null ? '离线时不显示余额' : `今日还可取 ${formatAmount(left)} HTB`}
+            {student.credit && <> · <CreditGauge score={student.credit.score} size="sm" {...curve} /></>}
+            {STATUS[student.status] && ` · 账户${STATUS[student.status]}`}
           </div>
         </div>
         {student.balance !== null && <StudentBalance key={student.student_no} amount={student.balance} />}
