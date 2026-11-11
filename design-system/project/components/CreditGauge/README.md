@@ -21,8 +21,8 @@
 ```
 
 - `dc-gauge-dial` 带 `role="meter"` 和全部 `aria-*`，分数写在 `--score` 里。`meter` 的子元素不会被读屏读出，所以额度和“再涨 N 分”放在它外面。
-- 弧线 `dc-gauge-arc`：`cloud-100` 轨道上画进度，两端圆头。400 分以上进度用 `success`；400 分以下，`dc-gauge-dial` 加 `is-low`，进度换成 `danger`。
-- 400 分处在弧线外侧有一道刻度 `dc-gauge-tick`，上方标“可贷款”（`dc-gauge-mark`）。
+- 弧线 `dc-gauge-arc`：`cloud-100` 轨道上画进度，两端圆头。400 分以上进度用 `success`；400 分以下，`dc-gauge-dial` 加 `is-low`，进度换成 `danger`。进度由浅到深：起点是同色混入 30% 白（`color-mix`，不支持时为实色），末端是满色，正好落在圆钮上；小号用实色。
+- 400 分处有一道刻度 `dc-gauge-tick`：在轨道上切一道 3px 的白缝，进度走过时也看得见分界，弧线外侧再有一小段 `ink-muted` 短线；上方标“可贷款”（`dc-gauge-mark`）。
 - 指针 `dc-gauge-pointer` 是白底圆钮，描边与进度同色，带一层浅阴影，停在进度末端。
 - 大号和中号在弧线两端下方写 `0` 和 `1000`（`dc-gauge-ends`，对读屏隐藏）。
 
@@ -74,7 +74,7 @@
 ## 颜色
 
 - 进度只有两种颜色，用的是状态色：`success` 表示能贷款，`danger` 表示还不能贷款。颜色从不单独表达意思：总有分数数字、“可贷款”刻度和额度文字。
-- `success`、`danger` 在 `surface-raised` 上都高于 3:1；轨道 `cloud-100` 只是底色，不表达意思。
+- 进度最浅的起点在 `surface-raised` 上也高于 3:1（`success` 3.3:1，`danger` 3.2:1）；轨道 `cloud-100` 只是底色，不表达意思。
 - 颜色全部取变量。设计系统目前没有深色主题，以后加深色主题时，弧线、圆钮和文字会跟着变量变化。
 
 ## 动效

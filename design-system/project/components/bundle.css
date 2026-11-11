@@ -1229,29 +1229,29 @@ span.dc-week-btn { cursor: default; }
    400 分以上用 success，400 分以下（is-low）用 danger；圆钮停在进度末端。 */
 @property --score { syntax: '<number>'; inherits: true; initial-value: 0; }
 .dc-gauge { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
-.dc-gauge-dial { --w: 200px; --t: 14px; --knob: 24px; --gauge-color: var(--success); position: relative; flex: none; width: var(--w); height: calc(var(--w) / 2); margin: var(--space-5) calc(var(--knob) / 2) 0; transition: --score var(--motion-count) var(--ease-out); }
+.dc-gauge-dial { --w: 200px; --t: 14px; --knob: 24px; --gauge-color: var(--success); --gauge-from: var(--gauge-color); --gauge-from: color-mix(in oklch, var(--gauge-color) 70%, var(--surface-raised)); position: relative; flex: none; width: var(--w); height: calc(var(--w) / 2); margin: var(--space-5) calc(var(--knob) / 2) 0; transition: --score var(--motion-count) var(--ease-out); }
 .dc-gauge-dial.is-low { --gauge-color: var(--danger); }
 .dc-gauge.is-lg .dc-gauge-dial { --w: 280px; --t: 18px; --knob: 30px; }
-.dc-gauge-arc { position: absolute; inset: 0; border-radius: calc(var(--w) / 2) calc(var(--w) / 2) 0 0; background: conic-gradient(from -90deg at 50% 100%, var(--gauge-color) 0deg calc(var(--score) * 0.18deg), var(--cloud-100) 0deg 180deg); -webkit-mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 0.5px)); mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 0.5px)); transition: background-color var(--motion-quick); }
+.dc-gauge-arc { position: absolute; inset: 0; border-radius: calc(var(--w) / 2) calc(var(--w) / 2) 0 0; background: conic-gradient(from -90deg at 50% 100%, var(--gauge-from) 0deg, var(--gauge-color) calc(var(--score) * 0.18deg), var(--cloud-100) 0deg 180deg); -webkit-mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 0.5px)); mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 0.5px)); transition: background-color var(--motion-quick); }
 /* 两端圆头：起点是进度色，终点是轨道色 */
 .dc-gauge-dial::before, .dc-gauge-dial::after { content: ''; position: absolute; bottom: calc(var(--t) / -2); width: var(--t); height: var(--t); border-radius: var(--radius-pill); }
-.dc-gauge-dial::before { left: 0; background: var(--gauge-color); }
+.dc-gauge-dial::before { left: 0; background: var(--gauge-from); }
 .dc-gauge-dial::after { right: 0; background: var(--cloud-100); }
-.dc-gauge-tick { position: absolute; left: 50%; bottom: -1px; width: calc(var(--w) / 2 + 9px); height: 2px; transform-origin: 0 50%; transform: rotate(-108deg); background: linear-gradient(to right, transparent calc(100% - 7px), var(--ink-muted) 0); }
-.dc-gauge-mark { position: absolute; left: calc(50% - 0.309 * (var(--w) / 2 + 12px)); bottom: calc(0.951 * (var(--w) / 2 + 12px)); transform: translateX(-50%); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); white-space: nowrap; }
+.dc-gauge-tick { position: absolute; left: 50%; bottom: -1.5px; width: calc(var(--w) / 2 + 8px); height: 3px; transform-origin: 0 50%; transform: rotate(-108deg); background: linear-gradient(to right, transparent calc(100% - var(--t) - 8px), var(--surface-raised) 0 calc(100% - 8px), transparent 0 calc(100% - 4px), var(--ink-muted) 0); }
+.dc-gauge-mark { position: absolute; left: calc(50% - 0.309 * (var(--w) / 2 + 10px)); bottom: calc(0.951 * (var(--w) / 2 + 10px)); transform: translateX(-50%); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); white-space: nowrap; }
 .dc-gauge-pointer { position: absolute; left: 50%; bottom: 0; width: calc(var(--w) / 2 - var(--t) / 2); transform-origin: 0 0; transform: rotate(calc(var(--score) * 0.18deg - 180deg)); }
-.dc-gauge-pointer::after { content: ''; position: absolute; right: calc(var(--knob) / -2); top: calc(var(--knob) / -2); box-sizing: border-box; width: var(--knob); height: var(--knob); border: 5px solid var(--gauge-color); border-radius: var(--radius-pill); background: var(--surface-raised); box-shadow: 0 2px 6px rgba(19, 40, 92, 0.22); }
+.dc-gauge-pointer::after { content: ''; position: absolute; right: calc(var(--knob) / -2); top: calc(var(--knob) / -2); box-sizing: border-box; width: var(--knob); height: var(--knob); border: 4px solid var(--gauge-color); border-radius: var(--radius-pill); background: var(--surface-raised); box-shadow: 0 2px 6px rgba(19, 40, 92, 0.22); }
 .dc-gauge-score { position: absolute; left: 0; right: 0; bottom: -2px; font: 800 36px/40px var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--ink); }
 .dc-gauge.is-lg .dc-gauge-score { font: 800 48px/52px var(--font-sans); }
 .dc-gauge-score small { margin-left: 2px; font: 600 16px/26px var(--font-sans); letter-spacing: 0; color: var(--ink-muted); }
 /* 0 和 1000 写在两端下方 */
-.dc-gauge-ends { display: flex; justify-content: space-between; box-sizing: border-box; width: calc(var(--w, 200px) + var(--knob, 24px)); margin-top: calc(var(--knob, 24px) / 2); padding: 0 calc(var(--knob, 24px) / 2); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.dc-gauge-ends { display: flex; justify-content: space-between; box-sizing: border-box; width: calc(var(--w, 200px) + var(--knob, 24px)); margin-top: calc(var(--knob, 24px) / 2 - var(--space-1)); padding: 0 calc(var(--knob, 24px) / 2); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .dc-gauge.is-lg .dc-gauge-ends { --w: 280px; --knob: 30px; }
-.dc-gauge-foot { margin: var(--space-2) 0 0; font: 600 18px/28px var(--font-sans); }
+.dc-gauge-foot { margin: var(--space-1) 0 0; font: 600 18px/28px var(--font-sans); }
 .dc-gauge-foot b { font-variant-numeric: tabular-nums; }
 .dc-gauge-next { margin: 0; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-gauge.is-sm { display: inline-flex; flex-direction: row; align-items: flex-end; gap: var(--space-1); vertical-align: -2px; }
-.dc-gauge.is-sm .dc-gauge-dial { --w: 28px; --t: 5px; --knob: 9px; margin: 0 calc(var(--knob) / 2) 0; }
+.dc-gauge.is-sm .dc-gauge-dial { --w: 28px; --t: 5px; --knob: 9px; --gauge-from: var(--gauge-color); margin: 0 calc(var(--knob) / 2) 0; }
 .dc-gauge.is-sm .dc-gauge-pointer::after { border-width: 2px; box-shadow: none; }
 .dc-gauge.is-sm .dc-gauge-score { position: static; font: 700 16px/20px var(--font-sans); letter-spacing: 0; }
 
