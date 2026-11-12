@@ -30,7 +30,7 @@ export default function StudentRanking() {
                 <div className="dc-empty">
                   <span className="dc-empty-icon dc-kind-reward"><Icon name="ranking" /></span>
                   <h3>本学部还没有排名</h3>
-                  <p>同学们在柜台存款后，这里会按余额排出名次。</p>
+                  <p>同学们在柜台存款后，这里会按存款排出名次。</p>
                 </div>
               </div>
             )}
@@ -39,7 +39,7 @@ export default function StudentRanking() {
             {!r ? <span className="dc-skeleton" style={{ height: 280, borderRadius: 'var(--radius-lg)' }} /> : r.me ? (
               <section className="dc-card dc-rank-card">
                 <div className="dc-rank-head"><h2 className="heading"><Icon name="ranking" />我的名次</h2></div>
-                <RankSummary r={r} note={`余额 ${formatAmount(r.me.balance)} HTB`} />
+                <RankSummary r={r} note={`存款 ${formatAmount(r.me.balance)} HTB`} />
                 <RankNext r={r} />
                 <div className="dc-rank-scale">
                   <div className="dc-rank-track" role="img" aria-label={`在${division} ${r.total} 人中排第 ${r.me.rank} 名`}

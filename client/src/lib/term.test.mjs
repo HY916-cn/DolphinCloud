@@ -14,6 +14,8 @@ assert.equal(termState(term, '2027-01-21'), 'ended');
 assert.equal(termState({ ...term, closed_at: '2027-01-22T02:00:00Z' }, '2027-01-22'), 'closed');
 
 assert.deepEqual(openItem({ kind: 'job', job: 'daily', done_to: '2027-01-18' }, '2027-01-20'), ['每天的任务', '已处理到 1月18日，需处理到 1月20日']);
+assert.deepEqual(openItem({ kind: 'term_deposit', id: 'x', student_no: '20260001', name: '张小明', principal: 100, matures_on: '2026-12-10' }, '2027-01-20'),
+  ['张小明', '定期 100 HTB · 12月10日 到期']);
 assert.deepEqual(openItem({ kind: 'loan' }, '2027-01-20'), ['其他事项', '处理完后再结转']);
 
 assert.deepEqual(jobFailure({ job: 'daily', done_to: '2026-11-09', last_err: '2026-11-10: division by zero' }),

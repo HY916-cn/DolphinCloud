@@ -3,6 +3,7 @@ import { formatAmount, formatSigned } from '@/lib/format';
 import { useRolling } from '@/lib/motion';
 import { readAll, supabase } from '@/lib/supabase';
 import { termStart } from '@/lib/term';
+import { flows } from '@/lib/term-deposits';
 import type { Txn } from '@/lib/txns';
 import { SlowNotice, useSlow } from './Skeleton';
 import { Icon } from './ui';
@@ -24,22 +25,22 @@ export function BalanceCard({ amount, term }: { amount: number; term?: { saved: 
   );
 }
 
-// A student's balance, account status and this term's businesses, with what came in and went out.
+// A student's balance, 定期合计, account status and this term's businesses, with what came in and went out (not the
+// 定期 transfers, flows).
 export function useTerm(studentNo: string) {
   const term = termStart();
   return useQuery({
     queryKey: ['student-term', studentNo, term],
     queryFn: async () => {
       const [account, rows] = await Promise.all([
-        supabase.from('accounts').select('balance,students(status)').eq('student_no', studentNo).single(),
-        readAll<{ balance_delta: number }>((from, to) => supabase.from('txns').select('balance_delta')
+        supabase.from('accounts').select('balance,term_total,students(status)').eq('student_no', studentNo).single(),
+        readAll<{ balance_delta: number; term_id: string | null }>((from, to) => supabase.from('txns').select('balance_delta,term_id')
           .eq('student_no', studentNo).gte('created_at', `${term}T00:00:00+08:00`).order('seq').range(from, to)),
       ]);
       if (account.error) throw account.error;
       const status = (account.data.students as unknown as { status: 'normal' | 'frozen' | 'graduated' }).status;
-      const saved = rows.reduce((n, r) => n + Math.max(r.balance_delta, 0), 0);
-      const spent = rows.reduce((n, r) => n + Math.min(r.balance_delta, 0), 0);
-      return { balance: account.data.balance, status, saved, spent };
+      const { saved, spent } = flows(rows);
+      return { balance: account.data.balance, term_total: account.data.term_total, status, saved, spent };
     },
   });
 }

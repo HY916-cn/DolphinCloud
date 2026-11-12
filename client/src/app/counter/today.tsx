@@ -62,7 +62,7 @@ export default function Today() {
                       <div className="dc-txn-title">{name(t)} · {describeTxn(t)}{t.status === 'reversed' && '（已冲正）'}</div>
                       <div className="dc-txn-time">{[t.txn_no, formatTime(t.created_at), t.reason && `原因：${t.reason}`].filter(Boolean).join(' · ')}</div>
                       <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
-                        {t.status === 'normal' && t.type !== 'reversal' && (
+                        {t.status === 'normal' && t.type !== 'reversal' && t.type !== 'term_close' && (
                           <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" type="button" aria-label={`冲正 ${t.txn_no}`}
                             onClick={() => { setDone(null); setReversing(t); }}><Icon name="transfer" />冲正</button>
                         )}
@@ -84,7 +84,7 @@ export default function Today() {
         </aside>
       </div>
       {reversing && (
-        <ReversalSheet txn={{ id: reversing.id, txn_no: reversing.txn_no, what: `${name(reversing)} · ${describeTxn(reversing)}` }}
+        <ReversalSheet txn={{ id: reversing.id, txn_no: reversing.txn_no, type: reversing.type, what: `${name(reversing)} · ${describeTxn(reversing)}` }}
           onClose={() => setReversing(null)}
           onDone={(r) => {
             setDone(`${name(reversing)} 的${describeTxn(reversing)}已冲正（${r.txn_no}），当前余额 ${formatAmount(r.balance_after)} HTB。`);

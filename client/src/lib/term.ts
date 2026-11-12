@@ -20,9 +20,10 @@ export const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.sl
 const JOBS: Record<string, string> = { daily: '每天的任务', weekly: '每周的任务' };
 
 // One line of the 还不能结转 list (TERM_OPEN_ITEMS): what is open and how it stands. Kinds this version does not know
-// yet (M10's 定期, M11's 贷款) still get a line.
+// yet (M11's 贷款) still get a line.
 export function openItem(item: Record<string, unknown>, endsOn: string): [string, string] {
   if (item.kind === 'job') return [JOBS[String(item.job)] ?? '定时任务', `已处理到 ${monthDay(String(item.done_to))}，需处理到 ${monthDay(endsOn)}`];
+  if (item.kind === 'term_deposit') return [String(item.name), `定期 ${Number(item.principal).toLocaleString('en-US')} HTB · ${monthDay(String(item.matures_on))} 到期`];
   return [String(item.name ?? '其他事项'), '处理完后再结转'];
 }
 

@@ -1,7 +1,7 @@
 import {
   BalanceCard, CreditFailed, CreditGauge, CreditGaugeLoading, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useCredit, useGaugeCurve, useInterest, useRanking, useTerm,
 } from '@/components';
-import { formatCenti, greeting } from '@/lib/format';
+import { formatAmount, formatCenti, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
@@ -34,13 +34,14 @@ export default function StudentHome() {
               {term.data ? <BalanceCard amount={term.data.balance} term={term.data} />
                 : <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />}
             </div>
-            {/* 信用摘要: 攒着的利息 beside the gauge; 定期 and 贷款 join it with M10 and M11. */}
+            {/* 信用摘要: 攒着的利息 and 定期合计 beside the gauge; 贷款 joins it with M11. */}
             <section className="dc-card dc-credit-summary dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
               {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
-                : !c || interest.isPending ? <CreditGaugeLoading size="md" /> : <>
+                : !c || interest.isPending || !term.data ? <CreditGaugeLoading size="md" /> : <>
                   <dl className="dc-kv">
                     <div><dt>攒着的利息</dt><dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
                       <small>{interest.data.pending_centi >= 100 ? '下周一存进余额' : '满 1 HTB 再存进余额'}</small></> : '—'}</dd></div>
+                    <div><dt>定期合计</dt><dd>{term.data.term_total ? `${formatAmount(term.data.term_total)} HTB` : '没有'}</dd></div>
                   </dl>
                   <a className="dc-credit-summary-gauge" aria-label={`海豚信用分 ${c.score} 分，查看信用`} {...link('/student/credit')}>
                     <CreditGauge score={c.score} size="md" limit={c.loan_limit} {...curve} />

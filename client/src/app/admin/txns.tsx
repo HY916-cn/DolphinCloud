@@ -16,7 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { KINDS as LOOK, toTxn } from '@/lib/txns';
 
 const PAGE = 50;
-const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['opening', '期初'], ['closing', '注销清零']] as const;
+const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['term_open', '开定期'], ['term_close', '定期转回'], ['opening', '期初'], ['closing', '注销清零']] as const;
 type Kind = (typeof KINDS)[number][0];
 // How each row on a page was corrected: the reversal of a 已冲正 row, and the original of a 冲正 row.
 type Page = { rows: LedgerRow[]; count: number | null; reversals: Map<string, { txn_no: string; reason: string | null }>; originals: Map<string, string> };
@@ -199,7 +199,7 @@ function Ledger({ init }: { init: LedgerFilter }) {
       )}
       {reversing && (
         <ReversalSheet onClose={() => setReversing(null)}
-          txn={{ id: reversing.id, txn_no: reversing.txn_no, what: `${reversing.students?.name} · ${toTxn(reversing).title} ${formatAmount(reversing.amount)} HTB` }}
+          txn={{ id: reversing.id, txn_no: reversing.txn_no, type: reversing.type, what: `${reversing.students?.name} · ${toTxn(reversing).title} ${formatAmount(reversing.amount)} HTB` }}
           onDone={(r) => {
             setReversing(null);
             setReversed(r.txn_no);
@@ -213,7 +213,8 @@ function Ledger({ init }: { init: LedgerFilter }) {
 const PAYMENT = { account: '账户', cash: '现金' } as const;
 
 // One transaction; it opens to the full facts, links to the student and the teller (teacher), and 冲正 (teacher, on a
-// transaction that is not itself a reversal and has not been reversed).
+// transaction that is not itself a reversal and has not been reversed; a 开定期 while its 定期 is open, a 定期转回 only
+// for 提前支取 up to the day it was to mature, PHASE-2.md §10.9).
 function TxnLine({ row, page, first, isNew, teacher, onReverse }: {
   row: LedgerRow; page: Page; first: boolean; isNew: boolean; teacher: boolean; onReverse: () => void;
 }) {
@@ -233,7 +234,10 @@ function TxnLine({ row, page, first, isNew, teacher, onReverse }: {
       ? [['冲正原因', row.reason ?? ''], ['冲正的交易', page.originals.get(row.reversal_of ?? '') ?? '']] as [string, ReactNode][]
       : [['状态', row.status === 'normal' ? '正常' : rev ? `已冲正 · ${rev.reason ?? ''} · 冲正交易号 ${rev.txn_no}` : '已冲正']] as [string, ReactNode][]),
   ];
-  const canReverse = teacher && row.status === 'normal' && !['reversal', 'salary', 'interest', 'closing'].includes(row.type);
+  const canReverse = teacher && row.status === 'normal' && !['reversal', 'salary', 'interest', 'closing'].includes(row.type)
+    && (row.type !== 'term_open' || row.term?.status === 'open')
+    && (row.type !== 'term_close' || (row.term?.status === 'early' && row.term.matures_on >= today()));
+  const system = row.type === 'interest' || (row.type === 'term_close' && row.term?.status === 'matured');
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>
@@ -245,7 +249,7 @@ function TxnLine({ row, page, first, isNew, teacher, onReverse }: {
           {teacher && (
             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
               <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/students/${row.student_no}`)}><Icon name="me" />查看学生</a>
-              {row.type !== 'interest' && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/staff/${row.operator_id}`)}><Icon name="teacher" />查看经办人</a>}
+              {!system && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/staff/${row.operator_id}`)}><Icon name="teacher" />查看经办人</a>}
               {canReverse && <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={onReverse}><Icon name="transfer" />冲正</button>}
             </div>
           )}

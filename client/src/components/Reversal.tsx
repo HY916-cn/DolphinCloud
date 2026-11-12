@@ -8,9 +8,10 @@ import { Icon, Notice } from './ui';
 const REASONS = ['金额录错', '学号录错', '业务选错', '其他'];
 
 // 冲正 one transaction (PHASE-1.md §6.3) from wherever it is listed: the reason, then one confirmation. The original
-// stays and is marked 已冲正. `what` names the business for the teller ("张小明 · 存款 22 HTB").
+// stays and is marked 已冲正. `what` names the business for the teller ("张小明 · 存款 22 HTB"); `type` is the business's,
+// so a refusal of a 定期 one says why.
 export function ReversalSheet({ txn, onClose, onDone }: {
-  txn: { id: string; txn_no: string; what: string }; onClose: () => void; onDone: (r: TxnResult) => void;
+  txn: { id: string; txn_no: string; what: string; type?: string }; onClose: () => void; onDone: (r: TxnResult) => void;
 }) {
   const [id] = useState(newId);
   const [reason, setReason] = useState('');
@@ -29,7 +30,7 @@ export function ReversalSheet({ txn, onClose, onDone }: {
     } catch (e) {
       stale(e);
       const err = e instanceof AppError ? e : new AppError('');
-      setError(explain(err.code, err.detail));
+      setError(explain(err.code, { ...err.detail, type: txn.type }));
       setBusy(false);
     }
   }

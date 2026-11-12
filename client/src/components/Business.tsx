@@ -1,9 +1,9 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { cashTotal, describeCash, makeChange, nonEmpty, type Counts } from '@/lib/cash';
-import { classOf, deposit, newId, purchase, useSettings, withdraw, type Student, type TxnResult } from '@/lib/counter';
+import { classOf, deposit, newId, openTermDeposit, purchase, termQuote, useSettings, withdraw, withdrawTermEarly, type Student, type TxnResult } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatSigned } from '@/lib/format';
+import { formatAmount, formatCenti, formatRate, formatSigned } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
@@ -11,12 +11,17 @@ import { useBump, useNewRows } from '@/lib/motion';
 import { useStaleRefusal } from '@/lib/duty';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
+import { monthDay } from '@/lib/term';
+import { amountHint, backCenti, maxWeeks, type TermDeposit } from '@/lib/term-deposits';
 import { toTxn, type TxnRow } from '@/lib/txns';
 import { CashCounter, QtySum, Summary } from './Counter';
 import { FilterBar, filtered, NO_FILTER, wrongTimes, type Filter } from './Filter';
 import { Stats } from './Report';
 import { ConfirmSheet } from './Sheet';
 import { TxnListLoading } from './Account';
+import { today } from './DatePicker';
+import { TermList } from './TermDeposit';
+import { Toast } from './Toast';
 import { KvLoading, TilesLoading } from './Skeleton';
 import { Icon, Notice } from './ui';
 
@@ -26,8 +31,9 @@ import { Icon, Notice } from './ui';
 // once more in a sheet first, since its notes or goods leave the counter. A mistake is put right with 冲正 on its
 // line in the 办理单. A finished business goes to onDone and the panel starts again empty;
 // onEnd ends the visit. `amount` is the change to the account (null when it is untouched: a cash exchange, an
-// offline deposit's balance); `txnId` is null until an offline deposit is uploaded.
-export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean };
+// offline deposit's balance); `txnId` is null when the line has no 冲正 here: an offline deposit until it is uploaded,
+// a 提前支取. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either.
+export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean; termId?: string };
 type Props = { student: Student; served: Served[]; onDone: (s: Served) => void; onEnd: () => void; onReverse: (s: Served) => void };
 type Problem = { title: string; text: string } | null;
 type Current = { label: string; detail: string; amount: string } | null;
@@ -53,7 +59,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
             <dt>
               {s.label}{s.reversed && '（已冲正）'}
               <small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small>
-              {s.txnId && !s.reversed && (
+              {s.txnId && !s.reversed && !served.some((x) => x !== s && s.termId && x.termId === s.termId) && (
                 <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" type="button" style={{ marginTop: 'var(--space-1)' }}
                   aria-label={`冲正${s.label}`} onClick={() => onReverse(s)}><Icon name="transfer" />冲正</button>
               )}
@@ -241,6 +247,152 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
   );
 }
 
+const INACTIVE: Record<string, string> = { frozen: '账户已冻结', graduated: '账户已毕业' };
+
+// 定期 (PHASE-2.md §10.2, design system TermDeposit): from term_quote, the lengths that end in term with their locked
+// rates, the amount out of 活期 with what comes back at maturity, and the student's 定期 with 提前支取. 开定期 is checked
+// once more in a sheet; a refusal stays in the sheet. A frozen or graduated account only lists its 定期.
+export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) {
+  const stale = useStaleRefusal();
+  const done = served.length + served.filter((s) => s.reversed).length;
+  const quote = useQuery({ queryKey: ['term-quote', student.student_no, done], queryFn: () => termQuote(student.student_no) });
+  const [weeks, setWeeks] = useState<number | null>(null);
+  const [text, setText] = useState('');
+  const [id, setId] = useState(newId);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [early, setEarly] = useState<TermDeposit | null>(null);
+  const [error, setError] = useState<Problem>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const q = quote.data;
+  const now = today();
+  const inactive = INACTIVE[student.status];
+  const amount = Number(text) || 0;
+  const balance = q?.balance ?? student.balance ?? 0;
+  const option = q?.options.find((o) => o.weeks === weeks);
+  const hint = amountHint(amount, balance, option);
+  const closed = !q || inactive ? null
+    : !q.term ? explain('NO_TERM', { business: '开定期' }).text
+    : !q.options.length ? explain('TERM_TOO_LONG', { ends_on: q.term.ends_on, max_weeks: null }).text
+    : null;
+  const open = !!q && !inactive && !closed;
+  const longest = q ? maxWeeks(q.options) : null;
+  const ready = !!option && !!amount && !hint.error;
+  const what = option ? `${option.weeks} 周，${monthDay(option.matures_on)} 到期` : '';
+
+  async function submit() {
+    if (busy || !option) return; // the same id is idempotent on the server too
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await openTermDeposit(id, student.student_no, amount, option.weeks);
+      onDone({ label: '开定期', detail: what, amount: -amount, txnNo: result.txn_no, txnId: result.id, termId: result.term.id });
+      setConfirming(false);
+      setWeeks(null);
+      setText('');
+      setId(newId());
+    } catch (e) {
+      stale(e);
+      setError(failure(e).problem);
+      quote.refetch();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function withdrawEarly() {
+    if (busy || !early) return; // sent again, the server returns the same 提前支取
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await withdrawTermEarly(early.id);
+      const interest = formatCenti(result.term.interest_centi ?? 0);
+      onDone({ label: '提前支取', detail: `${early.weeks} 周定期，利息 ${interest} HTB`, amount: result.amount, txnNo: result.txn_no, txnId: null, termId: early.id });
+      setEarly(null);
+      setToast(`已提前支取，利息 ${interest} HTB`);
+    } catch (e) {
+      stale(e);
+      setError(failure(e).problem);
+      quote.refetch();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const list = q && (
+    <>
+      <p className="dc-list-title" style={{ margin: 0 }}>定期</p>
+      {q.deposits.some((d) => d.status !== 'reversed')
+        ? <TermList deposits={q.deposits} today={now} onWithdraw={inactive ? undefined : (d) => { setError(null); setEarly(d); }} />
+        : <section className="dc-card"><p className="dc-top-sub" style={{ margin: 0 }}>还没有定期。</p></section>}
+    </>
+  );
+  return (
+    <>
+      {inactive && <Notice title={`${inactive}，不能开定期或提前支取；定期照常到期转回活期。`} />}
+      <div className="dc-split">
+        <section className="dc-stack">
+          {quote.error ? <Notice tone="danger" title="暂时无法读取定期">请检查网络后再试一次。</Notice>
+            : !q ? <KvLoading rows={3} />
+            : closed ? <Notice title={closed} />
+            : open && (
+              <>
+                <div className="dc-stack">
+                  <div className="dc-choices dc-kind-save" role="radiogroup" aria-label="存期">
+                    {q.options.map((o) => (
+                      <label key={o.weeks} className="dc-choice">
+                        <input type="radio" name="weeks" checked={weeks === o.weeks} onChange={() => setWeeks(o.weeks)} />
+                        <span><b>{o.weeks} 周</b><small>{monthDay(o.matures_on)} 到期</small><small>{formatRate(o.rate)}/周</small></span>
+                      </label>
+                    ))}
+                  </div>
+                  {longest && q.term && <p className="dc-top-sub" style={{ margin: 0 }}>{explain('TERM_TOO_LONG', { ends_on: q.term.ends_on, max_weeks: longest }).text}</p>}
+                </div>
+                <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
+                  <span className="dc-field-label"><Icon name="savings" />定期金额</span>
+                  <span className="dc-input-wrap">
+                    <input className="dc-input" inputMode="numeric" value={text} placeholder="请输入金额"
+                      onChange={(e) => setText(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                    <span className="dc-input-unit">HTB</span>
+                  </span>
+                  <span className="dc-field-hint">{hint.error && <Icon name="warning" />}{hint.text}</span>
+                </label>
+              </>
+            )}
+          {list}
+        </section>
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={Math.max(balance - amount, 0)}
+          current={open && option && amount ? { label: '开定期', detail: what, amount: formatSigned(-amount) } : null} />
+      </div>
+      {error && !confirming && !early && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      {open && (
+        <Bar busy={busy} ready={ready} onClick={() => { setError(null); setConfirming(true); }}
+          label={busy ? '正在开定期' : '开定期'} totalLabel="存入定期" total={amount}
+          note={`办理后余额 ${formatAmount(Math.max(balance - amount, 0))} HTB`} />
+      )}
+      {confirming && option && (
+        <ConfirmSheet title={`给${student.name}开定期 ${formatAmount(amount)} HTB？`} confirm="确认开定期" busy={busy}
+          onConfirm={submit} onClose={() => { setConfirming(false); setError(null); }}>
+          <Summary rows={[
+            ['存期', `${option.weeks} 周`], ['到期日', monthDay(option.matures_on)], ['周利率', `${formatRate(option.rate)}/周（到期前不变）`],
+            ['到期拿回', `${backCenti(amount, option)} HTB`], ['活期余额', `${formatAmount(balance)} → ${formatAmount(balance - amount)} HTB`],
+          ]} />
+          <p className="dc-top-sub" style={{ margin: 0 }}>到期当天结束时自动转回活期。提前支取只按活期算利息。</p>
+          {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+        </ConfirmSheet>
+      )}
+      {early && (
+        <ConfirmSheet title={`提前支取这笔定期 ${formatAmount(early.principal)} HTB？`} confirm="提前支取" busy={busy}
+          text="不付定期利息，只按活期利率算存入这些天的利息，当天支取没有利息。本金和利息转回活期。"
+          onConfirm={withdrawEarly} onClose={() => { setEarly(null); setError(null); }}>
+          {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+        </ConfirmSheet>
+      )}
+      {toast && <Toast text={toast} onDone={() => setToast(null)} />}
+    </>
+  );
+}
+
 type Product = { id: string; name: string; price: number; stock: number; image_path: string | null };
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
@@ -407,7 +559,7 @@ export function QueryPanel({ student, served }: Props) {
   const account = useQuery({
     queryKey: ['counter-account', student.student_no, done],
     queryFn: async () => {
-      const { data, error } = await supabase.from('accounts').select('balance,total_in,total_out,total_spent').eq('student_no', student.student_no).single();
+      const { data, error } = await supabase.from('accounts').select('balance,total_in,total_out,total_spent,term_total').eq('student_no', student.student_no).single();
       if (error) throw error;
       return data;
     },
@@ -431,7 +583,7 @@ export function QueryPanel({ student, served }: Props) {
     <section className="dc-stack dc-enter" aria-label="账户查询">
       {a ? (
         <Stats items={[['当前余额', formatAmount(a.balance), 'HTB'], ['累计存入', formatAmount(a.total_in), 'HTB'],
-          ['累计取出', formatAmount(a.total_out), 'HTB'], ['累计账户兑换', formatAmount(a.total_spent), 'HTB']]} />
+          ['累计取出', formatAmount(a.total_out), 'HTB'], ['累计账户兑换', formatAmount(a.total_spent), 'HTB'], ['定期合计', formatAmount(a.term_total), 'HTB']]} />
       ) : account.error ? <Notice tone="danger" title="暂时无法读取账户">请检查网络后再试一次。</Notice> : <KvLoading rows={2} />}
       <FilterBar label="筛选交易记录" placeholder="搜索交易号或商品" value={filter} onChange={setFilter} kinds={QUERY_KINDS} />
       {badTime ? <Notice tone="danger" title="时段有误">结束时间要晚于开始时间。</Notice>

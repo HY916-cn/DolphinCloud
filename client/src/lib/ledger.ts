@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { Filter } from '@/components/Filter';
 import { readAll, supabase } from './supabase';
+import { flows } from './term-deposits';
 import { toTxn, type TxnRow } from './txns';
 
 // A student's own ledger, read the same way by the 学生 pages and the 存折: the latest businesses, every business by
@@ -60,8 +61,9 @@ export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enable
   });
 }
 
-// This month as the school reads it (Asia/Shanghai): every change to the balance since it began, 冲正 included, so last
-// month's closing balance, what came in and what went out add up to the balance now. `m` is the month's number.
+// This month as the school reads it (Asia/Shanghai): last month's closing balance, what came in and what went out since,
+// 冲正 included, and the balance now. 开定期 and 定期转回 are neither in nor out (flows), so with them the three do not add
+// up to the balance now. `m` is the month's number.
 export function useMonth(studentNo: string) {
   const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit' }).format(new Date());
   const totals = useQuery({
@@ -69,13 +71,12 @@ export function useMonth(studentNo: string) {
     queryFn: async () => {
       const [account, data] = await Promise.all([
         supabase.from('accounts').select('balance').eq('student_no', studentNo).single(),
-        readAll<{ balance_delta: number }>((from, to) => supabase.from('txns').select('balance_delta')
+        readAll<{ balance_delta: number; term_id: string | null }>((from, to) => supabase.from('txns').select('balance_delta,term_id')
           .eq('student_no', studentNo).gte('created_at', `${month}-01T00:00:00+08:00`).order('seq').range(from, to)),
       ]);
       if (account.error) throw account.error;
-      const saved = data.reduce((n, t) => n + Math.max(t.balance_delta, 0), 0);
-      const spent = data.reduce((n, t) => n + Math.min(t.balance_delta, 0), 0);
-      return { balance: account.data.balance, saved, spent, opening: account.data.balance - saved - spent };
+      const { saved, spent, moved } = flows(data);
+      return { balance: account.data.balance, saved, spent, opening: account.data.balance - saved - spent - moved };
     },
   });
   return { m: Number(month.slice(5)), totals };

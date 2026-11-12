@@ -10,7 +10,7 @@ function Places({ rows, lines = 0 }: { rows: Ranking['top']; lines?: number }) {
   return (
     <table className="dc-pb-table">
       <colgroup><col className="is-rank" /><col /><col /><col className="is-num" /></colgroup>
-      <thead><tr><th scope="col">名次</th><th scope="col">姓名</th><th scope="col">班级</th><th scope="col">余额</th></tr></thead>
+      <thead><tr><th scope="col">名次</th><th scope="col">姓名</th><th scope="col">班级</th><th scope="col">存款</th></tr></thead>
       <tbody>
         {rows.map((row, i) => (
           <tr key={i} className={row.me ? 'is-me' : undefined} aria-current={row.me || undefined}>
@@ -43,7 +43,7 @@ export default function BookRanking() {
   const board = (rows: Ranking['top'], k: number) => (
     <PassbookPage key={`board-${k}`} title={`${division}存款榜`} side={k ? <small>续页</small> : undefined}>
       {!r ? <TxnListLoading label="正在加载排名" /> : rows.length ? <Places rows={rows} lines={PLACES} /> : (
-        <p className="dc-pb-empty"><b>本学部还没有排名</b>同学们在柜台存款后，这里会按余额排出名次。</p>
+        <p className="dc-pb-empty"><b>本学部还没有排名</b>同学们在柜台存款后，这里会按存款排出名次。</p>
       )}
     </PassbookPage>
   );
@@ -55,15 +55,15 @@ export default function BookRanking() {
         {!r ? null : r.me ? <>
           <dl className="dc-pb-fields">
             <dt>名次</dt><dd className="is-total">第 {r.me.rank} 名</dd>
-            <dt>余额</dt><dd>{formatAmount(r.me.balance)}<small>HTB</small></dd>
+            <dt>存款</dt><dd>{formatAmount(r.me.balance)}<small>HTB</small></dd>
             <dt>超过</dt><dd>{division} {r.me.behind} 位同学</dd>
           </dl>
           <p className="dc-pb-note">{rankNext(r)}</p>
           {!r.top.some((t) => t.me) && <Places rows={r.me.near} />}
-        </> : <p className="dc-pb-empty"><b>账户暂不参加排名</b>账户状态正常后，会按余额参加本学部排名。</p>}
+        </> : <p className="dc-pb-empty"><b>账户暂不参加排名</b>账户状态正常后，会按存款参加本学部排名。</p>}
         <ol className="dc-pb-rules" aria-label="排名说明">
-          <li>按当前余额从多到少排名，只和本学部的同学比。</li>
-          <li>余额相同的同学名次相同。</li>
+          <li>按存款从多到少排名，只和本学部的同学比。</li>
+          <li>存款相同的同学名次相同。</li>
           {r?.anonymous && <li>榜上同学的名字隐去一个字。</li>}
         </ol>
       </PassbookPage>,

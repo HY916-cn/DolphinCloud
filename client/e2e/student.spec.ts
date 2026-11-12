@@ -84,7 +84,7 @@ test('排名: my place on the scale, the podium with my place tagged and names m
 
   const card = page.locator('.dc-rank-card');
   await expect(card).toContainText('我的名次');
-  await expect(card.locator('.dc-rank-place')).toHaveText('第 1 名余额 108 HTB');
+  await expect(card.locator('.dc-rank-place')).toHaveText('第 1 名存款 108 HTB');
   await expect(card.getByRole('img')).toHaveAttribute('aria-label', '在小学部 2 人中排第 1 名');
   await expect(card).toContainText('超过了小学部 1 位同学');
 

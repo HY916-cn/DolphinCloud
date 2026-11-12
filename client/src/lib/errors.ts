@@ -29,7 +29,7 @@ const FIELDS: Record<string, string> = {
   promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', salary_per_shift: '班次工资',
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '补签说明', status: '审核结果', week: '发放的周',
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
-  anchor_params: '锚点参数', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数',
+  anchor_params: '锚点参数', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
 };
 
 export function explain(code: string, d: Detail = {}): { title: string; text: string } {
@@ -41,7 +41,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'OUT_OF_STOCK': return { title: '已售罄', text: `${d.name} 库存不足，请调整数量。` };
     case 'PRODUCT_UNLISTED': return { title: '商品已下架', text: '请重新选择商品。' };
     case 'CASH_NOT_ENOUGH': return { title: '收款不足', text: `应付 ${d.due} HTB，已收 ${d.received} HTB。` };
-    case 'REVERSAL_NOT_ALLOWED': return { title: '不能冲正这笔业务', text: '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
+    // `type` (the business reversed) is the client's own: the server sends no detail.
+    case 'REVERSAL_NOT_ALLOWED':
+      return { title: '不能冲正这笔业务', text: d.type === 'term_open' ? '这笔定期已经到期或提前支取，不能再冲正。'
+        : d.type === 'term_close' ? '已过到期日，不能再冲正这笔提前支取。' : '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
     case 'REVERSAL_INSUFFICIENT_BALANCE':
       return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系银行管理员。` };
     case 'STUDENT_INACTIVE':
@@ -68,7 +71,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };
     case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
     case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码输错次数过多，请 15 分钟后再试。' };
-    case 'NO_TERM': return { title: '现在不在学期内', text: '还没有登记当前学期，暂时不能办理贷款和定期。' };
+    // `business` (开定期) is the counter's own: the server sends no detail.
+    case 'NO_TERM': return { title: '现在不在学期内', text: d.business ? `现在不在学期内，不能${d.business}。` : '还没有登记当前学期，暂时不能办理贷款和定期。' };
+    case 'TERM_TOO_LONG':
+      return { title: '存期超过学期末', text: `本学期 ${monthDay(String(d.ends_on))} 结束，${d.max_weeks == null ? '已经放不下定期' : `最长只能选 ${d.max_weeks} 周`}。` };
     case 'TERM_OPEN_ITEMS': return { title: '还不能结转', text: '下面这些处理完后，再结转学期。' };
     case 'TERM_OVERLAP': return { title: '学期日期重叠', text: `和「${d.term}」的日期重叠，请调整开始日或结束日。` };
     case 'TERM_NOT_ENDED': return { title: '学期还没结束', text: `${monthDay(String(d.ends_on))} 之后才能结转。` };
