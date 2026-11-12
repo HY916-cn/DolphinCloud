@@ -101,6 +101,12 @@ insert into tests.matrix values
   ('term_quote(text)', 'select term_quote(''nobody'')', '{teller}'),
   ('open_term_deposit(uuid,text,integer,integer)', 'select open_term_deposit(gen_random_uuid(), ''nobody'', 1, 2)', '{teller}'),
   ('withdraw_term_early(uuid)', 'select withdraw_term_early(gen_random_uuid())', '{teller}'),
+  -- 贷款: the counter's; 终止 the president's and bank admin's (PHASE-2.md §10.3–10.8); the back office reads the loans tables
+  ('loan_quote(text)', 'select loan_quote(''nobody'')', '{teller}'),
+  ('loan_preview(text,integer,text,integer)', 'select loan_preview(''nobody'', 1, ''bullet'', 1)', '{teller}'),
+  ('open_loan(uuid,text,integer,text,text,integer,text)', 'select open_loan(gen_random_uuid(), ''nobody'', 1, ''x'', ''bullet'', 1, ''account'')', '{teller}'),
+  ('repay_loan(uuid,uuid,integer,text,jsonb)', 'select repay_loan(gen_random_uuid(), gen_random_uuid(), 1, ''account'', null)', '{teller}'),
+  ('terminate_loan(uuid,text)', 'select terminate_loan(gen_random_uuid(), ''x'')', '{president,teacher}'),
   -- 学期: the bank admin alone (PHASE-2.md §3)
   ('upsert_term(uuid,text,date,date)', 'select upsert_term(null, '''', current_date, current_date)', '{teacher}'),
   ('close_term(uuid)', 'select close_term(gen_random_uuid())', '{teacher}'),

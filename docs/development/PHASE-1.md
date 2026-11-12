@@ -759,7 +759,7 @@ docker/
   rollback-test.sh      从指定的旧提交升级到新镜像再按 9.5 回滚：库结构与余额、库存恢复到备份时，旧镜像正常办理
   db-test.sh            在镜像上运行 supabase/tests 的 pgTAP 测试（M1）
   perf-test.sh          全校规模（2000 名学生、10 万笔流水）的性能与越权修改检查
-  sim-test.sh           2000 名学生跑满一学期的定时任务模拟：锚点范围、每天自检、run_daily 用时（PHASE-2.md §17）
+  sim-test.sh           2000 名学生跑满一学期的定时任务模拟：锚点范围、每天自检、run_daily 用时、定期与贷款收尾（PHASE-2.md §17）
   Caddyfile
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
@@ -984,7 +984,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | 前端单元 | `npm --prefix client test` | `cash.ts` 合计、配钞与找零；`search.ts` 按学号、姓名、拼音、首字母、班级搜索与排序，学生范围里的班级与学部；离线队列按柜员、按时间上传，失败保留并标记，断网停止；`format.ts` 金额、时间、报表期间（周一起算）、姓名脱敏与班次（13:30 分界）；`roster.ts` 名册模板逐行校验与年级推算 |
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；新设备读到上班状态前断网仍能离线登记；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按搜索（学生、柜员、交易号）、时段、类型筛选与冲正、流水导出；报表数字、标签页、时段与 PDF 导出；柜台查询全部交易记录与筛选；柜员上班才能办理、下班打印总结；柜员绑定工资账户 → 银行管理员开启考勤 → 上下班记下班次 → 审查、全部确认、补签、发放工资 → 柜员看到已发工资、学生明细里有工资；批量管理学生与工作人员、注销账号；我的页与在此设备保存登录（未保存的账号重新打开后须登录）；行长看到全部业务页面、学生与工作人员只读；总览待办、页面间跳转、参数开关、日志；学生明细（按类型、搜索）与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
-| 模拟 | `docker/sim-test.sh`：新容器里 2000 名学生、一个 18 周的学期，每个上学日随机存取款、开定期与提前支取、信用分变动，学期中冻结一批账户，按天运行 `run_weekly`、`run_daily` | 锚点始终在 1%～4%，每天 `check_balances` 无差异，单次 `run_daily` < 30 秒，学期结束时定期全部转回活期 |
+| 模拟 | `docker/sim-test.sh`：新容器里 2000 名学生、一个 18 周的学期，每个上学日随机存取款、开定期与提前支取、放款与还款、信用分变动，学期中冻结一批账户，按天运行 `run_weekly`、`run_daily` | 锚点始终在 1%～4%，每天 `check_balances` 无差异，单次 `run_daily` < 30 秒，学期结束时定期全部转回活期、贷款全部结清或逾期在册 |
 
 CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
 

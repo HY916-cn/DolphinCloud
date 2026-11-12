@@ -1,9 +1,10 @@
 #!/bin/bash
 # One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past; each
 # school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 信用分 changes and,
-# mid-term, some frozen accounts, then the day's jobs run as at 00:05 and 00:10 (run_weekly on Mondays before the day's
-# business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances finds nothing every day,
-# that no run_daily takes 30 s and that every 定期 has come back by the end of the term.
+# mid-term, some frozen accounts, loans paid out and repaid, then the day's jobs run as at 00:05 and 00:10 (run_weekly on
+# Mondays before the day's business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances
+# finds nothing every day, that no run_daily takes 30 s, that every 定期 has come back by the end of the term and that
+# every loan is then paid off or 逾期.
 # Usage: docker/sim-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -38,8 +39,11 @@ select gen_random_uuid(), 'opening', student_no, balance, balance, balance, app_
 from public.accounts where student_no like '4%' and balance > 0;
 
 -- A school day's business (Monday to Friday): about 30% of the students deposit or withdraw once between 7:30 and
--- 17:30, a withdrawal never more than the balance; at 17:45 about 1% open a 定期 of up to half their 活期 for a length
--- that ends in term, and 2% of the 定期 open are withdrawn early; five 信用分 changes by hand.
+-- 17:30, a withdrawal never more than the balance; at 17:40 about 0.5% of those with no loan and 400 分 or more borrow up
+-- to 60 HTB within their 额度 for 1–4 weeks, into the account or in cash; at 17:45 about 1% open a 定期 of up to half
+-- their 活期 for a length that ends in term (none with a loan not paid off), and 2% of the 定期 open are withdrawn early;
+-- at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
+-- 信用分 changes by hand. The days' 自动扣款 and 逾期 come from run_daily.
 create function sim.business(p_day date) returns integer language plpgsql as $$
 declare v_n integer;
 begin
@@ -61,12 +65,30 @@ begin
     app_private.system_user(), (p_day + time '17:45') at time zone 'Asia/Shanghai')
   from (select a.student_no, a.balance, (array[2, 4, 8])[1 + floor(random() * 3)::integer] as w
         from public.accounts a join public.students s using (student_no)
-        where s.status = 'normal' and a.balance >= 10 and random() < 0.01) x
+        where s.status = 'normal' and a.balance >= 10 and random() < 0.01
+          and not exists (select 1 from public.loans l where l.student_no = a.student_no and l.status in ('active', 'overdue'))) x
   where p_day + 7 * x.w <= (app_private.current_term(p_day)).ends_on;
   perform app_private.end_term_deposit(d.id, 'early', app_private.early_interest(d, p_day), app_private.system_user(),
     (p_day + time '17:50') at time zone 'Asia/Shanghai')
   from public.term_deposits d join public.students s using (student_no)
   where d.status = 'open' and s.status = 'normal' and d.matures_on >= p_day and random() < 0.02;
+  perform app_private.start_loan(gen_random_uuid(), x.student_no, least(x.lim, 1 + (random() * 59)::integer), '模拟', x.plan, x.k, x.via,
+    app_private.system_user(), (p_day + time '17:40') at time zone 'Asia/Shanghai')
+  from (select s.student_no, app_private.credit_limit(c.score) as lim,
+          case when random() < 0.5 then 'installment' else 'bullet' end as plan, 1 + floor(random() * 4)::integer as k,
+          case when random() < 0.5 then 'account' else 'cash' end as via
+        from public.students s join public.credit_scores c using (student_no)
+        where s.status = 'normal' and app_private.credit_limit(c.score) is not null and random() < 0.005
+          and not exists (select 1 from public.loans l where l.student_no = s.student_no and l.status in ('active', 'overdue'))) x
+  where p_day + 7 * x.k <= (app_private.current_term(p_day)).ends_on;
+  perform app_private.pay_loan(y.id, null, y.amount, y.via, case when y.via = 'cash' then app_private.make_change(y.amount) end,
+    app_private.system_user(), (p_day + time '17:55') at time zone 'Asia/Shanghai', p_day, false, null)
+  from (select x.id, x.amount, case when x.balance >= x.amount then 'account' else 'cash' end as via
+        from (select l.id, a.balance, app_private.loan_take(l,
+                1 + floor(random() * (l.remaining + ceil(l.interest_centi / 100.0)))::integer) as amount
+              from public.loans l join public.accounts a using (student_no) join public.students s using (student_no)
+              where l.status in ('active', 'overdue') and s.status = 'normal' and random() < 0.04) x
+        where x.amount > 0) y;
   perform app_private.credit_change(student_no, (random() * 100)::integer - 50, 'manual', '模拟', null, null,
     (p_day + time '12:00') at time zone 'Asia/Shanghai')
   from (select student_no from public.students order by random() limit 5) x;
@@ -137,6 +159,15 @@ psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'mature
   read -r n matured early open centi
   [ "$open" = 0 ] || fail "$open 定期 still open after the term"
   echo "定期: $n opened, $matured matured, $early withdrawn early; $centi (0.01 HTB) of interest"
+}
+psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'closed'), count(*) filter (where status = 'overdue'),
+  count(*) filter (where status = 'active'), coalesce(sum(principal), 0),
+  (select count(*) from public.loan_payments), (select count(*) from public.loan_payments where auto), (select coalesce(sum(interest), 0) from public.loan_payments),
+  (select count(distinct student_no) from public.credit_events where rule = 'overdue')) from public.loans" | {
+  read -r n closed overdue active principal repays auto interest late
+  [ "$n" -gt 0 ] || fail "no loans"
+  [ "$active" = 0 ] || fail "$active loans neither paid off nor 逾期 after the term"
+  echo "贷款: $n paid out ($principal HTB), $closed paid off, $overdue 逾期; $repays repayments ($auto 自动扣款), $interest HTB of interest; $late students ever 逾期"
 }
 echo "slowest run_daily: ${max_daily} ms; slowest run_weekly: ${max_weekly} ms; whole term: $(( $(date +%s) - start ))s"
 echo 'sim ok'
