@@ -808,7 +808,7 @@ docker/upgrade-test.sh <生产环境当前的提交>
 docker/rollback-test.sh <生产环境当前的提交>
 ```
 
-`e2e-test.sh` 用镜像起一个新容器（端口由 Docker 分配本机空闲端口），导入种子数据并留一份数据快照，再运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷。每个 spec 开始前把数据恢复到快照（只清空、重灌表数据和图片文件，服务连接不断），互不依赖执行顺序。Chromium（1180×820）跑全部，WebKit 跑柜台和学生端，iPhone 13 尺寸跑学生端。首次运行前执行一次 `npx --prefix client playwright install chromium webkit`。
+`e2e-test.sh` 用镜像起一个新容器（端口由 Docker 分配本机空闲端口），导入种子数据并留一份数据快照，再运行 `client/e2e` 的 Playwright 测试，结束后删除容器和数据卷。每个 spec 开始前把数据恢复到快照（只清空、重灌表数据和图片文件，服务连接不断），互不依赖执行顺序。Chromium（1180×820）跑全部，WebKit 跑柜台和学生端，iPhone 13 尺寸跑学生端。`E2E_SHARDS=3 docker/e2e-test.sh <镜像>` 把测试分成 3 份同时跑，每份用自己的容器，任一份失败即失败；也可以直接传 Playwright 的 `--shard=1/3`。首次运行前执行一次 `npx --prefix client playwright install chromium webkit`。
 
 前端检查：`npm --prefix client run typecheck`、`npm --prefix client run lint`（ESLint，`eslint-config-expo`）、`npm --prefix client test`。生产镜像使用官方 Postgres，迁移中只使用 Postgres 自带扩展（`pgcrypto`、`dblink` 仅测试用），不依赖 Supabase 托管版独有扩展。
 
@@ -831,7 +831,7 @@ docker/rollback-test.sh <生产环境当前的提交>
 2. `storage`：把官方 Storage 镜像（Alpine）中的 `/app` 复制到 `node:24-bookworm-slim`，为 glibc 重新编译其中唯一的原生模块 `fs-xattr`。
 3. 最终阶段基于 `postgres:17-bookworm`：复制 Auth、PostgREST、Caddy 二进制，Storage 与 Node 运行时，前端静态文件，迁移文件，`init/`、`bin/`；安装 supervisord。
 
-镜像推送到 GitHub Container Registry（`ghcr.io/hy916-cn/dolphin-cloud`）：CI 在 `main` 每次通过后推送 `main` 与 `sha-<7 位提交号>`，正式发布时另打语义化版本标签（如 `1.0.0`）。
+镜像推送到 GitHub Container Registry（`ghcr.io/hy916-cn/dolphin-cloud`）：CI 在 `main` 每次全部通过后给测过的镜像加上 `main` 与 `sha-<7 位提交号>` 标签（镜像测试通过时先以 `ci-<7 位提交号>` 推送），正式发布时另打语义化版本标签（如 `1.0.0`）。
 
 ### 9.2 启动
 
@@ -986,7 +986,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 | 模拟 | `docker/sim-test.sh`：新容器里 2000 名学生、一个 18 周的学期，每个上学日随机存取款、开定期与提前支取、放款与还款、信用分变动，学期中冻结一批账户，按天运行 `run_weekly`、`run_daily` | 锚点始终在 1%～4%，每天 `check_balances` 无差异，单次 `run_daily` < 30 秒，学期结束时定期全部转回活期、贷款全部结清或逾期在册 |
 
-CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 先运行类型检查与单元测试，再构建镜像，在镜像上运行 `docker/db-test.sh` 与 `docker/e2e-test.sh`；端到端测试失败时上传 Playwright 结果。推送到 `main` 且全部通过后，把镜像推送到 GHCR（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
+CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 同时运行三项：类型检查、代码检查与单元测试；构建镜像并运行 `docker/db-test.sh` 与 `docker/smoke-test.sh`；端到端测试分 4 份在 4 台机器上同时运行（各自从 Actions 缓存构建镜像），失败时上传各份的 Playwright 结果。只改 Markdown 或 `docs/` 的推送不运行 CI。推送到 `main` 时，镜像测试通过后先以 `ci-<7 位提交号>` 推送到 GHCR，全部通过后再给同一镜像加上 `main` 与 `sha-<7 位提交号>` 标签（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
 
 ---
 

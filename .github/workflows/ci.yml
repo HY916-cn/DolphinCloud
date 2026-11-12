@@ -1,13 +1,18 @@
-# CI (PHASE-1.md §10): every push and pull request runs the dependency audit, type check, lint and unit tests, then
-# builds the image and runs the pgTAP, smoke and end-to-end tests on it. A push to main that passes publishes the image
-# to GitHub Container Registry. The performance, simulation, upgrade and rollback tests (docker/perf-test.sh, sim-test.sh,
+# CI (PHASE-1.md §10): every push and pull request runs the dependency audit, type check, lint and unit tests; builds
+# the image and runs the pgTAP and smoke tests on it; and runs the end-to-end tests in four shards side by side, each on
+# its own build of the image (from the GitHub Actions cache) and its own container. These jobs run in parallel. On a
+# push to main the image job pushes the image it tested as ci-<sha>, and once every job passes, publish tags that same
+# image main and sha-<sha> in GitHub Container Registry. Pushes that change only Markdown or
+# docs/ skip CI. The performance, simulation, upgrade and rollback tests (docker/perf-test.sh, sim-test.sh,
 # upgrade-test.sh, rollback-test.sh) run weekly and on manual dispatch.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
   schedule:
     - cron: '0 18 * * 0' # Sunday 18:00 UTC, Monday 02:00 Asia/Shanghai
   workflow_dispatch:
@@ -42,13 +47,10 @@ jobs:
         working-directory: client
 
   image:
-    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    env:
-      IMAGE: ghcr.io/hy916-cn/dolphin-cloud
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -66,6 +68,30 @@ jobs:
         run: docker/db-test.sh dolphin-cloud:dev
       - name: Smoke test
         run: docker/smoke-test.sh dolphin-cloud:dev
+      - name: Push the tested image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag dolphin-cloud:dev "ghcr.io/hy916-cn/dolphin-cloud:ci-${GITHUB_SHA::7}"
+          docker push "ghcr.io/hy916-cn/dolphin-cloud:ci-${GITHUB_SHA::7}"
+
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Build the image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: docker/Dockerfile
+          build-args: DOLPHIN_VERSION=${{ github.sha }}
+          tags: dolphin-cloud:dev
+          load: true
+          cache-from: type=gha
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
@@ -74,21 +100,28 @@ jobs:
       - run: npm ci && npx playwright install --with-deps chromium webkit
         working-directory: client
       - name: End-to-end tests (Playwright)
-        run: docker/e2e-test.sh dolphin-cloud:dev
+        run: docker/e2e-test.sh dolphin-cloud:dev --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.shard }}
           path: client/test-results
           retention-days: 7
+
+  publish:
+    needs: [check, image, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/hy916-cn/dolphin-cloud
+    steps:
       - name: Publish the image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker tag dolphin-cloud:dev "$IMAGE:main"
-          docker tag dolphin-cloud:dev "$IMAGE:sha-${GITHUB_SHA::7}"
-          docker push "$IMAGE:main"
-          docker push "$IMAGE:sha-${GITHUB_SHA::7}"
+          docker buildx imagetools create -t "$IMAGE:main" -t "$IMAGE:sha-${GITHUB_SHA::7}" "$IMAGE:ci-${GITHUB_SHA::7}"
 
   perf:
     needs: image

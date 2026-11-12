@@ -8,6 +8,16 @@
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
 shift $(( $# > 0 ? 1 : 0 ))
+# E2E_SHARDS=N: run the tests as N Playwright shards side by side, each with its own container; fails if any shard fails.
+if [ "${E2E_SHARDS:-1}" -gt 1 ]; then
+  pids=()
+  for i in $(seq 1 "$E2E_SHARDS"); do
+    E2E_SHARDS=1 "$0" "$IMAGE" "$@" --shard="$i/$E2E_SHARDS" > >(sed "s/^/[$i] /") 2>&1 & pids+=($!)
+  done
+  status=0
+  for pid in "${pids[@]}"; do wait "$pid" || status=1; done
+  exit $status
+fi
 NAME=dolphin-e2e-$$  # unique per run: parallel runs never touch each other's container or volume
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIGRATIONS=$(ls "$ROOT"/supabase/migrations/*.sql | wc -l | tr -d ' ') # the seed needs every migration applied
