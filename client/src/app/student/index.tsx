@@ -34,12 +34,13 @@ export default function StudentHome() {
               {term.data ? <BalanceCard amount={term.data.balance} term={term.data} />
                 : <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />}
             </div>
-            {/* 信用摘要: 待入账利息 beside the gauge; 定期 and 贷款 join it with M10 and M11. */}
+            {/* 信用摘要: 攒着的利息 beside the gauge; 定期 and 贷款 join it with M10 and M11. */}
             <section className="dc-card dc-credit-summary dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
               {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
                 : !c || interest.isPending ? <CreditGaugeLoading size="md" /> : <>
                   <dl className="dc-kv">
-                    <div><dt>待入账利息</dt><dd>{interest.data ? `${formatCenti(interest.data.pending_centi)} HTB` : '—'}</dd></div>
+                    <div><dt>攒着的利息</dt><dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
+                      <small>{interest.data.pending_centi >= 100 ? '下周一存进余额' : '满 1 HTB 再存进余额'}</small></> : '—'}</dd></div>
                   </dl>
                   <a className="dc-credit-summary-gauge" aria-label={`海豚信用分 ${c.score} 分，查看信用`} {...link('/student/credit')}>
                     <CreditGauge score={c.score} size="md" limit={c.loan_limit} {...curve} />

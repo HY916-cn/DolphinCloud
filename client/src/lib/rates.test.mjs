@@ -1,6 +1,21 @@
 // node src/lib/rates.test.mjs — the rates against PHASE-2.md §9.2 and rate_overview, and the checks on an edited 利率 group.
 import assert from 'node:assert/strict';
-const { ANCHOR_ORDER, penaltyRate, previewScores, rateDraft, rateProblems, ratesAt, rateValues } = await import('./rates.ts');
+const { ANCHOR_ORDER, maturityCenti, penaltyRate, previewScores, rateDraft, rateProblems, ratesAt, rateValues, weekCenti } = await import('./rates.ts');
+
+// The examples on 100 HTB, in 0.01 HTB: rounded half up for a week, truncated at maturity.
+assert.equal(weekCenti(2.08), 208);
+assert.equal(weekCenti(6.2667), 627);
+assert.equal(weekCenti(2.125), 213);
+assert.equal(weekCenti(2.1249), 212);
+assert.equal(weekCenti(1.005), 101);
+assert.equal(weekCenti(0.0049), 0);
+assert.equal(maturityCenti(4.16, 8), 13_328);
+assert.equal(maturityCenti(2.6, 2), 10_520);
+assert.equal(maturityCenti(3.12, 4), 11_248);
+assert.equal(maturityCenti(6.2667, 8), 15_013);
+assert.equal(maturityCenti(3.1255, 4), 11_250);
+assert.equal(maturityCenti(1.0049, 2), 10_200);
+assert.equal(maturityCenti(4.19, 8), 13_352);
 
 const curve = { min_score: 400, limit_min: 50, limit_max: 300, limit_step: 5, loan_max: 1.8, loan_min: 1.1, saving_min: 0.8, saving_max: 1.2 };
 const m = { term: { 2: 1.25, 4: 1.5, 8: 2 }, loan: 2, penalty: 1.5 };

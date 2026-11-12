@@ -18,6 +18,12 @@ const round4 = (n: bigint, d: bigint) => Number((2n * n * TEN(4) + d) / (2n * d)
 
 export const penaltyRate = (loan: number, penalty: number) => round4(e4(loan) * e4(penalty), TEN(8));
 
+// The student's examples on 100 HTB (design system StudentCreditPage 本周利率), in 0.01 HTB from the rate in
+// ten-thousandths of a percent, in integers (4.16 × 8 is 33.28, not 33.279…): a week's 活期 interest or loan interest,
+// rounded half up; what a 定期 of `weeks` pays back, the interest truncated as at maturity (PHASE-2.md §9.5).
+export const weekCenti = (rate: number) => Math.round(Math.round(rate * 10_000) / 100);
+export const maturityCenti = (rate: number, weeks: number) => 10_000 + Math.floor((Math.round(rate * 10_000) * weeks) / 100);
+
 // The rates a score gets under an anchor, with the curve's factors unrounded (the 储蓄系数 from saving_min at 0 to
 // saving_max at 1000, the 贷款系数 from loan_max at min_score to loan_min at 1000); no loan below min_score.
 export function ratesAt(anchor: number, score: number, c: Curve, m: Multipliers) {
