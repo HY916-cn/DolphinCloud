@@ -60,13 +60,13 @@
 | --- | --- |
 | 前端代码（每次） | `npm --prefix client run typecheck`、`npm --prefix client run lint`、`npm --prefix client test` |
 | 后端（每次） | `docker build -f docker/Dockerfile -t dolphin-cloud:beN .`，再跑 `docker/db-test.sh dolphin-cloud:beN`、`docker/smoke-test.sh dolphin-cloud:beN` |
-| 迁移、种子数据、客户端可见的行为、功能性前端改动、里程碑收尾 | 加跑 `docker/e2e-test.sh`；小返工只跑相关 spec |
+| 迁移、种子数据、客户端可见的行为、功能性前端改动、里程碑收尾 | 加跑 `E2E_SHARDS=3 docker/e2e-test.sh <镜像>`（分 3 份、各用一个容器同时跑，约 5 分钟）；小返工只跑相关 spec |
 | 有迁移的里程碑、备份与恢复 | 加跑 `docker/upgrade-test.sh <线上版本>` 和 `docker/rollback-test.sh <线上版本>`（当前线上版本 `fccdee6`） |
 | 视觉变化 | 截图核对 |
 | 依赖变化 | `npm --prefix client run build`，对比体积 |
 
 - 测试脚本可以并行：容器和数据卷名带进程号，端口由 Docker 分配。新写的脚本也照此办理。`perf-test.sh` 由 CI 每周运行，需要时手动跑。
-- 推送后看 CI：新推送会取消同一分支上还在跑的运行，以最新一次为准，“cancelled”不算失败。失败时先读日志找根因：后端或测试基础设施的问题开后端子会话修，前端的问题交给🎨前端设计。
+- 推送后看 CI：check、image（构建镜像、pgTAP、冒烟）和分 4 份的 e2e 同时开始，约 10 分钟；全部通过后 publish 给 image 测过的镜像打上 `main` 标签。只改 Markdown 或 `docs/` 的推送不触发 CI，也不会取消正在跑的运行。新推送会取消同一分支上还在跑的运行，以最新一次为准，“cancelled”不算失败；代码改动尽量攒成一次推送。失败时先读日志找根因：后端或测试基础设施的问题开后端子会话修，前端的问题交给🎨前端设计。
 
 ## Git
 
