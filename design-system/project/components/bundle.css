@@ -347,6 +347,12 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-kv .is-total dt { font-weight: 700; color: var(--ink); }
 .dc-kv .is-total dd { font: 800 32px/40px var(--font-sans); }
 .dc-kv .is-total dd small { margin-left: var(--space-1); font: 600 16px/26px var(--font-sans); color: var(--ink-muted); }
+/* 本周利率 (StudentCreditPage): one sentence per rate with a 100 HTB example, the weekly rate in small text under it. */
+.dc-rate-list { margin: 0; padding: 0; list-style: none; }
+.dc-rate-list > li { padding: var(--space-3) 0; border-bottom: 2px dashed var(--line); font: 500 16px/26px var(--font-sans); color: var(--ink); }
+.dc-rate-list > li:last-child { border-bottom: 0; }
+.dc-rate-list b { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-rate-list small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 
 /* PersonCard — 办理对象核对 */
 .dc-person { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--cloud-100); border-radius: var(--radius-lg); }
@@ -1277,6 +1283,7 @@ span.dc-week-btn { cursor: default; }
 .dc-credit-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-4) var(--space-6); }
 .dc-credit-summary:has(> .dc-credit-summary-gauge:only-child) { grid-template-columns: 1fr; justify-items: center; }
 .dc-credit-summary .dc-kv dt { white-space: nowrap; }
+.dc-credit-summary .dc-kv dd small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-credit-summary-gauge { display: block; margin: calc(var(--space-2) * -1); padding: var(--space-2); border-radius: var(--radius-md); color: inherit; text-decoration: none; }
 .dc-credit-summary-gauge:hover { background: var(--cloud-100); }
 .dc-credit-summary-gauge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
