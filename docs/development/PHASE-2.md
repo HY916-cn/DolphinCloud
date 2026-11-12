@@ -326,7 +326,7 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 - 例：存贷比 30%、增速 4% → 调整 −0.5 → 1.5%。
 - 存款余额为 0 时（刚上线）存贷比按 0、增速按 0 计算。
 - 假期后的第一个周一不调整，沿用放假前的锚点（假期里的增速没有意义）。
-- 30%、2%、0.25、±0.5、1%～4%、初始 2% 都是参数（`anchor_params`）。修改参数从下一次计算起生效，并生成风险提醒。
+- 公式的数都存在 `anchor_params` 里。行长、银行管理员可以改初始锚点（2%）和上下限（1%～4%），从下一次计算起生效，并生成风险提醒；30%、2%、0.25、±0.5 由系统固定。
 - 每周保存一行：周一日期、上周锚点、存款余额、贷款余额、存贷比、增速、调整、本周锚点和当时的 `anchor_params`。后台「利率」页列出全部历史，可据此复算。
 - 学期内每个周一都保存一行，学期的第一个周一也保存（调整为 0，增速为空），作为下周算增速的基数。上周一没有记录（第一次运行，或上周一不在学期内）时同样不调整；第一次运行时「上周锚点」取初始锚点。
 - 存款余额、贷款余额都按周一 0 点（上海时间）以前的流水计算，补跑时结果不变；本周一的结息流水记在周一 0 点，不计入。
@@ -359,7 +359,7 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 同一分数下，贷款利率总高于活期和 2、4 周定期；但约 936 分以上时 8 周定期会高于贷款利率，所以**有未结清贷款的学生不能新开定期**（`LOAN_OUTSTANDING`），没有借钱存定期套利息的空间。利率保留 4 位小数（百分数）。
 
-存期倍数（1.25 / 1.5 / 2）、贷款倍数（2）、罚息倍数（1.5）都是参数。
+存期倍数（1.25 / 1.5 / 2）、贷款倍数（2）、罚息倍数（1.5）由系统固定，存在 `term_multipliers`、`loan_multiplier`、`penalty_multiplier` 里。
 
 - 计算时用不取整的贷款系数和储蓄系数，最后一步保留 4 位小数：600 分的贷款利率是 2 × 2 × 1.5666… = 6.2667%。
 - 函数：`app_private.saving_rate(锚点, 分数)`（活期）、`app_private.term_rate(锚点, 周数, 分数)`（定期，周数没有倍数时为空）、`app_private.loan_rate(锚点, 分数)`（最低分以下为空）、`app_private.penalty_rate(贷款利率)`；`app_private.rates(锚点, 分数)` 一次给出活期、三种定期和贷款。M10 开定期时锁定 `term_rate`，M11 放款时锁定 `loan_rate`，逾期按 `penalty_rate` 计罚息。
@@ -757,10 +757,10 @@ create table job_runs (                       -- 定时任务进度
 | --- | --- | --- |
 | `credit_curve` | `{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}` | 能贷款的最低分（0～999 的整数）；额度两端与取整单位（1～10000 的整数，取整单位 ≤ 最低额度 ≤ 最高额度）；贷款系数两端（`loan_max` 在最低分，`loan_min` 在 1000 分）与储蓄系数两端（`saving_min` 在 0 分，`saving_max` 在 1000 分），都是 0.1～10、最多 4 位小数，且小的一端不大于大的一端 |
 | `credit_rules` | `{"repay_on_time":5,"repay_early":10,"overdue":-50,"overdue_week":-30,"deposit_week":3,"deposit_streak":10,"withdraw_half":-5,"account_age":2,"balance_100":2,"balance_300":2}` | 各事件的分值（8.2 的顺序）：键必须齐全、不能多；加分项 0～100、减分项 −100～0 的整数 |
-| `anchor_params` | `{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}` | 锚点公式（9.1）：键必须齐全、不能多，都是最多 4 位小数的数；初始锚点与上下限 0.01～100，精确到 0.01，且 下限 ≤ 初始 ≤ 上限；目标存贷比 0～100，目标增速 −100～100，两个步长 0.01～100；每步调整 `weight` 0～10，每周最多调整 `max_adjust` 0～100 |
-| `term_multipliers` | `{"2":1.25,"4":1.5,"8":2}` | 定期存期倍数：键为 2、4、8，各 0.1～10，最多 4 位小数 |
-| `loan_multiplier` | `2` | 贷款倍数：0.1～10，最多 4 位小数 |
-| `penalty_multiplier` | `1.5` | 罚息倍数：1～10（罚息不低于贷款利率），最多 4 位小数 |
+| `anchor_params` | `{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}` | 锚点公式（9.1）：可改 `initial`、`min`、`max`，都是 0.01～100、精确到 0.01 的数，且 下限 ≤ 初始 ≤ 上限；其余键（`ratio_target`、`ratio_step`、`growth_target`、`growth_step`、`weight`、`max_adjust`）由系统固定。修改时提交全部 9 个键，固定的键必须与当前值相同 |
+| `term_multipliers` | `{"2":1.25,"4":1.5,"8":2}` | 定期存期倍数，键为 2、4、8；系统固定，不能修改 |
+| `loan_multiplier` | `2` | 贷款倍数；系统固定，不能修改 |
+| `penalty_multiplier` | `1.5` | 罚息倍数（罚息不低于贷款利率）；系统固定，不能修改 |
 | `risk_rules` | 见 12.1 | 各提醒的阈值 |
 | `payout_ratio_min` | `30` | 兑付能力提示线（%） |
 
@@ -790,7 +790,7 @@ create table job_runs (                       -- 定时任务进度
 | `lookup_student(p_student_no)` | 改动 | 返回里加 `credit`：同 `credit_profile`，不含学号 |
 | `interest_profile(p_student_no default null)` | 学生（不传，读本人）/ accountant / president / teacher | 9.2、9.4；返回 `{"student_no","score","week_start","anchor","rates":{"current","term":{"2","4","8"},"loan"},"pending_centi"}`：本周锚点（`week_start` 为空表示还没有公布过，用初始锚点）、按现在的分数算出的各项周利率（百分数，`loan` 为空表示分数不够贷款）、待入账利息（0.01 HTB） |
 | `rate_overview()` | accountant / president / teacher | 16.2「利率」页：`{"week_start","anchor","table":[{"score","current","term","loan"}]}`，`table` 为 9.2 表格的分数（含 `credit_curve.min_score`）在本周锚点下的利率；每周历史读 `rate_weeks` 表，参数读 `settings` |
-| `set_setting` / `set_settings` | 改动 | 加入 `credit_curve`、`credit_rules`、`anchor_params`、`term_multipliers`、`loan_multiplier`、`penalty_multiplier` 的校验（14.3）；行长、银行管理员可改，从下一次计算起生效 |
+| `set_setting` / `set_settings` | 改动 | 加入 `credit_curve`、`credit_rules`、`anchor_params` 的校验（14.3）；行长、银行管理员可改，从下一次计算起生效。`anchor_params` 只能改 `initial`、`min`、`max`，固定的键与当前值不同时返回 `INVALID_INPUT`（`field: anchor_params`）；`term_multipliers`、`loan_multiplier`、`penalty_multiplier` 由系统固定，修改返回 `INVALID_INPUT`（`field` 为该参数）；`set_settings` 中有一项被拒绝时全部不保存 |
 | `record_currency(p_kind, …)` | teacher | 11.1 |
 | `currency_overview()` | accountant / president / teacher | 11.2 的各项数字 |
 | `handle_alert(p_id, p_action, p_note)` | president / teacher | `p_action`：`seen` 或 `terminate` |
@@ -844,7 +844,7 @@ create table job_runs (                       -- 定时任务进度
 | 学期 | 第 6 节 |
 | 工作人员 | 增加「导入」（5.1）；导入、新增、重置密码都出每人一页的通知单（5.3），页面上不再显示密码 |
 
-参数页加入 14.3 的参数，按「利率」「信用分」「风险提醒」分组。「利率」分组的校验同 14.3，下限、初始、上限的关系不满足时三项都标错；预览按本周锚点计算。
+参数页加入 14.3 的参数，按「利率」「信用分」「风险提醒」分组。「利率」分组只有初始锚点、锚点下限、锚点上限三项，校验同 14.3，下限、初始、上限的关系不满足时三项都标错；保存时其余键沿用读到的值。锚点公式的其他数和各项倍数在「利率」页的计算参数里只读显示。
 
 利率去掉末尾多余的 0，最多 4 位小数，学生端加「/周」；存贷比、增速保留 1 位小数；调整写百分点（+0.25、−0.50）。`interest` 流水显示为「利息」，经办人「系统」，没有冲正入口；后台流水、柜台查询的类型筛选和报表的余额变动都有「利息」。
 

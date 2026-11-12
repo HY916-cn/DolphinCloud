@@ -260,30 +260,32 @@ select is(tests.err(w, 'select rate_overview()'), 'FORBIDDEN', 'not the others')
 select is(tests.call(w, 'select to_jsonb(count(*) = 6) from rate_weeks'), 'true', 'they read the weekly history') from unnest(array[:'accountant', :'president', :'teacher']::uuid[]) w;
 select is(tests.call(w, 'select count(*) from rate_weeks'), '0', 'the others do not') from unnest(array[:'teller', :'keeper', :'ops', :'s1']::uuid[]) w;
 
--- The settings (§14.3): the president and the bank admin, checked for shape and range.
-select is(tests.call(:'teacher', $$select set_settings('{"term_multipliers":{"2":1.2,"4":1.6,"8":2.5},"loan_multiplier":3,"penalty_multiplier":2}')$$),
-  '{"term_multipliers":{"2":1.2,"4":1.6,"8":2.5},"loan_multiplier":3,"penalty_multiplier":2}', 'the bank admin changes the multipliers');
-select is(array[app_private.term_rate(2, 8, 1000), app_private.loan_rate(2, 1000), app_private.penalty_rate(6.6)], array[6.0, 6.6, 13.2],
-  'and the rates follow at once');
-select is(tests.call(:'president', $$select set_setting('loan_multiplier', '2.5')$$) ->> 'value', '2.5', 'so does the president');
+-- The settings (§14.3): the president and the bank admin change the anchor's start and bounds; the anchor formula's
+-- other keys and the multipliers are fixed.
+select is(tests.call(:'teacher', $$select set_settings('{"anchor_params":{"initial":2.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1.25,"max":5}}')$$),
+  '{"anchor_params":{"initial":2.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1.25,"max":5}}', 'the bank admin changes the start and bounds');
+select is(tests.call(:'president', $$select set_setting('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}')$$) -> 'value',
+  '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'so does the president');
 select is(tests.call(:'teacher', format('select set_setting(%L, %L)', k, v)) ->> 'detail', format('{"field": "%s"}', k), why)
 from (values ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1}', 'every key'),
   ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4,"x":1}', 'no other'),
   ('anchor_params', '{"initial":0.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'the start within the bounds'),
   ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":5,"max":4}', 'the bounds in order'),
   ('anchor_params', '{"initial":2.005,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'whole hundredths'),
-  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":0,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'a step above 0'),
-  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":11,"max_adjust":0.5,"min":1,"max":4}', 'a weight up to 10'),
-  ('anchor_params', '{"initial":2,"ratio_target":"30","ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'numbers'),
-  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":-101,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'a growth target from −100'),
-  ('term_multipliers', '{"2":1.25,"4":1.5}', 'every length'),
-  ('term_multipliers', '{"2":1.25,"4":1.5,"8":0}', 'multipliers from 0.1'),
-  ('term_multipliers', '[1.25,1.5,2]', 'an object'),
-  ('loan_multiplier', '10.5', 'up to 10'),
-  ('loan_multiplier', '"2"', 'a number'),
-  ('penalty_multiplier', '0.9', '罚息 not below the loan rate'),
-  ('penalty_multiplier', '1.00001', 'with 4 decimals')) t(k, v, why);
-select is(tests.err(w, $$select set_setting('loan_multiplier', '2')$$), 'FORBIDDEN', 'not the others')
+  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":0,"max":4}', 'from 0.01'),
+  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":100.01}', 'up to 100'),
+  ('anchor_params', '{"initial":"2","ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'numbers'),
+  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.5,"max_adjust":0.5,"min":1,"max":4}', 'the formula''s other keys are fixed'),
+  ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":3,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'every one of them'),
+  ('term_multipliers', '{"2":1.25,"4":1.5,"8":2}', 'the 定期 multipliers are fixed, even unchanged'),
+  ('loan_multiplier', '2.5', 'so is the loan multiplier'),
+  ('penalty_multiplier', '2', 'and the 罚息 multiplier')) t(k, v, why);
+select is(tests.err(:'teacher', $$select set_settings('{"anchor_params":{"initial":2.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1.25,"max":5},"loan_multiplier":2.5}')$$), 'INVALID_INPUT',
+  'set_settings with a fixed one');
+select is((select jsonb_object_agg(key, value) from settings where key in ('anchor_params', 'term_multipliers', 'loan_multiplier', 'penalty_multiplier')),
+  '{"anchor_params":{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4},"term_multipliers":{"2":1.25,"4":1.5,"8":2},"loan_multiplier":2,"penalty_multiplier":1.5}',
+  'saves none of it, and the fixed values stay');
+select is(tests.err(w, $$select set_setting('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}')$$), 'FORBIDDEN', 'not the others')
 from unnest(array[:'accountant', :'teller', :'keeper', :'ops', :'s1']::uuid[]) w;
 
 select * from finish();
