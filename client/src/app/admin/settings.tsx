@@ -1,12 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Fragment, useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { DatePicker, Desk, FormLoading, SkeletonGroup, Icon, Notice, outside, Stepper, today, Toast, type IconName, type Range } from '@/components';
 import {
   curveDraft, curveProblems, preview, ruleProblem, RULES, rulesDraft, rulesValue, type Curve, type CurveDraft, type Rules,
 } from '@/lib/credit';
 import { AppError, explain } from '@/lib/errors';
-import { formatRate } from '@/lib/format';
-import { penaltyRate, previewScores, rateDraft, rateProblems, ratesAt, rateValues, type AnchorParams, type RateDraft, type Weeks } from '@/lib/rates';
+import { rateDraft, rateProblems, rateValues, type AnchorParams, type RateDraft } from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 
@@ -130,93 +129,35 @@ function CreditGroup({ curve, problems, onCurve, rules, onRule }: {
   );
 }
 
-// A number with up to 4 decimals typed in a Field, its unit before (×) or after (%) it.
-function Decimal({ label, value, onChange, error, hint, before, after }: {
-  label: string; value: string; onChange: (v: string) => void; error?: string; hint?: string; before?: string; after?: string;
-}) {
+// A percentage with up to 2 decimals typed in a Field, "%" after it.
+function Percent({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) {
   return (
     <label className={`dc-field ${error ? 'is-error' : ''}`}>
       <span className="dc-field-label"><Icon name="rate" />{label}</span>
       <span className="dc-input-wrap">
-        {before && <span className="dc-input-unit">{before}</span>}
         <input className="dc-input" inputMode="decimal" aria-label={label} value={value}
-          onChange={(e) => onChange(e.target.value.replace(/[^\d.\-−]/g, '').slice(0, 9))} />
-        {after && <span className="dc-input-unit">{after}</span>}
+          onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, '').slice(0, 6))} />
+        <span className="dc-input-unit">%</span>
       </span>
-      {(error || hint) && <span className="dc-field-hint">{error ? <><Icon name="warning" />{error}</> : hint}</span>}
+      {error && <span className="dc-field-hint"><Icon name="warning" />{error}</span>}
     </label>
   );
 }
 
-// 利率 (design system data.md 参数页分组): the anchor's formula, the multipliers, and a preview of the rates the
-// multipliers being edited and the 信用分 group's factors give under this week's anchor. Checked as set_setting checks.
-function RateGroup({ draft, problems, onChange, curve }: {
-  draft: RateDraft; problems: Partial<Record<keyof RateDraft, string>>; onChange: (k: keyof RateDraft, v: string) => void; curve: Curve | null;
+// 利率 (design system data.md 参数页分组): the anchor's start and bounds; the rest is fixed and shown on 利率.
+function RateGroup({ draft, problems, onChange }: {
+  draft: RateDraft; problems: Partial<RateDraft>; onChange: (k: keyof RateDraft, v: string) => void;
 }) {
-  const overview = useQuery({ queryKey: ['rate-overview'], queryFn: () => call<{ anchor: number }>('rate_overview', {}) });
-  const anchor = overview.data?.anchor;
-  const field = (key: keyof RateDraft, label: string, unit: { before?: string; after?: string }, hint?: string) => (
-    <Decimal label={label} value={draft[key]} onChange={(v) => onChange(key, v)} error={problems[key]} hint={hint} {...unit} />
-  );
-  const pct = { after: '%' };
-  const times = { before: '×' };
-  const ok = curve && anchor !== undefined && !(['term_2', 'term_4', 'term_8', 'loan', 'penalty'] as const).some((k) => problems[k]);
-  const m = rateValues(draft).multipliers;
-  const rate = (r: number | null | undefined) => (r === undefined ? '—' : r === null ? '不能贷款' : formatRate(r));
   return (
     <section className="dc-stack">
       <h2 className="heading is-section">利率</h2>
-      <p className="dc-top-sub" style={{ margin: 0 }}>锚点参数从下周一起生效；倍数从下一次计息起生效。</p>
+      <p className="dc-caption">从下周一起生效。其余计算参数由系统固定，可在利率页查看。</p>
       <div className="dc-card dc-stack">
-        <p className="dc-list-title">锚点</p>
         <div className="dc-denoms">
-          {field('initial', '初始锚点', pct)}
-          {field('min', '锚点下限', pct)}
-          {field('max', '锚点上限', pct)}
+          {([['initial', '初始锚点'], ['min', '锚点下限'], ['max', '锚点上限']] as const).map(([key, label]) => (
+            <Percent key={key} label={label} value={draft[key]} onChange={(v) => onChange(key, v)} error={problems[key]} />
+          ))}
         </div>
-        <div className="dc-denoms">
-          {field('ratio_target', '目标存贷比', pct)}
-          {field('ratio_step', '存贷比步长', pct)}
-        </div>
-        <p className="dc-top-sub" style={{ margin: 0 }}>存贷比每比 {draft.ratio_target}% 高 {draft.ratio_step}%，锚点加一步</p>
-        <div className="dc-denoms">
-          {field('growth_target', '目标增速', pct)}
-          {field('growth_step', '增速步长', pct)}
-        </div>
-        <p className="dc-top-sub" style={{ margin: 0 }}>增速每比 {draft.growth_target.replace('-', '−')}% 高 {draft.growth_step}%，锚点减一步</p>
-        <div className="dc-denoms">
-          {field('weight', '每步调整（个百分点）', {})}
-          {field('max_adjust', '每周最多调整（个百分点）', {})}
-        </div>
-        <p className="dc-list-title">倍数</p>
-        <div className="dc-denoms">
-          {(['2', '4', '8'] as Weeks[]).map((w) => <Fragment key={w}>{field(`term_${w}`, `定期 ${w} 周`, times)}</Fragment>)}
-          {field('loan', '贷款倍数', times)}
-          {field('penalty', '逾期罚息倍数', times, '罚息不低于贷款利率')}
-        </div>
-        <p className="dc-list-title">按当前填写预览</p>
-        <div className="dc-table-scroll">
-          <table className="dc-table" aria-label="利率预览">
-            <thead><tr>
-              <th scope="col">分数</th><th scope="col" className="n">活期</th><th scope="col" className="n">定期 8 周</th>
-              <th scope="col" className="n">贷款</th><th scope="col" className="n">逾期罚息</th>
-            </tr></thead>
-            <tbody>
-              {previewScores(curve ?? { min_score: 400 } as Curve).map((score) => {
-                const r = ok ? ratesAt(anchor, score, curve, m) : undefined;
-                return (
-                  <tr key={score}>
-                    <td>{score} 分</td><td className="n">{rate(r?.current)}</td><td className="n">{rate(r?.term['8'])}</td>
-                    <td className="n">{rate(r?.loan)}</td><td className="n">{rate(r && (r.loan === null ? null : penaltyRate(r.loan, m.penalty)))}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="dc-top-sub" style={{ margin: 0 }}>
-          {anchor === undefined ? (overview.isError ? '暂时无法读取本周锚点，预览不可用。' : '正在读取本周锚点。') : `按本周锚点 ${formatRate(anchor)} 计算；锚点参数从下周一起生效，预览只反映倍数。`}
-        </p>
       </div>
     </section>
   );
@@ -278,8 +219,7 @@ function SettingsForm({ saved }: { saved: Values }) {
   const [anonymous, setAnonymous] = useState(saved.ranking_anonymous === true);
   const [curve, setCurve] = useState(() => curveDraft(saved.credit_curve as Curve));
   const [rules, setRules] = useState(() => rulesDraft(saved.credit_rules as Rules));
-  const [rates, setRates] = useState(() => rateDraft(saved.anchor_params as AnchorParams,
-    { term: saved.term_multipliers as Record<Weeks, number>, loan: saved.loan_multiplier as number, penalty: saved.penalty_multiplier as number }));
+  const [rates, setRates] = useState(() => rateDraft(saved.anchor_params as AnchorParams));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -296,10 +236,7 @@ function SettingsForm({ saved }: { saved: Values }) {
     promotion_date: `${pad(month)}-${pad(Math.min(day, days))}`,
     credit_curve: Object.fromEntries(Object.entries(curve).map(([k, v]) => [k, Number(v)])),
     credit_rules: rulesValue(rules),
-    anchor_params: rateValues(rates).anchor_params,
-    term_multipliers: rateValues(rates).multipliers.term,
-    loan_multiplier: rateValues(rates).multipliers.loan,
-    penalty_multiplier: rateValues(rates).multipliers.penalty,
+    anchor_params: rateValues(rates, saved.anchor_params as AnchorParams),
   };
   const curveWrong = curveProblems(curve);
   const ratesWrong = rateProblems(rates);
@@ -402,8 +339,7 @@ function SettingsForm({ saved }: { saved: Values }) {
           <p className="dc-top-sub" style={{ margin: 'var(--space-2) 0 0' }}>每年从这天起，所有学生的年级加一</p>
         </div>
       </section>
-      <RateGroup draft={rates} problems={ratesWrong} onChange={(k, v) => setRates({ ...rates, [k]: v })}
-        curve={Object.keys(curveWrong).length ? null : next.credit_curve as Curve} />
+      <RateGroup draft={rates} problems={ratesWrong} onChange={(k, v) => setRates({ ...rates, [k]: v })} />
       <CreditGroup curve={curve} problems={curveWrong} onCurve={(k, v) => setCurve({ ...curve, [k]: v })}
         rules={rules} onRule={(k, v) => setRules({ ...rules, [k]: v })} />
       <div className="dc-actions">

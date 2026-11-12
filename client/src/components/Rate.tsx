@@ -50,7 +50,7 @@ export function RateCard({ min }: { min: number }) {
               ))}
               <li>{p.rates.loan === null ? `${min} 分以上才能贷款` : <>借 100 HTB，一周利息约 {htb(weekCenti(p.rates.loan))}{week(p.rates.loan)}</>}</li>
             </ul>
-            <p className="dc-top-sub" style={{ margin: 0 }}>
+            <p className="dc-caption">
               信用分越高，存钱多得，借钱少付。{term === false ? '放假时不算利息，开学后按这组利率算。'
                 : !p.week_start ? '本周利率还没有公布，先按初始利率显示。每周一公布。'
                 : `${monthDay(p.week_start)}公布，每周一更新。`}

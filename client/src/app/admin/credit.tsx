@@ -109,7 +109,7 @@ function StudentCredit({ student, admin }: { student: AdminStudent; admin: boole
         <p className="dc-list-title">全部变动</p>
         {events.isError && !rows ? <CreditFailed title="暂时无法读取变动记录" onRetry={() => events.refetch()} />
           : !rows ? <ListLoading rows={3} label="正在加载变动记录" />
-          : !rows.length ? <div className="dc-card"><p className="dc-top-sub" style={{ margin: 0 }}>还没有变动</p></div>
+          : !rows.length ? <div className="dc-card"><p className="dc-caption">还没有变动</p></div>
           : <EventTable rows={rows} fresh={fresh} />}
         {events.isError && rows && <CreditFailed title="暂时无法读取变动记录" onRetry={() => events.fetchNextPage()} />}
         {events.hasNextPage && (
@@ -203,7 +203,7 @@ function AdjustSheets({ student, score, onClose, onDone }: {
           </span>
           <span className="dc-field-hint">必填，最多 100 字</span>
         </label>
-        <p className="dc-sheet-text" aria-live="polite" style={{ margin: 0 }}>{score} 分 → {to} 分{edge}</p>
+        <p className="dc-sheet-text" aria-live="polite">{score} 分 → {to} 分{edge}</p>
       </div>
     </ConfirmSheet>
   );

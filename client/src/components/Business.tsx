@@ -321,10 +321,10 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
 
   const list = q && (
     <>
-      <p className="dc-list-title" style={{ margin: 0 }}>定期</p>
+      <p className="dc-list-title">定期</p>
       {q.deposits.some((d) => d.status !== 'reversed')
         ? <TermList deposits={q.deposits} today={now} onWithdraw={inactive ? undefined : (d) => { setError(null); setEarly(d); }} />
-        : <section className="dc-card"><p className="dc-top-sub" style={{ margin: 0 }}>还没有定期。</p></section>}
+        : <section className="dc-card"><p className="dc-caption">还没有定期。</p></section>}
     </>
   );
   return (
@@ -346,7 +346,7 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
                       </label>
                     ))}
                   </div>
-                  {longest && q.term && <p className="dc-top-sub" style={{ margin: 0 }}>{explain('TERM_TOO_LONG', { ends_on: q.term.ends_on, max_weeks: longest }).text}</p>}
+                  {longest && q.term && <p className="dc-caption">{explain('TERM_TOO_LONG', { ends_on: q.term.ends_on, max_weeks: longest }).text}</p>}
                 </div>
                 <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
                   <span className="dc-field-label"><Icon name="savings" />定期金额</span>
@@ -377,7 +377,7 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
             ['存期', `${option.weeks} 周`], ['到期日', monthDay(option.matures_on)], ['周利率', `${formatRate(option.rate)}/周（到期前不变）`],
             ['到期拿回', `${backCenti(amount, option)} HTB`], ['活期余额', `${formatAmount(balance)} → ${formatAmount(balance - amount)} HTB`],
           ]} />
-          <p className="dc-top-sub" style={{ margin: 0 }}>到期当天结束时自动转回活期。提前支取只按活期算利息。</p>
+          <p className="dc-caption">到期当天结束时自动转回活期。提前支取只按活期算利息。</p>
           {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
         </ConfirmSheet>
       )}

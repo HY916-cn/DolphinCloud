@@ -30,7 +30,7 @@ export default function StudentCredit() {
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
                   {c ? <CreditGauge score={c.score} size="lg" limit={c.loan_limit} next={c.points_to_next} {...curve} /> : <CreditGaugeLoading size="lg" />}
                 </div>
-                <p className="dc-top-sub" style={{ margin: 0 }}>每周一更新。按时还款、每周存钱、余额保持在 100 HTB 以上都会加分。</p>
+                <p className="dc-caption">每周一更新。按时还款、每周存钱、余额保持在 100 HTB 以上都会加分。</p>
               </section>
             )}
           </div>
@@ -42,7 +42,7 @@ export default function StudentCredit() {
             {terms.isError ? <CreditFailed title="暂时无法读取定期" onRetry={() => terms.refetch()} />
               : !terms.data ? <TxnListLoading rows={2} label="正在加载定期" />
               : terms.data.length ? <TermList deposits={terms.data} today={today()} /> : (
-                <section className="dc-card"><p className="dc-top-sub" style={{ margin: 0 }}>没有定期。可以在柜台把活期存成定期，存期 2、4 或 8 周，利率比活期高。</p></section>
+                <section className="dc-card"><p className="dc-caption">没有定期。可以在柜台把活期存成定期，存期 2、4 或 8 周，利率比活期高。</p></section>
               )}
           </div>
           <div {...enter(3)}>
@@ -50,7 +50,7 @@ export default function StudentCredit() {
             {events.isError && !rows ? <CreditFailed title="暂时无法读取变动记录" onRetry={() => events.refetch()} />
               : !rows ? <TxnListLoading label="正在加载变动记录" />
               : rows.length ? <CreditEvents items={rows} fresh={fresh} /> : (
-                <section className="dc-card"><p className="dc-top-sub" style={{ margin: 0 }}>还没有变动。每周一会按上周的存款和余额加减分。</p></section>
+                <section className="dc-card"><p className="dc-caption">还没有变动。每周一会按上周的存款和余额加减分。</p></section>
               )}
             {events.isFetchingNextPage && <TxnListLoading rows={2} label="正在加载变动记录" />}
             {events.isError && rows && <CreditFailed title="暂时无法读取变动记录" onRetry={() => events.fetchNextPage()} />}

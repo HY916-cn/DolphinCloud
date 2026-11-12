@@ -57,7 +57,7 @@ export default function ChangePassword() {
   return (
     <Welcome label="设置新密码" onSubmit={save}>
       <h2 className="dc-login-title">设置新密码</h2>
-      <p style={{ margin: 0 }}>你正在使用初始密码，请设置新密码。</p>
+      <p className="dc-text">你正在使用初始密码，请设置新密码。</p>
       <PasswordField label="新密码" placeholder="至少 8 位" value={password} onChange={setPassword} />
       <PasswordField label="再次输入新密码" placeholder="再次输入新密码" value={repeat} onChange={setRepeat} />
       {shown && <Notice tone="danger" title={shown} />}

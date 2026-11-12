@@ -39,7 +39,7 @@ test('柜台「定期」: the lengths that end in term, 开定期, 提前支取 
   const four = md(`${DAY} + 28`);
   await serve(page);
   await expect(cards(page)).toHaveText([`2 周${md(`${DAY} + 14`)} 到期2.6%/周`, `4 周${four} 到期3.12%/周`]);
-  await expect(page.locator('p.dc-top-sub', { hasText: '本学期' })).toHaveText(`本学期 ${md(`${DAY} + 40`)} 结束，最长只能选 4 周。`);
+  await expect(page.locator('p.dc-caption', { hasText: '本学期' })).toHaveText(`本学期 ${md(`${DAY} + 40`)} 结束，最长只能选 4 周。`);
   await expect(page.locator('.dc-list-item')).toHaveCount(0);
   await expect(page.getByText('还没有定期。')).toBeVisible();
 

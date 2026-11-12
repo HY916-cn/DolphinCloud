@@ -28,7 +28,7 @@ function FloatCard({ uid, busy, onCancel, onConfirm }: { uid: string; busy: bool
     <>
       <div className="dc-card dc-stack">
         <h2 className="heading">登记备用金</h2>
-        <p className="dc-top-sub" style={{ margin: 0 }}>储蓄盒里现有的零钱。默认是上次登记的备用金，按实际张数修改，没有就填 0。</p>
+        <p className="dc-caption">储蓄盒里现有的零钱。默认是上次登记的备用金，按实际张数修改，没有就填 0。</p>
         {last.isError && <Notice title="没有读到上次的备用金，已全部填 0" />}
         {last.isPending ? <DenomsLoading count={denominations.length} label="正在读取上次的备用金" />
           : <CashCounter faces={denominations} counts={counts} onChange={setEdited} kind="" />}

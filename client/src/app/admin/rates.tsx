@@ -72,7 +72,7 @@ export default function Rates() {
             ['存贷比', o.week_start && latest ? formatPercent(latest.ratio) : '—'],
             ['存款余额', o.week_start && latest ? formatAmount(latest.deposits) : '—', 'HTB'],
           ]} />
-          <p className="dc-top-sub" style={{ margin: 0 }}>
+          <p className="dc-caption">
             {term === false ? '假期中不计息，下学期沿用此锚点。'
               : !o.week_start ? `还没有公布锚点，现在按初始锚点 ${formatRate(o.anchor)} 计算。学期内每周一公布。`
               : `${monthDay(o.week_start)}公布，下次 ${monthDay(shiftDay(o.week_start, 7))}。`}
@@ -105,7 +105,7 @@ export default function Rates() {
         <h2 className="heading">每周历史</h2>
         {weeks.isError ? <Notice tone="danger" title="暂时无法读取每周历史">请检查网络后刷新页面。</Notice>
           : !weeks.data ? <ListLoading rows={3} label="正在加载每周历史" />
-          : !weeks.data.length ? <p className="dc-top-sub" style={{ margin: 0 }}>还没有记录。学期内每周一公布一次锚点。</p> : (
+          : !weeks.data.length ? <p className="dc-caption">还没有记录。学期内每周一公布一次锚点。</p> : (
             <div className="dc-table-scroll">
               <table className="dc-table" aria-label="每周历史">
                 <thead><tr>
@@ -143,10 +143,15 @@ export default function Rates() {
         </div>
         {settings.isError ? <Notice tone="danger" title="暂时无法读取利率参数">请检查网络后刷新页面。</Notice>
           : !s ? <ListLoading rows={3} label="正在加载参数" /> : (
-            <Kv rows={[...anchorRows(s.anchor),
-              ['定期倍数', WEEKS.map((w) => `${w} 周 ×${s.term[w]}`).join('、')],
-              ['贷款倍数', `×${s.loan}`],
-              ['罚息倍数', `×${s.penalty}`]]} />
+            <>
+              <p className="dc-list-title">可在参数页修改</p>
+              <Kv rows={anchorRows(s.anchor).slice(0, 2)} />
+              <p className="dc-list-title">系统固定</p>
+              <Kv rows={[...anchorRows(s.anchor).slice(2),
+                ['定期倍数', WEEKS.map((w) => `${w} 周 ×${s.term[w]}`).join('、')],
+                ['贷款倍数', `×${s.loan}`],
+                ['罚息倍数', `×${s.penalty}`]]} />
+            </>
           )}
       </section>
 

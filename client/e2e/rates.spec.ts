@@ -11,7 +11,7 @@ const DAY = `(now() at time zone 'Asia/Shanghai')::date`;
 const MONDAY = `date_trunc('week', now() at time zone 'Asia/Shanghai')::date`;
 const md = (date: string) => sql(`select to_char(${date}, 'FMMM月FMDD日')`);
 const rates = (page: Page) => page.getByRole('region', { name: '本周利率' });
-const caption = (page: Page) => rates(page).locator('.dc-top-sub');
+const caption = (page: Page) => rates(page).locator('.dc-caption');
 
 async function studentCredit(page: Page) {
   await signIn(page, '学生', '20260001');
@@ -58,7 +58,7 @@ test('in a term with no anchor published: the initial rates, and 利率 says so;
   await expect(accountant).toHaveURL(/\/admin\/rates$/);
   const anchor = accountant.getByRole('region', { name: '本周锚点' });
   await expect(anchor.locator('.dc-stat')).toHaveText(['本周锚点2%', '存贷比—', '存款余额—HTB']);
-  await expect(anchor.locator('p.dc-top-sub')).toHaveText('还没有公布锚点，现在按初始锚点 2% 计算。学期内每周一公布。');
+  await expect(anchor.locator('p.dc-caption')).toHaveText('还没有公布锚点，现在按初始锚点 2% 计算。学期内每周一公布。');
   await expect(accountant.getByRole('region', { name: '每周历史' })).toContainText('还没有记录。学期内每周一公布一次锚点。');
   await expect(accountant.getByRole('region', { name: '计算参数' })).toContainText('罚息倍数×1.5');
   await expect(accountant.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
@@ -88,7 +88,7 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
   const anchor = page.getByRole('region', { name: '本周锚点' });
   await expect(anchor.locator('.dc-stat')).toHaveText(['本周锚点2.25%比上周 +0.25 个百分点', '存贷比40.0%', '存款余额12,480HTB']);
   await expect(anchor.locator('.dc-stat em')).toHaveClass('is-up');
-  await expect(anchor.locator('p.dc-top-sub')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
+  await expect(anchor.locator('p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
   const table = page.getByRole('table', { name: '按分数的周利率' });
   await expect(page.getByRole('heading', { name: '按分数的周利率 · 锚点 2.25%' })).toBeVisible();
   await expect(table.locator('tbody tr').first()).toHaveText('0 分1.8%2.25%2.7%3.6%不能贷款不能贷款');
@@ -105,7 +105,13 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
     '目标增速2%（每差 1% 调整 0.25 个百分点）', '每周最多调整±0.5 个百分点']);
   await sheet.getByRole('button', { name: '关闭' }).click();
   await expect(sheet).toHaveCount(0);
-  await expect(page.getByRole('link', { name: '在参数页修改' })).toBeVisible();
+  // 计算参数: what 参数 changes, then what the system fixes, each value read from settings.
+  const card = page.getByRole('region', { name: '计算参数' });
+  await expect(card.locator('.dc-list-title')).toHaveText(['可在参数页修改', '系统固定']);
+  await expect(card.locator('.dc-kv').first().locator('> div')).toHaveText(['初始锚点2%', '锚点范围1%～4%']);
+  await expect(card.locator('.dc-kv').last().locator('> div')).toHaveText(['目标存贷比30%（每差 10% 调整 0.25 个百分点）',
+    '目标增速2%（每差 1% 调整 0.25 个百分点）', '每周最多调整±0.5 个百分点', '定期倍数2 周 ×1.25、4 周 ×1.5、8 周 ×2', '贷款倍数×2', '罚息倍数×1.5']);
+  await expect(card.getByRole('link', { name: '在参数页修改' })).toBeVisible();
 });
 
 test('a week’s 活期 interest: 攒着的利息 on 首页, the 利息 entry under 明细 and in 流水, never reversible', async ({ page }) => {
@@ -156,19 +162,23 @@ test('in the holidays the rates stand, and both pages say no interest is paid', 
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/rates');
-  await expect(page.getByRole('region', { name: '本周锚点' }).locator('p.dc-top-sub')).toHaveText('假期中不计息，下学期沿用此锚点。');
+  await expect(page.getByRole('region', { name: '本周锚点' }).locator('p.dc-caption')).toHaveText('假期中不计息，下学期沿用此锚点。');
 });
 
-test('参数「利率」: each value is checked as the server checks it, the preview follows the multipliers, and it saves', async ({ page }) => {
+test('参数「利率」: only the anchor’s start and bounds, checked as the server checks them, and the rest kept as read', async ({ page }) => {
+  const fixed = `select jsonb_build_object('term', (select value from public.settings where key = 'term_multipliers'),
+    'loan', (select value from public.settings where key = 'loan_multiplier'), 'penalty', (select value from public.settings where key = 'penalty_multiplier'))`;
+  const multipliers = sql(fixed);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/settings');
   const save = page.getByRole('button', { name: '保存参数' });
   const field = (label: string) => page.locator('.dc-field', { has: page.getByLabel(label, { exact: true }) });
-  await expect(page.getByRole('heading', { name: '利率', exact: true })).toBeVisible();
-  await expect(page.getByText('锚点参数从下周一起生效；倍数从下一次计息起生效。')).toBeVisible();
-  const preview = page.getByRole('table', { name: '利率预览' }).locator('tbody tr');
-  await expect(preview).toHaveText(['0 分1.8%3.6%不能贷款不能贷款', '400 分2.16%4.32%8.1%12.15%', '600 分2.34%4.68%7.05%10.575%', '1000 分2.7%5.4%4.95%7.425%']);
+  const group = page.locator('section', { has: page.getByRole('heading', { name: '利率', exact: true }) });
+  await expect(group.locator('p.dc-caption')).toHaveText('从下周一起生效。其余计算参数由系统固定，可在利率页查看。');
+  await expect(group.locator('.dc-field')).toHaveCount(3);
+  for (const [label, value] of [['初始锚点', '2'], ['锚点下限', '1'], ['锚点上限', '4']]) await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
+  await expect(group.getByRole('table')).toHaveCount(0);
 
   await page.getByLabel('初始锚点', { exact: true }).fill('5');
   await expect(field('初始锚点')).toHaveClass(/is-error/);
@@ -176,19 +186,18 @@ test('参数「利率」: each value is checked as the server checks it, the pre
   await expect(save).toBeDisabled();
   await page.getByLabel('初始锚点', { exact: true }).fill('2.005');
   await expect(field('初始锚点')).toContainText('请输入 0.01 到 100 的数，最多 2 位小数');
-  await page.getByLabel('初始锚点', { exact: true }).fill('2');
-  await page.getByLabel('目标增速', { exact: true }).fill('-101');
-  await expect(field('目标增速')).toContainText('请输入 −100 到 100 的数，最多 4 位小数');
-  await page.getByLabel('目标增速', { exact: true }).fill('2');
-  await page.getByLabel('逾期罚息倍数', { exact: true }).fill('0.5');
-  await expect(field('逾期罚息倍数')).toContainText('请输入 1 到 10 的数，最多 4 位小数');
-  await expect(preview.nth(2)).toHaveText('600 分————');
+  await expect(field('锚点上限')).not.toHaveClass(/is-error/);
+  await page.getByLabel('锚点下限', { exact: true }).fill('0');
+  await expect(field('锚点下限')).toContainText('请输入 0.01 到 100 的数，最多 2 位小数');
   await expect(save).toBeDisabled();
-  await page.getByLabel('逾期罚息倍数', { exact: true }).fill('1.5');
 
-  await page.getByLabel('贷款倍数', { exact: true }).fill('2.5');
-  await expect(preview.nth(2)).toHaveText('600 分2.34%4.68%8.8125%13.2188%');
+  await page.getByLabel('初始锚点', { exact: true }).fill('2.5');
+  await page.getByLabel('锚点下限', { exact: true }).fill('1.25');
+  await page.getByLabel('锚点上限', { exact: true }).fill('5');
+  await expect(group.locator('.is-error')).toHaveCount(0);
   await save.click();
   await expect(page.getByText('参数已保存')).toBeVisible();
-  expect(sql(`select value from public.settings where key = 'loan_multiplier'`)).toBe('2.5');
+  expect(sql(`select value = '{"initial":2.5,"min":1.25,"max":5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5}'
+    from public.settings where key = 'anchor_params'`)).toBe('t');
+  expect(sql(fixed)).toBe(multipliers);
 });
