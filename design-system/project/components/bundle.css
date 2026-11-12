@@ -561,9 +561,20 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-seg { --seg-count: 2; --seg-index: 0; position: relative; display: flex; gap: var(--space-1); margin: 0; padding: var(--space-1); border: 0; background: var(--cloud-100); border-radius: var(--radius-pill); }
 .dc-seg:has(> label:nth-child(3)) { --seg-count: 3; }
 .dc-seg:has(> label:nth-child(4)) { --seg-count: 4; }
+.dc-seg:has(> label:nth-child(5)) { --seg-count: 5; }
+.dc-seg:has(> label:nth-child(6)) { --seg-count: 6; }
 .dc-seg:has(> label:nth-child(2) input:checked) { --seg-index: 1; }
 .dc-seg:has(> label:nth-child(3) input:checked) { --seg-index: 2; }
 .dc-seg:has(> label:nth-child(4) input:checked) { --seg-index: 3; }
+.dc-seg:has(> label:nth-child(5) input:checked) { --seg-index: 4; }
+.dc-seg:has(> label:nth-child(6) input:checked) { --seg-index: 5; }
+.dc-seg:has(> label:nth-child(5)) span { padding: 0 var(--space-2); }
+/* Five or six choices (the counter's 业务) take two rows of three on phones; the checked one carries its own raised block. */
+@container app (max-width: 599px) {
+  .dc-seg:has(> label:nth-child(5)) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: var(--radius-lg); }
+  .dc-seg:has(> label:nth-child(5))::before { display: none; }
+  .dc-seg:has(> label:nth-child(5)) input:checked + span { background: var(--surface-raised); box-shadow: 0 3px 0 var(--cloud-200); }
+}
 .dc-seg::before { content: ""; position: absolute; top: var(--space-1); bottom: var(--space-1); left: var(--space-1); width: calc((100% - (var(--seg-count) + 1) * var(--space-1)) / var(--seg-count)); border-radius: var(--radius-pill); background: var(--surface-raised); box-shadow: 0 3px 0 var(--cloud-200); transform: translateX(calc(var(--seg-index) * (100% + var(--space-1)))); transition: transform var(--motion-enter) var(--ease-out); }
 .dc-seg label { position: relative; z-index: 1; flex: 1; min-width: 0; }
 .dc-seg span { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 var(--space-4); border-radius: var(--radius-pill); font: 600 16px/26px var(--font-sans); color: var(--ink-muted); white-space: nowrap; cursor: pointer; transition: color var(--motion-enter) var(--ease-out); }
@@ -1296,6 +1307,16 @@ span.dc-week-btn { cursor: default; }
 .dc-kv .is-danger dd .dc-icon { display: inline-block; width: 20px; height: 20px; margin-right: var(--space-1); vertical-align: -4px; color: inherit; }
 /* ListGroup：链接下面一行说明 */
 .dc-list-link small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+/* A list row that is not a link: a sentence (amounts in b), a small line under it, and tags or a button on the right (TermDeposit). */
+.dc-list-item { display: flex; align-items: center; gap: var(--space-3); min-height: 48px; font: 500 16px/26px var(--font-sans); color: var(--ink); }
+.dc-list-item > span:first-child { flex: 1; min-width: 0; }
+.dc-list-item b { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-list-item small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-list-item > :not(:first-child) { flex: none; }
+@container app (max-width: 599px) {
+  .dc-list-item { flex-wrap: wrap; }
+  .dc-list-item > span:first-child { flex-basis: 100%; }
+}
 /* PersonCard：姓名后的状态标签 */
 .dc-person-name .dc-tag { margin-left: var(--space-2); vertical-align: 2px; }
 
