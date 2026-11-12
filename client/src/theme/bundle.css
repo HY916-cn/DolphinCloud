@@ -1148,6 +1148,7 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-stat em { font: 500 14px/20px var(--font-sans); font-style: normal; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dc-stat em.is-up::before { content: "▲ "; font-size: 10px; }
 .dc-stat em.is-down::before { content: "▼ "; font-size: 10px; }
+.dc-stat em.is-danger { color: var(--danger); }
 
 /* Chart — 单系列图表：一种颜色、细标记、同一基线、细轴线，悬停看数值；每张图的数字都另有表格 */
 .dc-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-5); }
@@ -1190,6 +1191,10 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); white-space: nowrap; }
 .dc-table .n { text-align: right; }
 .dc-table tfoot td { border-bottom: 0; font-weight: 700; }
+/* A link in a cell (a record number that opens its detail). */
+.dc-table a { color: var(--dolphin-deep); font-weight: 700; text-decoration: none; border-radius: var(--radius-sm); }
+.dc-table a:hover { text-decoration: underline; }
+.dc-table a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-table tr > :first-child { padding-left: 0; }
 .dc-table tr > :last-child { padding-right: 0; }
 
