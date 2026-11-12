@@ -1,8 +1,9 @@
 #!/bin/bash
 # One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past; each
-# school day writes random deposits and withdrawals, a few 信用分 changes and, mid-term, some frozen accounts, then the
-# day's jobs run as at 00:05 and 00:10 (run_weekly on Mondays before the day's business, run_daily after it). Checks
-# that the anchor stays within 1%–4%, that check_balances finds nothing every day, and that no run_daily takes 30 s.
+# school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 信用分 changes and,
+# mid-term, some frozen accounts, then the day's jobs run as at 00:05 and 00:10 (run_weekly on Mondays before the day's
+# business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances finds nothing every day,
+# that no run_daily takes 30 s and that every 定期 has come back by the end of the term.
 # Usage: docker/sim-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -18,6 +19,8 @@ done
 docker exec "$NAME" test -f /data/run/image-version || { docker logs --tail 40 "$NAME" >&2; echo "FAIL: migrations did not finish" >&2; exit 1; }
 psql() { docker exec -i "$NAME" psql -U postgres -v ON_ERROR_STOP=1 -qAt "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
+# The simulation runs the jobs itself: dolphin-jobs stops first, so its catch-up at start never runs the same days.
+docker exec "$NAME" supervisorctl stop dolphin-jobs >/dev/null
 
 # 2000 students opened the week before a term of 18 weeks: Monday 1 September 2025 to Sunday 4 January 2026.
 psql <<'SQL'
@@ -35,7 +38,8 @@ select gen_random_uuid(), 'opening', student_no, balance, balance, balance, app_
 from public.accounts where student_no like '4%' and balance > 0;
 
 -- A school day's business (Monday to Friday): about 30% of the students deposit or withdraw once between 7:30 and
--- 17:30, a withdrawal never more than the balance; five 信用分 changes by hand.
+-- 17:30, a withdrawal never more than the balance; at 17:45 about 1% open a 定期 of up to half their 活期 for a length
+-- that ends in term, and 2% of the 定期 open are withdrawn early; five 信用分 changes by hand.
 create function sim.business(p_day date) returns integer language plpgsql as $$
 declare v_n integer;
 begin
@@ -53,6 +57,16 @@ begin
     total_in = a.total_in + greatest(d.delta, 0), total_out = a.total_out + greatest(-d.delta, 0)
   from day_txns d where a.student_no = d.student_no;
   get diagnostics v_n = row_count;
+  perform app_private.start_term_deposit(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 2))::integer, x.w,
+    app_private.system_user(), (p_day + time '17:45') at time zone 'Asia/Shanghai')
+  from (select a.student_no, a.balance, (array[2, 4, 8])[1 + floor(random() * 3)::integer] as w
+        from public.accounts a join public.students s using (student_no)
+        where s.status = 'normal' and a.balance >= 10 and random() < 0.01) x
+  where p_day + 7 * x.w <= (app_private.current_term(p_day)).ends_on;
+  perform app_private.end_term_deposit(d.id, 'early', app_private.early_interest(d, p_day), app_private.system_user(),
+    (p_day + time '17:50') at time zone 'Asia/Shanghai')
+  from public.term_deposits d join public.students s using (student_no)
+  where d.status = 'open' and s.status = 'normal' and d.matures_on >= p_day and random() < 0.02;
   perform app_private.credit_change(student_no, (random() * 100)::integer - 50, 'manual', '模拟', null, null,
     (p_day + time '12:00') at time zone 'Asia/Shanghai')
   from (select student_no from public.students order by random() limit 5) x;
@@ -117,6 +131,12 @@ psql -c "select concat_ws(' ', (select count(*) from public.txns where type = 'i
   (select count(*) from public.txns))" | {
   read -r paid total accruals unsettled txns
   echo "interest: $paid payments, $total HTB in all; $accruals accruals ($unsettled below 1 HTB still waiting); $txns transactions"
+}
+psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'matured'), count(*) filter (where status = 'early'),
+  count(*) filter (where status = 'open'), coalesce(sum(interest_centi), 0)) from public.term_deposits" | {
+  read -r n matured early open centi
+  [ "$open" = 0 ] || fail "$open 定期 still open after the term"
+  echo "定期: $n opened, $matured matured, $early withdrawn early; $centi (0.01 HTB) of interest"
 }
 echo "slowest run_daily: ${max_daily} ms; slowest run_weekly: ${max_weekly} ms; whole term: $(( $(date +%s) - start ))s"
 echo 'sim ok'

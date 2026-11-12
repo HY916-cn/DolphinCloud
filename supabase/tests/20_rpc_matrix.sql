@@ -97,6 +97,10 @@ insert into tests.matrix values
   -- 利率与利息: the student their own, the accountant, president and bank admin anyone's and the 利率 page (PHASE-2.md §3)
   ('interest_profile(text)', 'select interest_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
   ('rate_overview()', 'select rate_overview()', '{accountant,president,teacher}'),
+  -- 定期: the counter's (PHASE-2.md §10.2); students and the back office read the term_deposits table
+  ('term_quote(text)', 'select term_quote(''nobody'')', '{teller}'),
+  ('open_term_deposit(uuid,text,integer,integer)', 'select open_term_deposit(gen_random_uuid(), ''nobody'', 1, 2)', '{teller}'),
+  ('withdraw_term_early(uuid)', 'select withdraw_term_early(gen_random_uuid())', '{teller}'),
   -- 学期: the bank admin alone (PHASE-2.md §3)
   ('upsert_term(uuid,text,date,date)', 'select upsert_term(null, '''', current_date, current_date)', '{teacher}'),
   ('close_term(uuid)', 'select close_term(gen_random_uuid())', '{teacher}'),
@@ -170,6 +174,7 @@ insert into tests.writes values
   ('credit_scores', 'update credit_scores set score = 1000'),
   ('credit_events', 'insert into credit_events (student_no, delta, score, rule, reason) values (''s1'', 400, 1000, ''manual'', ''x'')'),
   ('job_runs', 'update job_runs set last_err = null'),
+  ('term_deposits', 'update term_deposits set status = ''open'''),
   ('audit_log', 'delete from audit_log');
 select is(tests.verdict(w.id, x.stmt), 'denied', format('%s: write %s', w.name, x.tbl))
 from tests.writes x cross join tests.who w where w.name in ('anon', 'student', 'teller', 'accountant', 'storekeeper', 'president', 'teacher', 'sysadmin')
