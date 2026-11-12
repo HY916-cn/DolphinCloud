@@ -47,7 +47,7 @@
 
 - 全站一套字体 `sans`：Nunito Sans 显示数字和字母（圆润、清晰），中文由思源黑体（Noto Sans SC）显示，系统回退到苹方 / 微软雅黑。设计系统的预览从 Google Fonts 加载（`bundle.css` 已引入）；正式站点自己托管同样的字体，不依赖外部服务。
 - 标题组：`display` 36px / 800，用于首页欢迎语和结果页，每屏最多一处；`title` 26px / 700 页面标题；`heading` 20px / 700 卡片和分区标题。标题字距 0.02em。
-- 正文组：`amount` 40px / 800 用于余额和金额，配等宽数字（`font-variant-numeric: tabular-nums`）；`body-lg` 18px / 600 用于按钮、入口名称、引导语；`body` 16px / 400 是最小的正文；`caption` 14px / 500 只用于时间、单位、标签，是学生能看到的最小字号；`data-label` 12px / 500 只用于后台图表和周表的标注。消息角标和存折版里仿印刷的小字不受这条限制。
+- 正文组：`amount` 40px / 800 用于余额和金额，配等宽数字（`font-variant-numeric: tabular-nums`）；`body-lg` 18px / 600 用于按钮、入口名称、引导语；`body` 16px / 400 是最小的正文；`caption` 14px / 500 只用于时间、单位、标签，是学生能看到的最小字号；`data-label` 12px / 500 只用于后台图表和周表的标注。卡片、`dc-stack` 和面板里的段落用 `dc-caption`（`caption` 字号的说明）或 `dc-text`（正文），它们没有外边距，间距由容器的 `gap` 决定；不在元素上写 `margin` 行内样式。消息角标和存折版里仿印刷的小字不受这条限制。
 
 ## 形状：云、浪、海豚
 

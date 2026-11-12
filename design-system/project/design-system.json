@@ -350,8 +350,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-12T08:23:03Z",
+    "at": "2026-11-12T09:10:48Z",
     "via": "Claude Code",
-    "note": "定期流水不计入存入与支出；冲正被拒按类型写原因"
+    "note": "新增段落类 dc-caption 与 dc-text"
   }
 }
