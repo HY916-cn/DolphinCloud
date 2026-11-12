@@ -591,6 +591,16 @@ alter type txn_type add value 'loan';        -- 放款
 alter type txn_type add value 'repay';       -- 还款
 ```
 
+定期流水的说明（`txns.reason`）：柜员读不到 `term_deposits`，流水标题的后半句取自这里。日期写法同活期利息流水（月日不补零），周数和金额前后各留一个空格：
+
+| 流水 | 说明 | 例 |
+| --- | --- | --- |
+| `term_open` | 周数、到期日 | 「4 周，12月10日 到期」 |
+| `term_close` 到期 | 实付利息（`interest_centi`），两位小数 | 「到期，利息 12.48 HTB」 |
+| `term_close` 提前支取（含注销时转回的） | 实付利息，没有时 0.00 | 「提前支取，利息 0.37 HTB」「提前支取，利息 0.00 HTB」 |
+
+冲正这两种流水的 `reversal` 的说明仍是冲正原因。
+
 `accounts` 增加 `term_total integer not null default 0`（定期本金合计）。每日自检（`check_balances`）增加：定期本金合计与 `term_deposits` 一致（`kind = 'term'`：`term_total` 对比状态为 `open` 的本金之和）；贷款剩余本金与放款、还款流水一致；利息累计与计息记录一致。
 
 ### 14.2 新增表

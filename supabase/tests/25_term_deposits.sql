@@ -86,6 +86,10 @@ select is(array(select concat_ws(' ', d.student_no, d.status, d.interest_centi, 
 select is(count(*)::int, 0, 'principal and the whole HTB of the interest and the 零头 before it come back as one term_close')
 from term_deposits d join txns t on t.id = d.close_txn
 where t.amount - d.principal not between d.interest_centi / 100 and d.interest_centi / 100 + 1;
+select is(array(select t.reason from term_deposits d join txns t on t.id in (d.open_txn, d.close_txn) where d.id = '00000000-0000-4000-8000-0000000000c3' order by t.seq),
+  array['2 周，3月17日 到期', '到期，利息 5.20 HTB'], 'each says what it was: the length and maturity date, then 到期 with the interest paid');
+select is(array(select t.reason from term_deposits d join txns t on t.id = d.close_txn order by d.id),
+  array['到期，利息 5.20 HTB', '到期，利息 24.96 HTB', '到期，利息 5.20 HTB', '到期，利息 5.20 HTB'], 'every maturity');
 select is(array(select concat_ws(' ', day, balance) from interest_accruals where student_no = 'tb' and day in ('2025-03-03', '2025-03-17', '2025-03-18') order by day),
   array['2025-03-03 50', concat('2025-03-17 ', app_private.balance_on('tb', '2025-03-17')), concat('2025-03-18 ', app_private.balance_on('tb', '2025-03-17')
     + (select amount from txns where student_no = 'tb' and type = 'term_close'))],
@@ -136,6 +140,8 @@ select is((:'opened'::jsonb -> 'term') - 'open_txn',
 select is((select concat_ws(' ', balance_delta, cash_delta, term_id, operator_id = :'teller') from txns where id = (:'opened'::jsonb ->> 'id')::uuid),
   '-60 0 00000000-0000-4000-8000-0000000000a1 t', 'no cash moves');
 select is((select concat_ws(' ', balance, term_total) from accounts where student_no = 's1'), '40 60', '定期本金合计');
+select is((select reason from txns where id = (:'opened'::jsonb ->> 'id')::uuid), '2 周，' || to_char(:'today'::date + 14, 'FMMM月FMDD日') || ' 到期',
+  'the term_open says the length and the maturity date');
 select is(tests.call(:'teller', $$select open_term_deposit('00000000-0000-4000-8000-0000000000a1', 's1', 60, 2)$$) ->> 'id', :'opened'::jsonb ->> 'id',
   'sent again, the same result');
 select is((select count(*)::int from term_deposits), 1, 'and one 定期');
@@ -170,6 +176,7 @@ select is(:'early'::jsonb - 'id' - 'txn_no' - 'created_at' - 'term',
   '{"type":"term_close","amount":101,"balance_after":121,"denominations":null,"change_given":null}',
   '3 × 0.29 + 2 × 0.28 = 1.43: the principal and 1 HTB back to 活期');
 select is(array[:'early'::jsonb #>> '{term,status}', :'early'::jsonb #>> '{term,interest_centi}'], array['early', '143'], '已提前支取, 1.43 HTB paid');
+select is((select reason from txns where id = (:'early'::jsonb ->> 'id')::uuid), '提前支取，利息 1.43 HTB', 'the term_close says 提前支取 and the interest');
 select is((select concat_ws(' ', balance, term_total, interest_carry) from accounts where student_no = 's2'), '121 0 43', 'the 0.43 waits as 待入账利息');
 select is(tests.call(:'teller', $$select withdraw_term_early('00000000-0000-4000-8000-0000000000b1')$$) ->> 'id', :'early'::jsonb ->> 'id',
   'sent again, the same result');
@@ -229,6 +236,7 @@ select is(tests.call(:'teacher', format('select close_accounts(array[%L]::uuid[]
 select is(array(select concat_ws(' ', type, amount, balance_after, operator_id = :'teacher') from txns where student_no = 'ra' and type in ('term_close', 'closing') order by seq),
   array['term_close 100 150 t', 'closing 150 0 t'], 'the 定期 first, then the whole balance');
 select is((select concat_ws(' ', status, interest_centi) from term_deposits where student_no = 'ra'), 'early 0', 'no interest');
+select is((select reason from txns where student_no = 'ra' and type = 'term_close'), '提前支取，利息 0.00 HTB', 'said as a 提前支取 with no interest');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 
 -- The self-check (§14.1) finds a 定期本金合计 that does not match the 定期 open.
