@@ -1,6 +1,8 @@
 // 1,280 HTB; changes are signed with + and the minus sign − (U+2212), per the design system's wording rules.
 export const formatAmount = (n: number) => Math.abs(n).toLocaleString('en-US');
 export const formatSigned = (n: number) => `${n < 0 ? '−' : '+'}${formatAmount(n)}`;
+// A sum that may be negative, unsigned when it is not: −20, 1,280 (存款 in the ranking, net of loans).
+export const formatNet = (n: number) => `${n < 0 ? '−' : ''}${formatAmount(n)}`;
 
 // 利率 (design system data.md 利率): a weekly percentage without trailing zeros, at most 4 decimals: 2.08%, 2%, 6.2667%.
 export const formatRate = (r: number) => `${Number(r.toFixed(4))}%`;

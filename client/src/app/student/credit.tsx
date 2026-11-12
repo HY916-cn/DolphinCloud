@@ -1,14 +1,15 @@
 import {
-  CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, Page, RateCard, TermList, today, TxnListLoading, useCredit, useCreditEvents, useGaugeCurve, useMyTerms,
+  CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, MyLoans, Page, RateCard, TermList, today, TxnListLoading, useCredit, useCreditEvents, useGaugeCurve,
+  useMyLoans, useMyTerms,
 } from '@/components';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 
 const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': i } as React.CSSProperties });
 
-// 信用 (design system StudentCreditPage, as of M10): the student's 海豚信用分 on the large gauge with what it lends, the
-// week's rates at that score, 我的定期, and every change of the score, newest first, 20 at a time. Each part reads and
-// fails on its own.
+// 信用 (design system StudentCreditPage): the student's 海豚信用分 on the large gauge with what it lends, the week's rates
+// at that score, 我的贷款, 我的定期, and every change of the score, newest first, 20 at a time. Each part reads and fails on
+// its own.
 export default function StudentCredit() {
   const student = useMe().data!.student!;
   const credit = useCredit();
@@ -17,6 +18,7 @@ export default function StudentCredit() {
   const rows = events.data?.pages.flat();
   const fresh = useNewRows(rows?.map((e) => e.id));
   const terms = useMyTerms(student.student_no);
+  const loans = useMyLoans(student.student_no);
   const c = credit.data;
 
   return (
@@ -38,6 +40,12 @@ export default function StudentCredit() {
         </div>
         <div className="dc-stack">
           <div {...enter(2)}>
+            <p className="dc-list-title">我的贷款</p>
+            {loans.isError ? <CreditFailed title="暂时无法读取贷款" onRetry={() => loans.refetch()} />
+              : !loans.data || !c ? <TxnListLoading rows={2} label="正在加载贷款" />
+              : <MyLoans loans={loans.data} limit={c.loan_limit} min={curve.min ?? 400} />}
+          </div>
+          <div {...enter(3)}>
             <p className="dc-list-title">我的定期</p>
             {terms.isError ? <CreditFailed title="暂时无法读取定期" onRetry={() => terms.refetch()} />
               : !terms.data ? <TxnListLoading rows={2} label="正在加载定期" />
@@ -45,7 +53,7 @@ export default function StudentCredit() {
                 <section className="dc-card"><p className="dc-caption">没有定期。可以在柜台把活期存成定期，存期 2、4 或 8 周，利率比活期高。</p></section>
               )}
           </div>
-          <div {...enter(3)}>
+          <div {...enter(4)}>
             <p className="dc-list-title">信用分变动</p>
             {events.isError && !rows ? <CreditFailed title="暂时无法读取变动记录" onRetry={() => events.refetch()} />
               : !rows ? <TxnListLoading label="正在加载变动记录" />

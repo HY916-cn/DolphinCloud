@@ -1,5 +1,5 @@
 import { BookPages, DIVISIONS, Notice, PassbookPage, rankNext, TxnListLoading, useRanking, type Ranking } from '@/components';
-import { formatAmount } from '@/lib/format';
+import { formatNet } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
 // A page of places takes as many as the 存折's lines; the ranking can be set longer than one page.
@@ -17,7 +17,7 @@ function Places({ rows, lines = 0 }: { rows: Ranking['top']; lines?: number }) {
             <td className="is-rank">{row.rank}</td>
             <td className="is-text">{row.name}{row.me && <small>我</small>}</td>
             <td className="is-text">{row.class_label ?? `${row.cohort} 届`}</td>
-            <td className="is-num">{formatAmount(row.balance)}</td>
+            <td className="is-num">{formatNet(row.balance)}</td>
           </tr>
         ))}
         {Array.from({ length: Math.max(0, lines - rows.length) }, (_, i) => (
@@ -55,7 +55,7 @@ export default function BookRanking() {
         {!r ? null : r.me ? <>
           <dl className="dc-pb-fields">
             <dt>名次</dt><dd className="is-total">第 {r.me.rank} 名</dd>
-            <dt>存款</dt><dd>{formatAmount(r.me.balance)}<small>HTB</small></dd>
+            <dt>存款</dt><dd>{formatNet(r.me.balance)}<small>HTB</small></dd>
             <dt>超过</dt><dd>{division} {r.me.behind} 位同学</dd>
           </dl>
           <p className="dc-pb-note">{rankNext(r)}</p>

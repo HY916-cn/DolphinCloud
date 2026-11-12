@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, formatNet } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Icon } from './ui';
 
@@ -26,6 +26,7 @@ export function useRanking(studentNo: string) {
 }
 
 // One place: gold for the top three, the dolphin ring for the student; `bar` is the balance against the first place's.
+// The balance is 存款 net of unpaid loans and may be negative; its bar is then drawn at 0.
 export function RankRow({ row, bar }: { row: Row; bar?: number }) {
   return (
     <li className={`dc-rank ${row.rank <= 3 ? 'is-top' : ''} ${row.rank === 1 ? 'is-first' : ''} ${row.me ? 'is-me' : ''}`}
@@ -35,8 +36,8 @@ export function RankRow({ row, bar }: { row: Row; bar?: number }) {
         <div className="dc-rank-name">{row.name}{row.me && <span className="dc-tag dc-tag-coin"><Icon name="me" />我</span>}</div>
         <div className="dc-rank-class">{row.class_label ?? `${row.cohort} 届`}</div>
       </div>
-      <div className="dc-rank-amount">{formatAmount(row.balance)}<small>HTB</small></div>
-      {bar !== undefined && <span className="dc-rank-bar" aria-hidden="true"><i style={{ '--value': bar.toFixed(3) } as React.CSSProperties} /></span>}
+      <div className="dc-rank-amount">{formatNet(row.balance)}<small>HTB</small></div>
+      {bar !== undefined && <span className="dc-rank-bar" aria-hidden="true"><i style={{ '--value': Math.max(0, bar).toFixed(3) } as React.CSSProperties} /></span>}
     </li>
   );
 }
@@ -53,7 +54,7 @@ export function Podium({ rows }: { rows: Row[] }) {
           <span className={medal(row.rank)} aria-label={`第 ${row.rank} 名`}>{row.rank}</span>
           <div className="dc-rank-name">{row.name}{row.me && <span className="dc-tag dc-tag-coin"><Icon name="me" />我</span>}</div>
           <div className="dc-rank-class">{row.class_label ?? `${row.cohort} 届`}</div>
-          <div className="dc-podium-step">{formatAmount(row.balance)}<small>HTB</small></div>
+          <div className="dc-podium-step">{formatNet(row.balance)}<small>HTB</small></div>
         </li>
       ))}
     </ol>

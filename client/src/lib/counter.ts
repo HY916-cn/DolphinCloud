@@ -5,13 +5,15 @@ import { formatAmount } from './format';
 import { cachedRoster, saveRoster } from './offline-queue';
 import { call, withTimeout } from './rpc';
 import { indexRoster } from './search';
+import type { LoanDetail, LoanPlan, LoanPreview, LoanQuote } from './loans';
 import type { TermDeposit, TermQuote } from './term-deposits';
 import { readAll, supabase } from './supabase';
 
 export type Student = {
   student_no: string; name: string; division: 'primary' | 'junior'; cohort: number; class_no: number;
   class_label: string | null; status: string; balance: number | null; withdrawn_today: number | null;
-  credit?: CreditProfile; // from lookup_student; a student found offline has none
+  credit?: CreditProfile; // from lookup_student; a student found offline has none, nor the two below
+  loan_remaining?: number; loan_overdue?: boolean;
 };
 export type TxnResult = {
   id: string; txn_no: string; type: string; amount: number; balance_after: number; denominations: Counts | null;
@@ -31,6 +33,16 @@ export type TermResult = TxnResult & { term: TermDeposit };
 export const openTermDeposit = (id: string, no: string, amount: number, weeks: number) =>
   call<TermResult>('open_term_deposit', { p_id: id, p_student_no: no, p_amount: amount, p_weeks: weeks });
 export const withdrawTermEarly = (termId: string) => call<TermResult>('withdraw_term_early', { p_term_id: termId });
+// 贷款 at the counter (PHASE-2.md §10.3–10.9): the panel's facts, the plan with its estimated interest, 放款 (p_id is the
+// loan's id, the idempotency key) and 还款 (p_id is the transaction's; cash is the notes, amount null).
+export const loanQuote = (no: string) => call<LoanQuote>('loan_quote', { p_student_no: no });
+export const loanPreview = (no: string, amount: number, plan: LoanPlan, periods: number) =>
+  call<LoanPreview>('loan_preview', { p_student_no: no, p_amount: amount, p_plan: plan, p_periods: periods });
+export type LoanResult = TxnResult & { loan: LoanDetail };
+export const openLoan = (id: string, no: string, amount: number, purpose: string, plan: LoanPlan, periods: number, via: 'account' | 'cash') =>
+  call<LoanResult>('open_loan', { p_id: id, p_student_no: no, p_amount: amount, p_purpose: purpose, p_plan: plan, p_periods: periods, p_via: via });
+export const repayLoan = (id: string, loanId: string, amount: number, payment: 'account' | 'cash', cash?: Counts) =>
+  call<LoanResult>('repay_loan', { p_id: id, p_loan_id: loanId, p_amount: payment === 'cash' ? null : amount, p_payment: payment, p_denominations: cash ?? null });
 export const reverseTxn = (id: string, originalId: string, reason: string) =>
   call<TxnResult>('reverse_txn', { p_id: id, p_original_id: originalId, p_reason: reason });
 
@@ -97,7 +109,7 @@ export const newId = () => crypto.randomUUID();
 // Today's businesses of one teller, newest first (RLS shows a teller only their own day). 办理 offers the students
 // served today again; 今日业务 lists every line with its 冲正.
 export type DayTxn = {
-  id: string; txn_no: string; type: 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'term_open' | 'term_close'; amount: number; balance_delta: number; payment: 'account' | 'cash' | null;
+  id: string; txn_no: string; type: 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'term_open' | 'term_close' | 'loan' | 'repay'; amount: number; balance_delta: number; payment: 'account' | 'cash' | null;
   status: 'normal' | 'reversed'; reason: string | null; created_at: string; student_no: string;
   students: { name: string; class_no: number; class_label: string | null; status: string } | null;
   txn_items: { name: string; qty: number }[];
@@ -109,15 +121,15 @@ export function useMyDay(operatorId: string, enabled = true) {
     queryFn: async () => {
       const { data, error } = await supabase.from('txns')
         .select('id,txn_no,type,amount,balance_delta,payment,status,reason,created_at,student_no,students(name,class_no,class_label,status),txn_items(name,qty)')
-        .eq('operator_id', operatorId).in('type', ['deposit', 'withdraw', 'purchase', 'reversal', 'term_open', 'term_close']).order('seq', { ascending: false });
+        .eq('operator_id', operatorId).in('type', ['deposit', 'withdraw', 'purchase', 'reversal', 'term_open', 'term_close', 'loan', 'repay']).order('seq', { ascending: false });
       if (error) throw error;
       return data as unknown as DayTxn[];
     },
   });
 }
 
-const BUSINESS = { deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', term_open: '开定期', term_close: '定期转回' };
-// "存款 22 HTB", "兑换 海豚书签 × 1（现金）".
+const BUSINESS = { deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', term_open: '开定期', term_close: '定期转回', loan: '贷款', repay: '还款' };
+// "存款 22 HTB", "兑换 海豚书签 × 1（现金）", "贷款 130 HTB（现金）".
 export const describeTxn = (t: Pick<DayTxn, 'type' | 'amount' | 'payment' | 'txn_items'>) =>
   t.type === 'purchase' ? `兑换 ${t.txn_items.map((i) => `${i.name} × ${i.qty}`).join('、')}（${t.payment === 'cash' ? '现金' : '账户'}）`
-  : `${BUSINESS[t.type]} ${formatAmount(t.amount)} HTB`;
+  : `${BUSINESS[t.type]} ${formatAmount(t.amount)} HTB${t.type === 'loan' || t.type === 'repay' ? `（${t.payment === 'cash' ? '现金' : '账户'}）` : ''}`;

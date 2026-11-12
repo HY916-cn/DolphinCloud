@@ -129,7 +129,7 @@ test('明细 prints a sixth tab, 利息; on a phone all six share a row and the 
   await mark(page, '明细').click();
   const panel = page.getByRole('tabpanel');
   await turnTo(page, panel);
-  await expect(page.getByRole('tab')).toHaveText(['全部', '存款', '取款', '兑换', '工资', '利息']);
+  await expect(page.getByRole('tab')).toHaveText(['全部', '存款', '取款', '兑换', '工资', '利息', '贷款']);
   await expect(panel.locator('.dc-txn')).toHaveCount(5);
   await page.getByRole('tab', { name: '利息' }).click();
   await expect(panel.locator('.dc-txn')).toHaveCount(1);

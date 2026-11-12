@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Avatar, CounterPage, CreditGauge, DepositPanel, DutyCard, FindStudent, Icon, Notice, QueryPanel, ReversalSheet, ShopPanel, TermPanel, WithdrawPanel, servedAmount, useGaugeCurve, type IconName, type Served,
+  Avatar, CounterPage, CreditGauge, DepositPanel, DutyCard, FindStudent, Icon, LoanPanel, Notice, QueryPanel, ReversalSheet, ShopPanel, TermPanel, WithdrawPanel, servedAmount, useGaugeCurve, type IconName, type Served,
 } from '@/components';
 import { classOf, lookupStudent, useMyDay, useSettings, type Student, type TxnResult } from '@/lib/counter';
 import { staleDuty, useDuty } from '@/lib/duty';
@@ -13,9 +13,10 @@ import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
 
 const BUSINESSES: [Business, IconName, string][] = [
-  ['deposit', 'deposit', '存款'], ['withdraw', 'withdraw', '取款'], ['shop', 'exchange', '兑换'], ['term', 'savings', '定期'], ['query', 'query', '查询'],
+  ['deposit', 'deposit', '存款'], ['withdraw', 'withdraw', '取款'], ['shop', 'exchange', '兑换'], ['loan', 'loan', '贷款'], ['term', 'savings', '定期'],
+  ['query', 'query', '查询'],
 ];
-type Business = 'deposit' | 'withdraw' | 'shop' | 'term' | 'query';
+type Business = 'deposit' | 'withdraw' | 'shop' | 'loan' | 'term' | 'query';
 const STATUS: Record<string, string> = { frozen: '已冻结', graduated: '已毕业' };
 
 // PersonCard's balance, rolling to its new value after a business.
@@ -24,7 +25,7 @@ function StudentBalance({ amount }: { amount: number }) {
 }
 
 // 办理 (PHASE-1.md §7.5, design system CounterServicePage): the counter's one page. Search and tap a student (or one
-// served earlier today), then any number of deposits, withdrawals, exchanges and 定期 for them, and 查询 for their account
+// served earlier today), then any number of deposits, withdrawals, exchanges, 贷款 and 定期 for them, and 查询 for their account
 // and every transaction; each goes onto the 办理单
 // with its 冲正, and the balance is read again. 结束办理 comes back here with the visit summed up and the search
 // ready for the next student. Offline only 存款 is open (§7.7). `?s=<学号>` opens that student (from 今日业务). The
@@ -123,7 +124,10 @@ export default function Serve() {
       <div className="dc-person">
         <Avatar role="student" lg className="dc-person-avatar" />
         <div className="dc-person-main">
-          <div className="dc-person-name">{student.name}</div>
+          <div className="dc-person-name">
+            {student.name}
+            {student.loan_overdue && <> <span className="dc-tag dc-tag-danger"><Icon name="warning" />贷款逾期</span></>}
+          </div>
           <div className="dc-person-meta">{classOf(student)} · 学号 {student.student_no}</div>
           <div className="dc-person-meta">
             {left === null ? '离线时不显示余额' : `今日还可取 ${formatAmount(left)} HTB`}
@@ -146,10 +150,11 @@ export default function Serve() {
       {current === 'deposit' && <DepositPanel {...props} />}
       {current === 'withdraw' && <WithdrawPanel {...props} />}
       {current === 'shop' && <ShopPanel {...props} />}
+      {current === 'loan' && <LoanPanel {...props} />}
       {current === 'term' && <TermPanel {...props} />}
       {current === 'query' && <QueryPanel {...props} />}
       {reversing && (
-        <ReversalSheet txn={{ id: reversing.txnId!, txn_no: reversing.txnNo!, type: reversing.termId ? 'term_open' : undefined, what: `${student.name} · ${reversing.label} ${servedAmount(reversing)}` }}
+        <ReversalSheet txn={{ id: reversing.txnId!, txn_no: reversing.txnNo!, type: reversing.type ?? (reversing.termId ? 'term_open' : undefined), what: `${student.name} · ${reversing.label} ${servedAmount(reversing)}` }}
           onClose={() => setReversing(null)} onDone={reversed} />
       )}
     </CounterPage>

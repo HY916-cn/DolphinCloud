@@ -14,4 +14,20 @@ assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_open' }).text, '这�
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_close' }).text, '已过到期日，不能再冲正这笔提前支取。');
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'deposit' }).text, '只能冲正本人今天办理的业务，其他情况请联系银行管理员。');
 
+assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'loan' }).text, '这笔贷款已经开始还款，不能再冲正。');
+assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'repay' }).text, '只能冲正这笔贷款最近的一笔还款。');
+
+assert.equal(explain('CREDIT_TOO_LOW', { score: 350, min_score: 400 }).text, '信用分 400 分以上才能贷款，现在是 350 分。');
+assert.equal(explain('OVER_CREDIT_LIMIT', { limit: 165 }).text, '按现在的信用分，最多能贷 165 HTB。');
+assert.equal(explain('REPAY_TOO_MUCH', { max: 100 }).text, '这笔贷款现在一共只需还 100 HTB。');
+assert.equal(explain('INVALID_AMOUNT', { payoff: 100 }).text, '还清本金要连利息零头一起付，全部结清是 100 HTB。');
+assert.equal(explain('INVALID_AMOUNT').text, '请输入正整数金额，并使用柜台列出的面额。');
+assert.equal(explain('LOAN_OUTSTANDING').text, '先还清这笔贷款，才能办新贷款或新定期。');
+assert.equal(explain('LOAN_OUTSTANDING', { student_no: '20260001', loan_no: 'DK2611120001', name: '张小明' }).text, '张小明 还有贷款没还清，结清后才能注销。');
+assert.equal(explain('INVALID_INPUT', { field: 'purpose' }).text, '请检查用途。');
+assert.equal(explain('INVALID_INPUT', { field: 'periods' }).text, '请检查期数。');
+assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'closed' }).text, '这笔贷款已经结清。');
+assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'reversed' }).text, '这笔贷款已经作废。');
+assert.equal(explain('NO_TERM', { business: '贷款' }).text, '现在不在学期内，不能贷款。');
+
 console.log('errors ok');

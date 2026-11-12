@@ -16,6 +16,7 @@ export const TXN_TABS = {
   purchase: { label: '兑换', empty: '还没有兑换记录', hint: '在柜台兑换商品后，这里会显示每一笔兑换。' },
   salary: { label: '工资', empty: '还没有工资记录', hint: '担任柜员并参与考勤后，工资每周发到这里。' },
   interest: { label: '利息', empty: '还没有利息记录', hint: '学期内活期余额每天计息，每周一把满 1 HTB 的利息存入这里。' },
+  loan: { label: '贷款', empty: '还没有贷款记录', hint: '在柜台贷款和还款后，这里会显示每一笔放款和还款。' },
 } as const;
 export type TxnTab = keyof typeof TXN_TABS;
 
@@ -31,7 +32,7 @@ export function useRecent(studentNo: string) {
   });
 }
 
-// Every business newest first, 30 at a time, by type (`tab`), by words of a 交易号 or a product and by days.
+// Every business newest first, 30 at a time, by type (`tab`; 贷款 is 放款 and 还款), by words of a 交易号 or a product and by days.
 export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enabled = true) {
   return useInfiniteQuery({
     queryKey: ['student-txns', studentNo, tab, filter],
@@ -40,7 +41,8 @@ export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enable
     getNextPageParam: (last: TxnRow[], pages) => (last.length === PAGE ? pages.length : undefined),
     queryFn: async ({ pageParam }) => {
       let q = supabase.from('txns').select(COLUMNS).eq('student_no', studentNo);
-      if (tab !== 'all') q = q.eq('type', tab);
+      if (tab === 'loan') q = q.in('type', ['loan', 'repay']);
+      else if (tab !== 'all') q = q.eq('type', tab);
       if (filter.from) q = q.gte('created_at', `${filter.from}T00:00:00+08:00`);
       if (filter.to) q = q.lte('created_at', `${filter.to}T23:59:59.999+08:00`);
       if (filter.timeFrom) q = q.gte('cn_time', filter.timeFrom);
@@ -62,8 +64,8 @@ export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enable
 }
 
 // This month as the school reads it (Asia/Shanghai): last month's closing balance, what came in and what went out since,
-// 冲正 included, and the balance now. 开定期 and 定期转回 are neither in nor out (flows), so with them the three do not add
-// up to the balance now. `m` is the month's number.
+// 冲正 included, and the balance now. 开定期, 定期转回, 放款 and 还款 are neither in nor out (flows), so with them the three do
+// not add up to the balance now. `m` is the month's number.
 export function useMonth(studentNo: string) {
   const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit' }).format(new Date());
   const totals = useQuery({
@@ -71,7 +73,7 @@ export function useMonth(studentNo: string) {
     queryFn: async () => {
       const [account, data] = await Promise.all([
         supabase.from('accounts').select('balance').eq('student_no', studentNo).single(),
-        readAll<{ balance_delta: number; term_id: string | null }>((from, to) => supabase.from('txns').select('balance_delta,term_id')
+        readAll<{ balance_delta: number; term_id: string | null; loan_id: string | null }>((from, to) => supabase.from('txns').select('balance_delta,term_id,loan_id')
           .eq('student_no', studentNo).gte('created_at', `${month}-01T00:00:00+08:00`).order('seq').range(from, to)),
       ]);
       if (account.error) throw account.error;

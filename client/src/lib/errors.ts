@@ -30,6 +30,7 @@ const FIELDS: Record<string, string> = {
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '补签说明', status: '审核结果', week: '发放的周',
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
   anchor_params: '锚点参数', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
+  plan: '还款方式', periods: '期数', via: '放款方式', purpose: '用途', loan_id: '这笔贷款', terminate_reason: '终止原因',
 };
 
 export function explain(code: string, d: Detail = {}): { title: string; text: string } {
@@ -44,17 +45,21 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     // `type` (the business reversed) is the client's own: the server sends no detail.
     case 'REVERSAL_NOT_ALLOWED':
       return { title: '不能冲正这笔业务', text: d.type === 'term_open' ? '这笔定期已经到期或提前支取，不能再冲正。'
-        : d.type === 'term_close' ? '已过到期日，不能再冲正这笔提前支取。' : '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
+        : d.type === 'term_close' ? '已过到期日，不能再冲正这笔提前支取。'
+        : d.type === 'loan' ? '这笔贷款已经开始还款，不能再冲正。'
+        : d.type === 'repay' ? '只能冲正这笔贷款最近的一笔还款。' : '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
     case 'REVERSAL_INSUFFICIENT_BALANCE':
       return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系银行管理员。` };
     case 'STUDENT_INACTIVE':
       return { title: '账户不可办理', text: d.status === 'closed' ? '该账户已注销。' : '该账户已冻结或已毕业，请联系银行管理员。' };
-    case 'INVALID_AMOUNT': return { title: '金额有误', text: '请输入正整数金额，并使用柜台列出的面额。' };
+    case 'INVALID_AMOUNT':
+      return { title: '金额有误', text: d.payoff != null ? `还清本金要连利息零头一起付，全部结清是 ${d.payoff} HTB。` : '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
     case 'FORBIDDEN': return { title: '没有权限', text: '当前账号不能办理这项业务。' };
     case 'LAST_SYSADMIN': return { title: '至少保留一个运维员', text: '这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。' };
     case 'ONE_BANK_ADMIN': return { title: '银行管理员只有一个', text: '不能新增银行管理员，也不能更改银行管理员的身份。' };
     case 'INVALID_INPUT':
+      if (d.field === 'loan_id' && d.status) return { title: '这笔贷款不能还款', text: d.status === 'closed' ? '这笔贷款已经结清。' : '这笔贷款已经作废。' };
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };
     case 'ALREADY_EXISTS': return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
     case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
@@ -75,6 +80,12 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'NO_TERM': return { title: '现在不在学期内', text: d.business ? `现在不在学期内，不能${d.business}。` : '还没有登记当前学期，暂时不能办理贷款和定期。' };
     case 'TERM_TOO_LONG':
       return { title: '存期超过学期末', text: `本学期 ${monthDay(String(d.ends_on))} 结束，${d.max_weeks == null ? '已经放不下定期' : `最长只能选 ${d.max_weeks} 周`}。` };
+    case 'CREDIT_TOO_LOW': return { title: '信用分不够', text: `信用分 ${d.min_score} 分以上才能贷款，现在是 ${d.score} 分。` };
+    case 'OVER_CREDIT_LIMIT': return { title: '超过贷款额度', text: `按现在的信用分，最多能贷 ${d.limit} HTB。` };
+    case 'REPAY_TOO_MUCH': return { title: '还款金额太多', text: `这笔贷款现在一共只需还 ${d.max} HTB。` };
+    // On 注销 the server names the student by number; the page passes the `name` it lists.
+    case 'LOAN_OUTSTANDING':
+      return { title: '还有贷款没还清', text: d.loan_no ? `${d.name ?? `学号 ${d.student_no}`} 还有贷款没还清，结清后才能注销。` : '先还清这笔贷款，才能办新贷款或新定期。' };
     case 'TERM_OPEN_ITEMS': return { title: '还不能结转', text: '下面这些处理完后，再结转学期。' };
     case 'TERM_OVERLAP': return { title: '学期日期重叠', text: `和「${d.term}」的日期重叠，请调整开始日或结束日。` };
     case 'TERM_NOT_ENDED': return { title: '学期还没结束', text: `${monthDay(String(d.ends_on))} 之后才能结转。` };

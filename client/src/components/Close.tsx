@@ -23,7 +23,9 @@ export function CloseSheet({ people, onClose, onDone }: {
       const r = await call<{ closed: number; cleared: number }>('close_accounts', { p_user_ids: people.map((p) => p.id) });
       onDone({ tone: 'success', title: `已注销 ${r.closed} 个账号`, text: r.cleared ? `余额共 ${formatAmount(r.cleared)} HTB 已清零。` : '' });
     } catch (err) {
-      onDone({ tone: 'danger', ...(err instanceof AppError ? explain(err.code, err.detail) : explain('')) });
+      // LOAN_OUTSTANDING names the student by number; the sheet knows the name.
+      onDone({ tone: 'danger', ...(err instanceof AppError
+        ? explain(err.code, { ...err.detail, name: people.find((p) => p.no === err.detail.student_no)?.name }) : explain('')) });
     } finally {
       setBusy(false);
     }

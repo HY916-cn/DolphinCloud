@@ -1,5 +1,5 @@
 import { DIVISIONS, Icon, Notice, Page, Podium, RankNext, RankRow, RankSummary, TxnListLoading, useRanking } from '@/components';
-import { formatAmount } from '@/lib/format';
+import { formatNet } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
 const enter = (i: number, className = '') => ({ className: `dc-stack dc-enter ${className}`, style: { '--i': i } as React.CSSProperties });
@@ -12,7 +12,7 @@ export default function StudentRanking() {
   const ranking = useRanking(student.student_no);
   const r = ranking.data;
   const division = DIVISIONS[student.division];
-  const bar = (balance: number) => (r?.top[0]?.balance ? balance / r.top[0].balance : 0);
+  const bar = (balance: number) => ((r?.top[0]?.balance ?? 0) > 0 ? balance / r!.top[0].balance : 0);
 
   return (
     <Page title="存款排名" sub={division}>
@@ -39,7 +39,7 @@ export default function StudentRanking() {
             {!r ? <span className="dc-skeleton" style={{ height: 280, borderRadius: 'var(--radius-lg)' }} /> : r.me ? (
               <section className="dc-card dc-rank-card">
                 <div className="dc-rank-head"><h2 className="heading"><Icon name="ranking" />我的名次</h2></div>
-                <RankSummary r={r} note={`存款 ${formatAmount(r.me.balance)} HTB`} />
+                <RankSummary r={r} note={`存款 ${formatNet(r.me.balance)} HTB`} />
                 <RankNext r={r} />
                 <div className="dc-rank-scale">
                   <div className="dc-rank-track" role="img" aria-label={`在${division} ${r.total} 人中排第 ${r.me.rank} 名`}

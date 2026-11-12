@@ -39,5 +39,9 @@ assert.deepEqual(flows([
   { balance_delta: 102, term_id: 'a' }, { balance_delta: -20, term_id: 'b' }, { balance_delta: 20, term_id: 'b' }, { balance_delta: 0, term_id: null },
 ]), { saved: 22, spent: -15, moved: 2 });
 assert.deepEqual(flows([]), { saved: 0, spent: 0, moved: 0 });
+// So are 放款, 还款 and their 冲正.
+assert.deepEqual(flows([
+  { balance_delta: 22, term_id: null, loan_id: null }, { balance_delta: 130, term_id: null, loan_id: 'l' }, { balance_delta: -33, term_id: null, loan_id: 'l' },
+]), { saved: 22, spent: 0, moved: 97 });
 
 console.log('term-deposits ok');

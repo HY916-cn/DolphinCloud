@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, sectionsFor, Summary, today, TxnListLoading, type IconName, type Move,
+  Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, sectionsFor, Stats, Summary, today, TxnListLoading, type IconName, type Move,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -14,7 +14,7 @@ const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', 
 
 // 总览: the sections this login may open (on phones the tiles are the way to the sections the TabBar has no room
 // for), then what each role looks after, every item a link to the page that handles it: today's business, the bank's
-// balance and the latest transactions (accountant, teacher); logins that need attention (teacher, sysadmin); products
+// balance, the loans outstanding with those overdue, and the latest transactions (accountant, teacher); logins that need attention (teacher, sysadmin); products
 // running out and the latest stock movements (storekeeper, teacher). Teachers also see the last ledger check that
 // found a difference (§9.4). Each read is only made for the roles RLS lets see it.
 export default function Admin() {
@@ -56,12 +56,17 @@ export default function Admin() {
     queryFn: async () => {
       // shortcut: sums on the device (the API has no aggregates); fine for one school's day and ≤ 2000 accounts, move
       // to a database function if either grows much larger.
-      const [txns, accounts] = await Promise.all([
+      const [txns, accounts, loans] = await Promise.all([
         readAll((from, to) => supabase.from('txns').select('type,amount').eq('status', 'normal')
           .in('type', ['deposit', 'withdraw', 'purchase']).gte('created_at', `${day}T00:00:00+08:00`).order('seq').range(from, to)),
         readAll((from, to) => supabase.from('accounts').select('balance').order('student_no').range(from, to)),
+        readAll((from, to) => supabase.from('loans').select('remaining,status').in('status', ['active', 'overdue']).order('id').range(from, to)),
       ]);
-      return { txns, balance: accounts.reduce((s, a) => s + a.balance, 0) };
+      const overdue = loans.filter((l) => l.status === 'overdue');
+      return {
+        txns, balance: accounts.reduce((s, a) => s + a.balance, 0), loans: loans.reduce((s, l) => s + l.remaining, 0),
+        overdue: { count: overdue.length, amount: overdue.reduce((s, l) => s + l.remaining, 0) },
+      };
     },
   });
   const recent = useQuery({
@@ -118,6 +123,13 @@ export default function Admin() {
 
   const left = money && (
     <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
+      {totals.data && (
+        <Stats items={[
+          ['账户余额合计', formatAmount(totals.data.balance), 'HTB'],
+          ['贷款余额', formatAmount(totals.data.loans), 'HTB', totals.data.overdue.count
+            ? `逾期 ${totals.data.overdue.count} 笔 · ${formatAmount(totals.data.overdue.amount)} HTB` : undefined, true],
+        ]} />
+      )}
       <section className="dc-card" aria-label="今日业务">
         <div className="dc-section-head" style={{ marginBottom: 'var(--space-2)' }}>
           <h2 className="heading">今日业务</h2>

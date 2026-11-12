@@ -1,7 +1,10 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { cashTotal, describeCash, makeChange, nonEmpty, type Counts } from '@/lib/cash';
-import { classOf, deposit, newId, openTermDeposit, purchase, termQuote, useSettings, withdraw, withdrawTermEarly, type Student, type TxnResult } from '@/lib/counter';
+import {
+  classOf, deposit, loanPreview, loanQuote, newId, openLoan, openTermDeposit, purchase, repayLoan, termQuote, useSettings, withdraw, withdrawTermEarly,
+  type Student, type TxnResult,
+} from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatCenti, formatRate, formatSigned } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -9,6 +12,10 @@ import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { useBump, useNewRows } from '@/lib/motion';
 import { useStaleRefusal } from '@/lib/duty';
+import {
+  about, amountHint as loanAmountHint, interestText, lastDue, overdueText, penaltyRate, planText, rateText, repayProblem, repaySplit, termTooShort,
+  type LoanDetail, type LoanPlan, type LoanQuote,
+} from '@/lib/loans';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { monthDay } from '@/lib/term';
@@ -16,7 +23,10 @@ import { amountHint, backCenti, maxWeeks, type TermDeposit } from '@/lib/term-de
 import { toTxn, type TxnRow } from '@/lib/txns';
 import { CashCounter, QtySum, Summary } from './Counter';
 import { FilterBar, filtered, NO_FILTER, wrongTimes, type Filter } from './Filter';
-import { Stats } from './Report';
+import { Stats, Table } from './Report';
+import { CreditGauge, useGaugeCurve } from './Credit';
+import { LOAN_TAGS, PeriodList, useLoanSettings } from './Loan';
+import { outside, Stepper } from './Stepper';
 import { ConfirmSheet } from './Sheet';
 import { TxnListLoading } from './Account';
 import { today } from './DatePicker';
@@ -32,8 +42,12 @@ import { Icon, Notice } from './ui';
 // line in the 办理单. A finished business goes to onDone and the panel starts again empty;
 // onEnd ends the visit. `amount` is the change to the account (null when it is untouched: a cash exchange, an
 // offline deposit's balance); `txnId` is null when the line has no 冲正 here: an offline deposit until it is uploaded,
-// a 提前支取. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either.
-export type Served = { label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean; termId?: string };
+// a 提前支取. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either; `loanId`
+// ties a 贷款 to its 还款, and only the latest of them has 冲正. `type` is the transaction's, for the reason a 冲正 is refused.
+export type Served = {
+  label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean; termId?: string;
+  loanId?: string; type?: string;
+};
 type Props = { student: Student; served: Served[]; onDone: (s: Served) => void; onEnd: () => void; onReverse: (s: Served) => void };
 type Problem = { title: string; text: string } | null;
 type Current = { label: string; detail: string; amount: string } | null;
@@ -59,7 +73,8 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
             <dt>
               {s.label}{s.reversed && '（已冲正）'}
               <small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small>
-              {s.txnId && !s.reversed && !served.some((x) => x !== s && s.termId && x.termId === s.termId) && (
+              {s.txnId && !s.reversed && !served.some((x) => x !== s && s.termId && x.termId === s.termId)
+                && !served.slice(i + 1).some((x) => s.loanId && x.loanId === s.loanId && x.type === 'repay' && !x.reversed) && (
                 <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" type="button" style={{ marginTop: 'var(--space-1)' }}
                   aria-label={`冲正${s.label}`} onClick={() => onReverse(s)}><Icon name="transfer" />冲正</button>
               )}
@@ -393,6 +408,312 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
   );
 }
 
+// 贷款 (PHASE-2.md §10.3–10.9, design system Loan): from loan_quote, the score with the limit, this week's rate and the
+// term's end on top; under it a new loan, the open loan with its plan and 还款, or why there can be neither (`blocked`).
+// 放款 and 还款 are checked once more in a sheet; a refusal stays in the sheet. What a payment pays (next.amount, payoff)
+// is the server's; a 还款 that settles the loan leaves it shown as 已结清 for the rest of the visit.
+export function LoanPanel(props: Props) {
+  const { student, served, onEnd, onReverse } = props;
+  const curve = useGaugeCurve();
+  const settings = useLoanSettings();
+  const done = served.length + served.filter((s) => s.reversed).length;
+  const quote = useQuery({ queryKey: ['loan-quote', student.student_no, done], queryFn: () => loanQuote(student.student_no) });
+  const [settled, setSettled] = useState<{ loan: LoanDetail; txnId: string } | null>(null);
+  const q = quote.data;
+  const inactive = INACTIVE[student.status];
+  const loan = q?.loan ?? null;
+  const shownSettled = settled && served.some((s) => s.txnId === settled.txnId && !s.reversed) ? settled.loan : null;
+  const penalty = (l: LoanDetail) => (settings ? rateText(penaltyRate(l.rate, settings.multiplier)) : '…');
+  const idle = (left: ReactNode) => (
+    <div className="dc-split">
+      <section className="dc-stack">{left}</section>
+      <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={null} current={null} />
+    </div>
+  );
+
+  if (quote.error) return idle(<Notice tone="danger" title="暂时无法读取贷款">请检查网络后再试一次。</Notice>);
+  if (!q) return idle(<KvLoading rows={3} />);
+  const late = loan?.status === 'overdue' ? overdueText(loan.schedule) : null;
+  const card = loan && (
+    <>
+      <p className="dc-caption">先还清这笔贷款，才能办新贷款或新定期。</p>
+      {late && (
+        <Notice tone="danger" title="贷款已逾期">
+          {late.text}。逾期的本金按罚息计息{settings?.overdueWeek ? `，每满一周再扣 ${settings.overdueWeek} 分` : ''}。
+        </Notice>
+      )}
+      <LoanCard loan={loan} penalty={penalty(loan)} />
+      <p className="dc-list-title">还款计划</p>
+      <PeriodList schedule={loan.schedule} plan={loan.plan} />
+    </>
+  );
+  const blocked = !loan && (
+    q.blocked === 'STUDENT_INACTIVE' ? `${inactive ?? '账户不可办理'}，不能贷款。`
+    : q.blocked === 'NO_TERM' ? explain('NO_TERM', { business: '贷款' }).text
+    : q.blocked === 'CREDIT_TOO_LOW' || q.limit === null ? explain('CREDIT_TOO_LOW', { score: q.score, min_score: curve.min ?? 400 }).text
+    : termTooShort(q));
+
+  return (
+    <>
+      <section className="dc-card dc-credit-summary">
+        <dl className="dc-kv">
+          <div><dt>单笔额度</dt><dd>{q.limit === null ? '不能贷款' : `${formatAmount(q.limit)} HTB`}</dd></div>
+          <div><dt>本周贷款利率</dt><dd>{q.rate == null ? '不能贷款' : rateText(q.rate)}</dd></div>
+          <div><dt>最晚应还日</dt><dd>{q.term ? <>{monthDay(q.term.ends_on)}<small>学期末</small></> : '不在学期内'}</dd></div>
+        </dl>
+        <div className="dc-credit-summary-gauge"><CreditGauge score={q.score} size="md" limit={q.limit} {...curve} /></div>
+      </section>
+      {shownSettled && (
+        <>
+          <Notice tone="success" title="贷款已结清。" />
+          <LoanCard loan={shownSettled} penalty={penalty(shownSettled)} />
+        </>
+      )}
+      {loan && inactive ? idle(<>
+        {card}
+        <Notice title={`${inactive}，不能在柜台还款；每期应还日结束时会从活期自动扣。`} />
+      </>)
+        : loan ? <LoanRepay key={`${loan.id}-${loan.payments.length}`} {...props} loan={loan} balance={q.balance} top={card}
+          onSettled={(l, txnId) => setSettled({ loan: l, txnId })} />
+        : blocked ? idle(<Notice tone="danger" title={blocked} />)
+        : <NewLoan {...props} q={q} />}
+    </>
+  );
+}
+
+// 这笔贷款: principal, number and plan, status; what is left, the interest so far, this period's payment as the server
+// splits it, and the rates.
+function LoanCard({ loan, penalty }: { loan: LoanDetail; penalty: string }) {
+  const next = loan.next && repaySplit(loan, loan.next.amount);
+  return (
+    <section className="dc-card dc-stack" aria-label="这笔贷款">
+      <div className="dc-list-item">
+        <span>贷款 <b>{formatAmount(loan.principal)} HTB</b><small>{loan.loan_no} · {planText(loan.plan, loan.periods)}</small></span>
+        {LOAN_TAGS[loan.status]}
+      </div>
+      <dl className="dc-kv">
+        <div><dt>剩余本金</dt><dd>{formatAmount(loan.remaining)} HTB</dd></div>
+        <div><dt>已产生利息</dt><dd>{interestText(loan.interest_centi)}</dd></div>
+        {loan.next && next && <div><dt>本期应还</dt><dd>{monthDay(loan.next.due_on)} · 本金 {formatAmount(next.principal)} HTB，利息 {formatAmount(next.interest)} HTB</dd></div>}
+        <div><dt>周利率</dt><dd>{rateText(loan.rate)}</dd></div>
+        {loan.status === 'overdue' && <div className="is-danger"><dt>罚息利率</dt><dd>{penalty}</dd></div>}
+      </dl>
+    </section>
+  );
+}
+
+// 新贷款: amount within the limit, purpose, plan and its length (the stepper's top is the most that ends in term), and
+// into the account or in cash. The sheet shows the plan with each period's interest estimated by loan_preview.
+function NewLoan({ q, student, served, onDone, onEnd, onReverse }: Props & { q: LoanQuote }) {
+  const stale = useStaleRefusal();
+  const { denominations } = useSettings();
+  const max = q.max_periods!;
+  const [text, setText] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [plan, setPlan] = useState<LoanPlan>('installment');
+  const [n, setN] = useState(String(Math.min(4, max)));
+  const [via, setVia] = useState<'account' | 'cash'>('account');
+  const [id, setId] = useState(newId);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<Problem>(null);
+  const amount = Number(text) || 0;
+  const periods = Number(n);
+  const range = { min: 1, max };
+  const hint = loanAmountHint(amount, q.limit!);
+  const due = lastDue(today(), periods || 1, max, q.term!.ends_on);
+  const ready = !!amount && !hint.error && !!purpose.trim() && !outside(n, range);
+  const payout = describeCash(makeChange(amount, denominations));
+  const length = plan === 'installment' ? '期数' : '期限（周）';
+  const how = `${planText(plan, periods, true)}，${via === 'account' ? '存入账户' : '付现金'}`;
+  const balance = q.balance;
+  const preview = useQuery({
+    queryKey: ['loan-preview', student.student_no, amount, plan, periods],
+    enabled: confirming,
+    retry: false,
+    queryFn: () => loanPreview(student.student_no, amount, plan, periods),
+  });
+  const p = preview.data;
+  const previewError = preview.error && failure(preview.error).problem;
+
+  async function submit() {
+    if (busy) return; // the same id is idempotent on the server too
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await openLoan(id, student.student_no, amount, purpose.trim(), plan, periods, via);
+      onDone({ label: '贷款', amount: via === 'account' ? amount : null, txnNo: r.txn_no, txnId: r.id, loanId: r.loan.id, type: 'loan',
+        detail: via === 'account' ? how : `${planText(plan, periods, true)}，付现金，配钞 ${describeCash(r.denominations ?? {})}` });
+      setConfirming(false);
+      setText('');
+      setPurpose('');
+      setId(newId());
+    } catch (e) {
+      stale(e);
+      setError(failure(e).problem);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="dc-split">
+        <section className="dc-stack">
+          <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
+            <span className="dc-field-label"><Icon name="loan" />贷款金额</span>
+            <span className="dc-input-wrap">
+              <input className="dc-input" inputMode="numeric" value={text} placeholder="请输入金额"
+                onChange={(e) => setText(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <span className="dc-input-unit">HTB</span>
+            </span>
+            <span className="dc-field-hint">{hint.error && <Icon name="warning" />}{hint.text}</span>
+          </label>
+          <label className="dc-field">
+            <span className="dc-field-label"><Icon name="help" />用途</span>
+            <span className="dc-input-wrap">
+              <input className="dc-input" value={purpose} maxLength={30} placeholder="例如：买文具" onChange={(e) => setPurpose(e.target.value)} />
+            </span>
+            <span className="dc-field-hint">必填，最多 30 字</span>
+          </label>
+          <fieldset className="dc-seg" aria-label="还款方式">
+            {([['installment', '分期还'], ['bullet', '一次还清']] as const).map(([value, label]) => (
+              <label key={value}><input type="radio" name="loan-plan" checked={plan === value} onChange={() => setPlan(value)} /><span>{label}</span></label>
+            ))}
+          </fieldset>
+          <div className={`dc-qty ${outside(n, range) ? '' : 'is-filled'}`}>
+            <div className="dc-qty-head">
+              <span className="dc-qty-face">{n || '—'}<small>{plan === 'installment' ? '期' : '周'}</small></span>
+              <span className="dc-qty-sum">{length}<b>最后一期 {due.day}</b></span>
+            </div>
+            <Stepper label={length} value={n} onChange={setN} step={1} range={range} />
+          </div>
+          {due.note && <p className="dc-caption">{due.note}</p>}
+          <div className="dc-choices dc-kind-withdraw" role="radiogroup" aria-label="放款方式">
+            {([['account', '存入账户', `活期 +${formatAmount(amount)} HTB`], ['cash', '付现金', '按面额配钞']] as const).map(([value, name, note]) => (
+              <label key={value} className="dc-choice">
+                <input type="radio" name="loan-via" checked={via === value} onChange={() => setVia(value)} />
+                <span><b>{name}</b><small>{note}</small></span>
+              </label>
+            ))}
+          </div>
+          {via === 'cash' && !!amount && <p className="dc-caption">配钞：{payout}</p>}
+        </section>
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={via === 'account' ? balance + amount : balance}
+          current={amount ? { label: '贷款', detail: how, amount: via === 'account' ? formatSigned(amount) : `现金 ${formatAmount(amount)}` } : null} />
+      </div>
+      {error && !confirming && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      <Bar busy={busy} ready={ready} onClick={() => { setError(null); setConfirming(true); }} label={busy ? '正在放款' : '放款'}
+        totalLabel="贷款" total={amount} note={amount ? (via === 'account' ? `存入后余额 ${formatAmount(balance + amount)} HTB` : `配钞 ${payout}`) : undefined} />
+      {confirming && (
+        <ConfirmSheet title={`给${student.name}放款 ${formatAmount(amount)} HTB？`} confirm="确认放款" busy={busy} ready={!!p}
+          onConfirm={submit} onClose={() => { setConfirming(false); setError(null); }}>
+          {previewError ? <Notice tone="danger" title={previewError.title}>{previewError.text}</Notice>
+            : !p ? <KvLoading rows={4} card={false} /> : (
+              <>
+                <Summary rows={[
+                  ['用途', purpose.trim()], ['还款方式', planText(plan, periods)], ['周利率', `${rateText(p.rate)}（还清前不变）`],
+                  ['放款方式', via === 'account' ? `存入账户，活期 ${formatAmount(balance)} → ${formatAmount(balance + amount)} HTB` : `付现金，配钞 ${payout}`],
+                ]} />
+                <Table label="还款计划" head={['期', '应还日', '本金', '估算利息']}
+                  rows={p.schedule.map((r) => [r.seq, monthDay(r.due_on), r.principal, about(r.interest_centi)])}
+                  foot={['合计', '', p.schedule.reduce((s, r) => s + r.principal, 0), about(p.interest_centi)]} />
+                <p className="dc-caption">利息按天算，提前还就少付。逾期部分按罚息 {rateText(p.penalty_rate)} 计息，并扣信用分。</p>
+              </>
+            )}
+          {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+        </ConfirmSheet>
+      )}
+    </>
+  );
+}
+
+// 还款: the amount (this period's payment by default; in cash, the notes counted), from the account or in cash, split as
+// the server pays it: the interest's whole HTB first, then the principal.
+function LoanRepay({ loan, balance, top, student, served, onDone, onEnd, onReverse, onSettled }: Props & {
+  loan: LoanDetail; balance: number; top: ReactNode; onSettled: (l: LoanDetail, txnId: string) => void;
+}) {
+  const stale = useStaleRefusal();
+  const { denominations } = useSettings();
+  const payoff = loan.payoff!;
+  const [text, setText] = useState(String(loan.next?.amount ?? payoff));
+  const [payment, setPayment] = useState<'account' | 'cash'>('account');
+  const [counts, setCounts] = useState<Counts>({});
+  const [id] = useState(newId); // the panel draws a new form for each repayment
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<Problem>(null);
+  const amount = payment === 'cash' ? cashTotal(counts) : Number(text) || 0;
+  const problem = amount ? repayProblem(amount, payoff, payment, balance) : null;
+  const split = repaySplit(loan, amount);
+  const after = payment === 'account' ? balance - amount : balance;
+  const what = `利息 ${formatAmount(split.interest)}，本金 ${formatAmount(split.principal)}`;
+
+  async function submit() {
+    if (busy) return; // the same id is idempotent on the server too
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await repayLoan(id, loan.id, amount, payment, payment === 'cash' ? nonEmpty(counts) : undefined);
+      const paid = r.loan.payments.find((x) => x.txn_id === r.id) ?? split;
+      onDone({ label: '还款', amount: payment === 'account' ? -amount : null, txnNo: r.txn_no, txnId: r.id, loanId: loan.id, type: 'repay',
+        detail: `利息 ${formatAmount(paid.interest)}，本金 ${formatAmount(paid.principal)}${payment === 'cash' ? `，现金 ${describeCash(counts)}` : ''}` });
+      if (r.loan.status === 'closed') onSettled(r.loan, r.id);
+      setConfirming(false);
+    } catch (e) {
+      stale(e);
+      setError(failure(e).problem);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="dc-split">
+        <section className="dc-stack">
+          {top}
+          <p className="dc-list-title">还款</p>
+          <label className={`dc-field ${problem ? 'is-error' : ''}`}>
+            <span className="dc-field-label"><Icon name="loan" />还款金额</span>
+            <span className="dc-input-wrap">
+              <input className="dc-input" inputMode="numeric" value={payment === 'cash' ? String(amount) : text} readOnly={payment === 'cash'}
+                placeholder="请输入金额" onChange={(e) => setText(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <span className="dc-input-unit">HTB</span>
+            </span>
+            <span className="dc-field-hint">
+              {problem ? <><Icon name="warning" />{problem}</> : `${loan.next ? `本期应还 ${formatAmount(loan.next.amount)} HTB · ` : ''}全部结清 ${formatAmount(payoff)} HTB`}
+            </span>
+          </label>
+          <fieldset className="dc-seg" aria-label="付款方式">
+            {([['account', '从账户扣'], ['cash', '交现金']] as const).map(([value, label]) => (
+              <label key={value}><input type="radio" name="repay-payment" checked={payment === value} onChange={() => setPayment(value)} /><span>{label}</span></label>
+            ))}
+          </fieldset>
+          {payment === 'account' ? !problem && <p className="dc-caption">活期 {formatAmount(balance)} → {formatAmount(after)} HTB</p>
+            : <CashCounter faces={denominations} counts={counts} onChange={setCounts} kind="dc-kind-withdraw" />}
+        </section>
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={after}
+          current={amount ? { label: '还款', detail: what, amount: payment === 'account' ? formatSigned(-amount) : `现金 ${formatAmount(amount)}` } : null} />
+      </div>
+      {error && !confirming && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      <Bar busy={busy} ready={!!amount && !problem} onClick={() => { setError(null); setConfirming(true); }} label={busy ? '正在还款' : '确认还款'}
+        totalLabel="还款" total={amount} note={payment === 'account' && amount ? `还款后余额 ${formatAmount(after)} HTB` : undefined} />
+      {confirming && (
+        <ConfirmSheet title={`${student.name}还款 ${formatAmount(amount)} HTB？`} confirm="确认还款" busy={busy}
+          onConfirm={submit} onClose={() => { setConfirming(false); setError(null); }}>
+          <Summary rows={[
+            ['先付利息', `${formatAmount(split.interest)} HTB`], ['再还本金', `${formatAmount(split.principal)} HTB`],
+            ['还后剩余本金', `${formatAmount(loan.remaining - split.principal)} HTB`],
+            ['付款方式', payment === 'account' ? `从账户扣，活期 ${formatAmount(balance)} → ${formatAmount(after)} HTB` : `交现金，${describeCash(counts)}`],
+          ]} />
+          {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+        </ConfirmSheet>
+      )}
+    </>
+  );
+}
+
 type Product = { id: string; name: string; price: number; stock: number; image_path: string | null };
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
@@ -583,7 +904,8 @@ export function QueryPanel({ student, served }: Props) {
     <section className="dc-stack dc-enter" aria-label="账户查询">
       {a ? (
         <Stats items={[['当前余额', formatAmount(a.balance), 'HTB'], ['累计存入', formatAmount(a.total_in), 'HTB'],
-          ['累计取出', formatAmount(a.total_out), 'HTB'], ['累计账户兑换', formatAmount(a.total_spent), 'HTB'], ['定期合计', formatAmount(a.term_total), 'HTB']]} />
+          ['累计取出', formatAmount(a.total_out), 'HTB'], ['累计账户兑换', formatAmount(a.total_spent), 'HTB'], ['定期合计', formatAmount(a.term_total), 'HTB'],
+          ['贷款剩余', formatAmount(student.loan_remaining ?? 0), 'HTB']]} />
       ) : account.error ? <Notice tone="danger" title="暂时无法读取账户">请检查网络后再试一次。</Notice> : <KvLoading rows={2} />}
       <FilterBar label="筛选交易记录" placeholder="搜索交易号或商品" value={filter} onChange={setFilter} kinds={QUERY_KINDS} />
       {badTime ? <Notice tone="danger" title="时段有误">结束时间要晚于开始时间。</Notice>

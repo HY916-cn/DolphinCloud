@@ -55,11 +55,12 @@ export const shownDeposits = (list: TermDeposit[]) =>
   list.filter((d) => d.status !== 'reversed').sort((a, b) => (a.opened_on < b.opened_on ? 1 : a.opened_on > b.opened_on ? -1 : 0));
 
 // 存入 and 支出 of some transactions (spent is negative): the ones of a 定期 (term_id: 开定期, 定期转回 and their 冲正) move
-// the student's own money between 活期 and 定期 and count as neither; `moved` is their change to 活期.
-export function flows(rows: { balance_delta: number; term_id: string | null }[]) {
+// the student's own money between 活期 and 定期, and the ones of a 贷款 (loan_id: 放款, 还款 and their 冲正) are borrowing and
+// paying back; they count as neither, and `moved` is their change to 活期.
+export function flows(rows: { balance_delta: number; term_id: string | null; loan_id?: string | null }[]) {
   let saved = 0, spent = 0, moved = 0;
   for (const r of rows) {
-    if (r.term_id) moved += r.balance_delta;
+    if (r.term_id || r.loan_id) moved += r.balance_delta;
     else if (r.balance_delta > 0) saved += r.balance_delta;
     else spent += r.balance_delta;
   }

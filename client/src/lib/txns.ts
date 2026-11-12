@@ -7,15 +7,15 @@ import { formatTime } from './format';
 export type Txn = { key: string; icon: IconName; kind: string; title: string; time: string; amount: number; paid: number; note: string; after?: number };
 
 export type TxnRow = {
-  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'interest' | 'term_open' | 'term_close' | 'closing'; amount: number; balance_delta: number;
+  id: string; type: 'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'interest' | 'term_open' | 'term_close' | 'loan' | 'repay' | 'closing'; amount: number; balance_delta: number;
   payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; reason: string | null; created_at: string; balance_after?: number;
   txn_items?: { name: string; qty: number }[];
 };
 
 // Icon and category colour per business (design system ColorRoles): savings, withdrawals, exchanges; a reversal is
 // a correction and keeps the account blue; 工资 is the bank's pay for a teller's shifts; 利息 is the week's 活期 interest,
-// paid by the system; 开定期 moves 活期 into a 定期 and 定期转回 brings it back with its interest; 注销清零 clears the balance
-// of a closed account.
+// paid by the system; 开定期 moves 活期 into a 定期 and 定期转回 brings it back with its interest; 贷款 pays a loan out (into
+// the account or in cash) and 还款 pays it back; 注销清零 clears the balance of a closed account.
 export const KINDS = {
   opening: { icon: 'savings', title: '期初余额', kind: 'dc-kind-save' },
   deposit: { icon: 'deposit', title: '存款', kind: 'dc-kind-save' },
@@ -26,6 +26,8 @@ export const KINDS = {
   interest: { icon: 'rate', title: '利息', kind: 'dc-kind-reward' },
   term_open: { icon: 'savings', title: '开定期', kind: 'dc-kind-save' },
   term_close: { icon: 'savings', title: '定期转回', kind: 'dc-kind-save' },
+  loan: { icon: 'loan', title: '贷款', kind: 'dc-kind-withdraw' },
+  repay: { icon: 'loan', title: '还款', kind: 'dc-kind-withdraw' },
   closing: { icon: 'close', title: '注销清零', kind: '' },
 } as const;
 
@@ -34,7 +36,7 @@ export const KINDS = {
 export function toTxn(t: TxnRow): Txn {
   const detail =
     t.type === 'purchase' ? t.txn_items?.map((i) => (i.qty > 1 ? `${i.name} × ${i.qty}` : i.name)).join('、')
-    : ['reversal', 'salary', 'interest', 'term_open', 'term_close'].includes(t.type) ? t.reason
+    : ['reversal', 'salary', 'interest', 'term_open', 'term_close', 'loan', 'repay'].includes(t.type) ? t.reason
     : null;
   return {
     key: t.id,
@@ -44,7 +46,8 @@ export function toTxn(t: TxnRow): Txn {
     time: formatTime(t.created_at),
     amount: t.balance_delta,
     paid: t.amount,
-    note: t.type === 'term_open' ? '转定期' : t.type === 'term_close' ? '转回' : t.balance_delta > 0 ? '存入' : t.balance_delta < 0 ? (t.type === 'purchase' ? '余额支付' : '取出') : t.type === 'reversal' ? '退回现金，余额不变' : '现金支付，余额不变',
+    note: t.type === 'term_open' ? '转定期' : t.type === 'term_close' ? '转回'
+      : t.type === 'loan' || t.type === 'repay' ? (t.balance_delta ? (t.type === 'loan' ? '放款' : '还款') : '现金') : t.balance_delta > 0 ? '存入' : t.balance_delta < 0 ? (t.type === 'purchase' ? '余额支付' : '取出') : t.type === 'reversal' ? '退回现金，余额不变' : '现金支付，余额不变',
     after: t.balance_after,
   };
 }

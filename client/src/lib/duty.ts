@@ -112,7 +112,7 @@ export async function dutySummary(duty: Duty, teller: string) {
     ] },
     { kind: 'table', head: ['时间', '交易号', '学生', '学号', '业务', '金额', '状态'],
       rows: rows.map((r) => [formatTime(r.created_at).split(' ')[1], r.txn_no, r.name ?? '',
-        r.student_no, KINDS[r.type].title + (r.type === 'purchase' ? (r.payment === 'cash' ? '（现金）' : '（账户）') : ''), r.amount,
+        r.student_no, KINDS[r.type].title + (['purchase', 'loan', 'repay'].includes(r.type) ? (r.payment === 'cash' ? '（现金）' : '（账户）') : ''), r.amount,
         r.status === 'reversed' ? '已冲正' : '正常']) },
     { kind: 'cash', title: '本次上班现金（不含已冲正的业务）', faces: cash.denominations, blank: '实点', groups: [
       { label: '备用金', ...cash.float }, { label: '收入', ...cash.income }, { label: '付出', ...cash.payout },
