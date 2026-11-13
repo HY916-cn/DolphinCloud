@@ -1,11 +1,9 @@
 import { BookPages, DIVISIONS, Icon, link, PassbookPage, SaveLogin, signed, SignOut, useCloseBook, useTerm, ViewSwitch } from '@/components';
+import { nameChop } from '@/lib/chop';
 import { formatAmount } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
 const STATUS = { normal: '在读', frozen: '已冻结', graduated: '已毕业' } as const;
-
-// The holder's name seal, four characters in two columns as a 印章 has them: 张小明印, 王雨之印.
-const chop = (name: string) => (name.length === 2 ? `${name}之印` : name.length === 3 ? `${name}印` : name.slice(0, 4));
 
 // 我的: the account holder's page with the name seal kept on file; facing it, the 存折's own settings: 页面样式, 切换账号,
 // 在此设备保存登录, and closing the 存折, which signs out once its cover has shut.
@@ -14,6 +12,7 @@ export default function BookMe() {
   const s = me.student!;
   const term = useTerm(s.student_no).data;
   const close = useCloseBook();
+  const seal = nameChop(s.name);
 
   return (
     <BookPages pages={[
@@ -31,7 +30,7 @@ export default function BookMe() {
           <dt>本学期存入</dt><dd className="is-in">{term ? signed(term.saved) : '…'}</dd>
           <dt>本学期支出</dt><dd>{term ? signed(term.spent) : '…'}</dd>
         </dl>
-        <div className="dc-pb-chop-box"><span>预留印鉴</span><b className="dc-pb-chop" aria-hidden="true">{chop(s.name)}</b></div>
+        <div className="dc-pb-chop-box"><span>预留印鉴</span><b className={`dc-pb-chop ${seal.size}`} aria-hidden="true">{seal.text}</b></div>
       </PassbookPage>,
       <PassbookPage key="settings" title="存折设置">
         <ViewSwitch current="book" />

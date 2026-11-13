@@ -83,6 +83,7 @@ test('the bookmarks turn to 明细, 排名 and 我的; closing the 存折 signs 
   await mark(page, '我的').click();
   await expect(page).toHaveURL(/\/book\/me$/);
   await expect(page.getByRole('region', { name: '户主信息' })).toContainText('账户状态在读');
+  await expect(page.getByRole('region', { name: '户主信息' }).locator('.dc-pb-chop')).toHaveText('张小明印'); // the 预留印鉴
   await turnTo(page, page.getByRole('button', { name: /合上存折/ }));
   await page.getByRole('button', { name: /合上存折/ }).click();
   await page.getByRole('button', { name: '退出登录', exact: true }).click();
