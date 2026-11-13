@@ -938,6 +938,7 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-types button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-pb-fields dd small { margin-left: var(--space-2); font: 600 13px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-pb-fields dd.is-total { font-size: 20px; font-weight: 800; }
+.dc-pb-fields dd.is-danger { color: rgb(198 40 40); }
 .dc-pb-table col.is-rank { width: 44px; }
 .dc-pb-table td.is-rank { text-align: center; font-weight: 700; }
 .dc-pb-table tr.is-me td { background: rgba(255, 194, 51, .2); font-weight: 700; }
