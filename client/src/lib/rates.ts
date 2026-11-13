@@ -20,6 +20,9 @@ export const penaltyRate = (loan: number, penalty: number) => round4(e4(loan) * 
 export const weekCenti = (rate: number) => Math.round(Math.round(rate * 10_000) / 100);
 export const maturityCenti = (rate: number, weeks: number) => 10_000 + Math.floor((Math.round(rate * 10_000) * weeks) / 100);
 
+// When 攒着的利息 (interest_profile's pending_centi) is paid in: each Monday, the whole HTB of it.
+export const pendingNote = (centi: number) => (centi >= 100 ? '下周一存进余额' : '满 1 HTB 再存进余额');
+
 // The anchor_params the 参数 page edits, in its order; set_setting takes each from 0.01 to 100 with 2 decimals and
 // refuses any change to the other keys.
 const EDITABLE = ['initial', 'min', 'max'] as const;

@@ -93,8 +93,9 @@ test('the pages are numbered at their foot and turn with the arrow keys', async 
   await openBook(page);
   const first = page.getByRole('region', { name: '储蓄存折' }), second = page.getByRole('region', { name: '交易记录' });
   await expect(first.locator('.dc-pb-foot')).toContainText('第 1 页');
-  await page.keyboard.press('ArrowRight'); // on a computer both pages are already open
-  await expect(second.locator('.dc-pb-foot')).toContainText('第 2 页');
+  await page.keyboard.press('ArrowRight'); // a phone turns to page 2; a computer, with pages 1 and 2 open, to page 3
+  if (test.info().project.name === 'phone') await expect(second.locator('.dc-pb-foot')).toContainText('第 2 页');
+  else await expect(page.getByRole('region', { name: '利息 · 定期 · 贷款' }).locator('.dc-pb-foot')).toContainText('第 3 页');
   await page.keyboard.press('ArrowLeft');
   await expect(first.locator('.dc-pb-foot')).toContainText('第 1 页');
 });
@@ -105,6 +106,7 @@ test('this device opens the version last used: the 存折版 until the 普通版
   await page.goto('/');
   await expect(page).toHaveURL(/\/book$/);
   await mark(page, '我的').click();
+  await expect(page.getByRole('region', { name: '户主信息' })).toBeVisible(); // 我的 has opened, not 账户's 下一页
   const style = page.getByRole('group', { name: '页面样式' });
   await turnTo(page, style);
   await expect(style.getByRole('radio', { name: /存折版/ })).toBeChecked();
@@ -122,11 +124,12 @@ test('the 存折版 is for students: a staff login there goes to its own pages',
 });
 
 // Last, as it adds a business: a week's 活期 interest paid by the system.
-test('明细 prints a sixth tab, 利息; on a phone all six share a row and the page fits without scrolling', async ({ page }) => {
+test('明细 prints seven tabs, 利息 and 贷款 among them; on a phone all seven share a row and the page fits without scrolling', async ({ page }) => {
   sql(`insert into public.interest_accruals (student_no, day, balance, rate, centi) values ('20260001', current_date - 2, 108, 2.08, 230);
        select app_private.settle_interest(now())`);
   await openBook(page);
   await mark(page, '明细').click();
+  await expect(page.getByRole('region', { name: /\d+月收支/ })).toBeVisible(); // 明细 has opened, not 账户's 下一页
   const panel = page.getByRole('tabpanel');
   await turnTo(page, panel);
   await expect(page.getByRole('tab')).toHaveText(['全部', '存款', '取款', '兑换', '工资', '利息', '贷款']);
@@ -139,7 +142,46 @@ test('明细 prints a sixth tab, 利息; on a phone all six share a row and the 
   await expect(panel.locator('.dc-txn')).toHaveCount(5);
   expect(await sheet.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
   expect(await page.evaluate(() => document.scrollingElement!.scrollHeight <= innerHeight)).toBe(true);
-  if (test.info().project.name === 'phone') { // the six share one row
+  if (test.info().project.name === 'phone') { // the seven share one row
     expect(new Set(await page.getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().top))).size).toBe(1);
   }
+});
+
+// Last, as it opens a term, a 定期 and a 贷款: the account's third page sums them up, the loan in seal red once overdue.
+test('the account’s third page prints 攒着的利息, 定期合计 and 贷款, and 贷款 in red once overdue', async ({ page }) => {
+  const DAY = 'app_private.cn_date(now())';
+  const md = (date: string) => sql(`select to_char(${date}, 'FMMM月FMDD日')`);
+  const LOAN = `(select id from public.loans where student_no = '20260001' and status <> 'reversed')`;
+  sql(`insert into public.terms (name, starts_on, ends_on) values ('本学期', ${DAY} - 30, ${DAY} + 40);
+       insert into public.interest_accruals (student_no, day, balance, rate, centi) values ('20260001', current_date - 1, 108, 2.08, 37);
+       select set_config('request.jwt.claims', json_build_object('sub', (select id from public.profiles where login_id = 'teller01'), 'role', 'authenticated')::text, false);
+       select public.open_term_deposit(gen_random_uuid(), '20260001', 50, 4);
+       select public.open_loan(gen_random_uuid(), '20260001', 60, '买书', 'installment', 4, 'account')`);
+  const centi = Number(sql(`select app_private.pending_interest('20260001')`));
+  expect(centi).toBeLessThan(100);
+  const first = Number(sql(`select p.principal + l.interest_centi / 100 from public.loan_periods p join public.loans l on l.id = p.loan_id
+    where p.loan_id = ${LOAN} and p.seq = 1`));
+
+  await openBook(page);
+  const sums = page.getByRole('region', { name: '利息 · 定期 · 贷款' });
+  await turnTo(page, sums);
+  const lines = sums.locator('.dc-pb-fields dd');
+  await expect(lines).toHaveText([
+    `0.${String(centi).padStart(2, '0')} HTB满 1 HTB 再存进余额`,
+    `50 HTB${md(`${DAY} + 28`)} 到期`,
+    `剩余 60 HTB${md(`${DAY} + 7`)} 应还 ${first} HTB`,
+  ]);
+  await expect(lines.nth(2)).not.toHaveClass(/is-danger/);
+  await expect(sums.getByRole('list', { name: '说明' }).locator('li')).toHaveCount(4);
+  await expect(sums.locator('.dc-pb-foot')).toContainText('第 3 页');
+  if (test.info().project.name === 'phone') expect(await sums.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollHeight <= innerHeight)).toBe(true);
+
+  sql(`update public.loan_periods set due_on = ${DAY} - 1, overdue_at = now() where loan_id = ${LOAN} and seq = 1;
+       update public.loans set status = 'overdue' where id = ${LOAN}`);
+  const late = Number(sql(`select principal - paid from public.loan_periods where loan_id = ${LOAN} and seq = 1`));
+  await page.reload();
+  await turnTo(page, sums);
+  await expect(lines.nth(2)).toHaveText(`已逾期 · 应还 ${late} HTB`);
+  await expect(lines.nth(2)).toHaveClass(/is-danger/);
 });

@@ -6,6 +6,7 @@ import { formatAmount, formatCenti, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { homeLoanLine, openLoan } from '@/lib/loans';
 import { useNewRows } from '@/lib/motion';
+import { pendingNote } from '@/lib/rates';
 import { useMe } from '@/lib/session';
 
 const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': i } as React.CSSProperties });
@@ -44,7 +45,7 @@ export default function StudentHome() {
                 : !c || interest.isPending || loans.isPending || !term.data ? <CreditGaugeLoading size="md" /> : <>
                   <dl className="dc-kv">
                     <div><dt>攒着的利息</dt><dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
-                      <small>{interest.data.pending_centi >= 100 ? '下周一存进余额' : '满 1 HTB 再存进余额'}</small></> : '—'}</dd></div>
+                      <small>{pendingNote(interest.data.pending_centi)}</small></> : '—'}</dd></div>
                     <div><dt>定期合计</dt><dd>{term.data.term_total ? `${formatAmount(term.data.term_total)} HTB` : '没有'}</dd></div>
                     <div className={loan?.danger ? 'is-danger' : undefined}>
                       <dt>贷款</dt>

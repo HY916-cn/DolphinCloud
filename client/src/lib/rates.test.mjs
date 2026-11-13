@@ -1,6 +1,6 @@
 // node src/lib/rates.test.mjs — the 罚息 and the examples against PHASE-2.md §9.2, and the checks on an edited 利率 group.
 import assert from 'node:assert/strict';
-const { ANCHOR_ORDER, ANCHOR_RANGE, maturityCenti, penaltyRate, rateDraft, rateProblems, rateValues, weekCenti } = await import('./rates.ts');
+const { ANCHOR_ORDER, ANCHOR_RANGE, maturityCenti, pendingNote, penaltyRate, rateDraft, rateProblems, rateValues, weekCenti } = await import('./rates.ts');
 
 // The examples on 100 HTB, in 0.01 HTB: rounded half up for a week, truncated at maturity.
 assert.equal(weekCenti(2.08), 208);
@@ -37,4 +37,7 @@ assert.deepEqual(rateProblems({ ...d, min: '' }), { min: ANCHOR_RANGE });
 assert.deepEqual(rateProblems({ ...d, initial: '5' }), { min: ANCHOR_ORDER, initial: ANCHOR_ORDER, max: ANCHOR_ORDER });
 assert.deepEqual(rateProblems({ ...d, min: '0', initial: '5' }), { min: ANCHOR_RANGE, initial: ANCHOR_ORDER, max: ANCHOR_ORDER });
 assert.deepEqual(rateProblems({ initial: '0.01', min: '0.01', max: '100' }), {});
+assert.equal(pendingNote(37), '满 1 HTB 再存进余额');
+assert.equal(pendingNote(99), '满 1 HTB 再存进余额');
+assert.equal(pendingNote(100), '下周一存进余额');
 console.log('rates ok');

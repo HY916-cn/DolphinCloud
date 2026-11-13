@@ -54,6 +54,12 @@ export function depositLine(d: TermDeposit, today: string) {
 export const shownDeposits = (list: TermDeposit[]) =>
   list.filter((d) => d.status !== 'reversed').sort((a, b) => (a.opened_on < b.opened_on ? 1 : a.opened_on > b.opened_on ? -1 : 0));
 
+// The 存期中 定期 that matures first, as the 存折's 定期合计 notes it: "12月10日 到期"; null with none.
+export function nextMaturity(list: Pick<TermDeposit, 'status' | 'matures_on'>[]) {
+  const day = list.filter((d) => d.status === 'open').map((d) => d.matures_on).sort()[0];
+  return day ? `${monthDay(day)} 到期` : null;
+}
+
 // 存入 and 支出 of some transactions (spent is negative): the ones of a 定期 (term_id: 开定期, 定期转回 and their 冲正) move
 // the student's own money between 活期 and 定期, and the ones of a 贷款 (loan_id: 放款, 还款 and their 冲正) are borrowing and
 // paying back; they count as neither, and `moved` is their change to 活期.

@@ -1,6 +1,6 @@
 // node src/lib/term-deposits.test.mjs — 定期 as the counter and 我的定期 write them, the interest as maturity pays it.
 import assert from 'node:assert/strict';
-const { amountHint, depositLine, flows, maxWeeks, shownDeposits, termInterestCenti } = await import('./term-deposits.ts');
+const { amountHint, depositLine, flows, maxWeeks, nextMaturity, shownDeposits, termInterestCenti } = await import('./term-deposits.ts');
 
 // ⌊金额 × round(周利率 × 10000) × 周数 ÷ 10000⌋ (PHASE-2 §9.5), the same as expected_centi.
 assert.equal(termInterestCenti(100, 3.12, 4), 1248);
@@ -43,5 +43,9 @@ assert.deepEqual(flows([]), { saved: 0, spent: 0, moved: 0 });
 assert.deepEqual(flows([
   { balance_delta: 22, term_id: null, loan_id: null }, { balance_delta: 130, term_id: null, loan_id: 'l' }, { balance_delta: -33, term_id: null, loan_id: 'l' },
 ]), { saved: 22, spent: 0, moved: 97 });
+
+assert.equal(nextMaturity([{ ...dep, matures_on: '2026-12-24' }, dep, { ...dep, status: 'matured', matures_on: '2026-11-26' }]), '12月10日 到期');
+assert.equal(nextMaturity([{ ...dep, status: 'early' }]), null);
+assert.equal(nextMaturity([]), null);
 
 console.log('term-deposits ok');
