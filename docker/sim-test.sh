@@ -3,8 +3,8 @@
 # school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 信用分 changes and,
 # mid-term, some frozen accounts, loans paid out and repaid, then the day's jobs run as at 00:05 and 00:10 (run_weekly on
 # Mondays before the day's business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances
-# finds nothing every day, that no run_daily takes 30 s, that every 定期 has come back by the end of the term and that
-# every loan is then paid off or 逾期.
+# finds nothing every day, that no run_daily takes 30 s, that every 定期 due by the last day simulated has come back
+# (the longer ones run on into the next term) and that every loan is then paid off or 逾期.
 # Usage: docker/sim-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -41,7 +41,7 @@ from public.accounts where student_no like '4%' and balance > 0;
 -- A school day's business (Monday to Friday): about 30% of the students deposit or withdraw once between 7:30 and
 -- 17:30, a withdrawal never more than the balance; at 17:40 about 0.5% of those with no loan and 400 分 or more borrow up
 -- to 60 HTB within their 额度 for 1–4 weeks, into the account or in cash; at 17:45 about 1% open a 定期 of up to half
--- their 活期 for a length that ends in term (none with a loan not paid off), and 2% of the 定期 open are withdrawn early;
+-- their 活期 for 2, 4, 12, 24 or 48 weeks (none with a loan not paid off), and 2% of the 定期 open are withdrawn early;
 -- at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
 -- 信用分 changes by hand. The days' 自动扣款 and 逾期 come from run_daily.
 create function sim.business(p_day date) returns integer language plpgsql as $$
@@ -63,11 +63,10 @@ begin
   get diagnostics v_n = row_count;
   perform app_private.start_term_deposit(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 2))::integer, x.w,
     app_private.system_user(), (p_day + time '17:45') at time zone 'Asia/Shanghai')
-  from (select a.student_no, a.balance, (array[2, 4, 8])[1 + floor(random() * 3)::integer] as w
+  from (select a.student_no, a.balance, (array[2, 4, 12, 24, 48])[1 + floor(random() * 5)::integer] as w
         from public.accounts a join public.students s using (student_no)
         where s.status = 'normal' and a.balance >= 10 and random() < 0.01
-          and not exists (select 1 from public.loans l where l.student_no = a.student_no and l.status in ('active', 'overdue'))) x
-  where p_day + 7 * x.w <= (app_private.current_term(p_day)).ends_on;
+          and not exists (select 1 from public.loans l where l.student_no = a.student_no and l.status in ('active', 'overdue'))) x;
   perform app_private.end_term_deposit(d.id, 'early', app_private.early_interest(d, p_day), app_private.system_user(),
     (p_day + time '17:50') at time zone 'Asia/Shanghai')
   from public.term_deposits d join public.students s using (student_no)
@@ -155,10 +154,11 @@ psql -c "select concat_ws(' ', (select count(*) from public.txns where type = 'i
   echo "interest: $paid payments, $total HTB in all; $accruals accruals ($unsettled below 1 HTB still waiting); $txns transactions"
 }
 psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'matured'), count(*) filter (where status = 'early'),
-  count(*) filter (where status = 'open'), coalesce(sum(interest_centi), 0)) from public.term_deposits" | {
-  read -r n matured early open centi
-  [ "$open" = 0 ] || fail "$open 定期 still open after the term"
-  echo "定期: $n opened, $matured matured, $early withdrawn early; $centi (0.01 HTB) of interest"
+  count(*) filter (where status = 'open'), coalesce(sum(interest_centi), 0),
+  count(*) filter (where status = 'open' and matures_on <= '2026-01-11')) from public.term_deposits" | {
+  read -r n matured early open centi due
+  [ "$due" = 0 ] || fail "$due 定期 due by 11 January still open"
+  echo "定期: $n opened, $matured matured, $early withdrawn early, $open still open into the next term; $centi (0.01 HTB) of interest"
 }
 psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'closed'), count(*) filter (where status = 'overdue'),
   count(*) filter (where status = 'active'), coalesce(sum(principal), 0),

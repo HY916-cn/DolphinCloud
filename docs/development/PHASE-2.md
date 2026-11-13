@@ -23,7 +23,7 @@
 | 学期 | 银行管理员登记每学期的起止日期；学期末结转，余额与信用分转入下学期，上学期数据只读可查 |
 | 海豚信用分 | 每位学生 0～1000 分，初始 600；按还款、存款习惯、账户时长与余额加减分；按分数连续计算贷款额度、贷款利率和储蓄利率（不分档） |
 | 利率 | 每周一按公式算出「锚点」利率，储蓄与贷款利率都挂在锚点上同涨同跌；每天计息，每周一结息 |
-| 活期与定期 | 账户余额即活期，按天计息；柜台可把活期转为 2 / 4 / 8 周的定期，到期自动转回活期并付息，可提前支取 |
+| 活期与定期 | 账户余额即活期，按天计息；柜台可把活期转为 2 / 4 / 12 / 24 / 48 周的定期，周利率是银行管理员设定的固定值，可以跨学期、假期照常计息，到期自动转回活期并付息，可提前支取 |
 | 贷款 | 柜台当场办理，不设审批：分期（每周一期，等额本金）或到期一次还清；放款、还款都可走账户或现金；到期自动从余额扣款；逾期标红、罚息、扣信用分、暂停新贷款 |
 | 轧账 | 每位柜员每次上班一次：上班登记备用金，下班录入储蓄盒实点，系统按面额比对，财务复核 |
 | 风险提醒 | 大额贷款、大额取款、提前支取、冲正与频繁操作、参数与信用分修改、库存不足、轧账不平都记一条提醒；行长和银行管理员可「已查看」或「终止」（执行对应的撤销操作） |
@@ -169,19 +169,19 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 - 已经过去的日子不移进、也不移出学期：结束日只有新旧两个日期都不早于今天时才能改；未开始的学期改开始日时，新开始日不早于今天。新登记的学期可以从过去的日子开始（如上线时登记正在进行的学期），定时任务已经处理过的日子不补算。
 - 学期名称不能重复（`ALREADY_EXISTS`）；与其他学期日期重叠时返回 `TERM_OVERLAP`，详情 `{"term": "重叠的学期名称"}`；改已结转的学期返回 `TERM_CLOSED`；不能改的日期返回 `INVALID_INPUT`（`field` 为 `starts_on` 或 `ends_on`）。
 - 所有登录身份都能读学期表 `terms`；某天所在的学期由 `app_private.current_term(d)` 给出，需要当前学期的业务调用 `app_private.require_term()`，假期里报 `NO_TERM`。
-- 下一学期要在本学期结束前登记，否则开学后没有「当前学期」：不计息、不结息，不能办贷款和定期（`NO_TERM`），其他业务照常。
+- 下一学期要在本学期结束前登记，否则开学后没有「当前学期」：不计息、不结息，不能办贷款（`NO_TERM`），其他业务照常（开定期也照常）。
 - 两个学期之间是假期。
 
 ### 6.2 学期与各项规则
 
 - **计息**：只在学期内的日子计息，周末和节假日也算（一周 7 天）。假期不计息、不结息、信用分不变、锚点不变；开学后的第一个周一恢复。
-- **期限**：贷款和定期最长 8 周，到期日不能晚于本学期结束日；临近学期末时柜台只列出放得下的期限。
+- **期限**：贷款最长 8 周，最后一期应还日不能晚于本学期结束日；临近学期末时柜台只列出放得下的期限。定期不受学期限制：可以在假期里开，到期日可以在假期或下一学期，假期照常计息（9.5）。
 
 ### 6.3 结转
 
 - 学期结束日之后，银行管理员在「学期」页点「结转」（二次确认）。结束日当天及以前返回 `TERM_NOT_ENDED`，详情 `{"ends_on": "结束日"}`；已结转的返回 `TERM_CLOSED`。
-- 前提：没有未结清的贷款、没有未到期的定期（因为期限都不跨学期末，正常情况下到期已全部处理完；逾期贷款要先结清或由银行管理员处理），每天的任务已处理完学期最后一天。不满足时返回 `TERM_OPEN_ITEMS`，详情 `{"items": [...]}` 列出名单，每项带 `kind`：`job` 为每天的任务还没处理完（`{"kind":"job","job":"daily","done_to":"…"}`，补跑后再结转）；`term_deposit` 为本学期开的、还没转回活期的定期（`{"kind":"term_deposit","id","student_no","name","principal","matures_on"}`，按到期日排列）；`loan` 为本学期放款、还没结清的贷款（`{"kind":"loan","id","loan_no","student_no","name","remaining","status","due_on"}`，`due_on` 为最后一期应还日，按它排列）。名单由 `app_private.term_open_items(term)` 给出。
-- 结转后余额、信用分原样转入下学期，不生成流水。
+- 前提：没有未结清的贷款（贷款不跨学期末，正常情况下已全部处理完；逾期贷款要先结清或由银行管理员处理），每天的任务已处理完学期最后一天。未到期的定期不影响结转，原样转入下学期。不满足时返回 `TERM_OPEN_ITEMS`，详情 `{"items": [...]}` 列出名单，每项带 `kind`：`job` 为每天的任务还没处理完（`{"kind":"job","job":"daily","done_to":"…"}`，补跑后再结转）；`loan` 为本学期放款、还没结清的贷款（`{"kind":"loan","id","loan_no","student_no","name","remaining","status","due_on"}`，`due_on` 为最后一期应还日，按它排列）。名单由 `app_private.term_open_items(term)` 给出。
+- 结转后余额、信用分和未到期的定期原样转入下学期，不生成流水。
 - 上学期的流水、利息、贷款、定期、轧账归档为只读（它们本来就不能修改）；报表、流水查询、学生明细都可以按学期筛选。
 - 结转写一条日志 `term.close`。
 
@@ -356,34 +356,32 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 ### 9.2 各项利率
 
-全部是**周利率**，都由当周锚点算出，同涨同跌。贷款利率始终高于最高的储蓄利率，没有借钱存定期套利息的空间。
+全部是**周利率**。活期和贷款由当周锚点算出，同涨同跌；定期是银行管理员设定的固定值，与锚点和信用分无关。
 
 | 项目 | 公式 |
 | --- | --- |
 | 活期 | 锚点 × 储蓄系数 |
-| 定期 2 周 | 锚点 × 1.25 × 储蓄系数 |
-| 定期 4 周 | 锚点 × 1.5 × 储蓄系数 |
-| 定期 8 周 | 锚点 × 2 × 储蓄系数 |
+| 定期 | 按存期取 `term_rates`（默认 2 周 2.5%、4 周 2.75%、12 周 3%、24 周 3.25%、48 周 3.5%） |
 | 贷款 | 锚点 × 2 × 贷款系数 |
 | 逾期罚息 | 该笔贷款利率 × 1.5 |
 
 锚点 2% 时：
 
-| 分数 | 活期 | 定期 2 周 | 定期 4 周 | 定期 8 周 | 贷款 |
-| --- | --- | --- | --- | --- | --- |
-| 0 | 1.6% | 2.0% | 2.4% | 3.2% | 不能贷款 |
-| 400 | 1.92% | 2.4% | 2.88% | 3.84% | 7.2% |
-| 600 | 2.08% | 2.6% | 3.12% | 4.16% | 6.2667% |
-| 750 | 2.2% | 2.75% | 3.3% | 4.4% | 5.5667% |
-| 900 | 2.32% | 2.9% | 3.48% | 4.64% | 4.8667% |
-| 1000 | 2.4% | 3.0% | 3.6% | 4.8% | 4.4% |
+| 分数 | 活期 | 贷款 |
+| --- | --- | --- |
+| 0 | 1.6% | 不能贷款 |
+| 400 | 1.92% | 7.2% |
+| 600 | 2.08% | 6.2667% |
+| 750 | 2.2% | 5.5667% |
+| 900 | 2.32% | 4.8667% |
+| 1000 | 2.4% | 4.4% |
 
-同一分数下，贷款利率总高于活期和 2、4 周定期；但约 936 分以上时 8 周定期会高于贷款利率，所以**有未结清贷款的学生不能新开定期**（`LOAN_OUTSTANDING`），没有借钱存定期套利息的空间。利率保留 4 位小数（百分数）。
+定期的默认利率高于初始锚点下最高的活期利率（1000 分 2.4%），低于最低的贷款利率（1000 分 4.4%），存得越久越高；锚点变化后贷款利率可能低于某种定期，所以**有未结清贷款的学生不能新开定期**（`LOAN_OUTSTANDING`），没有借钱存定期套利息的空间。利率保留 4 位小数（百分数）。
 
-存期倍数（1.25 / 1.5 / 2）、贷款倍数（2）、罚息倍数（1.5）由系统固定，存在 `term_multipliers`、`loan_multiplier`、`penalty_multiplier` 里。
+`term_rates` 由行长、银行管理员在参数页设定（14.3），新开的定期按设定时的值锁定，已开的不变。贷款倍数（2）、罚息倍数（1.5）由系统固定，存在 `loan_multiplier`、`penalty_multiplier` 里。
 
 - 计算时用不取整的贷款系数和储蓄系数，最后一步保留 4 位小数：600 分的贷款利率是 2 × 2 × 1.5666… = 6.2667%。
-- 函数：`app_private.saving_rate(锚点, 分数)`（活期）、`app_private.term_rate(锚点, 周数, 分数)`（定期，周数没有倍数时为空）、`app_private.loan_rate(锚点, 分数)`（最低分以下为空）、`app_private.penalty_rate(贷款利率)`；`app_private.rates(锚点, 分数)` 一次给出活期、三种定期和贷款。M10 开定期时锁定 `term_rate`，M11 放款时锁定 `loan_rate`，逾期按 `penalty_rate` 计罚息。
+- 函数：`app_private.saving_rate(锚点, 分数)`（活期）、`app_private.term_rate(周数)`（定期，取 `term_rates`，没有这种存期时为空）、`app_private.loan_rate(锚点, 分数)`（最低分以下为空）、`app_private.penalty_rate(贷款利率)`；`app_private.rates(锚点, 分数)` 一次给出活期、五种定期和贷款。M10 开定期时锁定 `term_rate`，M11 放款时锁定 `loan_rate`，逾期按 `penalty_rate` 计罚息。
 
 ### 9.3 活期计息
 
@@ -410,9 +408,9 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 ### 9.5 定期计息
 
-- 开定期时锁定周利率 = 当周锚点 × 存期倍数 × 当时的储蓄系数（`term_rate`，按开定期那天的锚点和当时的分数）。
-- 到期利息 = 本金 × 周利率 × 周数，精确到 0.01 HTB（舍去更小的部分，即 `term_deposits.expected_centi`）。到期时利息与活期的待入账零头相加，整数部分与本金一起转回活期，余下的不满 1 HTB 留作零头（`interest_carry`），下次结息时一起入账；学生端的待入账利息因此包括它。
-- 提前支取：只付活期利息。从开定期那天到支取前一天，学期内的每一天按当天的活期利率（当天的锚点和当天结束时的信用分）计算，每天精确到 0.01 HTB（同 9.3）；当天支取的不计息。利息与零头的处理同到期。
+- 开定期时锁定周利率 = 这种存期在 `term_rates` 里的值（`term_rate`）。之后改 `term_rates` 不影响已开的定期。
+- 到期利息 = 本金 × 周利率 × 周数，假期照常计（跨学期、跨假期的定期也按全部周数付息），精确到 0.01 HTB（舍去更小的部分，即 `term_deposits.expected_centi`）。到期时利息与活期的待入账零头相加，整数部分与本金一起转回活期，余下的不满 1 HTB 留作零头（`interest_carry`），下次结息时一起入账；学生端的待入账利息因此包括它。
+- 提前支取：只付活期利息。从开定期那天到支取前一天，学期内的每一天按当天的活期利率（当天的锚点和当天结束时的信用分）计算，每天精确到 0.01 HTB（同 9.3）；当天支取的不计息。活期在假期不计息，所以存期中落在假期里的日子提前支取时没有利息。利息与零头的处理同到期。
 - 自检（`check_balances` 的 `interest`）把定期利息并入：100 × (利息流水之和 + 每笔 `term_close` 的利息部分 − 冲正收回的利息部分) + 零头 = 已结的计息记录之和 + 已转回的定期的实付利息之和。
 
 ### 9.6 利息与发行
@@ -433,11 +431,11 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 开定期（柜台「定期」）：
 
-1. 柜员选存期（2 / 4 / 8 周，只列到期日不晚于学期末的），填金额（1 HTB 起，不超过活期余额）。到期日 = 开定期那天 + 7 × 周数。
-2. 页面显示锁定的周利率、到期日、到期可得利息（估算）。可选存期、各自的周利率和到期日由 `term_quote(学号)` 给出（柜员读不到 `interest_profile` 和 `rate_weeks`）；估算利息按 9.5 用整数算，避免小数误差：利息（0.01 HTB）= ⌊金额 × round(周利率 × 10000) × 周数 ÷ 10000⌋，与到期时的 `expected_centi` 相同。确认后生成一笔 `term_open` 流水：活期减少，`cash_delta` 为 0。
-3. 不能开的情况：有未结清贷款（`LOAN_OUTSTANDING`）、没有当前学期（`NO_TERM`）、到期日晚于学期末（`TERM_TOO_LONG`）、账户不是在读状态（`STUDENT_INACTIVE`）、为本人或本人的工资账户办理（`SELF_SERVICE_FORBIDDEN`）。柜员要在上班中（`OFF_DUTY`），行长不办理。
+1. 柜员选存期（2 / 4 / 12 / 24 / 48 周，全部列出，到期日可以在假期或下一学期），填金额（1 HTB 起，不超过活期余额）。到期日 = 开定期那天 + 7 × 周数。学期内和假期里都能开。
+2. 页面显示锁定的周利率（`term_rates` 的固定值）、到期日、到期可得利息（估算）。可选存期、各自的周利率和到期日由 `term_quote(学号)` 给出（柜员读不到 `interest_profile` 和 `rate_weeks`）；估算利息按 9.5 用整数算，避免小数误差：利息（0.01 HTB）= ⌊金额 × round(周利率 × 10000) × 周数 ÷ 10000⌋，与到期时的 `expected_centi` 相同。确认后生成一笔 `term_open` 流水：活期减少，`cash_delta` 为 0。
+3. 不能开的情况：有未结清贷款（`LOAN_OUTSTANDING`）、存期不是 2 / 4 / 12 / 24 / 48 周（`INVALID_INPUT`，`field: weeks`）、账户不是在读状态（`STUDENT_INACTIVE`）、为本人或本人的工资账户办理（`SELF_SERVICE_FORBIDDEN`）。柜员要在上班中（`OFF_DUTY`），行长不办理。
 
-到期：到期日当天结束时由 `run_daily` 自动处理，生成一笔 `term_close` 流水（本金 + 利息整数部分回到活期，见 9.5），经办人「系统」，时间记为次日 0 点（同学期结束日的结息），所以到期日当天的活期计息不含这笔本金，次日起含。定期状态为「已到期」。不自动续存。学期结束日改早以后，结束日当天还没到期的定期也在那天结束时按到期处理，利息照约定付。
+到期：到期日当天结束时由 `run_daily` 自动处理（学期内和假期里都处理），生成一笔 `term_close` 流水（本金 + 利息整数部分回到活期，见 9.5），经办人「系统」，时间记为次日 0 点（同学期结束日的结息），所以到期日当天的活期计息不含这笔本金，次日起含。定期状态为「已到期」。不自动续存。改期限以前开的 8 周定期照常按原利率到期。
 
 提前支取：柜员在「定期」里选一笔，二次确认后按 9.5 处理，生成 `term_close` 流水，状态为「已提前支取」，并生成风险提醒（`term_early`，M13）。到期日当天还能提前支取，到期日之后（定时任务没跑完时）不能。
 
@@ -596,19 +594,19 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 | 时间（上海） | 函数 | 内容 |
 | --- | --- | --- |
-| 每天 00:05 | `app_private.run_daily(d)` | 对前一天 d（学期内）：活期计息；到期的定期转回活期；应还日到期的贷款自动扣款或记逾期，逾期贷款自动扣款；贷款计息；学期结束日结清最后几天的活期利息 |
+| 每天 00:05 | `app_private.run_daily(d)` | 对前一天 d：到期的定期转回活期（假期里也做）；学期内另有：活期计息；应还日到期的贷款自动扣款或记逾期，逾期贷款自动扣款；贷款计息；学期结束日结清最后几天的活期利息 |
 | 每周一 00:10 | `app_private.run_weekly(w)` | 学期内：活期结息；信用分的每周加减分与逾期满一周扣分；计算并公布本周锚点 |
 
 - 先跑完每天的再跑每周的。补跑时按日子先后交替进行：周一的每周任务排在周日的每天任务之后、周一的每天任务之前，与每天按时运行的顺序相同，所以停机后补跑的结果与没有停机时相同。
 - `app_private.run_jobs(today)` 补跑：从每天任务的 `done_to` 的下一天开始，每天的任务做到昨天，每周的任务做到今天（周一）。`dolphin-jobs` 在容器启动、数据库迁移完成后补跑一次，之后每天 00:05 以后补跑一次；`dolphin jobs run` 立即补跑。
 - `run_daily(d)` 只接受 `done_to` 的下一天且早于今天；`run_weekly(w)` 只接受周一，且每天的任务已做完前一天。已做过的日子直接跳过（`skipped`），同一天重复执行结果不变。各项计算只用 `d`、`w`，不用当前时间。
-- 只处理学期内的日子：假期里的日子和周一记为 `holiday`，只推进 `done_to`。学期内的周一里，学期开始后的第一个周一带 `first: true`（上一周的周一不在本学期），锚点不调整（9.1）。
+- 只处理学期内的日子：假期里的日子和周一记为 `holiday`，只推进 `done_to`，例外是假期里到期的定期照常转回活期。学期内的周一里，学期开始后的第一个周一带 `first: true`（上一周的周一不在本学期），锚点不调整（9.1）。
 - 学期结束日之后的周一在假期里，不再结息：最后几天的利息在学期结束日的 `run_daily` 里结清，流水记在次日 0 点（9.4）。
 - 任一任务失败时停在那一天：之前的日子保留，这一天的改动撤销，`job_runs.last_err` 记下日期和原因，写日志 `job.failed`（`{"job","day","error"}`）。下一次补跑（第二天 00:05、容器重启或 `dolphin jobs run`）从这一天重试，成功后清空 `last_err`。
 - 上线（本迁移执行）之前的日子不补跑：`job_runs` 两个任务的 `done_to` 初始为迁移当天的前一天。
 - 运维命令新增 `dolphin jobs`：显示每个任务最后处理到哪天、最后成功时间、有没有失败，以及当前学期；`dolphin jobs run` 立即补跑；`dolphin status` 加一行任务状态。
 - 任务失败写日志（`job.failed`），并在运维员总览上提示：运维员和银行管理员（含行长）可直接读 `job_runs`，`last_err` 不为空即为失败。
-- `run_daily` 里依次是活期计息（M9，`accrue_interest`）、到期定期转回活期（M10，`mature_term_deposits`，利息零头并入 `interest_carry`）、贷款自动扣款与逾期（M11，`collect_loans`：转回的定期当晚就能用来还款）、贷款计息（M11，`accrue_loans`：按扣款后剩下的本金，应还日当天还掉的本金当天不计息）、学期结束日结息（M9，`settle_interest`）；`run_weekly` 里依次是结息（M9，`settle_interest`）、信用分每周加减分（M8，`credit_weekly(w)`，学期第一个周一跳过，见 8.2）、逾期满一周扣分（M11，`overdue_weekly(w)`，同样跳过第一个周一）、本周锚点（M9，`publish_anchor`）。
+- `run_daily` 里依次是活期计息（M9，`accrue_interest`）、到期定期转回活期（M10、M16，`mature_term_deposits`，利息零头并入 `interest_carry`，假期里也做）、贷款自动扣款与逾期（M11，`collect_loans`：转回的定期当晚就能用来还款）、贷款计息（M11，`accrue_loans`：按扣款后剩下的本金，应还日当天还掉的本金当天不计息）、学期结束日结息（M9，`settle_interest`）；`run_weekly` 里依次是结息（M9，`settle_interest`）、信用分每周加减分（M8，`credit_weekly(w)`，学期第一个周一跳过，见 8.2）、逾期满一周扣分（M11，`overdue_weekly(w)`，同样跳过第一个周一）、本周锚点（M9，`publish_anchor`）。
 - 贷款计息、扣款按任务运行时贷款的状态和计划；停机期间柜台不办业务，所以补跑与按时运行相同。
 
 ---
@@ -709,7 +707,7 @@ create table term_deposits (                  -- 定期
   id          uuid primary key,               -- 客户端生成，作幂等键
   student_no  text not null references students(student_no),
   principal   integer not null check (principal > 0),
-  weeks       integer not null check (weeks in (2,4,8)),
+  weeks       integer not null check (weeks in (2,4,8,12,24,48)),  -- 8 只出现在 M16 以前开的定期
   rate        numeric(8,4) not null,          -- 锁定的周利率（百分数）
   opened_on   date not null,
   matures_on  date not null,
@@ -828,7 +826,7 @@ create table job_runs (                       -- 定时任务进度
 | `credit_enabled` | `true` | 信用分开关（8.5）：`true` 开启、`false` 暂停；只由 `set_credit_enabled` 修改 |
 | `credit_rules` | `{"repay_on_time":5,"repay_early":10,"overdue":-50,"overdue_week":-30,"deposit_week":3,"deposit_streak":10,"withdraw_half":-5,"account_age":2,"balance_100":2,"balance_300":2}` | 各事件的分值（8.2 的顺序）：键必须齐全、不能多；加分项 0～100、减分项 −100～0 的整数 |
 | `anchor_params` | `{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}` | 锚点公式（9.1）：可改 `initial`、`min`、`max`，都是 0.01～100、精确到 0.01 的数，且 下限 ≤ 初始 ≤ 上限；其余键（`ratio_target`、`ratio_step`、`growth_target`、`growth_step`、`weight`、`max_adjust`）由系统固定。修改时提交全部 9 个键，固定的键必须与当前值相同 |
-| `term_multipliers` | `{"2":1.25,"4":1.5,"8":2}` | 定期存期倍数，键为 2、4、8；系统固定，不能修改 |
+| `term_rates` | `{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5}` | 定期周利率（百分数），键为 2、4、12、24、48，必须齐全、不能多；每项 0.01～100、最多 4 位小数；行长、银行管理员可改，新开的定期按新值锁定（9.2） |
 | `loan_multiplier` | `2` | 贷款倍数；系统固定，不能修改 |
 | `penalty_multiplier` | `1.5` | 罚息倍数（罚息不低于贷款利率）；系统固定，不能修改 |
 | `risk_rules` | 见 12.1 | 各提醒的阈值 |
@@ -855,8 +853,8 @@ create table job_runs (                       -- 定时任务进度
 | `end_duty(p_txns, p_count, p_note)` | 改动 | 下班时录入实点；有差额时 `p_note` 必填（`NOTE_REQUIRED`） |
 | `review_cash_count(p_duty_id, p_count, p_note)` | accountant | 复核；`p_count` 为空表示与柜员一致 |
 | `upsert_term(p_id, p_name, p_starts, p_ends)` / `close_term(p_id)` | teacher（行长不可） | 第 6 节；返回学期一行 |
-| `term_quote(p_student_no)` | teller | 10.2 柜台「定期」面板：`{"student_no","score","term":{"id","name","ends_on"},"options":[{"weeks","rate","matures_on"}],"balance","term_total","deposits":[term_deposits 一行…]}`；`options` 只列到期日不晚于学期末的存期，`rate` 为按本周锚点和现在的分数锁定的周利率；不在学期内时 `term` 为 `null`、`options` 为 `[]`；`deposits` 为该生的全部定期，按开定期日期从新到旧。学生不存在 `STUDENT_NOT_FOUND`，已注销 `STUDENT_INACTIVE`，本人或本人工资账户 `SELF_SERVICE_FORBIDDEN` |
-| `open_term_deposit(p_id, p_student_no, p_amount, p_weeks)` | teller（行长不可） | 10.2；`p_id` 是定期的 id（幂等键，重复提交返回同一结果）；返回流水结果（同 P1）加 `term`（`term_deposits` 一行）。错误：`NO_TERM`、`TERM_TOO_LONG`（详情 `{"ends_on","max_weeks"}`，`max_weeks` 为放得下的最长周数，一种都放不下时为 `null`）、`INVALID_INPUT`（`field: weeks`，不是 2/4/8）、`INVALID_AMOUNT`、`INSUFFICIENT_BALANCE`（`{"balance","short"}`）、`STUDENT_INACTIVE`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY`、`LOAN_OUTSTANDING`（有未结清贷款） |
+| `term_quote(p_student_no)` | teller | 10.2 柜台「定期」面板：`{"student_no","score","term":{"id","name","ends_on"},"options":[{"weeks","rate","matures_on"}],"balance","term_total","deposits":[term_deposits 一行…]}`；`options` 列出全部 5 种存期（按周数排列），`rate` 为 `term_rates` 的固定周利率；不在学期内时 `term` 为 `null`，`options` 照常；`deposits` 为该生的全部定期，按开定期日期从新到旧。学生不存在 `STUDENT_NOT_FOUND`，已注销 `STUDENT_INACTIVE`，本人或本人工资账户 `SELF_SERVICE_FORBIDDEN` |
+| `open_term_deposit(p_id, p_student_no, p_amount, p_weeks)` | teller（行长不可） | 10.2；`p_id` 是定期的 id（幂等键，重复提交返回同一结果）；返回流水结果（同 P1）加 `term`（`term_deposits` 一行）。学期内和假期里都能开。错误：`INVALID_INPUT`（`field: weeks`，不是 2/4/12/24/48）、`INVALID_AMOUNT`、`INSUFFICIENT_BALANCE`（`{"balance","short"}`）、`STUDENT_INACTIVE`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY`、`LOAN_OUTSTANDING`（有未结清贷款） |
 | `withdraw_term_early(p_term_id)` | teller（行长不可） | 10.2、9.5；返回同上，`term.status` 为 `early`，`term.interest_centi` 为实付利息；重复提交返回原来那笔。定期不存在、已到期、已作废或已过到期日返回 `INVALID_INPUT`（`{"field":"term_id","status":"…"}`）；账户不在读 `STUDENT_INACTIVE` |
 | `loan_quote(p_student_no)` | teller | 10.3 柜台「贷款」面板：`{"student_no","score","limit","rate","penalty_rate","max_weeks","max_periods","term":{"id","name","ends_on"},"balance","blocked","loan"}`。`limit` 为单笔额度（不能贷款时 `null`），`rate`、`penalty_rate` 为按本周锚点和现在的分数算的贷款周利率与罚息利率；`max_weeks`、`max_periods` 相同，为今天放款最多能选的周数（期数）（1～8，最后一期不晚于学期末；不在学期内或放不下时 `null`）；不在学期内时 `term` 为 `null`；`blocked` 为不能办新贷款的原因（`STUDENT_INACTIVE`、`NO_TERM`、`LOAN_OUTSTANDING`、`CREDIT_TOO_LOW`，可以办时 `null`）；`loan` 为未结清的贷款（下面的「贷款详情」），没有时 `null`。学生不存在 `STUDENT_NOT_FOUND`，已注销 `STUDENT_INACTIVE`，本人或本人工资账户 `SELF_SERVICE_FORBIDDEN` |
 | `loan_preview(p_student_no, p_amount, p_plan, p_periods)` | teller | 10.3 确认页：`{"rate","penalty_rate","interest","interest_centi","schedule":[{"seq","due_on","principal","interest_centi","interest"}]}`，按今天放款、每期按时还算（10.4 估算利息）。额度、期限由 `open_loan` 把关；错误 `INVALID_INPUT`（`plan`、`periods`）、`INVALID_AMOUNT`、`CREDIT_TOO_LOW`，学生检查同 `loan_quote` |
@@ -870,9 +868,9 @@ create table job_runs (                       -- 定时任务进度
 | `lookup_student(p_student_no)` | 改动 | 返回里加 `credit`：同 `credit_profile`，不含学号；加 `term_total`（定期本金合计）、`loan_remaining`（未结清贷款的剩余本金，没有时 0）、`loan_overdue`（是否逾期） |
 | `deposit_ranking(p_division)` | 改动 | 按活期 + 定期本金 − 未结清贷款的剩余本金排名，`balance` 为这个数，可以为负，照常参加排名（16.3） |
 | `close_accounts(p_user_ids)` | 改动 | 注销学生账户时，未到期的定期先按提前支取转回活期、不付利息，再随余额清零（10.2）；有未结清贷款的返回 `LOAN_OUTSTANDING`（`{"student_no","loan_no"}`） |
-| `interest_profile(p_student_no default null)` | 学生（不传，读本人）/ accountant / president / teacher | 9.2、9.4；返回 `{"student_no","score","week_start","anchor","rates":{"current","term":{"2","4","8"},"loan"},"pending_centi"}`：本周锚点（`week_start` 为空表示还没有公布过，用初始锚点）、按现在的分数算出的各项周利率（百分数，`loan` 为空表示分数不够贷款）、待入账利息（0.01 HTB） |
+| `interest_profile(p_student_no default null)` | 学生（不传，读本人）/ accountant / president / teacher | 9.2、9.4；返回 `{"student_no","score","week_start","anchor","rates":{"current","term":{"2","4","12","24","48"},"loan"},"pending_centi"}`：本周锚点（`week_start` 为空表示还没有公布过，用初始锚点）、按现在的分数算出的各项周利率（百分数，`term` 即 `term_rates`，`loan` 为空表示分数不够贷款）、待入账利息（0.01 HTB） |
 | `rate_overview()` | accountant / president / teacher | 16.2「利率」页：`{"week_start","anchor","table":[{"score","current","term","loan"}]}`，`table` 为 9.2 表格的分数（含 `credit_curve.min_score`）在本周锚点下的利率；每周历史读 `rate_weeks` 表，参数读 `settings` |
-| `set_setting` / `set_settings` | 改动 | 加入 `credit_curve`、`credit_rules`、`anchor_params` 的校验（14.3）；行长、银行管理员可改，从下一次计算起生效。`anchor_params` 只能改 `initial`、`min`、`max`，固定的键与当前值不同时返回 `INVALID_INPUT`（`field: anchor_params`）；`term_multipliers`、`loan_multiplier`、`penalty_multiplier` 由系统固定，修改返回 `INVALID_INPUT`（`field` 为该参数）；`set_settings` 中有一项被拒绝时全部不保存 |
+| `set_setting` / `set_settings` | 改动 | 加入 `credit_curve`、`credit_rules`、`anchor_params`、`term_rates` 的校验（14.3）；行长、银行管理员可改，从下一次计算起生效。`anchor_params` 只能改 `initial`、`min`、`max`，固定的键与当前值不同时返回 `INVALID_INPUT`（`field: anchor_params`）；`loan_multiplier`、`penalty_multiplier` 由系统固定，修改返回 `INVALID_INPUT`（`field` 为该参数）；`set_settings` 中有一项被拒绝时全部不保存 |
 | `record_currency(p_kind, …)` | teacher | 11.1 |
 | `currency_overview()` | accountant / president / teacher | 11.2 的各项数字 |
 | `handle_alert(p_id, p_action, p_note)` | president / teacher | `p_action`：`seen` 或 `terminate` |
@@ -887,7 +885,7 @@ create table job_runs (                       -- 定时任务进度
 | `LOAN_OUTSTANDING` | 还有贷款没还清 | 先还清这笔贷款，才能办新贷款或新定期。 |
 | `CREDIT_TOO_LOW` | 信用分不够 | 信用分 {min_score} 分以上才能贷款，现在是 {score} 分。 |
 | `OVER_CREDIT_LIMIT` | 超过贷款额度 | 按现在的信用分，最多能贷 {limit} HTB。 |
-| `TERM_TOO_LONG` | 期限超过学期末 | 本学期 M 月 D 日结束，最长只能选 N 周。 |
+| `TERM_TOO_LONG` | 期限超过学期末 | 本学期 M 月 D 日结束，最长只能选 N 周。（只用于贷款） |
 | `TERM_OPEN_ITEMS` | 还不能结转 | 下面这些处理完后，再结转学期。 |
 | `TERM_OVERLAP` | 学期日期重叠 | 和「{term}」的日期重叠，请调整开始日或结束日。 |
 | `TERM_NOT_ENDED` | 学期还没结束 | {ends_on} 之后才能结转。 |
@@ -916,8 +914,8 @@ create table job_runs (                       -- 定时任务进度
   - 冻结、毕业的账户照常显示贷款和计划，不显示还款表单，提示「账户已冻结，不能在柜台还款；每期应还日结束时会从活期自动扣。」
   - 每期状态：已还清（`paid = principal`）/ 已逾期（`overdue_at` 不为空且没还清）/ 本期（最早一期没还清的）/ 待还；部分还款的写「已还 20 HTB，还差 12 HTB」。贷款状态：还款中 / 已逾期 / 已结清 / 已作废，已作废的只在后台出现。
   - 放款、还款的弹层遇到服务器拒绝时不关闭，错误写在弹层里。「今日业务」：放款、还款有冲正按钮（由服务器把关）。
-- 「定期」：数据取 `term_quote`。
-  - 开定期：存期卡片只列 `options`，名称「4 周」，说明两行「12月10日 到期」「3.12%/周」；少于 3 项时写「本学期 1月20日 结束，最长只能选 4 周。」，`term` 为空时「现在不在学期内，不能开定期。」，`options` 为空时「本学期 1月20日 结束，已经放不下定期。」。金额提示「到期拿回 112.48 HTB · 3.12%/周」，没填时「1 HTB 起，最多 415 HTB（活期余额）」。确认弹层标题「给张小明开定期 100 HTB？」，列存期、到期日、周利率（到期前不变）、到期拿回、活期余额 A → B，说明「到期当天结束时自动转回活期。提前支取只按活期算利息。」，按钮「确认开定期」。
+- 「定期」：数据取 `term_quote`。改期限以前开的 8 周定期照常显示存期中、已到期。
+  - 开定期：五张存期卡片 2 / 4 / 12 / 24 / 48 周（`options`），名称「12 周」，说明两行「2月4日 到期」「3%/周」（固定周利率）；跨学期、假期里都照常开，不再提示学期末或不在学期内。金额提示「到期拿回 112.48 HTB · 3.12%/周」，没填时「1 HTB 起，最多 415 HTB（活期余额）」。确认弹层标题「给张小明开定期 100 HTB？」，列存期、到期日、周利率（到期前不变）、到期拿回、活期余额 A → B，说明「到期当天结束时自动转回活期。提前支取只按活期算利息。」，按钮「确认开定期」。
   - 定期列表：不显示已冲正的，状态为存期中 / 已到期 / 已提前支取；存期中与已到期写「定期 4 周存 100 HTB，到期拿回 112.48 HTB」，已提前支取写「定期 4 周存 100 HTB，提前取出，利息 0.37 HTB」。学生「我的定期」用同一列表。
   - 提前支取：存期中且未过到期日的才有按钮；确认文案「不付定期利息，只按活期利率算存入这些天的利息，当天支取没有利息。本金和利息转回活期。」，成功后提示「已提前支取，利息 0.37 HTB」。柜台不能冲正提前支取。
   - 冻结、毕业的账户不显示开定期和提前支取，提示「账户已冻结，不能开定期或提前支取；定期照常到期转回活期。」
@@ -937,7 +935,7 @@ create table job_runs (                       -- 定时任务进度
 | 总览 | 顶部经营看板（财务、行长、银行管理员）：账户余额（活期 + 定期）、银行应有现金、贷款余额（下面写「逾期 2 笔 · 45 HTB」，只有这一行标红）、文创库存（件数与成本）、本周业务笔数、本周锚点；下面是按周业务柱状图（最近 12 周）和未处理的风险提醒；库管、行长、银行管理员看到库存不足的商品；财务看到待复核和隔天未复核的轧账 |
 | 风险提醒 | 第 12 节 |
 | 贷款 | 读 `loans`、`loan_periods`、`loan_payments` 表。列表按状态分页签（全部 / 还款中 / 已逾期 / 已结清 / 已作废），逾期的排在前面，贷款号链接到详情；详情在各种宽度下都排成一列，依次是学生卡片、四项数字（本金、剩余本金、已付利息即 `loan_payments.interest` 之和且不算已冲正的、已产生利息 `interest_centi`）、放款信息、还款计划、还款记录（方式：账户 / 现金 / 自动扣款）；行长、银行管理员可终止：写原因，二次确认「剩余本金 98 HTB 和已产生利息 1.37 HTB 立即全部到期：先从活期扣，不够的部分算逾期。」 |
-| 利率 | 本周锚点与按分数的利率表（同 9.2，`rate_overview()`，标题「按分数的周利率 · 锚点 1.85%」，多一列逾期罚息）；每周历史（9.1 的全部输入和结果，`rate_weeks` 表，锚点没有变化时写「与上周持平」）；计算参数分两段：「可在参数页修改」列初始锚点、锚点范围并链接参数页，「系统固定」列目标存贷比、目标增速、每周最多调整、存期倍数、贷款倍数、罚息倍数，数值都读 `settings`。锚点下的说明：假期中「假期中不计息，下学期沿用此锚点。」；还没有锚点「还没有公布锚点，现在按初始锚点 2% 计算。学期内每周一公布。」；其他「11月9日公布，下次 11月16日。」 |
+| 利率 | 本周锚点与按分数的利率表（同 9.2，`rate_overview()`，标题「按分数的周利率 · 锚点 1.85%」，多一列逾期罚息）；每周历史（9.1 的全部输入和结果，`rate_weeks` 表，锚点没有变化时写「与上周持平」）；计算参数分两段：「可在参数页修改」列初始锚点、锚点范围并链接参数页，「系统固定」列目标存贷比、目标增速、每周最多调整、贷款倍数、罚息倍数，数值都读 `settings`。按分数的利率表只有活期、贷款、逾期罚息三列；表下另有一张只读卡片「定期周利率」，五行 2、4、12、24、48 周，读 `settings` 的 `term_rates`，右上角「在参数页修改」只有行长和银行管理员看得到。锚点下的说明：假期中「假期中不计息，下学期沿用此锚点。」；还没有锚点「还没有公布锚点，现在按初始锚点 2% 计算。学期内每周一公布。」；其他「11月9日公布，下次 11月16日。」 |
 | 信用分 | 按学生查分数和全部变动（`credit_scores`、`credit_events` 表，详情用 `credit_profile(学号)`）；银行管理员可调整（`adjust_credit`）；计算参数与规则参数。页面最上面一张卡片是开关 Switch「启用信用分」（读 `settings.credit_enabled`），只有银行管理员能操作（`set_credit_enabled`）：暂停时先写原因，再二次确认「暂停后所有学生按 600 分计算额度和利率，分数不再加减。重新开启后恢复每位学生暂停前的分数。」；开启时直接二次确认。暂停时「调整信用分」按钮禁用 |
 | 轧账 | 财务：待复核、已轧账；按柜员、日期筛选；复核 |
 | 货币 | 第 11 节的登记与监控 |
@@ -957,7 +955,7 @@ create table job_runs (                       -- 定时任务进度
 
 信用分暂停时，后台各页提示「信用分已暂停：所有学生按 600 分计，分数不变。」
 
-参数页加入 14.3 的参数（`credit_enabled` 除外，它在「信用分」页切换），按「利率」「信用分」「风险提醒」分组。「利率」分组只有初始锚点、锚点下限、锚点上限三项，校验同 14.3，下限、初始、上限的关系不满足时三项都标错；保存时 `anchor_params` 提交完整对象，其余键沿用读到的值，三个倍数不提交；组说明「从下周一起生效。其余计算参数由系统固定，可在利率页查看。」
+参数页加入 14.3 的参数（`credit_enabled` 除外，它在「信用分」页切换），按「利率」「信用分」「风险提醒」分组。「利率」分组有两小节：「定期周利率」五项（2、4、12、24、48 周，0.01～100，界面最多 2 位小数，说明「新开的定期按这里的利率锁定，已经开的定期不变。」，提交完整的 `term_rates`）；「锚点」是初始锚点、锚点下限、锚点上限三项，校验同 14.3，下限、初始、上限的关系不满足时三项都标错；保存时 `anchor_params` 提交完整对象，其余键沿用读到的值，三个倍数不提交；组说明「从下周一起生效。其余计算参数由系统固定，可在利率页查看。」
 
 利率去掉末尾多余的 0，最多 4 位小数，学生端加「/周」；存贷比、增速保留 1 位小数；调整写百分点（+0.25、−0.50）。`interest` 流水显示为「利息」，经办人「系统」，没有冲正入口；后台流水、柜台查询的类型筛选和报表的余额变动都有「利息」。
 
@@ -1019,13 +1017,14 @@ M6 不依赖其他里程碑，最先做。M8 以后各里程碑依次依赖前�
 - [ ] 下班录入实点后逐面额比对，财务复核。
 - [x] 用 Excel 一次导入多名工作人员并为柜员绑定工资账户，每人得到一页通知单；任何创建账号或重置密码的操作都有通知单。
 - [x] 每周一自动结息并公布新锚点；锚点按公式可复算，且始终在 1%～4%。
-- [x] 同一锚点、同一分数下，贷款利率高于活期和 2、4 周定期；有未结清贷款时不能开定期。
+- [x] 同一锚点、同一分数下，贷款利率高于活期；定期按银行管理员设定的固定利率；有未结清贷款时不能开定期。
 - [x] 学生端能看到信用分、额度、每次变动的原因和本人的各项利率；所有信用分都以仪表盘呈现。
 - [x] 贷款按信用分算出的额度当场放款；分期计划等额本金、按天计息；提前还款少付利息。
 - [x] 应还日余额足够时自动扣款；不足时标逾期、罚息、扣分，结清前不能再贷款。
 - [x] 行长或银行管理员终止贷款后，剩余本息立即到期并按余额扣款。
 - [x] 定期到期自动转回活期并付息；提前支取只付活期利息。
-- [x] 贷款和定期的到期日不晚于学期末；假期不计息。
+- [x] 贷款的到期日不晚于学期末；假期活期不计息。
+- [ ] 定期可选 2 / 4 / 12 / 24 / 48 周，可以跨学期，假期照常计息，到期按锁定的固定利率付息。
 - [ ] 学期结转后余额与信用分转入下学期，上学期数据按学期可查、不可改。
 - [ ] 第 12 节的每种情况都生成风险提醒，「终止」执行对应的撤销操作。
 - [ ] 货币监控按纸币与电子币分开显示，兑付能力低于提示线时醒目提示。

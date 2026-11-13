@@ -37,19 +37,19 @@ end $$;
 create function tests.at(p text) returns timestamptz language sql as $$ select (p::timestamp) at time zone 'Asia/Shanghai' $$;
 
 -- §9.2: every rate of the table at an anchor of 2%.
-select is(app_private.rates(2, s), r::jsonb, format('score %s: 活期, 定期 2/4/8 周, 贷款', s))
-from (values (0, '{"current":1.6,"term":{"2":2.0,"4":2.4,"8":3.2},"loan":null}'),
-  (400, '{"current":1.92,"term":{"2":2.4,"4":2.88,"8":3.84},"loan":7.2}'),
-  (600, '{"current":2.08,"term":{"2":2.6,"4":3.12,"8":4.16},"loan":6.2667}'),
-  (750, '{"current":2.2,"term":{"2":2.75,"4":3.3,"8":4.4},"loan":5.5667}'),
-  (900, '{"current":2.32,"term":{"2":2.9,"4":3.48,"8":4.64},"loan":4.8667}'),
-  (1000, '{"current":2.4,"term":{"2":3.0,"4":3.6,"8":4.8},"loan":4.4}')) t(s, r);
-select is(array[app_private.term_rate(2, 2, 600), app_private.term_rate(2, 3, 600), app_private.loan_rate(2, 399)], array[2.6, null, null],
-  'no 定期 rate for a length without a multiplier, no loan rate below 400');
+select is(app_private.rates(2, s), r::jsonb, format('score %s: 活期, 定期 (fixed), 贷款', s))
+from (values (0, '{"current":1.6,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":null}'),
+  (400, '{"current":1.92,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":7.2}'),
+  (600, '{"current":2.08,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667}'),
+  (750, '{"current":2.2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":5.5667}'),
+  (900, '{"current":2.32,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":4.8667}'),
+  (1000, '{"current":2.4,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":4.4}')) t(s, r);
+select is(array[app_private.term_rate(12), app_private.term_rate(3), app_private.loan_rate(2, 399)], array[3, null, null]::numeric[],
+  'no 定期 rate for a length without one, no loan rate below 400');
 select is(app_private.penalty_rate(app_private.loan_rate(2, 1000)), 6.6, '罚息 = the loan rate × 1.5');
 select is(app_private.penalty_rate(6.2667), 9.4001, 'to 4 decimals');
-select is(count(*)::int, 0, 'at every score from 400, the loan rate is above 活期 and the 2 and 4 week 定期')
-from generate_series(400, 1000) s where app_private.loan_rate(2, s) <= app_private.term_rate(2, 4, s);
+select is(count(*)::int, 0, 'at every score from 400, the loan rate is above 活期 and every 定期 at the initial anchor')
+from generate_series(400, 1000) s where app_private.loan_rate(2, s) <= greatest(app_private.saving_rate(2, s), app_private.term_rate(48));
 select is(array[app_private.saving_factor(600), app_private.loan_factor(600), app_private.loan_factor(399)], array[1.04, 1.5667, null],
   'the factors shown keep their 4 decimals');
 
@@ -158,7 +158,7 @@ select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_bala
 -- Who reads what (§3, §16).
 select user_id as a_login from students where student_no = 'a' \gset
 select is(tests.call(:'a_login', 'select interest_profile()'),
-  '{"student_no":"a","score":600,"week_start":null,"anchor":2,"rates":{"current":2.08,"term":{"2":2.6,"4":3.12,"8":4.16},"loan":6.2667},"pending_centi":33}',
+  '{"student_no":"a","score":600,"week_start":null,"anchor":2,"rates":{"current":2.08,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667},"pending_centi":33}',
   'a student reads this week''s rates and 待入账利息 0.33 HTB');
 select is(tests.call(:'a_login', 'select interest_profile(''a'')') ->> 'pending_centi', '33', 'also by their own number');
 select is(tests.err(:'a_login', 'select interest_profile(''b'')'), 'FORBIDDEN', 'but no one else''s');
@@ -252,7 +252,7 @@ select ok((select banned_until > now() from auth.users where id = app_private.sy
 
 -- 后台「利率」 (§16.2): the accountant, president and bank admin.
 select is(tests.call(:'accountant', 'select rate_overview()') - 'table', '{"week_start":"2025-04-28","anchor":1.00}', 'this week''s anchor');
-select is(tests.call(:'president', 'select rate_overview()') -> 'table' -> 2, '{"score":600,"current":1.04,"term":{"2":1.3,"4":1.56,"8":2.08},"loan":3.1333}',
+select is(tests.call(:'president', 'select rate_overview()') -> 'table' -> 2, '{"score":600,"current":1.04,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":3.1333}',
   'and the rates by score under it');
 select is(jsonb_path_query_array(tests.call(:'teacher', 'select rate_overview()') -> 'table', '$[*].score'), '[0,400,600,750,900,1000]',
   'the scores of §9.2');
@@ -277,13 +277,12 @@ from (values ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"
   ('anchor_params', '{"initial":"2","ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'numbers'),
   ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.5,"max_adjust":0.5,"min":1,"max":4}', 'the formula''s other keys are fixed'),
   ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":3,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'every one of them'),
-  ('term_multipliers', '{"2":1.25,"4":1.5,"8":2}', 'the 定期 multipliers are fixed, even unchanged'),
   ('loan_multiplier', '2.5', 'so is the loan multiplier'),
   ('penalty_multiplier', '2', 'and the 罚息 multiplier')) t(k, v, why);
 select is(tests.err(:'teacher', $$select set_settings('{"anchor_params":{"initial":2.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1.25,"max":5},"loan_multiplier":2.5}')$$), 'INVALID_INPUT',
   'set_settings with a fixed one');
-select is((select jsonb_object_agg(key, value) from settings where key in ('anchor_params', 'term_multipliers', 'loan_multiplier', 'penalty_multiplier')),
-  '{"anchor_params":{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4},"term_multipliers":{"2":1.25,"4":1.5,"8":2},"loan_multiplier":2,"penalty_multiplier":1.5}',
+select is((select jsonb_object_agg(key, value) from settings where key in ('anchor_params', 'loan_multiplier', 'penalty_multiplier')),
+  '{"anchor_params":{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4},"loan_multiplier":2,"penalty_multiplier":1.5}',
   'saves none of it, and the fixed values stay');
 select is(tests.err(w, $$select set_setting('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}')$$), 'FORBIDDEN', 'not the others')
 from unnest(array[:'accountant', :'teller', :'keeper', :'ops', :'s1']::uuid[]) w;
