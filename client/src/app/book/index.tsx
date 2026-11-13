@@ -12,8 +12,8 @@ import { useMe } from '@/lib/session';
 
 // 账户: the account's page with the balance under the bank's seal, the 海豚信用分 on a small gauge, this term's money in
 // and out and, when two pages face each other, the place in the division (a phone's page gives that line to 信用分); facing it (on a phone, the next page), the latest businesses a page holds with the balance after each, the
-// ones new since this device last opened it printed as you watch; then 攒着的利息, 定期合计 and 贷款 as the 首页 writes them,
-// each line on its own: "…" while it is read, "—" when it cannot be.
+// ones new since this device last opened it printed as you watch; then 攒着的利息, 定期合计 and 贷款 as the 首页 writes them
+// (无 where the 首页 writes 没有), each line on its own: "…" while it is read, "—" when it cannot be.
 export default function BookAccount() {
   const student = useMe().data!.student!;
   const term = useTerm(student.student_no);
@@ -23,7 +23,8 @@ export default function BookAccount() {
   const interest = useInterest();
   const terms = useMyTerms(student.student_no);
   const loans = useMyLoans(student.student_no);
-  const loan = loans.data && homeLoanLine(openLoan(loans.data));
+  const open = loans.data && openLoan(loans.data);
+  const loan = open && homeLoanLine(open);
   const due = terms.data && nextMaturity(terms.data);
   const curve = useGaugeCurve();
   const wide = useWide();
@@ -76,9 +77,9 @@ export default function BookAccount() {
           <dt>攒着的利息</dt>
           <dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB<small>{pendingNote(interest.data.pending_centi)}</small></> : interest.isError ? '—' : '…'}</dd>
           <dt>定期合计</dt>
-          <dd>{!term.data ? (term.error ? '—' : '…') : term.data.term_total ? <>{formatAmount(term.data.term_total)} HTB{due && <small>{due}</small>}</> : '没有'}</dd>
+          <dd>{!term.data ? (term.error ? '—' : '…') : term.data.term_total ? <>{formatAmount(term.data.term_total)} HTB{due && <small>{due}</small>}</> : '无'}</dd>
           <dt>贷款</dt>
-          <dd className={loan?.danger ? 'is-danger' : undefined}>{loan ? <>{loan.text}{loan.note && <small>{loan.note}</small>}</> : loans.isError ? '—' : '…'}</dd>
+          <dd className={loan?.danger ? 'is-danger' : undefined}>{loan ? <>{loan.text}{loan.note && <small>{loan.note}</small>}</> : open === null ? '无' : loans.isError ? '—' : '…'}</dd>
         </dl>
         <ol className="dc-pb-rules" aria-label="说明">
           <li>利息每周一满 1 HTB 存进余额。</li>

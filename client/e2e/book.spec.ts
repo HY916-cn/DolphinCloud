@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { resetData, signIn, sql } from './helpers';
+import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 存折版 (/book), for students only, on the seed data (supabase/seed.sql): 张小明 (20260001, 小学部) has an opening
 // balance of 120, then a deposit of 25, a withdrawal of 15 and an exchange of 22: 108 now, the first of two.
@@ -116,6 +116,30 @@ test('this device opens the version last used: the 存折版 until the 普通版
   await expect(page).toHaveURL(/\/student$/);
 });
 
+// Signed in on this device with the 存折版 last used, a student opens the site in a new tab: the 存折 opens from a cover
+// as whole as the login one, the 学号 and the 密码's dots on its label.
+test('opened straight from the site, the 存折 opens from the whole cover with its label filled in', async ({ page, context }) => {
+  await openBook(page);
+  await mark(page, '我的').click();
+  await expect(page.getByRole('region', { name: '户主信息' })).toBeVisible(); // 我的 has opened, not 账户's 下一页
+  const keep = page.getByRole('region', { name: '存折设置' }).locator('.dc-switch', { hasText: '在此设备保存登录' });
+  await turnTo(page, keep);
+  await keep.click();
+  await page.locator('.dc-sheet input[type="password"]').fill('a12345678');
+  await confirmIn(page, '确认保存');
+  await expect(page.getByRole('switch', { name: /在此设备保存登录/ })).toBeChecked();
+
+  const tab = await context.newPage();
+  await tab.goto('/');
+  const lid = tab.locator('.dc-book-lid .dc-book-cover');
+  await expect(lid.locator('.dc-pb-label')).toBeVisible();
+  await expect(lid.locator('input').first()).toHaveValue('20260001');
+  await expect(lid.locator('input[type="password"]')).not.toHaveValue('');
+  await expect(lid.locator('.dc-book-unlock')).toBeVisible();
+  await expect(tab.locator('.dc-book-open:not(.is-opening)')).toBeVisible();
+  await expect(tab).toHaveURL(/\/book$/);
+});
+
 test('the 存折版 is for students: a staff login there goes to its own pages', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin/);
@@ -148,7 +172,16 @@ test('明细 prints seven tabs, 利息 and 贷款 among them; on a phone all sev
 });
 
 // Last, as it opens a term, a 定期 and a 贷款: the account's third page sums them up, the loan in seal red once overdue.
-test('the account’s third page prints 攒着的利息, 定期合计 and 贷款, and 贷款 in red once overdue', async ({ page }) => {
+test('the account’s third page prints 攒着的利息, 定期合计 and 贷款 (无 when there is none), and 贷款 in red once overdue', async ({ page }) => {
+  await openBook(page);
+  const sums = page.getByRole('region', { name: '利息 · 定期 · 贷款' });
+  await turnTo(page, sums);
+  const lines = sums.locator('.dc-pb-fields dd');
+  await expect(lines.nth(1)).toHaveText('无');
+  await expect(lines.nth(2)).toHaveText('无');
+  // On a computer the third page faces a blank right page, edged and bound like a printed one.
+  if (test.info().project.name !== 'phone') await expect(page.locator('.dc-book-pages > .dc-passbook > .dc-pb-page.is-blank')).toHaveAttribute('data-side', 'right');
+
   const DAY = 'app_private.cn_date(now())';
   const md = (date: string) => sql(`select to_char(${date}, 'FMMM月FMDD日')`);
   const LOAN = `(select id from public.loans where student_no = '20260001' and status <> 'reversed')`;
@@ -162,10 +195,8 @@ test('the account’s third page prints 攒着的利息, 定期合计 and 贷款
   const first = Number(sql(`select p.principal + l.interest_centi / 100 from public.loan_periods p join public.loans l on l.id = p.loan_id
     where p.loan_id = ${LOAN} and p.seq = 1`));
 
-  await openBook(page);
-  const sums = page.getByRole('region', { name: '利息 · 定期 · 贷款' });
+  await page.reload();
   await turnTo(page, sums);
-  const lines = sums.locator('.dc-pb-fields dd');
   await expect(lines).toHaveText([
     `0.${String(centi).padStart(2, '0')} HTB满 1 HTB 再存进余额`,
     `50 HTB${md(`${DAY} + 28`)} 到期`,

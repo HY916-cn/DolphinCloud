@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router, usePathname } from 'expo-router';
 import { cloneElement, createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { loginError } from '@/lib/errors';
+import { useMe } from '@/lib/session';
 import { loginEmail, supabase } from '@/lib/supabase';
 import { Passbook } from './Passbook';
 import { Icon, link } from './ui';
@@ -16,7 +17,8 @@ const MARKS = [
   { href: '/book/me', label: '我的' },
 ] as const;
 
-// What was typed on the cover, for the lid that opens from it: the 账号 and how long the 密码 is.
+// What was typed on the cover, for the lid that opens from it: the 账号 and how long the 密码 is. A 存折 opened without
+// its cover (already signed in) prints the student's 学号 and 8 dots there, so the lid is the login cover all the same.
 let typed: { id: string; dots: number } | null = null;
 
 // The face of the closed 存折: the bank's name and 储蓄存折 in gold foil, and on the label the 账号 and 密码 that open it.
@@ -115,7 +117,8 @@ const printedCopy = (html?: string) => (html ? <div className="dc-book-html" dan
 export function BookShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [state, setState] = useState<'opening' | 'open' | 'closing'>('opening');
-  const [opened] = useState(typed);
+  const no = useMe().data?.student?.student_no ?? '';
+  const [opened] = useState(() => (typed?.id.trim() === no ? typed : { id: no, dots: 8 }));
   const [shown, setShown] = useState(path);
   const [change, setChange] = useState<{ n: number; d: 1 | -1; from: string[]; to?: string[] } | null>(null);
   if (path !== shown) {
@@ -164,7 +167,7 @@ export function BookShell({ children }: { children: ReactNode }) {
               {leaf}
               {state !== 'open' && (
                 <div className="dc-book-lid" aria-hidden="true" inert>
-                  <div className={`dc-pb-cover dc-book-cover ${state === 'opening' && !opened ? 'is-waiting' : ''}`}>
+                  <div className="dc-pb-cover dc-book-cover">
                     <CoverFace id={lidFace?.id ?? ''} password={'x'.repeat(lidFace?.dots ?? 0)} busy={state === 'opening'} />
                   </div>
                 </div>
@@ -251,11 +254,12 @@ export function BookPages({ pages, onShow }: { pages: Page[]; onShow?: (last: nu
   // Page `i` as it is printed: its number at the foot, and on the first and last page in view the way to turn on.
   const page = (i: number, live = true) => {
     const p = pages[i];
-    if (!p) return <section key={`blank-${i}`} className="dc-pb-page is-blank" aria-hidden="true" />;
+    const side = per === 2 ? (i % 2 ? 'right' : 'left') : undefined;
+    if (!p) return <section key={`blank-${i}`} className="dc-pb-page is-blank" data-side={side} aria-hidden="true" />;
     const lead = i % per === 0, end = i === Math.min(i - (i % per) + per, pages.length) - 1;
     return cloneElement(p, {
       key: live ? `slot-${i % per}` : `copy-${i}`, // a slot keeps its page element, so turning does not replay its opening
-      'data-side': per === 2 ? (i % 2 ? 'right' : 'left') : undefined,
+      'data-side': side,
       foot: <><span>{lead && i > 0 && flip(-1, '上一页', live)}</span>
         <span>第 {i + 1} 页</span>
         <span>{end && i < pages.length - 1 && flip(1, '下一页', live)}</span></>,
