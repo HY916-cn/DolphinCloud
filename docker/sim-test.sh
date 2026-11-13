@@ -1,10 +1,12 @@
 #!/bin/bash
 # One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past; each
-# school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 信用分 changes and,
+# school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 理财 bought or redeemed
+# (each week's 理财 rate fixed, no network), a few 信用分 changes and,
 # mid-term, some frozen accounts, loans paid out and repaid, then the day's jobs run as at 00:05 and 00:10 (run_weekly on
 # Mondays before the day's business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances
 # finds nothing every day, that no run_daily takes 30 s, that every 定期 due by the last day simulated has come back
-# (the longer ones run on into the next term) and that every loan is then paid off or 逾期.
+# (the longer ones run on into the next term), that every 理财 past its last day has come back and that every loan is
+# then paid off or 逾期.
 # Usage: docker/sim-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -42,7 +44,8 @@ from public.accounts where student_no like '4%' and balance > 0;
 -- 17:30, a withdrawal never more than the balance; at 17:40 about 0.5% of those with no loan and 400 分 or more borrow up
 -- to 60 HTB within their 额度 for 1–4 weeks, into the account or in cash; at 17:45 about 1% open a 定期 of up to half
 -- their 活期 for 2, 4, 12, 24 or 48 weeks (none with a loan not paid off), and 2% of the 定期 open are withdrawn early;
--- at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
+-- at 17:47 about 0.5% of those with no loan buy 理财 with up to a third of their 活期 for 2, 4, 12, 24 or 48 weeks, and
+-- at 17:52 1% of the holdings open are redeemed; at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
 -- 信用分 changes by hand. The days' 自动扣款 and 逾期 come from run_daily.
 create function sim.business(p_day date) returns integer language plpgsql as $$
 declare v_n integer;
@@ -71,6 +74,15 @@ begin
     (p_day + time '17:50') at time zone 'Asia/Shanghai')
   from public.term_deposits d join public.students s using (student_no)
   where d.status = 'open' and s.status = 'normal' and d.matures_on >= p_day and random() < 0.02;
+  perform app_private.start_wealth(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 3))::integer, x.w,
+    app_private.system_user(), (p_day + time '17:47') at time zone 'Asia/Shanghai')
+  from (select a.student_no, a.balance, (array[2, 4, 12, 24, 48])[1 + floor(random() * 5)::integer] as w
+        from public.accounts a join public.students s using (student_no)
+        where s.status = 'normal' and a.balance >= 10 and random() < 0.005
+          and not exists (select 1 from public.loans l where l.student_no = a.student_no and l.status in ('active', 'overdue'))) x;
+  perform app_private.end_wealth(h.id, 'redeemed', app_private.system_user(), (p_day + time '17:52') at time zone 'Asia/Shanghai')
+  from public.wealth_holdings h join public.students s using (student_no)
+  where h.status = 'open' and s.status = 'normal' and random() < 0.01;
   perform app_private.start_loan(gen_random_uuid(), x.student_no, least(x.lim, 1 + (random() * 59)::integer), '模拟', x.plan, x.k, x.via,
     app_private.system_user(), (p_day + time '17:40') at time zone 'Asia/Shanghai')
   from (select s.student_no, app_private.credit_limit(c.score) as lim,
@@ -118,6 +130,12 @@ begin
   if extract(isodow from p_day) <= 5 and (app_private.current_term(p_day)).id is not null then
     v_n := sim.business(p_day);
   end if;
+  if extract(isodow from p_day) = 7 then
+    -- The week's 理财 rate, as dolphin-jobs would have fetched it: a fixed cycle from −5% to +5%.
+    insert into public.wealth_weeks (week_start, change, rate, source, params)
+    select p_day - 6, r / 2, r, 'eastmoney', app_private.setting('wealth_params')
+    from (select (array[1.2, -0.8, 2.5, -3, 0.4, -5, 5, 0])[1 + ((p_day - date '2025-09-07') / 7) % 8] as r) x;
+  end if;
   v_t := clock_timestamp();
   v_status := app_private.run_daily(p_day) ->> 'status';
   v_daily := round(extract(epoch from clock_timestamp() - v_t) * 1000)::text;
@@ -159,6 +177,14 @@ psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'mature
   read -r n matured early open centi due
   [ "$due" = 0 ] || fail "$due 定期 due by 11 January still open"
   echo "定期: $n opened, $matured matured, $early withdrawn early, $open still open into the next term; $centi (0.01 HTB) of interest"
+}
+psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'matured'), count(*) filter (where status = 'redeemed'),
+  count(*) filter (where status = 'open'), coalesce(sum(value_centi - 100 * principal) filter (where status <> 'open'), 0),
+  count(*) filter (where status = 'open' and matures_on <= '2026-01-11')) from public.wealth_holdings" | {
+  read -r n matured redeemed open gain due
+  [ "$n" -gt 0 ] || fail "no 理财"
+  [ "$due" = 0 ] || fail "$due 理财 past their last day still open"
+  echo "理财: $n bought, $matured matured, $redeemed redeemed, $open still open; $gain (0.01 HTB) gained over the principal"
 }
 psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'closed'), count(*) filter (where status = 'overdue'),
   count(*) filter (where status = 'active'), coalesce(sum(principal), 0),

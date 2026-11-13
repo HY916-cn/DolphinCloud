@@ -70,7 +70,7 @@ npm --prefix client run lint
 | `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；`E2E_SHARDS=3` 时分 3 份同时跑，各用一个容器；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
-| `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）的随机业务（含开定期与提前支取、放款与还款）与每天的定时任务：锚点始终在 1%～4%，每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期全部转回活期（更长的转入下学期）、贷款全部结清或逾期在册 |
+| `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）的随机业务（含开定期与提前支取、买理财与赎回、放款与还款）与每天的定时任务：锚点始终在 1%～4%，每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期和理财全部转回活期（更长的转入下学期）、贷款全部结清或逾期在册 |
 
 ```bash
 docker/upgrade-test.sh <生产环境当前的提交>
@@ -113,6 +113,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin check` | 核对余额与流水，有不一致时退出码为 1 |
 | `dolphin jobs` | 定时任务处理到哪天、最后成功时间、有没有失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务；有任务失败时退出码为 1 |
+| `dolphin jobs fetch` | 立即取理财参考指数的周 K 线（东方财富）；取不到时写日志并退出码为 1，`dolphin-jobs` 每天补跑前会自动执行 |
 | `dolphin status` | 各进程状态、版本、最近一次备份、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像健康检查：Auth、PostgREST、Storage 应答且 Caddy 在运行 |
 | `dolphin reset-admin` | 银行管理员忘记密码时生成新的初始密码，解除停用和登录锁定 |

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | jobs [run] | status | health
+# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | jobs [run|fetch] | status | health
 # With BACKUP_RECIPIENT (an age public key) backups are encrypted to it (.tar.gz.age); restoring one reads the
 # matching private key from stdin: docker exec -i dolphincloud dolphin restore <file> < backup-key.txt
 set -euo pipefail
@@ -139,6 +139,28 @@ SQL
   ! grep -q '^FAILED' <<<"$out"
 }
 
+# 理财 (PHASE-2.md §10.10): the reference index's latest weekly closes from eastmoney into wealth_weeks, the weeks over
+# that have none yet. When the fetch or the data fails, says so and logs wealth.fetch_failed; the bank admin then enters
+# the week's rate by hand.
+jobs_fetch() {
+  local secid body out
+  ready
+  secid=$(psql_ -qAt -c "select app_private.setting('wealth_params') ->> 'secid'")
+  if body=$(curl -fsS --max-time 20 "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=$secid&fields1=f1,f2,f3&fields2=f51,f53&klt=102&fqt=0&end=20500101&lmt=10" 2>&1) \
+     && out=$(psql_ -qAt -v body="$body" 2>&1 <<'SQL'
+select app_private.record_wealth_klines((:'body'::jsonb) -> 'data' -> 'klines');
+SQL
+); then
+    echo "wealth: $out new week(s) of $secid"
+  else
+    psql_ -qAt -v secid="$secid" -v err="${body:0:300} ${out:-}" >/dev/null <<'SQL' || true
+select app_private.log_system('wealth.fetch_failed', jsonb_build_object('secid', :'secid', 'error', :'err'));
+SQL
+    echo "wealth: could not fetch $secid: ${body:0:300} ${out:-}" >&2
+    return 1
+  fi
+}
+
 # One line for `dolphin status`.
 jobs_status() {
   psql_ -qAt -c "select case when bool_or(last_err is not null)
@@ -160,7 +182,7 @@ case "${1:-}" in
   create-admin) create_admin "${2:-}" ;;
   reset-admin) reset_admin ;;
   check)   check ;;
-  jobs)    if [ "${2:-}" = run ]; then jobs_run; else jobs_show; fi ;;
+  jobs)    case "${2:-}" in run) jobs_run ;; fetch) jobs_fetch ;; *) jobs_show ;; esac ;;
   backup)  backup ;;
   backups) ls -1t "$BACKUPS" | grep -E '^dolphin-.*\.tar\.gz(\.age)?$' || true ;;
   restore) restore "${2:-}" ;;
@@ -168,5 +190,5 @@ case "${1:-}" in
            if [ -n "${BACKUP_RECIPIENT:-}" ]; then echo "backups encrypted to: $BACKUP_RECIPIENT"; else echo "backups encrypted: no (set BACKUP_RECIPIENT)"; fi
            jobs_status ;;
   health)  health ;;
-  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | jobs [run] | status | health" >&2; exit 2 ;;
+  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | jobs [run|fetch] | status | health" >&2; exit 2 ;;
 esac

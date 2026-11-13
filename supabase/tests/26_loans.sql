@@ -217,7 +217,7 @@ select is(tests.call(:'teller', 'select loan_quote(''low'')') -> 'limit', 'null'
 select is(tests.call(:'teller', 'select loan_quote(''frz'')') ->> 'blocked', 'STUDENT_INACTIVE', 'a frozen account');
 select is(tests.err(:'teller', $$select open_term_deposit(gen_random_uuid(), 's1', 10, 2)$$), 'LOAN_OUTSTANDING', 'no 定期 while a loan is not paid off');
 select is(tests.call(:'teller', 'select lookup_student(''s1'')') - 'credit' - 'name' - 'cohort' - 'grade' - 'class_no' - 'class_label' - 'division',
-  '{"student_no":"s1","status":"normal","balance":200,"term_total":0,"loan_remaining":100,"loan_overdue":false,"withdrawn_today":0}',
+  '{"student_no":"s1","status":"normal","balance":200,"term_total":0,"wealth_total":0,"wealth_value_centi":0,"loan_remaining":100,"loan_overdue":false,"withdrawn_today":0}',
   '查询 shows the loan left');
 
 -- 现金放款: notes as for a withdrawal, 活期 unchanged, the cash table pays them out.

@@ -133,7 +133,7 @@ select app_private.accrue_interest(d::date) from generate_series('2025-03-05'::d
 update students set status = 'frozen' where student_no = 'd';
 update students set status = 'closed' where student_no = 'gone';
 select is(app_private.settle_interest(tests.at('2025-03-10')), 6, 'six accounts have 1 HTB or more');
-select is(to_jsonb(t) - 'id' - 'seq' - 'txn_no' - 'device_id' - 'client_created_at' - 'operator_id' - 'created_at' - 'term_id' - 'loan_id',
+select is(to_jsonb(t) - 'id' - 'seq' - 'txn_no' - 'device_id' - 'client_created_at' - 'operator_id' - 'created_at' - 'term_id' - 'loan_id' - 'wealth_id',
   '{"type":"interest","student_no":"a","amount":2,"balance_delta":2,"balance_after":102,"cash_delta":0,"payment":null,"denominations":null,
     "change_given":null,"status":"normal","reversal_of":null,"reason":"3月3日至3月9日活期利息","offline":false}',
   'the whole HTB of the week, 7 × 0.29 = 2.03, paid as one interest transaction')

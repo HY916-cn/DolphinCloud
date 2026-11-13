@@ -1,13 +1,14 @@
 #!/bin/bash
-# The scheduled jobs (PHASE-2.md §13): catch up once the database is ready, so a restart makes up the days the server
-# was down, then every day after 00:05 (the container's TZ, Asia/Shanghai). A job that fails is tried again the next
-# day, at a restart, or with `dolphin jobs run`.
+# The scheduled jobs (PHASE-2.md §13): fetch the 理财 index's weekly closes and catch up once the database is ready, so
+# a restart makes up the days the server was down, then every day after 00:05 (the container's TZ, Asia/Shanghai). A job
+# that fails is tried again the next day, at a restart, or with `dolphin jobs run`.
 set -uo pipefail
 until dolphin jobs >/dev/null 2>&1; do sleep 10; done
 last=
 while true; do
   today=$(date +%F)
   if [ "$today" != "$last" ] && { [ -z "$last" ] || (( 10#$(date +%H%M) >= 5 )); }; then
+    dolphin jobs fetch || true  # 理财: the week's index closes before the jobs; a week missing waits for a hand entry
     dolphin jobs run || echo "dolphin-jobs: a job failed; see dolphin jobs" >&2
     last=$today
   fi

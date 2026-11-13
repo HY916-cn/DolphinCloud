@@ -68,8 +68,8 @@ select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 200)$$) -
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 150)$$) ->> 'detail', '{"limit": 500, "remaining": 100}',
   'over the daily limit shows what is left today');
 select is(tests.call(:'t1', $$select lookup_student('s4')$$) - 'name' - 'cohort',
-  '{"grade":4,"class_no":4,"division":"primary","status":"normal","balance":600,"term_total":0,"loan_remaining":0,"loan_overdue":false,"class_label":"四年级(4)班","student_no":"s4","withdrawn_today":400,"credit":{"score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667,"saving_factor":1.04}}',
-  'lookup shows balance, 定期, the loan left, today''s withdrawals and the credit score');
+  '{"grade":4,"class_no":4,"division":"primary","status":"normal","balance":600,"term_total":0,"wealth_total":0,"wealth_value_centi":0,"loan_remaining":0,"loan_overdue":false,"class_label":"四年级(4)班","student_no":"s4","withdrawn_today":400,"credit":{"score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667,"saving_factor":1.04}}',
+  'lookup shows balance, 定期, 理财, the loan left, today''s withdrawals and the credit score');
 select is(tests.call(:'t1', $$select reverse_txn(gen_random_uuid(), '00000000-0000-4000-8000-000000000004', '金额录错')$$) ->> 'balance_after', '800',
   'reverse one withdrawal');
 select is(tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's4', 300)$$) ->> 'error', 'WITHDRAW_SINGLE_LIMIT', 'the single limit still applies');
