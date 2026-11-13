@@ -75,14 +75,14 @@ select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role
 select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "boss", "account": null}]'), 'INVALID_INPUT', 'no unknown role');
 select is(tests.import_err(:'teacher', '[{"login_id": "!", "name": "甲", "role": "teller", "account": null}]'), 'INVALID_INPUT', 'no bad login');
 select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "", "role": "teller", "account": null}]'), 'INVALID_INPUT', 'no blank name');
-select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "accountant", "account": "s3"}]'), 'INVALID_INPUT', 'only a teller has a 工资账户');
+select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "sysadmin", "account": "s3"}]'), 'INVALID_INPUT', 'the sysadmin has no 工资账户');
 select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "teller", "account": "s4"}]'), 'STUDENT_INACTIVE', 'an account in use');
 select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "teller", "account": "s1"}]'), 'ALREADY_EXISTS', 'not bound to someone else');
 select is(tests.import_err(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "teller", "account": null}, {"login_id": "X1", "name": "乙", "role": "teller", "account": null}]'), 'ALREADY_EXISTS', 'no login twice');
 select is(tests.import_err(:'teacher', '[{"login_id": "acct", "name": "甲", "role": "teller", "account": null}]'), 'INVALID_INPUT', 'an import never changes a role');
 select is(tests.import_err(:'teacher', '[{"login_id": "off", "name": "甲", "role": "teller", "account": null}]'), 'ALREADY_EXISTS', 'a stopped login is taken');
 select is(tests.import_err(:'teacher', '[{"login_id": "gone", "name": "甲", "role": "teller", "account": null}]'), 'ACCOUNT_CLOSED', 'and a closed one');
-select is((tests.import_staff(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "teller", "account": null}, {"login_id": "x2", "name": "乙", "role": "accountant", "account": "s3"}]') ->> 'detail')::jsonb -> 'row', '2', 'an error names its row');
+select is((tests.import_staff(:'teacher', '[{"login_id": "x1", "name": "甲", "role": "teller", "account": null}, {"login_id": "x2", "name": "乙", "role": "sysadmin", "account": "s3"}]') ->> 'detail')::jsonb -> 'row', '2', 'an error names its row');
 select is((select count(*)::int from profiles where login_id = 'x1'), 0, 'and the batch is undone');
 
 select * from finish();

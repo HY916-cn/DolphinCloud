@@ -42,7 +42,7 @@ select is(tests.err(:'t2', $$select deposit('00000000-0000-4000-8000-00000000005
 
 -- 参与考勤
 select is(tests.err(:'acct', format($$select set_attendance(%L, true)$$, :'t1')), 'FORBIDDEN', 'only the bank admin sets who is counted');
-select is(tests.err(:'teacher', format($$select set_attendance(%L, true)$$, :'acct')), 'INVALID_INPUT', 'only tellers are counted');
+select is(tests.err(:'teacher', format($$select set_attendance(%L, true)$$, :'ops')), 'INVALID_INPUT', 'the sysadmin is not counted');
 select tests.call(:'teacher', format($$select set_attendance(%L, true)$$, :'t1'));
 select tests.call(:'teacher', format($$select set_attendance(%L, true)$$, :'t2'));
 select is(tests.err(:'t2', $$select unbind_salary_account(auth.uid())$$), 'ATTENDANCE_ON', 'a counted teller keeps a bound account');
@@ -79,10 +79,8 @@ select tests.call(:'teacher', format($$select set_user_disabled(%L, true)$$, :'t
 select is((select attendance from staff_payroll where user_id = :'t2'), false, 'a stopped teller is no longer counted');
 select is(tests.err(:'teacher', format($$select set_attendance(%L, true)$$, :'t2')), 'INVALID_INPUT', 'nor counted again while stopped');
 
--- 参数
-select is(tests.err(:'teacher', $$select set_setting('salary_per_shift', '{"am": 0, "pm": 10}')$$), 'INVALID_INPUT', 'a shift pays at least 1');
-select is(tests.err(:'teacher', $$select set_setting('salary_per_shift', '15')$$), 'INVALID_INPUT', '中午班 and 下午班 each have their pay');
-select tests.call(:'teacher', $$select set_setting('salary_per_shift', '{"am": 15, "pm": 20}')$$);
+-- 工资标准 (the rules of set_salary_rates are in 30_staff_attendance.sql)
+update salary_rates set amount = case shift when 'am' then 15 else 20 end where role = 'teller';
 select case when :'now_shift' = 'am' then 15 else 20 end as now_pay \gset
 
 -- 发放工资

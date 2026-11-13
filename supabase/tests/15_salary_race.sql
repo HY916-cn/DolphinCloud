@@ -46,7 +46,7 @@ select is((select count(*)::int from race where result is not null), 2, 'both pr
 select is((select count(*)::int from race where jsonb_array_length(result -> 'paid') = 1), 1, 'one of them pays the teller');
 select is((select count(*)::int from txns where student_no = 'pay-1' and type = 'salary'), 1, 'one salary transaction');
 select is((select balance from accounts where student_no = 'pay-1'),
-  (select ((value ->> 'am')::int + (value ->> 'pm')::int) from settings where key = 'salary_per_shift'), 'the week is paid once');
+  (select sum(amount)::int from salary_rates where role = 'teller'), 'the week is paid once');
 select is((select count(*)::int from app_private.check_balances()), 0, 'balances match the ledger');
 
 select dblink_disconnect(c) from unnest(array['lock', 'a', 'b']) c;

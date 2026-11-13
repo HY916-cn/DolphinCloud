@@ -71,9 +71,9 @@ insert into tests.matrix values
   ('duty_cash(uuid)', 'select duty_cash()', '{teller,accountant,president,teacher}'),
   -- 冲正: the teller their own of today, the president and bank admin any (§6.3)
   ('reverse_txn(uuid,uuid,text)', 'select reverse_txn(gen_random_uuid(), gen_random_uuid(), ''金额录错'')', '{teller,president,teacher}'),
-  -- 工资账户: the teller their own, the bank admin and sysadmin anyone's (§6.9, PHASE-2.md §5.2)
-  ('bind_salary_account(uuid,text,text)', 'select bind_salary_account(auth.uid(), ''nobody'', ''x'')', '{teller,teacher,sysadmin}'),
-  ('unbind_salary_account(uuid)', 'select unbind_salary_account(auth.uid())', '{teller,teacher,sysadmin}'),
+  -- 工资账户: any staff login their own, the bank admin and sysadmin anyone's (§6.9, PHASE-2.md §5.2)
+  ('bind_salary_account(uuid,text,text)', 'select bind_salary_account(auth.uid(), ''nobody'', ''x'')', '{teller,accountant,storekeeper,president,teacher,sysadmin}'),
+  ('unbind_salary_account(uuid)', 'select unbind_salary_account(auth.uid())', '{teller,accountant,storekeeper,president,teacher,sysadmin}'),
   -- 报表
   ('bank_report(date,date,text,integer,integer,text,time without time zone,time without time zone)',
     'select bank_report(current_date, current_date)', '{accountant,president,teacher}'),
@@ -87,6 +87,8 @@ insert into tests.matrix values
   ('makeup_attendance(uuid,date,text,text)', 'select makeup_attendance(gen_random_uuid(), current_date, ''am'', '''')', '{president,teacher}'),
   ('review_attendance(uuid[],text,text)', 'select review_attendance(''{}'', ''nonsense'', null)', '{president,teacher}'),
   ('pay_salaries(date)', 'select pay_salaries(null)', '{president,teacher}'),
+  ('set_salary_rates(jsonb)', 'select set_salary_rates(''{}'')', '{president,teacher}'),
+  ('void_attendance(uuid,text)', 'select void_attendance(gen_random_uuid(), '''')', '{president,teacher}'),
   ('set_setting(text,jsonb)', 'select set_setting(''nonsense'', ''1'')', '{president,teacher}'),
   ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{president,teacher}'),
   -- 登记发行: the bank admin alone (PHASE-2.md §3)
@@ -175,6 +177,7 @@ insert into tests.writes values
   ('cash_counts', 'update cash_counts set status = ''done'''),
   ('attendance', 'update attendance set status = ''confirmed'''),
   ('staff_payroll', 'update staff_payroll set attendance = true'),
+  ('salary_rates', 'update salary_rates set amount = 10000'),
   ('currency_issues', 'delete from currency_issues'),
   ('terms', 'update terms set closed_at = now()'),
   ('credit_scores', 'update credit_scores set score = 1000'),

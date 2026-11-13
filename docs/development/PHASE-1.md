@@ -20,7 +20,7 @@
 | 文创商城 | 商品新增、编辑、图片、价格、上架 / 下架；出入库（一次为多件商品入库或出库） |
 | 流水查询 | 财务与银行管理员用一个搜索框找学生、班级、学部、柜员或交易号，再按日期、类型和每天的时段筛选全部流水，可打印、导出 PDF 或 Excel |
 | 报表 | 财务与银行管理员按日、周、月或任意日期（最长一年）和每天的时段，看全行、学部、班级或一位学生的营业、账户、财务、商品报表（图表与表格，与上一个同样长的期间对比），打印或导出 PDF，每个图表和表格各占一页 |
-| 考勤与工资 | 银行管理员为已绑定工资账户的柜员开启考勤；参与考勤的柜员上班、下班时自动记下所在的中午班（13:30 前）或下午班（13:30 起），一个班次里多次上下班只算一次；考勤按周显示；银行管理员逐个审查（二次确认，审查后不能再改）或全部确认、补签；全部审查完成后手动发放工资，中午班、下午班的工资由参数分别设定，发到柜员用密码绑定的学生账户 |
+| 考勤与工资 | 除运维员外，各身份都可以绑定工资账户、参与考勤，由银行管理员为已绑定的工作人员开启；参与考勤的柜员上班、下班时自动记下所在的中午班（13:30 前）或下午班（13:30 起），一个班次里多次上下班只算一次，其他身份的班次由行长或银行管理员登记；考勤按周显示；银行管理员逐个审查柜员的班次（二次确认，审查后不能再改）或全部确认、补签；全部审查完成后手动发放工资，工资标准按身份和班次分别设定，发到本人用密码绑定的学生账户 |
 | 系统 | 账号与角色（学生和工作人员都可批量停用、重置密码、注销）、每个账号的「我的」页、参数设置、操作日志、每日自动备份与命令行恢复、余额自检 |
 | 部署 | 单个 Docker 镜像，一条 `docker run` 启动，自动申请 HTTPS 证书 |
 
@@ -126,7 +126,7 @@
 
 - 学生账号由名册导入产生，不带任何角色。
 - 银行管理员全系统只有一个（`user_roles` 上 `role = 'teacher'` 的唯一索引）：由 `dolphin create-admin` 创建，不能新增第二个，也不能把其他账号改成银行管理员或改掉它的身份；忘记密码时用 `dolphin reset-admin` 生成新的初始密码。其他身份可以有多个账号。
-- 行长可以有多个，由银行管理员或运维员创建和管理。行长的权限与银行管理员相同，只是不管理账号：学生和工作人员的名单与详情（含余额、工资账户）只读，不能导入名册、新增账号、改身份、重置密码、停用或启用、注销、冻结或标记毕业、重发开户通知单、绑定或解除工资账户；也不能登记货币发行（只由银行管理员登记，同 [PHASE-2.md](PHASE-2.md) §3）。数据库里凡检查银行管理员（`has_role('teacher')`）的地方也认行长；管理账号的函数和 `register_issue` 开头调用 `app_private.forbid_president()` 拒绝行长（`FORBIDDEN`）。
+- 行长可以有多个，由银行管理员或运维员创建和管理。行长的权限与银行管理员相同，只是不管理账号：学生和工作人员的名单与详情（含余额、工资账户）只读，不能导入名册、新增账号、改身份、重置密码、停用或启用、注销、冻结或标记毕业、重发开户通知单、绑定或解除他人的工资账户（本人的照常绑定）；也不能登记货币发行（只由银行管理员登记，同 [PHASE-2.md](PHASE-2.md) §3）。数据库里凡检查银行管理员（`has_role('teacher')`）的地方也认行长；管理账号的函数和 `register_issue` 开头调用 `app_private.forbid_president()` 拒绝行长（`FORBIDDEN`）。
 - 工作账号恰好有一个角色；`user_roles` 每个账号最多一行，学生账号不能写入。
 
 ### 4.2 权限矩阵
@@ -137,13 +137,15 @@
 | 首次登录设置新密码（仅此一次） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 存款、取款、兑换、查询学生（含该生全部交易记录） | | ✓ | | | | | |
 | 冲正本人当天业务 | | ✓ | | | | | |
-| 上班、下班，查看本人考勤 | | ✓ | | | | | |
-| 绑定工资账户（须输入该学生账户的密码） | | 本人 | | | | ✓ | ✓ |
+| 上班、下班 | | ✓ | | | | | |
+| 查看本人考勤 | | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| 绑定本人的工资账户（须输入该学生账户的密码） | | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| 为他人绑定工资账户（不需要学生密码） | | | | | | ✓ | ✓ |
 | 冲正任意业务 | | | | | ✓ | ✓ | |
 | 查看全部流水、报表与导出 | | | ✓ | | ✓ | ✓ | |
 | 查看商品与成本 | | | ✓ | ✓ | ✓ | ✓ | |
 | 商品管理、出入库 | | | | ✓ | ✓ | ✓ | |
-| 设置参与考勤、审核与补签、发放工资 | | | | | ✓ | ✓ | |
+| 设置参与考勤、审核与补签、登记考勤、设定工资标准、发放工资 | | | | | ✓ | ✓ | |
 | 查看学生与工作人员（名单、详情、余额） | | | | | ✓ | ✓ | ✓（不含余额） |
 | 导入名册、开户 | | | | | | ✓ | |
 | 管理工作账号（含批量） | | | | | | ✓ | ✓ |
@@ -309,26 +311,36 @@ create table audit_log (
   user_agent text
 );
 
-create table staff_payroll (                   -- 考勤与工资（6.9），每个柜员一行
+create table staff_payroll (                   -- 考勤与工资（6.9），每个参与考勤或绑定工资账户的工作人员一行
   user_id    uuid primary key references profiles(id),
   attendance boolean not null default false,  -- 参与考勤
   account    text unique references students(student_no)  -- 工资账户，一个学生账户只绑定一个工作人员
 );
 
-create table attendance (                      -- 每个柜员每个班次一行
+create table attendance (                      -- 每个工作人员每个班次一行
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references profiles(id),
+  role        app_role not null,                            -- 记下班次时的身份，发放时按它取工资标准
   day         date not null,
   shift       text not null check (shift in ('am','pm')),   -- 中午班 13:30 前，下午班 13:30 起（上海时间）
   status      text not null default 'pending' check (status in ('pending','confirmed','rejected')),
   signed_at   timestamptz not null default now(),
-  signed_by   uuid not null references profiles(id),       -- 柜员本人，补签时为银行管理员
-  note        text,                                         -- 补签说明或审核说明
+  signed_by   uuid not null references profiles(id),       -- 柜员本人，补签或登记时为行长或银行管理员
+  note        text,                                         -- 补签、登记说明或审核说明
   reviewed_by uuid references profiles(id),
   reviewed_at timestamptz,
   salary_txn  uuid references txns(id),                     -- 发放这个班次工资的 salary 流水
-  pay         integer,                                      -- 发放时这种班次的工资
+  pay         integer,                                      -- 发放时这个身份、这种班次的工资
   unique (user_id, day, shift)
+);
+
+create table salary_rates (                    -- 工资标准：除运维员外每个身份、每种班次一行
+  role       app_role not null check (role <> 'sysadmin'),
+  shift      text not null check (shift in ('am','pm')),
+  amount     integer not null check (amount between 1 and 10000),  -- HTB
+  updated_by uuid references profiles(id),
+  updated_at timestamptz not null default now(),
+  primary key (role, shift)
 );
 ```
 
@@ -349,7 +361,9 @@ create table attendance (                      -- 每个柜员每个班次一行
 | `ranking_anonymous` | `true` | 排名是否隐藏姓名（显示为「张*明」） |
 | `ranking_size` | `10` | 排名显示前几名（每个学部） |
 | `promotion_date` | `"09-01"` | 每年升年级的日期（月-日），从这天起所有学生的年级加一 |
-| `salary_per_shift` | `{"am":10,"pm":10}` | 柜员每个有效班次的工资（HTB，1～10000），中午班、下午班分别设置，发放时按当时的金额计算 |
+| `salary_per_shift` | `{"am":10,"pm":10}` | 旧客户端读取的班次工资，发放不用它；工资标准以 `salary_rates` 为准（见下） |
+
+工资标准存在 `salary_rates`（5.2），按身份（柜员、财务、库管、行长、银行管理员）和班次各一个金额（1～10000 HTB），由 `set_salary_rates` 修改（6.9），发放时按当时的金额计算。
 
 ### 5.4 数据不变式
 
@@ -360,7 +374,7 @@ create table attendance (                      -- 每个柜员每个班次一行
 
 ### 5.5 审计
 
-- 触发器记录 `profiles`、`user_roles`、`students`、`products`、`currency_issues`、`settings`、`staff_payroll`、`attendance`、`duty` 的每次变更（前后值）；班次被发放工资时不逐条记录，每次发放另写一条 `salary.pay`。
+- 触发器记录 `profiles`、`user_roles`、`students`、`products`、`currency_issues`、`settings`、`staff_payroll`、`attendance`、`salary_rates`、`duty` 的每次变更（前后值）；班次被发放工资时不逐条记录，每次发放另写一条 `salary.pay`。
 - 流水本身即账务审计；导入名册、重置密码、冲正、注销账号（`user.close`）等函数另写一条 `audit_log`。
 - IP、设备号、User-Agent 取自 PostgREST 传入的请求头：`current_setting('request.headers', true)::json`，其中 IP 取 Caddy 写入的 `X-Forwarded-For`，设备号取前端发送的 `X-Device-Id`。
 - 登录钩子由 Auth 调用，拿不到请求头，`login.ok` 先记下账号；前端登录成功后随即调用 `note_login()`，为这条记录补上设备号、IP 和 User-Agent（存法同上）。`login.failed`、`login.locked` 不带设备与 IP。
@@ -484,16 +498,18 @@ create table attendance (                      -- 每个柜员每个班次一行
 
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
-| `set_attendance(p_user_id, p_on)` | teacher | 设置柜员是否参与考勤；开启前须已绑定工资账户（`SALARY_UNBOUND`），已停用的账号不能开启 |
+| `set_attendance(p_user_id, p_on)` | teacher | 设置工作人员是否参与考勤：除运维员外各身份都可以（运维员 `INVALID_INPUT`）；开启前须已绑定工资账户（`SALARY_UNBOUND`），已停用的账号不能开启 |
 | `start_duty(p_float)` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），同时登记备用金（`cash_counts`，见 PHASE-2.md §7.1；`p_float` 为各面额张数，不传时取本人上次的备用金，从未上过班则全为 0），已上班时返回原记录、不改备用金，返回值带 `float`（各面额张数）和 `stale`：这次上班开始于上海时间今天以前（跨天未下班）时为 `true`，此时不记班次，前端提示柜员先下班；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
 | `duty_txns()` | teller | 下班总结：本人当前上班以来办理的全部业务（按办理时间，含学生姓名），与 `end_duty` 的计数口径相同（含离线补传和冲正）。柜员只能读当天流水，跨午夜的上班也由它完整列出；未上班时 `OFF_DUTY` |
 | `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理。下班时把按面额算出的应有写进 `cash_counts.expected`，状态改为待复核 `pending` |
 | `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 下班总结的现金表（PHASE-2.md §4）：备用金、收入、付出、应有，各面额张数、金额与合计；不传时为本人当前的上班（未上班时 `OFF_DUTY`），柜员只能查本人的上班 |
-| `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 补签：今天已开始的班次或以前的班次，须写说明，直接计为有效；已有记录时 `ALREADY_EXISTS` |
+| `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 柜员的补签，以及其他身份的登记：今天已开始的班次或以前的班次，须写说明，直接计为有效，不再审查；已有记录（含已作废的）时 `ALREADY_EXISTS`。不能登记自己的：行长的班次由银行管理员登记，银行管理员的由行长登记，行长之间也不互相登记（`SELF_SERVICE_FORBIDDEN`）。班次记下当时的身份（`attendance.role`） |
+| `void_attendance(p_id, p_note)` | teacher | 作废登记的班次（非柜员的），须写原因：状态改为未通过（`rejected`），不发工资，这个班次也不能再登记；柜员的班次（`INVALID_INPUT`）走审查；已发工资的不能作废（`ATTENDANCE_PAID`），已作废的不能再作废（`ATTENDANCE_REVIEWED`）；谁不能登记就不能作废（`SELF_SERVICE_FORBIDDEN`） |
+| `set_salary_rates(p_rates)` | teacher | 设定工资标准：`{"teller":{"am":10,"pm":10},"accountant":{…},"storekeeper":{…},"president":{…},"teacher":{…}}`，五个身份、两种班次都要给，每项 1～10000 的整数（`INVALID_INPUT`，`field: rates`）；返回同样格式的全表；改动由 `salary_rates` 的审计触发器逐行记录（`salary_rates.update`） |
 | `review_attendance(p_ids, p_status, p_note)` | teacher | 审查待审班次：设为有效（`confirmed`）或未通过（`rejected`）；审查后不能再改（`ATTENDANCE_REVIEWED`） |
-| `bind_salary_account(p_user_id, p_student_no, p_password)` | teller（本人）/ teacher / sysadmin | 绑定工资账户，须输入该学生账户的登录密码；输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`）；只能绑定在读（`normal`）的账户（`STUDENT_INACTIVE`） |
-| `unbind_salary_account(p_user_id)` | teller（本人）/ teacher / sysadmin | 解除绑定；参与考勤期间不能解除（`ATTENDANCE_ON`） |
-| `pay_salaries(p_week)` | teacher | 由银行管理员手动发放。到 `p_week` 所在周日为止还有待审班次时拒绝（`ATTENDANCE_PENDING`，附待审数量）；否则发放这一周（周一至周日）及以前所有有效、未发放的班次：每个柜员一笔 `salary` 流水存入其工资账户（金额 = 中午班数 × 中午班工资 + 下午班数 × 下午班工资，`cash_delta` 为 0，原因写日期和两种班次各几个，如「10月27日至11月1日，中午班 3 个、下午班 2 个」），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的柜员这次跳过，下次发放时补发；已停用的柜员不发放；重复发放不会重复付。返回发放和跳过的名单 |
+| `bind_salary_account(p_user_id, p_student_no, p_password)` | 除运维员外各身份（本人）/ teacher / sysadmin（他人） | 绑定工资账户。本人绑定（含行长、银行管理员）须输入该学生账户的登录密码；银行管理员、运维员为他人绑定不需要密码（PHASE-2.md §5.2），行长不能为他人绑定（`FORBIDDEN`）；运维员不能有工资账户（`INVALID_INPUT`）。输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`）；只能绑定在读（`normal`）的账户（`STUDENT_INACTIVE`） |
+| `unbind_salary_account(p_user_id)` | 各身份（本人）/ teacher / sysadmin（他人） | 解除绑定，行长只能解除本人的；参与考勤期间不能解除（`ATTENDANCE_ON`） |
+| `pay_salaries(p_week)` | teacher | 由银行管理员手动发放。到 `p_week` 所在周日为止还有待审班次时拒绝（`ATTENDANCE_PENDING`，附待审数量）；否则发放这一周（周一至周日）及以前所有有效、未发放的班次：每人一笔 `salary` 流水存入其工资账户（金额 = 每个班次按记下的身份和班次取 `salary_rates` 的金额之和，发放开始时读一次工资标准，`cash_delta` 为 0，原因写日期和两种班次各几个，如「10月27日至11月1日，中午班 3 个、下午班 2 个」），并在班次上记下流水和每班次金额。未绑定工资账户或工资账户已冻结、毕业的人这次跳过，下次发放时补发；已停用的不发放；重复发放不会重复付；发放人本人的工资账户照常入账。返回 `{"from","to","rates","paid","skipped"}`，`rates` 为这次用的工资标准（格式同 `set_salary_rates`） |
 
 - 柜员不能为本人的工资账户办理业务（`SELF_SERVICE_FORBIDDEN`，与本人的学生账户相同）。
 - 柜员未上班时不能办理存款、取款、兑换和冲正（`txns` 上的触发器 `require_duty`，`OFF_DUTY`）；进行中的上班开始于上海时间今天以前（跨天未下班）时同样不能办理（`STALE_DUTY`，附 `started_at`），须先下班再重新上班。离线登记的存款补传时不受这两条限制。
@@ -674,6 +690,7 @@ client/
 | `LAST_SYSADMIN` | 至少保留一个运维员 | 这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。 |
 | `SUMMARY_STALE` | 下班总结已过时 | 打印后又办理了业务，请重新打印下班总结。 |
 | `ATTENDANCE_REVIEWED` | 已经审查过 | 审查后的班次不能再修改。 |
+| `ATTENDANCE_PAID` | 已经发过工资 | 这个班次的工资已经发放，不能作废。 |
 | `ATTENDANCE_PENDING` | 还有待审的班次 | 还有 {count} 个班次没有审查，全部审查后才能发放工资。 |
 | `ATTENDANCE_ON` | 正在参与考勤 | 工资账户在参与考勤期间不能解除；请先关闭参与考勤。 |
 | `SALARY_UNBOUND` | 还没有绑定工资账户 | 先绑定工资账户，再开启参与考勤。 |
