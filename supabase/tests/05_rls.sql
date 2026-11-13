@@ -21,25 +21,25 @@ update txns set created_at = created_at - interval '1 day' where id = '00000000-
 set local session_replication_role = origin;
 
 create function tests.counts(p_user uuid) returns text language sql as $$
-  select tests.call(p_user, $q$select jsonb_build_array(
+  select tests.call(p_user, format($q$select jsonb_build_array(
     (select count(*) from profiles), (select count(*) from students), (select count(*) from accounts),
     (select count(*) from txns), (select count(*) from products), (select count(*) from currency_issues),
-    (select count(*) from audit_log) > 0, (select count(*) from settings))$q$)::text
+    (select count(*) from audit_log) > 0, (select count(*) from settings) = %s)$q$, (select count(*) from settings)))::text
 $$;
--- [profiles, students, accounts, txns, products, issues, audit visible, settings]
-select is(tests.counts(:'s1'), '[1, 1, 1, 2, 1, 0, false, 13]', 'student: own profile, account and transactions; listed products');
+-- [profiles, students, accounts, txns, products, issues, audit visible, every setting visible]
+select is(tests.counts(:'s1'), '[1, 1, 1, 2, 1, 0, false, true]', 'student: own profile, account and transactions; listed products');
 select is(tests.call(:'s1', $$select jsonb_agg(distinct student_no) from txns$$), '["s1"]', 'student sees only their own transactions');
-select is(tests.counts(:'t1'), '[1, 2, 2, 1, 1, 0, false, 13]', 'teller: all students, only their own transactions of today');
-select is(tests.counts(:'acc'), '[7, 2, 2, 5, 2, 1, false, 13]', 'accountant: all transactions, products, issues and the staff logins (the system login too)');
-select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, 13]', 'storekeeper: products only');
-select is(tests.counts(:'teacher'), '[9, 2, 2, 5, 2, 1, true, 13]', 'teacher: everything');
-select is(tests.counts(:'ops'), '[9, 2, 0, 0, 1, 0, true, 13]', 'sysadmin: logins, students (no balances) and the audit log');
+select is(tests.counts(:'t1'), '[1, 2, 2, 1, 1, 0, false, true]', 'teller: all students, only their own transactions of today');
+select is(tests.counts(:'acc'), '[7, 2, 2, 5, 2, 1, false, true]', 'accountant: all transactions, products, issues and the staff logins (the system login too)');
+select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, true]', 'storekeeper: products only');
+select is(tests.counts(:'teacher'), '[9, 2, 2, 5, 2, 1, true, true]', 'teacher: everything');
+select is(tests.counts(:'ops'), '[9, 2, 0, 0, 1, 0, true, true]', 'sysadmin: logins, students (no balances) and the audit log');
 select is(tests.call(:'s1', $$select count(*) from user_roles$$), '0', 'a student without roles sees no role rows');
 select is(tests.call(:'ops', $$select count(*) from user_roles$$), '6', 'sysadmin sees all roles');
 select is(tests.call(:'acc', $$select count(*) from user_roles$$), '6', 'accountant sees the staff roles (who is a teller)');
 
 update profiles set disabled = true where id = :'t1';
-select is(tests.counts(:'t1'), '[1, 0, 0, 0, 1, 0, false, 13]', 'a disabled teller loses access at once');
+select is(tests.counts(:'t1'), '[1, 0, 0, 0, 1, 0, false, true]', 'a disabled teller loses access at once');
 
 select is(tests.err(:'t2', $$insert into students (student_no, name, division, cohort, class_no) values ('x', 'x', 'primary', 2024, 1)$$),
   'permission denied for table students', 'no direct inserts');
