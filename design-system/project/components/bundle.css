@@ -958,7 +958,10 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-actions .dc-list-link .dc-list-icon { background: transparent; }
 .dc-pb-chop-box { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: auto; padding: var(--space-3) var(--space-4); border: 1px solid var(--pb-rule-strong); }
 .dc-pb-chop-box > span { font: 700 13px/20px var(--font-sans); letter-spacing: .2em; color: var(--dolphin-deep); }
-.dc-pb-chop { display: block; box-sizing: border-box; width: 68px; height: 68px; padding: 4px; border: 3px solid currentColor; border-radius: 4px; color: rgb(198 40 40); font: 700 26px/29px "Songti SC", "STSong", "SimSun", serif; writing-mode: vertical-rl; text-align: center; opacity: .88; transform: rotate(3deg); mix-blend-mode: multiply; }
+.dc-pb-chop { display: block; box-sizing: border-box; width: 68px; height: 68px; padding: 4px; border: 3px solid currentColor; border-radius: 4px; color: rgb(198 40 40); font: 700 25px/27px "Songti SC", "STSong", "SimSun", serif; writing-mode: vertical-rl; text-align: center; opacity: .88; transform: rotate(3deg); mix-blend-mode: multiply; }
+/* Longer names: five or six characters in three columns of two (letter-spacing fills the height), seven or more in three columns of three. */
+.dc-pb-chop.is-six { font-size: 18px; line-height: 18px; letter-spacing: 9px; }
+.dc-pb-chop.is-nine { font-size: 17px; line-height: 18px; letter-spacing: 1px; }
 .dc-pb-hint { margin: var(--space-5) 0 0; color: var(--dolphin-deep); font: 500 13px/20px var(--font-sans); letter-spacing: .04em; opacity: .8; }
 .dc-pb-head small:only-child { margin-left: auto; }
 .dc-pb-sub { margin: var(--space-5) 0 var(--space-2); font: 800 14px/20px var(--font-sans); letter-spacing: .3em; color: var(--dolphin-deep); }
