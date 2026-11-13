@@ -2,6 +2,21 @@
 
 对照 [PHASE-1.md](PHASE-1.md) §12.2 的验收标准，逐条写明证据。PHASE-1.md 里只勾选完全验证过的条目。
 
+## 2026-11-13 · 正式服务器升级到 719f05e
+
+正式服务器（`dc.90016.top`，容器 `dolphincloud`）从 `168bb19` 升级到 `719f05e`（代码同 `8951c22`，含二期 M6～M11），按 [PHASE-1.md](PHASE-1.md) §9.5 与 `docker-compose.yml` 里的步骤执行。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 升级前 | `dolphin check` 一致；账户 64 个、余额合计 2005 HTB、流水 31 笔、账号 87 个、库存 94 件 |
+| 备份 | `dolphin backup` 生成 `dolphin-20261113-122746.tar.gz.age`（加密）；旧镜像另存为 `dolphin-cloud:prod-168bb19`，回滚时用 |
+| 升级 | `git -C src pull`、`docker compose up -d --build`；迁移从 36 个到 53 个，`dolphin-jobs` 在运行 |
+| 升级后 | `dolphin health`、`dolphin check` 通过；账户、余额合计、流水、账号、库存与升级前相同，64 名学生都有信用分；`dolphin jobs` 每天与每周任务处理到 11月12日，当前不在学期内；`https://dc.90016.top` 返回新版客户端 |
+
+回滚：用 `dolphin-cloud:prod-168bb19` 启动，再按 PHASE-1.md §9.5「回滚演练」第 5 步用新镜像里的 `dolphin` 恢复上面的备份。
+
+学期还没登记，定期、贷款和计息要在银行管理员登记学期后才能办理（PHASE-2.md 第 6 节）。
+
 ## 2026-11-12 · 二期 M11 贷款
 
 ### 本次运行
