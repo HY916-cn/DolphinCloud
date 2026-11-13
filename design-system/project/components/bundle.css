@@ -566,15 +566,18 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-seg:has(> label:nth-child(4)) { --seg-count: 4; }
 .dc-seg:has(> label:nth-child(5)) { --seg-count: 5; }
 .dc-seg:has(> label:nth-child(6)) { --seg-count: 6; }
+.dc-seg:has(> label:nth-child(7)) { --seg-count: 7; }
 .dc-seg:has(> label:nth-child(2) input:checked) { --seg-index: 1; }
 .dc-seg:has(> label:nth-child(3) input:checked) { --seg-index: 2; }
 .dc-seg:has(> label:nth-child(4) input:checked) { --seg-index: 3; }
 .dc-seg:has(> label:nth-child(5) input:checked) { --seg-index: 4; }
 .dc-seg:has(> label:nth-child(6) input:checked) { --seg-index: 5; }
+.dc-seg:has(> label:nth-child(7) input:checked) { --seg-index: 6; }
 .dc-seg:has(> label:nth-child(5)) span { padding: 0 var(--space-2); }
 /* Five or six choices (the counter's 业务) take two rows of three on phones; the checked one carries its own raised block. */
 @container app (max-width: 599px) {
   .dc-seg:has(> label:nth-child(5)) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: var(--radius-lg); }
+  .dc-seg:has(> label:nth-child(7)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .dc-seg:has(> label:nth-child(5))::before { display: none; }
   .dc-seg:has(> label:nth-child(5)) input:checked + span { background: var(--surface-raised); box-shadow: 0 3px 0 var(--cloud-200); }
 }
@@ -1265,6 +1268,8 @@ span.dc-week-btn { cursor: default; }
 .dc-gauge { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); text-align: center; }
 .dc-gauge-dial { --w: 200px; --t: 14px; --knob: 24px; --gauge-color: var(--success); --gauge-from: var(--gauge-color); --gauge-from: color-mix(in oklch, var(--gauge-color) 70%, var(--surface-raised)); position: relative; flex: none; width: var(--w); height: calc(var(--w) / 2); margin: var(--space-5) calc(var(--knob) / 2) 0; transition: --score var(--motion-count) var(--ease-out); }
 .dc-gauge-dial.is-low { --gauge-color: var(--danger); }
+/* 信用分 switched off: everyone counts as 600; the dial goes grey and the score says so. */
+.dc-gauge-dial.is-paused { --gauge-color: var(--ink-muted); }
 .dc-gauge.is-lg .dc-gauge-dial { --w: 280px; --t: 18px; --knob: 30px; }
 .dc-gauge-arc { position: absolute; inset: 0; border-radius: calc(var(--w) / 2) calc(var(--w) / 2) 0 0; background: conic-gradient(from -90deg at 50% 100%, var(--gauge-from) 0deg, var(--gauge-color) calc(var(--score) * 0.18deg), var(--cloud-100) 0deg 180deg); -webkit-mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 0.5px)); mask: radial-gradient(circle at 50% 100%, transparent calc(var(--w) / 2 - var(--t)), #000 calc(var(--w) / 2 - var(--t) + 0.5px)); transition: background-color var(--motion-quick); }
 /* 两端圆头：起点是进度色，终点是轨道色 */
@@ -1322,6 +1327,10 @@ span.dc-week-btn { cursor: default; }
 .dc-list-item b { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dc-list-item small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-list-item > :not(:first-child) { flex: none; }
+/* A gain or a loss (理财): always with its sign and 盈 / 亏 in words, the colour only adds to them. */
+.dc-pl { font-weight: 700; font-variant-numeric: tabular-nums; }
+.dc-pl.is-up { color: var(--success); }
+.dc-pl.is-down { color: var(--danger); }
 @container app (max-width: 599px) {
   .dc-list-item { flex-wrap: wrap; }
   .dc-list-item > span:first-child { flex-basis: 100%; }
