@@ -33,10 +33,10 @@ for _ in $(seq 1 90); do
 done
 # The snapshot: the migrated rows of every app, Auth and Storage table plus the stored files, restored without
 # replacing tables, so Auth, PostgREST and Storage keep their connections. Replica mode skips triggers and foreign
-# keys (txns refers to itself) while it truncates and reloads. dolphin-jobs stops first and the 理财 weeks it may have
+# keys (txns refers to itself) while it truncates and reloads. dolphin-jobs stops first and the 理财 days it may have
 # fetched are dropped, so every run starts from the same data; a spec that needs them inserts its own.
 docker exec "$NAME" supervisorctl stop dolphin-jobs >/dev/null
-docker exec "$NAME" psql -U postgres -qAt -c "set session_replication_role = replica; delete from public.wealth_weeks" >/dev/null
+docker exec "$NAME" psql -U postgres -qAt -c "set session_replication_role = replica; delete from public.wealth_days" >/dev/null
 docker exec -i "$NAME" sh -e <<'SH'
 { echo "set session_replication_role = replica;"
   psql -U postgres -qAt -c "select 'truncate ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ';'

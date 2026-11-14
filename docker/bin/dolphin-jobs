@@ -1,9 +1,9 @@
 #!/bin/bash
-# The scheduled jobs (PHASE-2.md §13): fetch the 理财 index's weekly closes and catch up once the database is ready, so
+# The scheduled jobs (PHASE-2.md §13): fetch the 理财 index's daily closes and catch up once the database is ready, so
 # a restart makes up the days the server was down, then every day after 00:05 (the container's TZ, Asia/Shanghai). A job
-# that fails is tried again the next day, at a restart, or with `dolphin jobs run`. A fetch that fails is tried again
-# every 10 minutes for the first hour, then every hour to the end of the day; a week fetched late is applied by the
-# next day's run_daily.
+# that fails is tried again the next day, at a restart, or with `dolphin jobs run`. After the A-share close, from 15:30,
+# the day's close is fetched; a fetch that fails is tried again every 10 minutes six times, then every hour to the end
+# of the day, and once more at 00:05 before the jobs. A day fetched late is applied by the next run_daily.
 set -uo pipefail
 until dolphin jobs >/dev/null 2>&1; do sleep 10; done
 last=
@@ -13,15 +13,18 @@ next_fetch=0
 while true; do
   today=$(date +%F)
   if [ "$today" != "$last" ] && { [ -z "$last" ] || (( 10#$(date +%H%M) >= 5 )); }; then
-    tries=0
-    if dolphin jobs fetch; then fetched=$today; else fetched=; fi
-    next_fetch=$(( $(date +%s) + 600 ))
+    dolphin jobs fetch || true
     dolphin jobs run || echo "dolphin-jobs: a job failed; see dolphin jobs" >&2
     last=$today
-  elif [ "$fetched" != "$today" ] && [ "$today" = "$last" ] && (( $(date +%s) >= next_fetch )); then
-    tries=$(( tries + 1 ))
-    if dolphin jobs fetch; then fetched=$today; fi
-    next_fetch=$(( $(date +%s) + (tries < 6 ? 600 : 3600) ))
+    tries=0
+    next_fetch=0
+  elif [ "$fetched" != "$today" ] && (( 10#$(date +%H%M) >= 1530 )) && (( $(date +%s) >= next_fetch )); then
+    if dolphin jobs fetch; then
+      fetched=$today
+    else
+      tries=$(( tries + 1 ))
+      next_fetch=$(( $(date +%s) + (tries < 6 ? 600 : 3600) ))
+    fi
   fi
   sleep 60
 done

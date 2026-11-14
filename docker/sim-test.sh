@@ -1,7 +1,7 @@
 #!/bin/bash
 # One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past; each
 # school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 理财 bought or redeemed
-# (in 稳健, 平衡 or 进取; each week's index change fixed, no network), a few 信用分 changes and,
+# (in 稳健, 平衡 or 进取; each trading day's index change fixed, a week's holiday in October, no network), a few 信用分 changes and,
 # mid-term, some frozen accounts, loans paid out and repaid, then the day's jobs run as at 00:05 and 00:10 (run_weekly on
 # Mondays before the day's business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances
 # finds nothing every day, that no run_daily takes 30 s, that every 定期 due by the last day simulated has come back
@@ -132,11 +132,12 @@ begin
   if extract(isodow from p_day) <= 5 and (app_private.current_term(p_day)).id is not null then
     v_n := sim.business(p_day);
   end if;
-  if extract(isodow from p_day) = 7 then
-    -- The week's index change, as dolphin-jobs would have fetched it: a fixed cycle from −2.5% to +2.5%.
-    insert into public.wealth_weeks (week_start, change, source, params)
-    select p_day - 6, c, 'eastmoney', app_private.setting('wealth_params')
-    from (select (array[0.6, -0.4, 1.25, -1.5, 0.2, -2.5, 2.5, 0])[1 + ((p_day - date '2025-09-07') / 7) % 8] as c) x;
+  if extract(isodow from p_day) <= 5 and p_day not between '2025-10-01' and '2025-10-07' then
+    -- The day's index close, as dolphin-jobs would have fetched it after 15:30: a fixed cycle from −2.6% to +2.4%;
+    -- 1 to 7 October are a holiday, closed.
+    insert into public.wealth_days (day, change, source, params)
+    select p_day, c, 'tencent', app_private.setting('wealth_params')
+    from (select (array[0.6, -0.4, 1.1, -1.3, 0.2, -2.6, 2.4, 0])[1 + (p_day - date '2025-09-01') % 8] as c) x;
   end if;
   v_t := clock_timestamp();
   v_status := app_private.run_daily(p_day) ->> 'status';

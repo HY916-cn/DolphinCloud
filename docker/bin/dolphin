@@ -139,30 +139,35 @@ SQL
   ! grep -q '^FAILED' <<<"$out"
 }
 
-# 理财 (PHASE-2.md §10.10): the reference index's latest weekly closes from eastmoney into wealth_weeks, the weeks over
-# that have none yet; nothing to do once last week is in. When the fetch or the data fails, says so, logs
-# wealth.fetch_failed and exits 1, for dolphin-jobs to try again; a week still missing is entered by hand.
+# 理财 (PHASE-2.md §10.10): the index's latest daily closes into wealth_days, the trading days that have none yet
+# (today's after 15:30), from Tencent, else Sina, else eastmoney. When none answers with closes, says so, logs
+# wealth.fetch_failed and exits 1, for dolphin-jobs to try again; a trading day still missing is entered by hand.
 jobs_fetch() {
-  local secid body out
+  local symbol secid src url body out errors=
   ready
-  if [ "$(psql_ -qAt -c "select exists (select 1 from public.wealth_weeks where week_start = app_private.week_of(app_private.cn_date(now())) - 7)")" = t ]; then
-    echo "wealth: last week is in"
-    return 0
-  fi
-  secid=$(psql_ -qAt -c "select app_private.setting('wealth_params') ->> 'secid'")
-  if body=$(curl -fsS --max-time 20 "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=$secid&fields1=f1,f2,f3&fields2=f51,f53&klt=102&fqt=0&end=20500101&lmt=10" 2>&1) \
-     && out=$(psql_ -qAt -v body="$body" 2>&1 <<'SQL'
-select app_private.record_wealth_klines((:'body'::jsonb) -> 'data' -> 'klines');
+  symbol=$(psql_ -qAt -c "select app_private.setting('wealth_params') ->> 'symbol'")
+  secid=$([ "${symbol:0:2}" = sh ] && echo 1 || echo 0).${symbol:2}
+  for src in tencent sina eastmoney; do
+    case $src in
+      tencent) url="https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=$symbol,day,,,10,qfq" ;;
+      sina) url="https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData?symbol=$symbol&scale=240&ma=no&datalen=10" ;;
+      eastmoney) url="https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=$secid&fields1=f1,f2,f3&fields2=f51,f53&klt=101&fqt=0&end=20500101&lmt=10" ;;
+    esac
+    if body=$(curl -fsS --max-time 20 "$url" 2>&1) \
+       && out=$(psql_ -qAt -v src="$src" -v body="$body" 2>&1 <<'SQL'
+select app_private.record_wealth_days(:'src', :'body'::jsonb);
 SQL
 ); then
-    echo "wealth: $out new week(s) of $secid"
-  else
-    psql_ -qAt -v secid="$secid" -v err="${body:0:300} ${out:-}" >/dev/null <<'SQL' || true
-select app_private.log_system('wealth.fetch_failed', jsonb_build_object('secid', :'secid', 'error', :'err'));
+      echo "wealth: $out new day(s) of $symbol from $src"
+      return 0
+    fi
+    errors="$errors$src: ${body:0:200} ${out:-}; "
+  done
+  psql_ -qAt -v symbol="$symbol" -v err="$errors" >/dev/null <<'SQL' || true
+select app_private.log_system('wealth.fetch_failed', jsonb_build_object('symbol', :'symbol', 'error', :'err'));
 SQL
-    echo "wealth: could not fetch $secid: ${body:0:300} ${out:-}" >&2
-    return 1
-  fi
+  echo "wealth: could not fetch $symbol: $errors" >&2
+  return 1
 }
 
 # One line for `dolphin status`.

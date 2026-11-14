@@ -109,8 +109,8 @@ insert into tests.matrix values
   ('wealth_quote(text)', 'select wealth_quote(''nobody'')', '{teller}'),
   ('buy_wealth(uuid,text,integer,integer,text)', 'select buy_wealth(gen_random_uuid(), ''nobody'', 1, 2, ''steady'')', '{teller}'),
   ('redeem_wealth(uuid)', 'select redeem_wealth(gen_random_uuid())', '{teller}'),
-  ('wealth_overview()', 'select wealth_overview()', '{accountant,president,teacher}'),
-  ('record_wealth_week(date,numeric,text)', 'select record_wealth_week(current_date, 0, '''')', '{president,teacher}'),
+  ('wealth_overview(date,integer)', 'select wealth_overview()', '{accountant,president,teacher}'),
+  ('record_wealth_day(date,numeric,text)', 'select record_wealth_day(current_date, 0, '''')', '{president,teacher}'),
   -- 贷款: the counter's; 终止 the president's and bank admin's (PHASE-2.md §10.3–10.8); the back office reads the loans tables
   ('loan_quote(text)', 'select loan_quote(''nobody'')', '{teller}'),
   ('loan_preview(text,integer,text,integer)', 'select loan_preview(''nobody'', 1, ''bullet'', 1)', '{teller}'),
@@ -193,7 +193,7 @@ insert into tests.writes values
   ('job_runs', 'update job_runs set last_err = null'),
   ('term_deposits', 'update term_deposits set status = ''open'''),
   ('wealth_holdings', 'update wealth_holdings set status = ''open'''),
-  ('wealth_weeks', 'delete from wealth_weeks'),
+  ('wealth_days', 'delete from wealth_days'),
   ('audit_log', 'delete from audit_log');
 select is(tests.verdict(w.id, x.stmt), 'denied', format('%s: write %s', w.name, x.tbl))
 from tests.writes x cross join tests.who w where w.name in ('anon', 'student', 'teller', 'accountant', 'storekeeper', 'president', 'teacher', 'sysadmin')
