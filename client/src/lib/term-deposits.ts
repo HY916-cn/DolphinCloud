@@ -22,9 +22,6 @@ export type TermQuote = {
 export const termInterestCenti = (amount: number, rate: number, weeks: number) =>
   Math.floor((amount * Math.round(rate * 10_000) * weeks) / 10_000);
 
-// The longest length offered when the term's end leaves out the longer ones (null: all three fit, or none).
-export const maxWeeks = (options: TermOption[]) => (options.length && options.length < 3 ? options[options.length - 1].weeks : null);
-
 // The amount field's hint: the range before an amount, the shortfall over 活期, then what comes back at maturity.
 export function amountHint(amount: number, balance: number, option: TermOption | undefined): { text: string; error: boolean } {
   if (!amount) return { text: `1 HTB 起，最多 ${formatAmount(balance)} HTB（活期余额）`, error: false };

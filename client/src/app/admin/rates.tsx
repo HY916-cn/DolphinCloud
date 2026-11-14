@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet, Desk, link, ListLoading, Notice, Stats, useInTerm } from '@/components';
 import { formatAmount, formatPercent, formatPoints, formatRate, shiftDay } from '@/lib/format';
-import { penaltyRate, WEEKS, type AnchorParams, type Weeks } from '@/lib/rates';
+import { byWeeks, penaltyRate, type AnchorParams, type TermRates } from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
@@ -10,9 +10,9 @@ import { monthDay } from '@/lib/term';
 
 const enter = (i: number) => ({ '--i': i }) as React.CSSProperties;
 
-type Overview = { week_start: string | null; anchor: number; table: { score: number; current: number; term: Record<Weeks, number>; loan: number | null }[] };
+type Overview = { week_start: string | null; anchor: number; table: { score: number; current: number; loan: number | null }[] };
 type Week = { week_start: string; prev_anchor: number; deposits: number; loans: number; ratio: number; growth: number | null; adjust: number; anchor: number; params: AnchorParams };
-type Params = { anchor: AnchorParams; term: Record<Weeks, number>; loan: number; penalty: number };
+type Params = { anchor: AnchorParams; term: TermRates; loan: number; penalty: number };
 
 // A percentage that may be below zero (目标增速), with the minus sign −.
 const pct = (n: number) => (n < 0 ? `−${formatRate(-n)}` : formatRate(n));
@@ -28,8 +28,8 @@ const anchorRows = (a: AnchorParams): [string, string][] => [
 const Kv = ({ rows }: { rows: [string, string][] }) => <dl className="dc-kv">{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>;
 
 // 利率 (PHASE-2.md §9, design system data.md 利率（后台）): the week's anchor with where it comes from, the weekly
-// rates by score, every Monday's anchor with all it was worked out from, and the parameters, read only; the president
-// and the bank admin change them on 参数.
+// rates by score, the fixed 定期周利率, every Monday's anchor with all it was worked out from, and the parameters, read
+// only; the president and the bank admin change them on 参数.
 export default function Rates() {
   const me = useMe().data!;
   const edit = me.roles.includes('teacher') || me.roles.includes('president');
@@ -49,10 +49,10 @@ export default function Rates() {
     queryKey: ['settings', 'rates'],
     queryFn: async () => {
       const { data, error } = await supabase.from('settings').select('key,value')
-        .in('key', ['anchor_params', 'term_multipliers', 'loan_multiplier', 'penalty_multiplier']);
+        .in('key', ['anchor_params', 'term_rates', 'loan_multiplier', 'penalty_multiplier']);
       if (error) throw error;
       const v = Object.fromEntries(data.map((r) => [r.key, r.value]));
-      return { anchor: v.anchor_params, term: v.term_multipliers, loan: v.loan_multiplier, penalty: v.penalty_multiplier } as Params;
+      return { anchor: v.anchor_params, term: v.term_rates, loan: v.loan_multiplier, penalty: v.penalty_multiplier } as Params;
     },
   });
   const o = overview.data;
@@ -83,14 +83,12 @@ export default function Rates() {
               <table className="dc-table" aria-label="按分数的周利率">
                 <thead><tr>
                   <th scope="col">分数</th><th scope="col" className="n">活期</th>
-                  {WEEKS.map((w) => <th key={w} scope="col" className="n">定期 {w} 周</th>)}
                   <th scope="col" className="n">贷款</th><th scope="col" className="n">逾期罚息</th>
                 </tr></thead>
                 <tbody>
                   {o.table.map((r) => (
                     <tr key={r.score}>
                       <td>{r.score} 分</td><td className="n">{formatRate(r.current)}</td>
-                      {WEEKS.map((w) => <td key={w} className="n">{formatRate(r.term[w])}</td>)}
                       <td className="n">{r.loan === null ? '不能贷款' : formatRate(r.loan)}</td><td className="n">{penalty(r.loan)}</td>
                     </tr>
                   ))}
@@ -101,7 +99,17 @@ export default function Rates() {
         </section>
       )}
 
-      <section className="dc-card dc-stack dc-enter" aria-label="每周历史" style={enter(1)}>
+      <section className="dc-card dc-stack dc-enter" aria-label="定期周利率" style={enter(1)}>
+        <div className="dc-section-head">
+          <h2 className="heading">定期周利率</h2>
+          {edit && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/settings')}>在参数页修改</a>}
+        </div>
+        {settings.isError ? <Notice tone="danger" title="暂时无法读取定期周利率">请检查网络后刷新页面。</Notice>
+          : !s ? <ListLoading rows={5} label="正在加载定期周利率" />
+          : <Kv rows={byWeeks(s.term).map(([w, r]): [string, string] => [`${w} 周`, formatRate(r)])} />}
+      </section>
+
+      <section className="dc-card dc-stack dc-enter" aria-label="每周历史" style={enter(2)}>
         <h2 className="heading">每周历史</h2>
         {weeks.isError ? <Notice tone="danger" title="暂时无法读取每周历史">请检查网络后刷新页面。</Notice>
           : !weeks.data ? <ListLoading rows={3} label="正在加载每周历史" />
@@ -136,7 +144,7 @@ export default function Rates() {
           )}
       </section>
 
-      <section className="dc-card dc-stack dc-enter" aria-label="计算参数" style={enter(2)}>
+      <section className="dc-card dc-stack dc-enter" aria-label="计算参数" style={enter(3)}>
         <div className="dc-section-head">
           <h2 className="heading">计算参数</h2>
           {edit && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/settings')}>在参数页修改</a>}
@@ -148,7 +156,6 @@ export default function Rates() {
               <Kv rows={anchorRows(s.anchor).slice(0, 2)} />
               <p className="dc-list-title">系统固定</p>
               <Kv rows={[...anchorRows(s.anchor).slice(2),
-                ['定期倍数', WEEKS.map((w) => `${w} 周 ×${s.term[w]}`).join('、')],
                 ['贷款倍数', `×${s.loan}`],
                 ['罚息倍数', `×${s.penalty}`]]} />
             </>

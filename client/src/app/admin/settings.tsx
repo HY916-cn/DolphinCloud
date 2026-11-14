@@ -6,7 +6,9 @@ import {
   curveDraft, curveProblems, preview, ruleProblem, RULES, rulesDraft, rulesValue, type Curve, type CurveDraft, type Rules,
 } from '@/lib/credit';
 import { AppError, explain } from '@/lib/errors';
-import { rateDraft, rateProblems, rateValues, type AnchorParams, type RateDraft } from '@/lib/rates';
+import {
+  byWeeks, rateDraft, rateProblems, rateValues, termDraft, termProblems, termValues, type AnchorParams, type RateDraft, type TermRates,
+} from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { PAID_ROLES, rateWrong, ratesDraft, ratesValue, type Rates, type RatesDraft } from '@/lib/salary';
 import { ROLES } from '@/lib/session';
@@ -189,20 +191,30 @@ function Percent({ label, value, onChange, error }: { label: string; value: stri
   );
 }
 
-// 利率 (design system data.md 参数页分组): the anchor's start and bounds; the rest is fixed and shown on 利率.
-function RateGroup({ draft, problems, onChange }: {
+// 利率 (design system data.md 参数页分组): 定期周利率, each length's fixed rate; and the anchor's start and bounds, the
+// rest of its parameters fixed and shown on 利率.
+function RateGroup({ term, termWrong, onTerm, draft, problems, onChange }: {
+  term: Record<string, string>; termWrong: Record<string, string>; onTerm: (weeks: string, v: string) => void;
   draft: RateDraft; problems: Partial<RateDraft>; onChange: (k: keyof RateDraft, v: string) => void;
 }) {
   return (
     <section className="dc-stack">
       <h2 className="heading is-section">利率</h2>
-      <p className="dc-caption">从下周一起生效。其余计算参数由系统固定，可在利率页查看。</p>
       <div className="dc-card dc-stack">
+        <p className="dc-list-title">定期周利率</p>
+        <div className="dc-denoms">
+          {byWeeks(term).map(([w, v]) => (
+            <Percent key={w} label={`${w} 周`} value={v} onChange={(x) => onTerm(String(w), x)} error={termWrong[w]} />
+          ))}
+        </div>
+        <p className="dc-caption">新开的定期按这里的利率锁定，已经开的定期不变。</p>
+        <p className="dc-list-title">锚点</p>
         <div className="dc-denoms">
           {([['initial', '初始锚点'], ['min', '锚点下限'], ['max', '锚点上限']] as const).map(([key, label]) => (
             <Percent key={key} label={label} value={draft[key]} onChange={(v) => onChange(key, v)} error={problems[key]} />
           ))}
         </div>
+        <p className="dc-caption">从下周一起生效。其余计算参数由系统固定，可在利率页查看。</p>
       </div>
     </section>
   );
@@ -264,6 +276,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const [curve, setCurve] = useState(() => curveDraft(saved.credit_curve as Curve));
   const [rules, setRules] = useState(() => rulesDraft(saved.credit_rules as Rules));
   const [rates, setRates] = useState(() => rateDraft(saved.anchor_params as AnchorParams));
+  const [term, setTerm] = useState(() => termDraft(saved.term_rates as TermRates));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -280,9 +293,11 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
     credit_curve: Object.fromEntries(Object.entries(curve).map(([k, v]) => [k, Number(v)])),
     credit_rules: rulesValue(rules),
     anchor_params: rateValues(rates, saved.anchor_params as AnchorParams),
+    term_rates: termValues(term),
   };
   const curveWrong = curveProblems(curve);
   const ratesWrong = rateProblems(rates);
+  const termWrong = termProblems(term);
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
   const toggleFace = (f: number) => setFaces(faces.includes(f) ? faces.filter((x) => x !== f) : [...faces, f]);
   const changed = Object.keys(next).filter((k) => stable(next[k]) !== stable(saved[k]));
@@ -290,7 +305,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const ratesChanged = !!nextRates && JSON.stringify(nextRates) !== JSON.stringify(ratesValue(ratesDraft(savedRates)));
   const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING]] as const)
     .some(([value, range]) => outside(value, range)) || Object.keys(curveWrong).length > 0 || Object.values(rules).some((v) => ruleProblem(v))
-    || Object.keys(ratesWrong).length > 0 || !nextRates;
+    || Object.keys(ratesWrong).length > 0 || Object.keys(termWrong).length > 0 || !nextRates;
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
@@ -377,7 +392,8 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
           <p className="dc-top-sub" style={{ margin: 'var(--space-2) 0 0' }}>每年从这天起，所有学生的年级加一</p>
         </div>
       </section>
-      <RateGroup draft={rates} problems={ratesWrong} onChange={(k, v) => setRates({ ...rates, [k]: v })} />
+      <RateGroup term={term} termWrong={termWrong} onTerm={(w, v) => setTerm({ ...term, [w]: v })}
+        draft={rates} problems={ratesWrong} onChange={(k, v) => setRates({ ...rates, [k]: v })} />
       <CreditGroup curve={curve} problems={curveWrong} onCurve={(k, v) => setCurve({ ...curve, [k]: v })}
         rules={rules} onRule={(k, v) => setRules({ ...rules, [k]: v })} />
       <div className="dc-actions">

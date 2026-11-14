@@ -1,10 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, resetData, signIn, sql } from './helpers';
 
-// 定期 (PHASE-2.md §10.2, design system TermDeposit) on the seed data (supabase/seed.sql): 张小明 (20260001) has 108 HTB
-// at 600 points, and no anchor is published (2%: 2 周 2.6%, 4 周 3.12%). A term around today ends in 40 days, so 2 and 4
-// weeks fit and 8 do not. The tests run in order: teller01 opens a 定期 and takes it out early, opens one and reverses
-// it, and opens one that stays; then 张小明 and the bank admin read them.
+// 定期 (PHASE-2.md §10.2, design system TermDeposit) on the seed data (supabase/seed.sql): 张小明 (20260001) has 108 HTB,
+// and the five lengths have the default fixed rates of term_rates (2 周 2.5%, 4 周 2.75%, 12 周 3%, 24 周 3.25%, 48 周
+// 3.5%). A term around today ends in 40 days; the longer lengths mature after it, which is allowed. The tests run in
+// order: teller01 opens a 定期 and takes it out early, opens one and reverses it, and opens one that stays; then 张小明
+// and the bank admin read them; last, a 定期 opens in the holidays.
 test.describe.configure({ mode: 'serial' });
 const DAY = 'app_private.cn_date(now())';
 test.beforeAll(() => {
@@ -16,6 +17,8 @@ const md = (date: string) => sql(`select to_char(${date}, 'FMMM月FMDD日')`);
 const pick = (page: Page, name: string) => page.locator('.dc-seg label', { hasText: name }).click();
 const receipt = (page: Page) => page.locator('aside[aria-label="办理单"]');
 const cards = (page: Page) => page.getByRole('radiogroup', { name: '存期' }).locator('.dc-choice');
+// The card of one length: "2 周" alone would match 12 周 too.
+const card = (page: Page, weeks: number) => cards(page).filter({ hasText: new RegExp(`^${weeks} 周`) });
 const balance = () => sql(`select balance from public.accounts where student_no = '20260001'`);
 
 async function serve(page: Page) {
@@ -28,18 +31,19 @@ async function serve(page: Page) {
 }
 
 async function open(page: Page, weeks: number, amount: number) {
-  await cards(page).filter({ hasText: `${weeks} 周` }).click();
+  await card(page, weeks).click();
   await page.getByPlaceholder('请输入金额').fill(String(amount));
   await page.getByRole('button', { name: '开定期', exact: true }).click();
   await confirmIn(page, '确认开定期');
   await expect(page.locator('.dc-sheet')).toHaveCount(0);
 }
 
-test('柜台「定期」: the lengths that end in term, 开定期, 提前支取 with its interest, and 冲正 of a 开定期', async ({ page }) => {
+test('柜台「定期」: five lengths at fixed rates, 开定期, 提前支取 with its interest, and 冲正 of a 开定期', async ({ page }) => {
   const four = md(`${DAY} + 28`);
   await serve(page);
-  await expect(cards(page)).toHaveText([`2 周${md(`${DAY} + 14`)} 到期2.6%/周`, `4 周${four} 到期3.12%/周`]);
-  await expect(page.locator('p.dc-caption', { hasText: '本学期' })).toHaveText(`本学期 ${md(`${DAY} + 40`)} 结束，最长只能选 4 周。`);
+  await expect(cards(page)).toHaveText([`2 周${md(`${DAY} + 14`)} 到期2.5%/周`, `4 周${four} 到期2.75%/周`,
+    `12 周${md(`${DAY} + 84`)} 到期3%/周`, `24 周${md(`${DAY} + 168`)} 到期3.25%/周`, `48 周${md(`${DAY} + 336`)} 到期3.5%/周`]);
+  await expect(page.locator('p.dc-caption', { hasText: '本学期' })).toHaveCount(0);
   await expect(page.locator('.dc-list-item')).toHaveCount(0);
   await expect(page.getByText('还没有定期。')).toBeVisible();
 
@@ -51,8 +55,8 @@ test('柜台「定期」: the lengths that end in term, 开定期, 提前支取 
   await amount.fill('100');
   await expect(hint).toHaveText('选好存期后显示到期拿回多少');
   await expect(page.getByRole('button', { name: '开定期', exact: true })).toBeDisabled();
-  await cards(page).filter({ hasText: '4 周' }).click();
-  await expect(hint).toHaveText('到期拿回 112.48 HTB · 3.12%/周');
+  await card(page, 4).click();
+  await expect(hint).toHaveText('到期拿回 111.00 HTB · 2.75%/周');
   await expect(receipt(page)).toContainText(`开定期（正在办理）4 周，${four} 到期−100`);
   await expect(receipt(page)).toContainText('办理后余额8 HTB');
   await expect(page.locator('.dc-actions-total')).toHaveText('存入定期办理后余额 8 HTB100HTB');
@@ -60,12 +64,12 @@ test('柜台「定期」: the lengths that end in term, 开定期, 提前支取 
   await page.getByRole('button', { name: '开定期', exact: true }).click();
   const sheet = page.locator('.dc-sheet');
   await expect(sheet.locator('.dc-sheet-title')).toHaveText('给张小明开定期 100 HTB？');
-  await expect(sheet.locator('.dc-kv > div')).toHaveText(['存期4 周', `到期日${four}`, '周利率3.12%/周（到期前不变）', '到期拿回112.48 HTB', '活期余额108 → 8 HTB']);
+  await expect(sheet.locator('.dc-kv > div')).toHaveText(['存期4 周', `到期日${four}`, '周利率2.75%/周（到期前不变）', '到期拿回111.00 HTB', '活期余额108 → 8 HTB']);
   await expect(sheet).toContainText('到期当天结束时自动转回活期。提前支取只按活期算利息。');
   await confirmIn(page, '确认开定期');
   await expect(receipt(page)).toContainText(`开定期4 周，${four} 到期 · HT`);
   await expect(page.locator('.dc-person-side')).toHaveText('8当前余额 HTB');
-  await expect(page.locator('.dc-list-item')).toHaveText([`定期 4 周存 100 HTB，到期拿回 112.48 HTB${four} 到期 · 3.12%/周存期中提前支取`]);
+  await expect(page.locator('.dc-list-item')).toHaveText([`定期 4 周存 100 HTB，到期拿回 111.00 HTB${four} 到期 · 2.75%/周存期中提前支取`]);
 
   // Held a week, it pays the 活期 rate of each of those days (PHASE-2.md §9.5); the server works it out.
   sql(`update public.term_deposits set opened_on = opened_on - 7 where student_no = '20260001'`);
@@ -128,7 +132,7 @@ test('学生: 定期合计 on the home page, 我的定期 on 信用, and the 定
   const four = md(`${DAY} + 28`);
   const items = page.locator('.dc-list-item');
   await expect(items).toHaveCount(2);
-  await expect(items.first()).toHaveText(`定期 4 周存 30 HTB，到期拿回 33.74 HTB${four} 到期 · 3.12%/周存期中`);
+  await expect(items.first()).toHaveText(`定期 4 周存 30 HTB，到期拿回 33.30 HTB${four} 到期 · 2.75%/周存期中`);
   await expect(items.last()).toContainText('定期 4 周存 100 HTB，提前取出，利息');
   await expect(items.last()).toContainText('已提前支取');
   await expect(page.getByRole('button', { name: /提前支取/ })).toHaveCount(0);
@@ -182,6 +186,17 @@ test('柜台业务栏: six businesses take two rows of three at 390 wide', async
   expect(d.y).toBeGreaterThan(a.y + a.height - 1);
   expect([e.y, f.y]).toEqual([d.y, d.y]);
   expect(d.x).toBe(a.x);
-  await expect(cards(page)).toHaveCount(2);
+  await expect(cards(page)).toHaveCount(5);
   await page.close();
+});
+
+test('in the holidays the counter opens a 定期 as in term, with no notice', async ({ page }) => {
+  sql(`update public.terms set ends_on = ${DAY} - 1`);
+  const before = Number(balance());
+  await serve(page);
+  await expect(cards(page)).toHaveCount(5);
+  await expect(page.getByText('不在学期内')).toHaveCount(0);
+  await open(page, 2, 5);
+  await expect(page.locator('.dc-person-side')).toHaveText(`${before - 5}当前余额 HTB`);
+  expect(sql(`select weeks || ' ' || rate from public.term_deposits where status = 'open' order by opened_on desc, principal limit 1`)).toBe('2 2.5000');
 });

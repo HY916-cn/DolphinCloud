@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatCenti, formatRate } from '@/lib/format';
-import { maturityCenti, weekCenti, type Weeks } from '@/lib/rates';
+import { byWeeks, maturityCenti, weekCenti, type TermRates } from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
 import { inTerm, monthDay } from '@/lib/term';
@@ -12,7 +12,7 @@ import { KvLoading } from './Skeleton';
 // the weekly rates at the student's score (loan null: too low to borrow) and 攒着的利息 (not yet paid in) in 0.01 HTB.
 export type InterestProfile = {
   student_no: string; score: number; week_start: string | null; anchor: number;
-  rates: { current: number; term: Record<Weeks, number>; loan: number | null }; pending_centi: number;
+  rates: { current: number; term: TermRates; loan: number | null }; pending_centi: number;
 };
 export const useInterest = () => useQuery({ queryKey: ['interest', 'me'], queryFn: () => call<InterestProfile>('interest_profile', {}) });
 
@@ -45,13 +45,13 @@ export function RateCard({ min }: { min: number }) {
           <section className="dc-card dc-stack" aria-label="本周利率">
             <ul className="dc-rate-list">
               <li>活期存 100 HTB，一周多得约 {htb(weekCenti(p.rates.current))}{week(p.rates.current)}</li>
-              {(['2', '4', '8'] as const).map((w) => (
-                <li key={w}>定期 {w} 周存 100 HTB，到期拿回 {htb(maturityCenti(p.rates.term[w], Number(w)))}{week(p.rates.term[w])}</li>
+              {byWeeks(p.rates.term).map(([w, r]) => (
+                <li key={w}>定期 {w} 周存 100 HTB，到期拿回 {htb(maturityCenti(r, w))}{week(r)}</li>
               ))}
               <li>{p.rates.loan === null ? `${min} 分以上才能贷款` : <>借 100 HTB，一周利息约 {htb(weekCenti(p.rates.loan))}{week(p.rates.loan)}</>}</li>
             </ul>
             <p className="dc-caption">
-              信用分越高，存钱多得，借钱少付。{term === false ? '放假时不算利息，开学后按这组利率算。'
+              信用分越高，活期多得，借钱少付；定期利率是固定的。{term === false ? '放假时活期不算利息，定期照常算。'
                 : !p.week_start ? '本周利率还没有公布，先按初始利率显示。每周一公布。'
                 : `${monthDay(p.week_start)}公布，每周一更新。`}
             </p>

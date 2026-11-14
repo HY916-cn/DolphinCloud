@@ -1,11 +1,13 @@
 // 利率 (PHASE-2.md §9.2): the 罚息 a loan rate gives, as the database makes it (app_private.penalty_rate), for the
 // 罚息 column of 利率; the student's examples on 100 HTB; and the checks set_setting makes on the three anchor_params
-// the 参数 page edits (§14.3), so a wrong value is marked before anything is sent.
+// and the term_rates the 参数 page edits (§14.3), so a wrong value is marked before anything is sent.
 
 export type AnchorParams = Record<
   'initial' | 'min' | 'max' | 'ratio_target' | 'ratio_step' | 'growth_target' | 'growth_step' | 'weight' | 'max_adjust', number>;
-export type Weeks = '2' | '4' | '8';
-export const WEEKS: Weeks[] = ['2', '4', '8'];
+// term_rates (PHASE-2.md §14.3): the fixed weekly rate of each 定期 length, keyed by its weeks ("2", "4", "12", …).
+export type TermRates = Record<string, number>;
+// [weeks, value] of an object keyed by weeks, shortest first.
+export const byWeeks = <T>(r: Record<string, T>) => Object.entries(r).map(([w, v]) => [Number(w), v] as const).sort((a, b) => a[0] - b[0]);
 
 // Every value in ten-thousandths and the product in BigInt, so a rate rounds once, exactly, as SQL's numeric does.
 const e4 = (x: number) => BigInt(Math.round(x * 10_000));
@@ -29,6 +31,8 @@ const EDITABLE = ['initial', 'min', 'max'] as const;
 export const ANCHOR_RANGE = '请输入 0.01 到 100 的数，最多 2 位小数';
 export const ANCHOR_ORDER = '要满足：下限 ≤ 初始锚点 ≤ 上限';
 
+const outsideRange = (v: string) => !/^\d+(\.\d{1,2})?$/.test(v) || Number(v) < 0.01 || Number(v) > 100;
+
 // The 利率 group as the page edits it: each value as typed.
 export type RateDraft = Record<(typeof EDITABLE)[number], string>;
 export const rateDraft = (a: AnchorParams): RateDraft => ({ initial: String(a.initial), min: String(a.min), max: String(a.max) });
@@ -40,10 +44,15 @@ export const rateValues = (d: RateDraft, saved: AnchorParams): AnchorParams =>
 // means the group can be saved.
 export function rateProblems(d: RateDraft) {
   const p: Partial<RateDraft> = {};
-  for (const k of EDITABLE) {
-    if (!/^\d+(\.\d{1,2})?$/.test(d[k]) || Number(d[k]) < 0.01 || Number(d[k]) > 100) p[k] = ANCHOR_RANGE;
-  }
+  for (const k of EDITABLE) if (outsideRange(d[k])) p[k] = ANCHOR_RANGE;
   const n = (k: keyof RateDraft) => (p[k] ? NaN : Number(d[k]));
   if (n('min') > n('initial') || n('initial') > n('max') || n('min') > n('max')) EDITABLE.forEach((k) => { p[k] ??= ANCHOR_ORDER; });
   return p;
 }
+
+// 定期周利率 as the page edits it, each length's rate as typed, and the whole term_rates set_setting takes. Each is
+// marked with ANCHOR_RANGE when out of range; an empty result means it can be saved.
+export const termDraft = (t: TermRates): Record<string, string> => Object.fromEntries(Object.entries(t).map(([w, r]) => [w, String(r)]));
+export const termValues = (d: Record<string, string>): TermRates => Object.fromEntries(Object.entries(d).map(([w, r]) => [w, Number(r)]));
+export const termProblems = (d: Record<string, string>) =>
+  Object.fromEntries(Object.entries(d).filter(([, v]) => outsideRange(v)).map(([w]) => [w, ANCHOR_RANGE])) as Record<string, string>;

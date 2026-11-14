@@ -29,7 +29,7 @@ const FIELDS: Record<string, string> = {
   promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', rates: '工资标准',
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '说明', status: '审核结果', week: '发放的周',
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
-  anchor_params: '锚点参数', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
+  anchor_params: '锚点参数', term_rates: '定期周利率', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
   plan: '还款方式', periods: '期数', via: '放款方式', purpose: '用途', loan_id: '这笔贷款', terminate_reason: '终止原因',
 };
 
@@ -86,10 +86,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };
     case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
     case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码输错次数过多，请 15 分钟后再试。' };
-    // `business` (开定期) is the counter's own: the server sends no detail.
-    case 'NO_TERM': return { title: '现在不在学期内', text: d.business ? `现在不在学期内，不能${d.business}。` : '还没有登记当前学期，暂时不能办理贷款和定期。' };
+    // Only loans need a current term. `business` (贷款) is the counter's own: the server sends no detail.
+    case 'NO_TERM': return { title: '现在不在学期内', text: d.business ? `现在不在学期内，不能${d.business}。` : '还没有登记当前学期，暂时不能办理贷款。' };
     case 'TERM_TOO_LONG':
-      return { title: '存期超过学期末', text: `本学期 ${monthDay(String(d.ends_on))} 结束，${d.max_weeks == null ? '已经放不下定期' : `最长只能选 ${d.max_weeks} 周`}。` };
+      return { title: '期限超过学期末', text: `本学期 ${monthDay(String(d.ends_on))} 结束，${d.max_weeks == null ? '不到一周，不能贷款' : `最长只能选 ${d.max_weeks} 周`}。` };
     case 'CREDIT_TOO_LOW': return { title: '信用分不够', text: `信用分 ${d.min_score} 分以上才能贷款，现在是 ${d.score} 分。` };
     case 'OVER_CREDIT_LIMIT': return { title: '超过贷款额度', text: `按现在的信用分，最多能贷 ${d.limit} HTB。` };
     case 'REPAY_TOO_MUCH': return { title: '还款金额太多', text: `这笔贷款现在一共只需还 ${d.max} HTB。` };

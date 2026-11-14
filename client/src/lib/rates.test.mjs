@@ -1,6 +1,6 @@
 // node src/lib/rates.test.mjs — the 罚息 and the examples against PHASE-2.md §9.2, and the checks on an edited 利率 group.
 import assert from 'node:assert/strict';
-const { ANCHOR_ORDER, ANCHOR_RANGE, maturityCenti, pendingNote, penaltyRate, rateDraft, rateProblems, rateValues, weekCenti } = await import('./rates.ts');
+const { ANCHOR_ORDER, ANCHOR_RANGE, byWeeks, maturityCenti, pendingNote, penaltyRate, rateDraft, rateProblems, rateValues, termDraft, termProblems, termValues, weekCenti } = await import('./rates.ts');
 
 // The examples on 100 HTB, in 0.01 HTB: rounded half up for a week, truncated at maturity.
 assert.equal(weekCenti(2.08), 208);
@@ -40,4 +40,19 @@ assert.deepEqual(rateProblems({ initial: '0.01', min: '0.01', max: '100' }), {})
 assert.equal(pendingNote(37), '满 1 HTB 再存进余额');
 assert.equal(pendingNote(99), '满 1 HTB 再存进余额');
 assert.equal(pendingNote(100), '下周一存进余额');
+
+// term_rates as the server returns it (keys in jsonb's order: shortest key first), listed by weeks; 4 周 at 2.75% pays 111.00.
+const term = { '2': 2.5, '4': 2.75, '12': 3, '24': 3.25, '48': 3.5 };
+assert.deepEqual(byWeeks({ '12': 3, '2': 2.5, '24': 3.25, '4': 2.75, '48': 3.5 }), [[2, 2.5], [4, 2.75], [12, 3], [24, 3.25], [48, 3.5]]);
+assert.deepEqual(byWeeks({ '8': 4 }), [[8, 4]]);
+assert.equal(maturityCenti(2.75, 4), 11_100);
+assert.equal(maturityCenti(3.5, 48), 26_800);
+// 定期周利率: the defaults pass and save unchanged; each value is checked on its own.
+const t = termDraft(term);
+assert.deepEqual(t, { '2': '2.5', '4': '2.75', '12': '3', '24': '3.25', '48': '3.5' });
+assert.deepEqual(termProblems(t), {});
+assert.deepEqual(termValues(t), term);
+assert.deepEqual(termValues({ ...t, '12': '3.05' }), { ...term, '12': 3.05 });
+assert.deepEqual(termProblems({ ...t, '2': '0', '48': '100.01', '24': '3.255', '4': '' }), { '2': ANCHOR_RANGE, '4': ANCHOR_RANGE, '24': ANCHOR_RANGE, '48': ANCHOR_RANGE });
+assert.deepEqual(termProblems({ ...t, '2': '0.01', '48': '100' }), {});
 console.log('rates ok');

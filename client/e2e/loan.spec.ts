@@ -124,7 +124,7 @@ test('柜台「贷款」: the six businesses, a new loan with its plan, repaymen
 
   // A 定期 waits for the loan to be paid off; the sheet stays open with the reason.
   await pick(page, '定期');
-  await page.getByRole('radiogroup', { name: '存期' }).locator('.dc-choice', { hasText: '2 周' }).click();
+  await page.getByRole('radiogroup', { name: '存期' }).locator('.dc-choice', { hasText: /^2 周/ }).click();
   await page.getByPlaceholder('请输入金额').fill('10');
   await page.getByRole('button', { name: '开定期', exact: true }).click();
   await confirmIn(page, '确认开定期');

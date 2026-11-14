@@ -19,7 +19,7 @@ import {
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { monthDay } from '@/lib/term';
-import { amountHint, backCenti, maxWeeks, type TermDeposit } from '@/lib/term-deposits';
+import { amountHint, backCenti, type TermDeposit } from '@/lib/term-deposits';
 import { toTxn, type TxnRow } from '@/lib/txns';
 import { CashCounter, QtySum, Summary } from './Counter';
 import { FilterBar, filtered, NO_FILTER, wrongTimes, type Filter } from './Filter';
@@ -264,9 +264,10 @@ export function WithdrawPanel({ student, served, onDone, onEnd, onReverse }: Pro
 
 const INACTIVE: Record<string, string> = { frozen: '账户已冻结', graduated: '账户已毕业' };
 
-// 定期 (PHASE-2.md §10.2, design system TermDeposit): from term_quote, the lengths that end in term with their locked
-// rates, the amount out of 活期 with what comes back at maturity, and the student's 定期 with 提前支取. 开定期 is checked
-// once more in a sheet; a refusal stays in the sheet. A frozen or graduated account only lists its 定期.
+// 定期 (PHASE-2.md §10.2, design system TermDeposit): from term_quote, the five lengths with their fixed rates (in term
+// and in the holidays alike), the amount out of 活期 with what comes back at maturity, and the student's 定期 with
+// 提前支取. 开定期 is checked once more in a sheet; a refusal stays in the sheet. A frozen or graduated account only lists
+// its 定期.
 export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) {
   const stale = useStaleRefusal();
   const done = served.length + served.filter((s) => s.reversed).length;
@@ -286,12 +287,7 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
   const balance = q?.balance ?? student.balance ?? 0;
   const option = q?.options.find((o) => o.weeks === weeks);
   const hint = amountHint(amount, balance, option);
-  const closed = !q || inactive ? null
-    : !q.term ? explain('NO_TERM', { business: '开定期' }).text
-    : !q.options.length ? explain('TERM_TOO_LONG', { ends_on: q.term.ends_on, max_weeks: null }).text
-    : null;
-  const open = !!q && !inactive && !closed;
-  const longest = q ? maxWeeks(q.options) : null;
+  const open = !!q && !inactive;
   const ready = !!option && !!amount && !hint.error;
   const what = option ? `${option.weeks} 周，${monthDay(option.matures_on)} 到期` : '';
 
@@ -349,19 +345,15 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
         <section className="dc-stack">
           {quote.error ? <Notice tone="danger" title="暂时无法读取定期">请检查网络后再试一次。</Notice>
             : !q ? <KvLoading rows={3} />
-            : closed ? <Notice title={closed} />
             : open && (
               <>
-                <div className="dc-stack">
-                  <div className="dc-choices dc-kind-save" role="radiogroup" aria-label="存期">
-                    {q.options.map((o) => (
-                      <label key={o.weeks} className="dc-choice">
-                        <input type="radio" name="weeks" checked={weeks === o.weeks} onChange={() => setWeeks(o.weeks)} />
-                        <span><b>{o.weeks} 周</b><small>{monthDay(o.matures_on)} 到期</small><small>{formatRate(o.rate)}/周</small></span>
-                      </label>
-                    ))}
-                  </div>
-                  {longest && q.term && <p className="dc-caption">{explain('TERM_TOO_LONG', { ends_on: q.term.ends_on, max_weeks: longest }).text}</p>}
+                <div className="dc-choices dc-kind-save" role="radiogroup" aria-label="存期">
+                  {q.options.map((o) => (
+                    <label key={o.weeks} className="dc-choice">
+                      <input type="radio" name="weeks" checked={weeks === o.weeks} onChange={() => setWeeks(o.weeks)} />
+                      <span><b>{o.weeks} 周</b><small>{monthDay(o.matures_on)} 到期</small><small>{formatRate(o.rate)}/周</small></span>
+                    </label>
+                  ))}
                 </div>
                 <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
                   <span className="dc-field-label"><Icon name="savings" />定期金额</span>
