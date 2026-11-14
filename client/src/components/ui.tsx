@@ -37,12 +37,13 @@ export function link(href: string) {
 
 const NOTICE = { info: 'help', success: 'success', danger: 'warning', coin: 'coin' } as const;
 
-export function Notice({ tone = 'info', title, children, className = '' }: {
-  tone?: keyof typeof NOTICE; title: string; children?: ReactNode; className?: string;
+// `icon` replaces the tone's own (a warning in the default colour: 理财可能亏损).
+export function Notice({ tone = 'info', title, icon, children, className = '' }: {
+  tone?: keyof typeof NOTICE; title: string; icon?: IconName; children?: ReactNode; className?: string;
 }) {
   return (
     <div className={`dc-notice ${tone === 'info' ? '' : `dc-notice-${tone}`} ${className}`} role={tone === 'danger' ? 'alert' : 'status'}>
-      <Icon name={NOTICE[tone]} />
+      <Icon name={icon ?? NOTICE[tone]} />
       <div>
         <p className="dc-notice-title">{title}</p>
         {children && <p className="dc-notice-text">{children}</p>}

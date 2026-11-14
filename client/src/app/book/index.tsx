@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   BookPages, CreditGauge, DIVISIONS, link, Notice, PassbookPage, PassbookRows, PassbookSeal, signed, TxnListLoading, useCredit, useGaugeCurve, useInterest,
-  useLines, useMyLoans, useMyTerms, useRanking, useTerm, useWide,
+  useLines, useMyLoans, useMyTerms, useMyWealth, useRanking, useTerm, useWide,
 } from '@/components';
+import { heldValue } from '@/lib/wealth';
 import { formatAmount, formatCenti, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { homeLoanLine, openLoan } from '@/lib/loans';
@@ -12,7 +13,7 @@ import { useMe } from '@/lib/session';
 
 // 账户: the account's page with the balance under the bank's seal, the 海豚信用分 on a small gauge, this term's money in
 // and out and, when two pages face each other, the place in the division (a phone's page gives that line to 信用分); facing it (on a phone, the next page), the latest businesses a page holds with the balance after each, the
-// ones new since this device last opened it printed as you watch; then 攒着的利息, 定期合计 and 贷款 as the 首页 writes them
+// ones new since this device last opened it printed as you watch; then 攒着的利息, 定期合计, 理财 and 贷款 as the 首页 writes them
 // (无 where the 首页 writes 没有), each line on its own: "…" while it is read, "—" when it cannot be.
 export default function BookAccount() {
   const student = useMe().data!.student!;
@@ -26,6 +27,8 @@ export default function BookAccount() {
   const open = loans.data && openLoan(loans.data);
   const loan = open && homeLoanLine(open);
   const due = terms.data && nextMaturity(terms.data);
+  const wealth = useMyWealth(student.student_no);
+  const held = wealth.data && heldValue(wealth.data);
   const curve = useGaugeCurve();
   const wide = useWide();
   const lines = useLines();
@@ -72,20 +75,23 @@ export default function BookAccount() {
             <p className="dc-pb-empty"><b>还没有交易记录</b>在柜台办理存款后，这里会打印每一笔交易。</p>
           )}
       </PassbookPage>,
-      <PassbookPage key="sums" title="利息 · 定期 · 贷款">
+      <PassbookPage key="sums" title="利息 · 定期 · 理财 · 贷款">
         <dl className="dc-pb-fields">
           <dt>攒着的利息</dt>
           <dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB<small>{pendingNote(interest.data.pending_centi)}</small></> : interest.isError ? '—' : '…'}</dd>
           <dt>定期合计</dt>
           <dd>{!term.data ? (term.error ? '—' : '…') : term.data.term_total ? <>{formatAmount(term.data.term_total)} HTB{due && <small>{due}</small>}</> : '无'}</dd>
+          <dt>理财</dt>
+          <dd>{wealth.isError ? '—' : !wealth.data ? '…' : held ? <>{held.text}<small>{held.gain.cls === 'is-down' ? <span className="dc-pl is-down">{held.gain.text}</span> : held.gain.text}</small></> : '无'}</dd>
           <dt>贷款</dt>
           <dd className={loan?.danger ? 'is-danger' : undefined}>{loan ? <>{loan.text}{loan.note && <small>{loan.note}</small>}</> : open === null ? '无' : loans.isError ? '—' : '…'}</dd>
         </dl>
         <ol className="dc-pb-rules" aria-label="说明">
           <li>利息每周一满 1 HTB 存进余额。</li>
           <li>定期到期当天结束时连本带息转回活期。</li>
+          <li>理财跟着中国股市的一个指数每天涨跌，可能亏损。</li>
           <li>贷款每期应还日结束时从活期自动扣。</li>
-          <li>要看每笔定期和还款计划，在我的栏换回普通版，再到信用页查看。</li>
+          <li>要看每笔定期、理财和还款计划，在我的栏换回普通版，再到信用页查看。</li>
         </ol>
       </PassbookPage>,
     ]} />

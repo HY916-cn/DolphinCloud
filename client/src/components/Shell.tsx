@@ -17,6 +17,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/credit', icon: 'gauge', label: '信用分', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/loans', icon: 'loan', label: '贷款', roles: ['accountant', 'teacher', 'president'], kind: 'dc-kind-withdraw' },
   { href: '/admin/rates', icon: 'rate', label: '利率', roles: ['accountant', 'teacher', 'president'] },
+  { href: '/admin/wealth', icon: 'invest', label: '理财', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher', 'president'] },
   { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'president', 'sysadmin'] },
 ];

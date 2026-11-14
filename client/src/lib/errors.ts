@@ -30,6 +30,7 @@ const FIELDS: Record<string, string> = {
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '说明', status: '审核结果', week: '发放的周',
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
   anchor_params: '锚点参数', term_rates: '定期周利率', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
+  holding_id: '这笔理财', tier: '档位', change: '指数涨跌', wealth_params: '理财参数',
   plan: '还款方式', periods: '期数', via: '放款方式', purpose: '用途', loan_id: '这笔贷款', terminate_reason: '终止原因',
 };
 
@@ -46,6 +47,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'REVERSAL_NOT_ALLOWED':
       return { title: '不能冲正这笔业务', text: d.type === 'term_open' ? '这笔定期已经到期或提前支取，不能再冲正。'
         : d.type === 'term_close' ? '已过到期日，不能再冲正这笔提前支取。'
+        : d.type === 'wealth_buy' ? '这笔理财已经开始计收益或已转回，不能再冲正。'
+        : d.type === 'wealth_close' ? '已过到期日，不能再冲正这笔赎回。'
         : d.type === 'loan' ? '这笔贷款已经开始还款，不能再冲正。'
         : d.type === 'repay' ? '只能冲正这笔贷款最近的一笔还款。' : '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
     case 'REVERSAL_INSUFFICIENT_BALANCE':
@@ -61,10 +64,17 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'INVALID_INPUT':
       if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
       if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '运维员不参与考勤。' };
+      if (d.field === 'tier') return { title: '还没有选档位', text: '请选择档位。' };
+      if (d.field === 'holding_id') return { title: '不能赎回', text: '这笔理财已经到期或冲正，不能赎回。' };
+      if (d.field === 'change') return { title: '指数涨跌有误', text: '指数涨跌要在 −50% 到 50% 之间，最多 4 位小数。' };
+      // `wealth` (登记指数涨跌) is the 理财 page's own: the server sends no detail.
+      if (d.wealth && d.field === 'day') return { title: '日期有误', text: '只能登记已经过去的工作日。' };
+      if (d.wealth && d.field === 'note') return { title: '说明有误', text: '请写明数据从哪里来，最多 200 字。' };
       if (d.field === 'loan_id' && d.status) return { title: '这笔贷款不能还款', text: d.status === 'closed' ? '这笔贷款已经结清。' : '这笔贷款已经作废。' };
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };
     case 'ALREADY_EXISTS':
       if (d.field === 'attendance') return { title: '已经登记过', text: '这个班次已经有记录。' };
+      if (d.wealth && d.field === 'day') return { title: '已经有行情', text: '这一天已经有行情，不能再登记。' };
       return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
     case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
     case 'PRODUCT_NOT_FOUND': return { title: '商品不存在', text: '请刷新后重新选择商品。' };
@@ -94,9 +104,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'CREDIT_TOO_LOW': return { title: '信用分不够', text: `信用分 ${d.min_score} 分以上才能贷款，现在是 ${d.score} 分。` };
     case 'OVER_CREDIT_LIMIT': return { title: '超过贷款额度', text: `按现在的信用分，最多能贷 ${d.limit} HTB。` };
     case 'REPAY_TOO_MUCH': return { title: '还款金额太多', text: `这笔贷款现在一共只需还 ${d.max} HTB。` };
-    // On 注销 the server names the student by number; the page passes the `name` it lists.
+    // On 注销 the server names the student by number; the page passes the `name` it lists. `wealth` (买理财) is the counter's own.
     case 'LOAN_OUTSTANDING':
-      return { title: '还有贷款没还清', text: d.loan_no ? `${d.name ?? `学号 ${d.student_no}`} 还有贷款没还清，结清后才能注销。` : '先还清这笔贷款，才能办新贷款或新定期。' };
+      return { title: '还有贷款没还清', text: d.loan_no ? `${d.name ?? `学号 ${d.student_no}`} 还有贷款没还清，结清后才能注销。`
+        : d.wealth ? '先还清这笔贷款，才能买理财。' : '先还清这笔贷款，才能办新贷款或新定期。' };
     case 'TERM_OPEN_ITEMS': return { title: '还不能结转', text: '下面这些处理完后，再结转学期。' };
     case 'TERM_OVERLAP': return { title: '学期日期重叠', text: `和「${d.term}」的日期重叠，请调整开始日或结束日。` };
     case 'TERM_NOT_ENDED': return { title: '学期还没结束', text: `${monthDay(String(d.ends_on))} 之后才能结转。` };

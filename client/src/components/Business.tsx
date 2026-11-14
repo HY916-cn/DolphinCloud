@@ -2,7 +2,8 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useState, type ReactNode } from 'react';
 import { cashTotal, describeCash, makeChange, nonEmpty, type Counts } from '@/lib/cash';
 import {
-  classOf, deposit, loanPreview, loanQuote, newId, openLoan, openTermDeposit, purchase, repayLoan, termQuote, useSettings, withdraw, withdrawTermEarly,
+  buyWealth, classOf, deposit, loanPreview, loanQuote, newId, openLoan, openTermDeposit, purchase, redeemWealth, repayLoan, termQuote, useSettings, wealthQuote,
+  withdraw, withdrawTermEarly,
   type Student, type TxnResult,
 } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
@@ -21,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { monthDay } from '@/lib/term';
 import { amountHint, backCenti, type TermDeposit } from '@/lib/term-deposits';
 import { toTxn, type TxnRow } from '@/lib/txns';
+import { amountHint as wealthHint, bounds, gain, plainPct, plClass, signedPct, tierLabel, type WealthHolding } from '@/lib/wealth';
 import { CashCounter, QtySum, Summary } from './Counter';
 import { FilterBar, filtered, NO_FILTER, wrongTimes, type Filter } from './Filter';
 import { Stats, Table } from './Report';
@@ -31,6 +33,7 @@ import { ConfirmSheet } from './Sheet';
 import { TxnListLoading } from './Account';
 import { today } from './DatePicker';
 import { TermList } from './TermDeposit';
+import { WealthList } from './Invest';
 import { Toast } from './Toast';
 import { KvLoading, TilesLoading } from './Skeleton';
 import { Icon, Notice } from './ui';
@@ -42,11 +45,12 @@ import { Icon, Notice } from './ui';
 // line in the 办理单. A finished business goes to onDone and the panel starts again empty;
 // onEnd ends the visit. `amount` is the change to the account (null when it is untouched: a cash exchange, an
 // offline deposit's balance); `txnId` is null when the line has no 冲正 here: an offline deposit until it is uploaded,
-// a 提前支取. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either; `loanId`
+// a 提前支取 or a 理财赎回. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either, and
+// `wealthId` a 买理财 to its 赎回 the same way; `loanId`
 // ties a 贷款 to its 还款, and only the latest of them has 冲正. `type` is the transaction's, for the reason a 冲正 is refused.
 export type Served = {
   label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean; termId?: string;
-  loanId?: string; type?: string;
+  loanId?: string; wealthId?: string; type?: string;
 };
 type Props = { student: Student; served: Served[]; onDone: (s: Served) => void; onEnd: () => void; onReverse: (s: Served) => void };
 type Problem = { title: string; text: string } | null;
@@ -73,7 +77,7 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
             <dt>
               {s.label}{s.reversed && '（已冲正）'}
               <small className="dc-top-sub">{[s.detail, s.txnNo ?? '联网后入账'].filter(Boolean).join(' · ')}</small>
-              {s.txnId && !s.reversed && !served.some((x) => x !== s && s.termId && x.termId === s.termId)
+              {s.txnId && !s.reversed && !served.some((x) => x !== s && ((s.termId && x.termId === s.termId) || (s.wealthId && x.wealthId === s.wealthId)))
                 && !served.slice(i + 1).some((x) => s.loanId && x.loanId === s.loanId && x.type === 'repay' && !x.reversed) && (
                 <button className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-inline" type="button" style={{ marginTop: 'var(--space-1)' }}
                   aria-label={`冲正${s.label}`} onClick={() => onReverse(s)}><Icon name="transfer" />冲正</button>
@@ -392,6 +396,205 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
         <ConfirmSheet title={`提前支取这笔定期 ${formatAmount(early.principal)} HTB？`} confirm="提前支取" busy={busy}
           text="不付定期利息，只按活期利率算存入这些天的利息，当天支取没有利息。本金和利息转回活期。"
           onConfirm={withdrawEarly} onClose={() => { setEarly(null); setError(null); }}>
+          {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+        </ConfirmSheet>
+      )}
+      {toast && <Toast text={toast} onDone={() => setToast(null)} />}
+    </>
+  );
+}
+
+// 理财 (PHASE-2.md §10.10, design system Invest): from wealth_quote, the index's latest trading day with the 10 before
+// it, the risk, the five lengths, then each tier with today's rate and its daily bounds, the amount out of 活期, and the
+// student's 理财 with 赎回. 买理财 and 赎回 are checked once more in a sheet; a refusal stays in the sheet. A frozen or
+// graduated account only lists its 理财.
+export function WealthPanel({ student, served, onDone, onEnd, onReverse }: Props) {
+  const stale = useStaleRefusal();
+  const done = served.length + served.filter((s) => s.reversed).length;
+  const quote = useQuery({ queryKey: ['wealth-quote', student.student_no, done], queryFn: () => wealthQuote(student.student_no) });
+  const [weeks, setWeeks] = useState<number | null>(null);
+  const [tierKey, setTierKey] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [id, setId] = useState(newId);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [redeeming, setRedeeming] = useState<WealthHolding | null>(null);
+  const [error, setError] = useState<Problem>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const q = quote.data;
+  const inactive = INACTIVE[student.status];
+  const amount = Number(text) || 0;
+  const balance = q?.balance ?? student.balance ?? 0;
+  const option = q?.options.find((o) => o.weeks === weeks);
+  const tier = option?.tiers.find((t) => t.key === tierKey);
+  const hint = wealthHint(amount, balance);
+  const open = !!q && !inactive;
+  const ready = !!tier && !!amount && !hint.error;
+  const what = option && tier ? `${option.weeks} 周 · ${tierLabel(tier)}，${monthDay(option.matures_on)} 到期` : '';
+  // LOAN_OUTSTANDING says 买理财 here.
+  const refusal = (e: unknown) => {
+    const err = e instanceof AppError ? e : new AppError('');
+    return explain(err.code, { ...err.detail, wealth: true });
+  };
+
+  async function submit() {
+    if (busy || !option || !tier) return; // the same id is idempotent on the server too
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await buyWealth(id, student.student_no, amount, option.weeks, tier.key);
+      onDone({ label: '买理财', detail: what, amount: -amount, txnNo: result.txn_no, txnId: result.id, wealthId: result.holding.id, type: 'wealth_buy' });
+      setConfirming(false);
+      setWeeks(null);
+      setTierKey(null);
+      setText('');
+      setId(newId());
+    } catch (e) {
+      stale(e);
+      setError(refusal(e));
+      quote.refetch();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function redeem() {
+    if (busy || !redeeming) return; // sent again, the server returns the same 赎回
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await redeemWealth(redeeming.id);
+      const g = gain(result.holding.value_centi - 100 * result.holding.principal);
+      onDone({ label: '理财赎回', detail: `${redeeming.weeks} 周，${g.text}`, amount: result.amount, txnNo: result.txn_no, txnId: null, wealthId: redeeming.id });
+      setRedeeming(null);
+      setToast(`已赎回，转回活期 ${formatAmount(result.amount)} HTB`);
+    } catch (e) {
+      stale(e);
+      setError(refusal(e));
+      quote.refetch();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const latest = q?.latest;
+  const index = q && (
+    <section className="dc-card dc-stack" aria-label="指数涨跌">
+      {!latest ? <p className="dc-caption">还没有指数数据。每个交易日收盘后更新。</p> : (
+        <>
+          <dl className="dc-kv">
+            <div><dt>{latest.day === q.today.day ? '今天' : `${monthDay(latest.day)} `}指数涨跌</dt>
+              <dd><span className={`dc-pl ${plClass(latest.change)}`}>{signedPct(latest.change)}</span></dd></div>
+          </dl>
+          <p className="dc-caption">参考 {q.index.name} 指数 · {monthDay(latest.day)} 收盘 · {latest.source_name}</p>
+          {q.today.closed === true && <p className="dc-caption">今天休市，只算基础收益。</p>}
+          <div className="dc-table-scroll">
+            <table className="dc-table" aria-label="最近 10 个交易日">
+              <thead><tr><th scope="col">日期</th><th scope="col" className="n">指数涨跌</th></tr></thead>
+              <tbody>
+                {q.recent.map((d) => (
+                  <tr key={d.day}><td>{monthDay(d.day)}</td><td className="n"><span className={`dc-pl ${plClass(d.change)}`}>{signedPct(d.change)}</span></td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+  const list = q && (
+    <>
+      <p className="dc-list-title">理财</p>
+      {q.holdings.some((h) => h.status !== 'reversed')
+        ? <WealthList holdings={q.holdings} onRedeem={inactive ? undefined : (h) => { setError(null); setRedeeming(h); }} />
+        : <section className="dc-card"><p className="dc-caption">还没有理财。</p></section>}
+    </>
+  );
+  // 平衡 ×2 against the first tier, the plainest: "跟着指数的涨跌是稳健的 2 倍".
+  const first = q?.tiers[0];
+  const times = tier && first && tier.key !== first.key ? `跟着指数的涨跌是${first.name}的 ${Number((tier.multiplier / first.multiplier).toFixed(2))} 倍，` : '';
+  const redeemGain = redeeming && gain(redeeming.value_centi - 100 * redeeming.principal);
+  return (
+    <>
+      {inactive && <Notice title={`${inactive}，不能买理财或赎回；理财照常计收益，到期转回活期。`} />}
+      <div className="dc-split">
+        <section className="dc-stack">
+          {quote.error ? <Notice tone="danger" title="暂时无法读取理财">请检查网络后再试一次。</Notice>
+            : !q ? <KvLoading rows={3} />
+            : <>
+              {index}
+              {open && (
+                <>
+                  <Notice title="理财可能亏损" icon="warning">
+                    理财的钱跟着中国股市的一个指数每天涨跌，到期或赎回时拿回的钱可能少于本金。可以随时按当时的价值赎回。
+                  </Notice>
+                  <div className="dc-choices" role="radiogroup" aria-label="期限">
+                    {q.options.map((o) => (
+                      <label key={o.weeks} className="dc-choice">
+                        <input type="radio" name="wealth-weeks" checked={weeks === o.weeks} onChange={() => setWeeks(o.weeks)} />
+                        <span><b>{o.weeks} 周</b><small>{monthDay(o.matures_on)} 到期</small></span>
+                      </label>
+                    ))}
+                  </div>
+                  {option && (
+                    <div className="dc-stack">
+                      <div className="dc-choices" role="radiogroup" aria-label="倍率">
+                        {option.tiers.map((t) => (
+                          <label key={t.key} className="dc-choice">
+                            <input type="radio" name="wealth-tier" checked={tierKey === t.key} onChange={() => setTierKey(t.key)} />
+                            <span>
+                              <b>{tierLabel(t)}</b>
+                              <small>{t.rate === null ? '还没有收益率' : <span className={`dc-pl ${plClass(t.rate)}`}>今天 {signedPct(t.rate)}</span>}</small>
+                              {bounds(t).map((b) => <small key={b}>{b}</small>)}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="dc-caption">倍率越高，赚得越多，亏得也越多。休市的日子只算基础收益。</p>
+                    </div>
+                  )}
+                  <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
+                    <span className="dc-field-label"><Icon name="invest" />理财金额</span>
+                    <span className="dc-input-wrap">
+                      <input className="dc-input" inputMode="numeric" value={text} placeholder="请输入金额"
+                        onChange={(e) => setText(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                      <span className="dc-input-unit">HTB</span>
+                    </span>
+                    <span className="dc-field-hint">{hint.error && <Icon name="warning" />}{hint.text}</span>
+                  </label>
+                </>
+              )}
+              {list}
+            </>}
+        </section>
+        <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={Math.max(balance - amount, 0)}
+          current={open && tier && amount ? { label: '买理财', detail: what, amount: formatSigned(-amount) } : null} />
+      </div>
+      {error && !confirming && !redeeming && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      {open && (
+        <Bar busy={busy} ready={ready} onClick={() => { setError(null); setConfirming(true); }}
+          label={busy ? '正在买入' : '买入理财'} totalLabel="买入理财" total={amount}
+          note={`办理后余额 ${formatAmount(Math.max(balance - amount, 0))} HTB`} />
+      )}
+      {confirming && option && tier && (
+        <ConfirmSheet title={`给${student.name}买理财 ${formatAmount(amount)} HTB？`} confirm="确认买入" busy={busy}
+          onConfirm={submit} onClose={() => { setConfirming(false); setError(null); }}>
+          <Summary rows={[
+            ['期限', `${option.weeks} 周`], ['倍率', tierLabel(tier)], ['到期日', monthDay(option.matures_on)], ['开始计收益', '明天'],
+            ['这一档今天的收益率', tier.rate === null ? '还没有收益率' : signedPct(tier.rate)],
+            ['每天范围', `最多赚 ${plainPct(tier.max)}，最多亏 ${plainPct(tier.min)}`],
+            ['活期余额', `${formatAmount(balance)} → ${formatAmount(balance - amount)} HTB`],
+          ]} />
+          <p className="dc-caption is-danger">
+            <Icon name="warning" />理财可能亏损，到期拿回的钱可能少于 {formatAmount(amount)} HTB，最多亏光本金。{tierLabel(tier)} {times}一天最多可能亏 {plainPct(tier.min)}。
+          </p>
+          {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+        </ConfirmSheet>
+      )}
+      {redeeming && redeemGain && (
+        <ConfirmSheet title={`赎回这笔理财 ${formatAmount(redeeming.principal)} HTB？`} confirm="赎回" busy={busy}
+          text={`按现在的价值 ${formatCenti(redeeming.value_centi)} HTB 转回活期，${redeemGain.text}。赎回后不再随指数涨跌。`}
+          onConfirm={redeem} onClose={() => { setRedeeming(null); setError(null); }}>
           {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
         </ConfirmSheet>
       )}

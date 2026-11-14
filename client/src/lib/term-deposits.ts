@@ -57,13 +57,13 @@ export function nextMaturity(list: Pick<TermDeposit, 'status' | 'matures_on'>[])
   return day ? `${monthDay(day)} 到期` : null;
 }
 
-// 存入 and 支出 of some transactions (spent is negative): the ones of a 定期 (term_id: 开定期, 定期转回 and their 冲正) move
-// the student's own money between 活期 and 定期, and the ones of a 贷款 (loan_id: 放款, 还款 and their 冲正) are borrowing and
-// paying back; they count as neither, and `moved` is their change to 活期.
-export function flows(rows: { balance_delta: number; term_id: string | null; loan_id?: string | null }[]) {
+// 存入 and 支出 of some transactions (spent is negative): the ones of a 定期 (term_id: 开定期, 定期转回 and their 冲正) and of
+// a 理财 (wealth_id: 买理财, 理财转回 and their 冲正) move the student's own money between 活期 and them, and the ones of a 贷款
+// (loan_id: 放款, 还款 and their 冲正) are borrowing and paying back; they count as neither, and `moved` is their change to 活期.
+export function flows(rows: { balance_delta: number; term_id: string | null; loan_id?: string | null; wealth_id?: string | null }[]) {
   let saved = 0, spent = 0, moved = 0;
   for (const r of rows) {
-    if (r.term_id || r.loan_id) moved += r.balance_delta;
+    if (r.term_id || r.loan_id || r.wealth_id) moved += r.balance_delta;
     else if (r.balance_delta > 0) saved += r.balance_delta;
     else spent += r.balance_delta;
   }

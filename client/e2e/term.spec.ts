@@ -176,16 +176,16 @@ test('后台流水: the two 定期 types as filters, and 冲正 only while the �
   await expect(rows.first().getByRole('button', { name: '冲正' })).toBeVisible();
 });
 
-test('柜台业务栏: six businesses take two rows of three at 390 wide', async ({ browser }) => {
+test('柜台业务栏: seven businesses take two rows of four at 390 wide', async ({ browser }) => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await serve(page);
   const boxes = await Promise.all((await page.getByRole('group', { name: '业务' }).locator('label').all()).map((l) => l.boundingBox()));
-  expect(boxes).toHaveLength(6);
-  const [a, b, c, d, e, f] = boxes.map((x) => x!);
-  expect([b.y, c.y]).toEqual([a.y, a.y]);
-  expect(d.y).toBeGreaterThan(a.y + a.height - 1);
-  expect([e.y, f.y]).toEqual([d.y, d.y]);
-  expect(d.x).toBe(a.x);
+  expect(boxes).toHaveLength(7);
+  const [a, b, c, d, e, f, g] = boxes.map((x) => x!);
+  expect([b.y, c.y, d.y]).toEqual([a.y, a.y, a.y]);
+  expect(e.y).toBeGreaterThan(a.y + a.height - 1);
+  expect([f.y, g.y]).toEqual([e.y, e.y]);
+  expect(e.x).toBe(a.x);
   await expect(cards(page)).toHaveCount(5);
   await page.close();
 });

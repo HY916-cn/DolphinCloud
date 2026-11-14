@@ -16,7 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { KINDS as LOOK, toTxn } from '@/lib/txns';
 
 const PAGE = 50;
-const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['term_open', '开定期'], ['term_close', '定期转回'], ['loan', '贷款'], ['repay', '还款'], ['opening', '期初'], ['closing', '注销清零']] as const;
+const KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['term_open', '开定期'], ['term_close', '定期转回'], ['wealth_buy', '买理财'], ['wealth_close', '理财转回'], ['loan', '贷款'], ['repay', '还款'], ['opening', '期初'], ['closing', '注销清零']] as const;
 type Kind = (typeof KINDS)[number][0];
 // How each row on a page was corrected: the reversal of a 已冲正 row, and the original of a 冲正 row.
 type Page = { rows: LedgerRow[]; count: number | null; reversals: Map<string, { txn_no: string; reason: string | null }>; originals: Map<string, string> };
@@ -241,9 +241,12 @@ function TxnLine({ row, page, first, isNew, teacher, onReverse }: {
   const canReverse = teacher && row.status === 'normal' && !['reversal', 'salary', 'interest', 'closing'].includes(row.type)
     && (row.type !== 'term_open' || row.term?.status === 'open')
     && (row.type !== 'term_close' || (row.term?.status === 'early' && row.term.matures_on >= today()))
+    // 买理财 until its first day is counted; a 赎回 up to its maturity day (an end at maturity is the system's).
+    && (row.type !== 'wealth_buy' || (row.wealth?.status === 'open' && row.wealth.valued_to === row.wealth.starts_on))
+    && (row.type !== 'wealth_close' || (row.wealth?.status === 'redeemed' && row.wealth.matures_on >= today()))
     && (row.type !== 'loan' || (row.loan?.status === 'active' && !repays(row).length))
     && (row.type !== 'repay' || (row.loan?.status !== 'reversed' && !repays(row).some((t) => t.created_at > row.created_at)));
-  const system = row.type === 'interest' || (row.type === 'term_close' && row.term?.status === 'matured') || (row.type === 'repay' && !!row.reason?.startsWith('自动扣款'));
+  const system = row.type === 'interest' || (row.type === 'term_close' && row.term?.status === 'matured') || (row.type === 'wealth_close' && row.wealth?.status === 'matured') || (row.type === 'repay' && !!row.reason?.startsWith('自动扣款'));
   return (
     <li style={first ? undefined : { borderTop: '2px dashed var(--line)' }}>
       <details>

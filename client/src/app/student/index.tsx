@@ -1,7 +1,8 @@
 import {
   BalanceCard, CreditFailed, CreditGauge, CreditGaugeLoading, DIVISIONS, Icon, link, Notice, Page, RankNext, RankRow, TxnList, TxnListLoading, useCredit, useGaugeCurve, useInterest,
-  useMyLoans, useRanking, useTerm,
+  useMyLoans, useMyWealth, useRanking, useTerm,
 } from '@/components';
+import { heldValue } from '@/lib/wealth';
 import { formatAmount, formatCenti, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { homeLoanLine, openLoan } from '@/lib/loans';
@@ -22,6 +23,8 @@ export default function StudentHome() {
   const credit = useCredit();
   const interest = useInterest();
   const loans = useMyLoans(student.student_no);
+  const wealth = useMyWealth(student.student_no);
+  const held = wealth.data && heldValue(wealth.data);
   const curve = useGaugeCurve();
   const c = credit.data;
   const fresh = useNewRows(txns.data?.map((t) => t.key));
@@ -39,7 +42,7 @@ export default function StudentHome() {
               {term.data ? <BalanceCard amount={term.data.balance} term={term.data} />
                 : <span className="dc-skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />}
             </div>
-            {/* 信用摘要: 攒着的利息, 定期合计 and 贷款 beside the gauge. */}
+            {/* 信用摘要: 攒着的利息, 定期合计, 理财 and 贷款 beside the gauge. */}
             <section className="dc-card dc-credit-summary dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
               {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
                 : !c || interest.isPending || loans.isPending || !term.data ? <CreditGaugeLoading size="md" /> : <>
@@ -47,6 +50,8 @@ export default function StudentHome() {
                     <div><dt>攒着的利息</dt><dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
                       <small>{pendingNote(interest.data.pending_centi)}</small></> : '—'}</dd></div>
                     <div><dt>定期合计</dt><dd>{term.data.term_total ? `${formatAmount(term.data.term_total)} HTB` : '没有'}</dd></div>
+                    <div><dt>理财</dt><dd>{wealth.isError ? '—' : !wealth.data ? '…' : held
+                      ? <>{held.text}<small><span className={`dc-pl ${held.gain.cls}`}>{held.gain.text}</span></small></> : '没有'}</dd></div>
                     <div className={loan?.danger ? 'is-danger' : undefined}>
                       <dt>贷款</dt>
                       <dd>{!loan ? '—' : <>{loan.danger && <Icon name="warning" />}{loan.text}{loan.note && <small>{loan.note}</small>}</>}</dd>

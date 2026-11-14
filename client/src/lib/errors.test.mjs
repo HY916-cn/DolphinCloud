@@ -14,6 +14,19 @@ assert.equal(explain('INVALID_INPUT', { field: 'term_rates' }).text, '请检查�
 
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_open' }).text, '这笔定期已经到期或提前支取，不能再冲正。');
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_close' }).text, '已过到期日，不能再冲正这笔提前支取。');
+// 理财 (design system Invest).
+assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'wealth_buy' }).text, '这笔理财已经开始计收益或已转回，不能再冲正。');
+assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'wealth_close' }).text, '已过到期日，不能再冲正这笔赎回。');
+assert.equal(explain('INVALID_INPUT', { field: 'tier' }).text, '请选择档位。');
+assert.equal(explain('INVALID_INPUT', { field: 'holding_id', status: 'matured' }).text, '这笔理财已经到期或冲正，不能赎回。');
+assert.equal(explain('INVALID_INPUT', { field: 'change' }).text, '指数涨跌要在 −50% 到 50% 之间，最多 4 位小数。');
+assert.equal(explain('INVALID_INPUT', { field: 'day', wealth: true }).text, '只能登记已经过去的工作日。');
+assert.equal(explain('INVALID_INPUT', { field: 'note', wealth: true }).text, '请写明数据从哪里来，最多 200 字。');
+assert.equal(explain('INVALID_INPUT', { field: 'day' }).text, '请检查日期。');
+assert.equal(explain('INVALID_INPUT', { field: 'wealth_params' }).text, '请检查理财参数。');
+assert.equal(explain('ALREADY_EXISTS', { field: 'day', wealth: true }).text, '这一天已经有行情，不能再登记。');
+assert.equal(explain('LOAN_OUTSTANDING', { wealth: true }).text, '先还清这笔贷款，才能买理财。');
+assert.equal(explain('LOAN_OUTSTANDING').text, '先还清这笔贷款，才能办新贷款或新定期。');
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'deposit' }).text, '只能冲正本人今天办理的业务，其他情况请联系银行管理员。');
 
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'loan' }).text, '这笔贷款已经开始还款，不能再冲正。');

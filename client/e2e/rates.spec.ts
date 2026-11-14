@@ -45,7 +45,7 @@ test('学生「信用」: the week’s rates at my score, in the holidays before
 
   // 首页: nothing saved up yet.
   await page.goto('/student');
-  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.00 HTB满 1 HTB 再存进余额定期合计没有贷款没有');
+  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.00 HTB满 1 HTB 再存进余额定期合计没有理财没有贷款没有');
 });
 
 test('in a term with no anchor published: the initial rates, and 利率 says so; the storekeeper has no 利率', async ({ page, browser }) => {
@@ -131,7 +131,7 @@ test('a week’s 活期 interest: 攒着的利息 on 首页, the 利息 entry un
   const reason = `${md(`${MONDAY} - 3`)}至${md(`${MONDAY} - 2`)}活期利息`;
   await signIn(page, '学生', '20260001');
   await expect(page).toHaveURL(/\/student$/);
-  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有贷款没有');
+  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有理财没有贷款没有');
 
   await page.goto('/student/txns');
   await page.getByRole('tab', { name: '利息' }).click();
@@ -160,12 +160,12 @@ test('in the holidays the rates stand, and both pages say no interest is paid', 
   await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。放假时活期不算利息，定期照常算。');
   await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.34 HTB2.34%/周');
   await page.goto('/student');
-  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有贷款没有');
+  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有理财没有贷款没有');
 
   // A whole 1 HTB or more saved up: paid in next Monday.
   sql(`update public.interest_accruals set centi = 77 where student_no = '20260001' and day = ${MONDAY}`);
   await page.reload();
-  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息1.27 HTB下周一存进余额定期合计没有贷款没有');
+  await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息1.27 HTB下周一存进余额定期合计没有理财没有贷款没有');
 
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);

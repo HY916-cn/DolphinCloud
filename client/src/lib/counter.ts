@@ -7,6 +7,7 @@ import { call, withTimeout } from './rpc';
 import { indexRoster } from './search';
 import type { LoanDetail, LoanPlan, LoanPreview, LoanQuote } from './loans';
 import type { TermDeposit, TermQuote } from './term-deposits';
+import type { WealthHolding, WealthQuote } from './wealth';
 import { readAll, supabase } from './supabase';
 
 export type Student = {
@@ -33,6 +34,12 @@ export type TermResult = TxnResult & { term: TermDeposit };
 export const openTermDeposit = (id: string, no: string, amount: number, weeks: number) =>
   call<TermResult>('open_term_deposit', { p_id: id, p_student_no: no, p_amount: amount, p_weeks: weeks });
 export const withdrawTermEarly = (termId: string) => call<TermResult>('withdraw_term_early', { p_term_id: termId });
+// 理财 at the counter (PHASE-2.md §10.10): the panel's facts, 买理财 (p_id is the holding's id, the idempotency key) and 赎回.
+export const wealthQuote = (no: string) => call<WealthQuote>('wealth_quote', { p_student_no: no });
+export type WealthResult = TxnResult & { holding: WealthHolding };
+export const buyWealth = (id: string, no: string, amount: number, weeks: number, tier: string) =>
+  call<WealthResult>('buy_wealth', { p_id: id, p_student_no: no, p_amount: amount, p_weeks: weeks, p_tier: tier });
+export const redeemWealth = (holdingId: string) => call<WealthResult>('redeem_wealth', { p_holding_id: holdingId });
 // 贷款 at the counter (PHASE-2.md §10.3–10.9): the panel's facts, the plan with its estimated interest, 放款 (p_id is the
 // loan's id, the idempotency key) and 还款 (p_id is the transaction's; cash is the notes, amount null).
 export const loanQuote = (no: string) => call<LoanQuote>('loan_quote', { p_student_no: no });
@@ -110,7 +117,7 @@ export const newId = () => crypto.randomUUID();
 // Today's businesses of one teller, newest first (RLS shows a teller only their own day). 办理 offers the students
 // served today again; 今日业务 lists every line with its 冲正.
 export type DayTxn = {
-  id: string; txn_no: string; type: 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'term_open' | 'term_close' | 'loan' | 'repay'; amount: number; balance_delta: number; payment: 'account' | 'cash' | null;
+  id: string; txn_no: string; type: 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'term_open' | 'term_close' | 'wealth_buy' | 'wealth_close' | 'loan' | 'repay'; amount: number; balance_delta: number; payment: 'account' | 'cash' | null;
   status: 'normal' | 'reversed'; reason: string | null; created_at: string; student_no: string;
   students: { name: string; class_no: number; class_label: string | null; status: string } | null;
   txn_items: { name: string; qty: number }[];
@@ -122,14 +129,14 @@ export function useMyDay(operatorId: string, enabled = true) {
     queryFn: async () => {
       const { data, error } = await supabase.from('txns')
         .select('id,txn_no,type,amount,balance_delta,payment,status,reason,created_at,student_no,students(name,class_no,class_label,status),txn_items(name,qty)')
-        .eq('operator_id', operatorId).in('type', ['deposit', 'withdraw', 'purchase', 'reversal', 'term_open', 'term_close', 'loan', 'repay']).order('seq', { ascending: false });
+        .eq('operator_id', operatorId).in('type', ['deposit', 'withdraw', 'purchase', 'reversal', 'term_open', 'term_close', 'wealth_buy', 'wealth_close', 'loan', 'repay']).order('seq', { ascending: false });
       if (error) throw error;
       return data as unknown as DayTxn[];
     },
   });
 }
 
-const BUSINESS = { deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', term_open: '开定期', term_close: '定期转回', loan: '贷款', repay: '还款' };
+const BUSINESS = { deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', term_open: '开定期', term_close: '定期转回', wealth_buy: '买理财', wealth_close: '理财转回', loan: '贷款', repay: '还款' };
 // "存款 22 HTB", "兑换 海豚书签 × 1（现金）", "贷款 130 HTB（现金）".
 export const describeTxn = (t: Pick<DayTxn, 'type' | 'amount' | 'payment' | 'txn_items'>) =>
   t.type === 'purchase' ? `兑换 ${t.txn_items.map((i) => `${i.name} × ${i.qty}`).join('、')}（${t.payment === 'cash' ? '现金' : '账户'}）`

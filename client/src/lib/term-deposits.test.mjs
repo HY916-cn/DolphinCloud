@@ -50,4 +50,7 @@ assert.equal(nextMaturity([{ ...dep, matures_on: '2026-12-24' }, dep, { ...dep, 
 assert.equal(nextMaturity([{ ...dep, status: 'early' }]), null);
 assert.equal(nextMaturity([]), null);
 
+// 买理财 and 理财转回 (wealth_id) are neither 存入 nor 支出 either.
+assert.deepEqual(flows([{ balance_delta: 22, term_id: null, wealth_id: null }, { balance_delta: -100, term_id: null, wealth_id: 'w' },
+  { balance_delta: 103, term_id: null, wealth_id: 'w' }]), { saved: 22, spent: 0, moved: 3 });
 console.log('term-deposits ok');

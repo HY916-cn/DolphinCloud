@@ -12,6 +12,7 @@ import {
 import { call } from '@/lib/rpc';
 import { PAID_ROLES, rateWrong, ratesDraft, ratesValue, type Rates, type RatesDraft } from '@/lib/salary';
 import { ROLES } from '@/lib/session';
+import { wealthDraft, wealthProblems, wealthValues, type WealthDraft, type WealthParams } from '@/lib/wealth';
 import { supabase } from '@/lib/supabase';
 
 type Values = Record<string, unknown>;
@@ -31,8 +32,8 @@ const allowed = ({ min, max }: Range) => `请输入 ${min} 到 ${max} 的整数`
 const MIN_SCORE: Range = { min: 0, max: 999 };
 const CREDIT_LIMIT: Range = { min: 1, max: 10_000 };
 const RULE: Range = { min: 0, max: 100 };
-// A value as jsonb keeps it: an object's keys in any order compare equal.
-const stable = (v: unknown) => JSON.stringify(v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort()) : v);
+// A value as jsonb keeps it: an object's keys in any order compare equal, nested ones too (理财's tiers).
+const stable = (v: unknown) => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
 
 function Field({ icon, label, hint, error, children }: { icon: IconName; label: string; hint?: string; error?: string; children: ReactNode }) {
   return (
@@ -176,13 +177,13 @@ function SalaryGroup({ draft, onChange }: { draft: RatesDraft; onChange: (role: 
   );
 }
 
-// A percentage with up to 2 decimals typed in a Field, "%" after it.
-function Percent({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) {
+// A percentage with up to 2 decimals typed in a Field, "%" after it; `name` tells it apart from a field of the same label.
+function Percent({ label, name = label, value, onChange, error }: { label: string; name?: string; value: string; onChange: (v: string) => void; error?: string }) {
   return (
     <label className={`dc-field ${error ? 'is-error' : ''}`}>
       <span className="dc-field-label"><Icon name="rate" />{label}</span>
       <span className="dc-input-wrap">
-        <input className="dc-input" inputMode="decimal" aria-label={label} value={value}
+        <input className="dc-input" inputMode="decimal" aria-label={name} value={value}
           onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, '').slice(0, 6))} />
         <span className="dc-input-unit">%</span>
       </span>
@@ -215,6 +216,61 @@ function RateGroup({ term, termWrong, onTerm, draft, problems, onChange }: {
           ))}
         </div>
         <p className="dc-caption">从下周一起生效。其余计算参数由系统固定，可在利率页查看。</p>
+      </div>
+    </section>
+  );
+}
+
+// 理财 (design system Invest 后台「理财」页): the index, its factor, the weekly base of each length, and each tier's name,
+// multiplier and daily bounds (每天最多亏 without its sign). Checked here as set_setting checks wealth_params.
+function WealthGroup({ draft, problems, onChange }: { draft: WealthDraft; problems: Record<string, string>; onChange: (d: WealthDraft) => void }) {
+  const text = (label: string, value: string, error: string | undefined, max: number, set: (v: string) => void) => (
+    <label className={`dc-field ${error ? 'is-error' : ''}`}>
+      <span className="dc-field-label"><Icon name="invest" />{label}</span>
+      <span className="dc-input-wrap"><input className="dc-input" aria-label={label} value={value} maxLength={max} onChange={(e) => set(e.target.value)} /></span>
+      {error && <span className="dc-field-hint"><Icon name="warning" />{error}</span>}
+    </label>
+  );
+  const times = (label: string, value: string, error: string | undefined, set: (v: string) => void) => (
+    <label className={`dc-field ${error ? 'is-error' : ''}`}>
+      <span className="dc-field-label"><Icon name="invest" />{label}</span>
+      <span className="dc-input-wrap">
+        <span className="dc-input-unit">×</span>
+        <input className="dc-input" inputMode="decimal" aria-label={label} value={value} onChange={(e) => set(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} />
+      </span>
+      {error && <span className="dc-field-hint"><Icon name="warning" />{error}</span>}
+    </label>
+  );
+  const tier = (i: number, k: keyof WealthDraft['tiers'][number], v: string) =>
+    onChange({ ...draft, tiers: draft.tiers.map((t, j) => (j === i ? { ...t, [k]: v } : t)) });
+  return (
+    <section className="dc-stack">
+      <h2 className="heading is-section">理财</h2>
+      <div className="dc-card dc-stack">
+        <p className="dc-list-title">参考指数</p>
+        <div className="dc-denoms">
+          {text('指数代码', draft.symbol, problems.symbol, 8, (v) => onChange({ ...draft, symbol: v }))}
+          {text('指数名称', draft.name, problems.name, 20, (v) => onChange({ ...draft, name: v }))}
+          {times('系数', draft.factor, problems.factor, (v) => onChange({ ...draft, factor: v }))}
+        </div>
+        <p className="dc-list-title">周基础收益</p>
+        <div className="dc-denoms">
+          {byWeeks(draft.base).map(([w, v]) => (
+            <Percent key={w} label={`${w} 周`} name={`理财 ${w} 周`} value={v} onChange={(x) => onChange({ ...draft, base: { ...draft.base, [w]: x } })} error={problems[`base.${w}`]} />
+          ))}
+        </div>
+        {draft.tiers.map((t, i) => (
+          <div key={t.key} className="dc-stack" role="group" aria-label={`档位 ${i + 1}`}>
+            <p className="dc-list-title">档位 {i + 1}</p>
+            <div className="dc-denoms">
+              {text('名称', t.name, problems[`tiers.${i}.name`], 10, (v) => tier(i, 'name', v))}
+              {times('倍率', t.multiplier, problems[`tiers.${i}.multiplier`], (v) => tier(i, 'multiplier', v))}
+              <Percent label="每天最多赚" value={t.profit} onChange={(v) => tier(i, 'profit', v)} error={problems[`tiers.${i}.profit`]} />
+              <Percent label="每天最多亏" value={t.loss} onChange={(v) => tier(i, 'loss', v)} error={problems[`tiers.${i}.loss`]} />
+            </div>
+          </div>
+        ))}
+        <p className="dc-caption">保存后新买的理财按这里的参数计算；已经买的理财按买入时的参数不变。</p>
       </div>
     </section>
   );
@@ -277,6 +333,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const [rules, setRules] = useState(() => rulesDraft(saved.credit_rules as Rules));
   const [rates, setRates] = useState(() => rateDraft(saved.anchor_params as AnchorParams));
   const [term, setTerm] = useState(() => termDraft(saved.term_rates as TermRates));
+  const [wealth, setWealth] = useState(() => wealthDraft(saved.wealth_params as WealthParams));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -294,10 +351,12 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
     credit_rules: rulesValue(rules),
     anchor_params: rateValues(rates, saved.anchor_params as AnchorParams),
     term_rates: termValues(term),
+    wealth_params: wealthValues(wealth),
   };
   const curveWrong = curveProblems(curve);
   const ratesWrong = rateProblems(rates);
   const termWrong = termProblems(term);
+  const wealthWrong = wealthProblems(wealth);
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
   const toggleFace = (f: number) => setFaces(faces.includes(f) ? faces.filter((x) => x !== f) : [...faces, f]);
   const changed = Object.keys(next).filter((k) => stable(next[k]) !== stable(saved[k]));
@@ -305,7 +364,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const ratesChanged = !!nextRates && JSON.stringify(nextRates) !== JSON.stringify(ratesValue(ratesDraft(savedRates)));
   const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING]] as const)
     .some(([value, range]) => outside(value, range)) || Object.keys(curveWrong).length > 0 || Object.values(rules).some((v) => ruleProblem(v))
-    || Object.keys(ratesWrong).length > 0 || Object.keys(termWrong).length > 0 || !nextRates;
+    || Object.keys(ratesWrong).length > 0 || Object.keys(termWrong).length > 0 || Object.keys(wealthWrong).length > 0 || !nextRates;
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
@@ -394,6 +453,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
       </section>
       <RateGroup term={term} termWrong={termWrong} onTerm={(w, v) => setTerm({ ...term, [w]: v })}
         draft={rates} problems={ratesWrong} onChange={(k, v) => setRates({ ...rates, [k]: v })} />
+      <WealthGroup draft={wealth} problems={wealthWrong} onChange={setWealth} />
       <CreditGroup curve={curve} problems={curveWrong} onCurve={(k, v) => setCurve({ ...curve, [k]: v })}
         rules={rules} onRule={(k, v) => setRules({ ...rules, [k]: v })} />
       <div className="dc-actions">

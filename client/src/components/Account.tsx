@@ -34,7 +34,7 @@ export function useTerm(studentNo: string) {
     queryFn: async () => {
       const [account, rows] = await Promise.all([
         supabase.from('accounts').select('balance,term_total,students(status)').eq('student_no', studentNo).single(),
-        readAll<{ balance_delta: number; term_id: string | null; loan_id: string | null }>((from, to) => supabase.from('txns').select('balance_delta,term_id,loan_id')
+        readAll<{ balance_delta: number; term_id: string | null; loan_id: string | null; wealth_id: string | null }>((from, to) => supabase.from('txns').select('balance_delta,term_id,loan_id,wealth_id')
           .eq('student_no', studentNo).gte('created_at', `${term}T00:00:00+08:00`).order('seq').range(from, to)),
       ]);
       if (account.error) throw account.error;

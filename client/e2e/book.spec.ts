@@ -96,7 +96,7 @@ test('the pages are numbered at their foot and turn with the arrow keys', async 
   await expect(first.locator('.dc-pb-foot')).toContainText('第 1 页');
   await page.keyboard.press('ArrowRight'); // a phone turns to page 2; a computer, with pages 1 and 2 open, to page 3
   if (test.info().project.name === 'phone') await expect(second.locator('.dc-pb-foot')).toContainText('第 2 页');
-  else await expect(page.getByRole('region', { name: '利息 · 定期 · 贷款' }).locator('.dc-pb-foot')).toContainText('第 3 页');
+  else await expect(page.getByRole('region', { name: '利息 · 定期 · 理财 · 贷款' }).locator('.dc-pb-foot')).toContainText('第 3 页');
   await page.keyboard.press('ArrowLeft');
   await expect(first.locator('.dc-pb-foot')).toContainText('第 1 页');
 });
@@ -173,13 +173,14 @@ test('明细 prints seven tabs, 利息 and 贷款 among them; on a phone all sev
 });
 
 // Last, as it opens a term, a 定期 and a 贷款: the account's third page sums them up, the loan in seal red once overdue.
-test('the account’s third page prints 攒着的利息, 定期合计 and 贷款 (无 when there is none), and 贷款 in red once overdue', async ({ page }) => {
+test('the account’s third page prints 攒着的利息, 定期合计, 理财 and 贷款 (无 when there is none), and 贷款 in red once overdue', async ({ page }) => {
   await openBook(page);
-  const sums = page.getByRole('region', { name: '利息 · 定期 · 贷款' });
+  const sums = page.getByRole('region', { name: '利息 · 定期 · 理财 · 贷款' });
   await turnTo(page, sums);
   const lines = sums.locator('.dc-pb-fields dd');
   await expect(lines.nth(1)).toHaveText('无');
   await expect(lines.nth(2)).toHaveText('无');
+  await expect(lines.nth(3)).toHaveText('无');
   // On a computer the third page faces a blank right page, edged and bound like a printed one.
   if (test.info().project.name !== 'phone') await expect(page.locator('.dc-book-pages > .dc-passbook > .dc-pb-page.is-blank')).toHaveAttribute('data-side', 'right');
 
@@ -190,6 +191,8 @@ test('the account’s third page prints 攒着的利息, 定期合计 and 贷款
        insert into public.interest_accruals (student_no, day, balance, rate, centi) values ('20260001', current_date - 1, 108, 2.08, 37);
        select set_config('request.jwt.claims', json_build_object('sub', (select id from public.profiles where login_id = 'teller01'), 'role', 'authenticated')::text, false);
        select public.open_term_deposit(gen_random_uuid(), '20260001', 50, 4);
+       select public.buy_wealth(gen_random_uuid(), '20260001', 20, 2, 'steady');
+       update public.wealth_holdings set value_centi = 1965 where student_no = '20260001';
        select public.open_loan(gen_random_uuid(), '20260001', 60, '买书', 'installment', 4, 'account')`);
   const centi = Number(sql(`select app_private.pending_interest('20260001')`));
   expect(centi).toBeLessThan(100);
@@ -201,10 +204,12 @@ test('the account’s third page prints 攒着的利息, 定期合计 and 贷款
   await expect(lines).toHaveText([
     `0.${String(centi).padStart(2, '0')} HTB满 1 HTB 再存进余额`,
     `50 HTB${md(`${DAY} + 28`)} 到期`,
+    '19.65 HTB亏 −0.35 HTB',
     `剩余 60 HTB${md(`${DAY} + 7`)} 应还 ${first} HTB`,
   ]);
-  await expect(lines.nth(2)).not.toHaveClass(/is-danger/);
-  await expect(sums.getByRole('list', { name: '说明' }).locator('li')).toHaveCount(4);
+  await expect(lines.nth(2).locator('.dc-pl.is-down')).toHaveText('亏 −0.35 HTB');
+  await expect(lines.nth(3)).not.toHaveClass(/is-danger/);
+  await expect(sums.getByRole('list', { name: '说明' }).locator('li')).toHaveCount(5);
   await expect(sums.locator('.dc-pb-foot')).toContainText('第 3 页');
   if (test.info().project.name === 'phone') expect(await sums.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
   expect(await page.evaluate(() => document.scrollingElement!.scrollHeight <= innerHeight)).toBe(true);
@@ -214,6 +219,6 @@ test('the account’s third page prints 攒着的利息, 定期合计 and 贷款
   const late = Number(sql(`select principal - paid from public.loan_periods where loan_id = ${LOAN} and seq = 1`));
   await page.reload();
   await turnTo(page, sums);
-  await expect(lines.nth(2)).toHaveText(`已逾期 · 应还 ${late} HTB`);
-  await expect(lines.nth(2)).toHaveClass(/is-danger/);
+  await expect(lines.nth(3)).toHaveText(`已逾期 · 应还 ${late} HTB`);
+  await expect(lines.nth(3)).toHaveClass(/is-danger/);
 });

@@ -38,15 +38,15 @@ async function reverse(page: Page) {
 const planTitles = (no: string) => sql(`select string_agg('第 ' || seq || ' 期 · ' || to_char(due_on, 'FMMM月FMDD日') || ' 应还本金 ' || principal || ' HTB', '|' order by seq)
   from public.loan_periods where loan_id = ${LOAN(no)}`).split('|');
 
-test('柜台「贷款」: the six businesses, a new loan with its plan, repayments, paying more, cash, and 冲正', async ({ page }) => {
+test('柜台「贷款」: the seven businesses, a new loan with its plan, repayments, paying more, cash, and 冲正', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await teller(page);
   await serve(page, 'zxm', '张小明');
-  // 存款 / 取款 / 兑换 on the first row, 贷款 / 定期 / 查询 on the second.
+  // 存款 / 取款 / 兑换 / 贷款 on the first row, 定期 / 理财 / 查询 on the second.
   const labels = page.getByRole('group', { name: '业务' }).locator('label');
-  await expect(labels).toHaveText(['存款', '取款', '兑换', '贷款', '定期', '查询']);
-  const [first, fourth] = [await labels.nth(0).boundingBox(), await labels.nth(3).boundingBox()];
-  expect(fourth!.y).toBeGreaterThan(first!.y + first!.height / 2);
+  await expect(labels).toHaveText(['存款', '取款', '兑换', '贷款', '定期', '理财', '查询']);
+  const [first, fifth] = [await labels.nth(0).boundingBox(), await labels.nth(4).boundingBox()];
+  expect(fifth!.y).toBeGreaterThan(first!.y + first!.height / 2);
   await page.setViewportSize({ width: 1180, height: 820 });
 
   await expect(page.locator('.dc-credit-summary .dc-kv > div')).toHaveText(['单笔额度130 HTB', '本周贷款利率6.2667%/周', `最晚应还日${md(`${DAY} + 40`)}学期末`]);
