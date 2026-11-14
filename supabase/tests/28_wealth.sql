@@ -31,7 +31,7 @@ select is(array(select app_private.day_base((app_private.setting('wealth_params'
   array[0.5512, 0.5623, 0.5153, 0.4539, 0.3649]::numeric[], 'the daily base: (1 + weekly)^(1/7) − 1');
 create function tests.hold(p_weeks integer, p_tier jsonb) returns wealth_holdings language sql as $$
   select row(null, null, 1, p_weeks, null, null, null, 10000, null, 'open', null, null, p_tier ->> 'key', p_tier ->> 'name', (p_tier ->> 'multiplier')::numeric,
-    2, (app_private.setting('wealth_params') -> 'base' ->> p_weeks::text)::numeric, (p_tier ->> 'min')::numeric, (p_tier ->> 'max')::numeric)::wealth_holdings
+    2, (app_private.setting('wealth_params') -> 'base' ->> p_weeks::text)::numeric, (p_tier ->> 'min')::numeric, (p_tier ->> 'max')::numeric, null)::wealth_holdings
 $$;
 select is(array(select app_private.holding_rate(tests.hold(2, t), c)
   from jsonb_array_elements(app_private.setting('wealth_params') -> 'tiers') with ordinality x(t, i), unnest(array[1, -1, 3, -3, 0]) with ordinality y(c, j)
@@ -173,6 +173,9 @@ select is(array(select concat_ws(' ', h.id, h.value_centi, h.status, t.created_a
   'each day in order to 0.01 HTB (10000 × 1.02 × 0.985), the holiday and weekends at the base; matured at the end of its last day, in term or in the holidays, the frozen one too');
 select is((select concat_ws(' ', amount, balance_after) from txns where wealth_id = '00000000-0000-4000-8000-0000000000f1' and type = 'wealth_close'), '100 100',
   'the whole HTB back to 活期');
+select is(array(select concat_ws(' ', status, matures_on, closed_on) from wealth_holdings order by id),
+  array['matured 2025-03-19 2025-03-20', 'matured 2025-04-09 2025-04-10', 'matured 2025-04-23 2025-04-24', 'matured 2025-03-19 2025-03-20'],
+  'closed_on: the day each came back to 活期, the day after its last');
 select is((select interest_carry from accounts where student_no = 'wf'), 47, 'and the 0.47 kept as 零头');
 select is((select deposits from rate_weeks where week_start = '2025-03-10'), 1100, '存款余额 for the anchor counts 理财本金: every opening, still 1100');
 select is(count(*)::int, 0, 'the ledger checks out, 理财 with the interest') from app_private.check_balances();
@@ -258,7 +261,7 @@ select is(:'bought'::jsonb - 'id' - 'txn_no' - 'created_at' - 'holding',
 select is((:'bought'::jsonb -> 'holding') - 'open_txn',
   jsonb_build_object('id', '00000000-0000-4000-8000-0000000000d1', 'student_no', 's1', 'principal', 100, 'weeks', 12, 'opened_on', :'today'::date,
     'starts_on', :'today'::date + 1, 'matures_on', :'today'::date + 84, 'value_centi', 10000, 'valued_to', :'today'::date + 1, 'status', 'open',
-    'close_txn', null, 'tier', 'bold', 'tier_name', '进取', 'multiplier', 4, 'factor', 2, 'base', 3.6637, 'min_rate', -20, 'max_rate', 20),
+    'close_txn', null, 'closed_on', null, 'tier', 'bold', 'tier_name', '进取', 'multiplier', 4, 'factor', 2, 'base', 3.6637, 'min_rate', -20, 'max_rate', 20),
   'a 12 week 进取 holding from tomorrow, its weekly base, factor and tier locked');
 select is((select concat_ws(' ', balance_delta, cash_delta, wealth_id, operator_id = :'teller', reason) from txns where id = (:'bought'::jsonb ->> 'id')::uuid),
   concat_ws(' ', -100, 0, '00000000-0000-4000-8000-0000000000d1', true, '12 周 · 进取 ×4，' || to_char(:'today'::date + 84, 'FMMM月FMDD日') || ' 到期'),
@@ -322,6 +325,8 @@ select is(tests.call(:'teller', 'select lookup_student(''s1'')') - 'credit' - 'n
 select tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d1')$$) as redeemed \gset
 select is(:'redeemed'::jsonb - 'id' - 'txn_no' - 'created_at' - 'holding',
   '{"type":"wealth_close","amount":103,"balance_after":503,"denominations":null,"change_given":null}', '103 back to 活期');
+select is(:'redeemed'::jsonb #>> '{holding,closed_on}', :'today', 'closed_on: the day of the 赎回');
+select is((tests.call(:'teller', 'select wealth_quote(''s1'')') -> 'holdings' -> 0) ->> 'closed_on', :'today', 'and the counter''s quote carries it');
 select is(concat_ws(' ', :'redeemed'::jsonb #>> '{holding,status}', :'redeemed'::jsonb #>> '{holding,value_centi}'), 'redeemed 10350', '已赎回 at 103.50');
 select is((select concat_ws(' ', balance, wealth_total, interest_carry) from accounts where student_no = 's1'), '503 0 50', 'the 0.50 kept as 零头');
 select is((select reason from txns where id = (:'redeemed'::jsonb ->> 'id')::uuid), '赎回，盈 +3.50 HTB', 'the wealth_close says 赎回 and the gain');
@@ -338,6 +343,7 @@ select is(tests.call(:'teacher', format('select reverse_txn(gen_random_uuid(), %
 select is((select concat_ws(' ', a.balance, a.wealth_total, a.interest_carry, h.status, h.value_centi, h.close_txn is null)
     from accounts a join wealth_holdings h using (student_no) where a.student_no = 's1'), '400 100 0 open 10350 t', 'the holding as it was, the 零头 too');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
+select is((select closed_on from wealth_holdings where id = '00000000-0000-4000-8000-0000000000d1'), null, 'open again, no closed_on');
 select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d1')$$) ->> 'amount', '103', 'it can be redeemed again');
 
 -- A loss: 50 worth 46.50 pays the 0.50 零头 and 46.50, 47 HTB.
