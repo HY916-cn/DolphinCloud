@@ -180,6 +180,9 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-top-sub { display: block; margin-top: var(--space-1); font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 /* A paragraph in a card, stack or panel, spaced by its container's gap: dc-caption for a one-line note in `caption`, dc-text for body text. */
 .dc-caption { margin: 0; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
+/* A caption that warns: danger colour, with an optional icon set in the line. */
+.dc-caption.is-danger { color: var(--danger); }
+.dc-caption > .dc-icon { display: inline-block; width: 20px; height: 20px; margin-right: var(--space-1); vertical-align: -5px; color: inherit; }
 .dc-text { margin: 0; font: 400 16px/26px var(--font-sans); }
 .dc-content { flex: 1; display: flex; flex-direction: column; gap: var(--space-5); box-sizing: border-box; width: 100%; max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-6); }
 .dc-shell > .dc-tabbar { grid-area: tabs; position: sticky; bottom: 0; z-index: 2; margin: 0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom)); }
