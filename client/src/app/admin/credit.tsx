@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
-  Avatar, ConfirmSheet, CreditFailed, CreditGauge, CreditGaugeLoading, Desk, Icon, link, ListLoading, Notice, Stepper, Toast,
-  useCredit, useCreditEvents, useGaugeCurve, type CreditEvent,
+  Avatar, ConfirmSheet, CreditFailed, CreditGauge, CreditGaugeLoading, CreditPausedNotice, Desk, Icon, link, ListLoading, Notice, Stepper, Toast,
+  useCredit, useCreditEvents, useCreditPaused, useCreditSwitch, useGaugeCurve, type CreditEvent,
 } from '@/components';
 import { classOf } from '@/lib/counter';
-import { RULES, type CreditProfile, type Curve, type Rules } from '@/lib/credit';
+import { RULES, switchToast, type CreditProfile, type CreditSwitchResult, type Curve, type Rules } from '@/lib/credit';
 import { AppError, explain } from '@/lib/errors';
 import { formatSigned, formatTime } from '@/lib/format';
 import { useNewRows } from '@/lib/motion';
@@ -19,7 +19,8 @@ const enter = (i: number) => ({ className: 'dc-stack dc-enter', style: { '--i': 
 const POINTS = { min: 1, max: 1000 };
 
 // 信用分 (PHASE-2.md §8, design system data.md 信用分（后台）): find a student to see their score on the large gauge
-// and every change of it; the bank admin adjusts it by hand. Below, the curve and the rules as they stand.
+// and every change of it; the bank admin adjusts it by hand. Above, the 信用分开关 (§8.5); below, the curve and the rules
+// as they stand.
 export default function Credit() {
   const me = useMe().data!;
   const admin = me.roles.includes('teacher');
@@ -32,6 +33,8 @@ export default function Credit() {
 
   return (
     <Desk title="信用分">
+      <CreditPausedNotice />
+      <SwitchCard switches={admin} />
       <form className="dc-stack" role="search" aria-label="查找学生" onSubmit={(e) => { e.preventDefault(); if (found.length) pick(found[0]); }}>
         <label className="dc-search">
           <Icon name="query" />
@@ -79,6 +82,7 @@ function StudentCredit({ student, admin }: { student: AdminStudent; admin: boole
   const fresh = useNewRows(rows?.map((e) => e.id));
   const [adjusting, setAdjusting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const paused = useCreditPaused();
   const c = credit.data;
 
   function adjusted(next: CreditProfile) {
@@ -101,7 +105,9 @@ function StudentCredit({ student, admin }: { student: AdminStudent; admin: boole
         {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} /> : (
           <section className="dc-card dc-stack" style={{ alignItems: 'center' }}>
             {c ? <CreditGauge score={c.score} size="lg" limit={c.loan_limit} next={c.points_to_next} {...curve} /> : <CreditGaugeLoading size="lg" />}
-            {admin && c && <button className="dc-btn dc-btn-secondary" type="button" onClick={() => setAdjusting(true)}>调整信用分</button>}
+            {admin && c && <button className="dc-btn dc-btn-secondary" type="button" disabled={paused} aria-describedby={paused ? 'credit-paused' : undefined}
+              onClick={() => setAdjusting(true)}>调整信用分</button>}
+            {admin && c && paused && <p className="dc-caption" id="credit-paused">信用分暂停中</p>}
           </section>
         )}
       </div>
@@ -205,6 +211,93 @@ function AdjustSheets({ student, score, onClose, onDone }: {
         </label>
         <p className="dc-sheet-text" aria-live="polite">{score} 分 → {to} 分{edge}</p>
       </div>
+    </ConfirmSheet>
+  );
+}
+
+// 信用分开关: how it stands and, for the bank admin only (not the president), the Switch 启用信用分. Pausing asks the
+// reason and then a second look; turning back on asks only the second look. Scores change everywhere, so every query
+// is read again.
+function SwitchCard({ switches }: { switches: boolean }) {
+  const queryClient = useQueryClient();
+  const state = useCreditSwitch();
+  const sw = state.data;
+  const by = useQuery({
+    queryKey: ['profile-name', sw?.updated_by],
+    enabled: !!sw?.updated_by && !sw.value,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('display_name').eq('id', sw!.updated_by!).maybeSingle();
+      if (error) throw error;
+      return data?.display_name as string | undefined;
+    },
+  });
+  const [turning, setTurning] = useState<boolean | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  if (state.isError) return <Notice tone="danger" title="暂时无法读取信用分开关">请检查网络后刷新页面。</Notice>;
+  if (!sw) return <ListLoading rows={1} label="正在读取信用分开关" />;
+  const status = sw.value ? '信用分已启用'
+    : `信用分已暂停 · ${formatTime(sw.updated_at).split(' ')[0]}${by.data ? ` 由 ${by.data}` : ''} 暂停`;
+
+  function done(r: CreditSwitchResult) {
+    setTurning(null);
+    setToast(switchToast(r));
+    queryClient.invalidateQueries();
+  }
+
+  return (
+    <section className="dc-card dc-enter">
+      {switches ? (
+        <label className="dc-switch">
+          <span className="dc-switch-text"><b>启用信用分</b><small>{status}</small></span>
+          <input type="checkbox" role="switch" checked={sw.value} onChange={(e) => setTurning(e.target.checked)} />
+          <span className="dc-switch-track" />
+        </label>
+      ) : (
+        <div className="dc-switch-text"><b>{status}</b><small>由银行管理员统一设置</small></div>
+      )}
+      {turning !== null && <SwitchSheets on={turning} onClose={() => setTurning(null)} onDone={done} />}
+      {toast && <Toast text={toast} onDone={() => setToast(null)} />}
+    </section>
+  );
+}
+
+function SwitchSheets({ on, onClose, onDone }: { on: boolean; onClose: () => void; onDone: (r: CreditSwitchResult) => void }) {
+  const [reason, setReason] = useState('');
+  const [confirming, setConfirming] = useState(on);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  async function turn() {
+    setBusy(true);
+    setRefusal(null);
+    try {
+      onDone(await call<CreditSwitchResult>('set_credit_enabled', { p_on: on, p_reason: on ? null : reason.trim() }));
+    } catch (e) {
+      const { code, detail } = e instanceof AppError ? e : new AppError('');
+      setRefusal(explain(code, detail).title);
+      setBusy(false);
+    }
+  }
+
+  if (confirming) {
+    return (
+      <ConfirmSheet title={on ? '重新开启信用分？' : '暂停信用分？'} confirm={on ? '确认开启' : '确认暂停'} busy={busy} onConfirm={turn}
+        text={on ? '恢复每位学生暂停前的分数，之后照常加减分。暂停期间没有加减的分不补。'
+          : '暂停后所有学生按 600 分计算额度和利率，分数不再加减。重新开启后恢复每位学生暂停前的分数。'}
+        onClose={on ? onClose : () => { setConfirming(false); setRefusal(null); }}>
+        {refusal && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={refusal} /></div>}
+      </ConfirmSheet>
+    );
+  }
+  return (
+    <ConfirmSheet title="暂停信用分" confirm="下一步" ready={!!reason.trim()} onConfirm={() => setConfirming(true)} onClose={onClose}>
+      <label className="dc-field" style={{ marginTop: 'var(--space-3)' }}>
+        <span className="dc-field-label"><Icon name="help" />原因</span>
+        <span className="dc-input-wrap dc-input-area">
+          <textarea className="dc-input" rows={3} maxLength={100} value={reason} placeholder="写清楚暂停的原因" onChange={(e) => setReason(e.target.value)} />
+        </span>
+        <span className="dc-field-hint">必填，最多 100 字</span>
+      </label>
     </ConfirmSheet>
   );
 }

@@ -96,3 +96,9 @@ export const rulesDraft = (r: Rules) => Object.fromEntries(RULES.map(({ key }) =
 export const rulesValue = (d: Record<keyof Rules, string>) =>
   Object.fromEntries(RULES.map(({ key, loss }) => [key, loss && Number(d[key]) ? -Number(d[key]) : Number(d[key])])) as Rules;
 export const ruleProblem = (v: string) => (whole(v, 0, 100) ? undefined : '请输入 0 到 100 的整数');
+
+// 信用分开关 (PHASE-2.md §8.5): what set_credit_enabled answers, and the Toast it gets.
+export type CreditSwitchResult = { enabled: boolean; changed: boolean; students: number };
+export const switchToast = (r: CreditSwitchResult) =>
+  !r.changed ? '信用分本来就是这个状态'
+  : r.enabled ? `已重新开启，${r.students} 位学生恢复原来的分数` : `已暂停，${r.students} 位学生按 600 分计`;

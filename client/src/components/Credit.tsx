@@ -10,22 +10,24 @@ import { Icon, Notice } from './ui';
 // 1000, red below `min` (is-low, the curve's lowest score to borrow) and green from it; the knob turns to the score
 // through the registered --score property, and the number rolls from the old score to a new one (not on first show).
 // `limit` (loan_limit, null: no loan) shows on lg and md, `next` (points_to_next, the limit then grows by `step`) on lg;
-// sm is the arc and the number.
+// sm is the arc and the number. While 信用分 is paused every gauge is grey (is-paused) and says so: 已暂停 under lg and
+// md, without 再涨 N 分; 暂停 after the number on sm.
 export function CreditGauge({ score, size, limit, next, min = 400, step = 5 }: {
   score: number; size: 'lg' | 'md' | 'sm'; limit?: number | null; next?: number | null; min?: number; step?: number;
 }) {
   const s = Math.min(1000, Math.max(0, score));
   const shown = useRolling(s);
+  const paused = useCreditPaused();
   const meter = {
-    className: `dc-gauge-dial ${s < min ? 'is-low' : ''}`,
+    className: `dc-gauge-dial ${s < min ? 'is-low' : ''} ${paused ? 'is-paused' : ''}`,
     role: 'meter', 'aria-label': '海豚信用分', 'aria-valuemin': 0, 'aria-valuemax': 1000, 'aria-valuenow': s,
-    'aria-valuetext': `海豚信用分 ${s} 分`, style: { '--score': s, '--min': min } as React.CSSProperties,
+    'aria-valuetext': paused ? `海豚信用分已暂停，按 ${s} 分计` : `海豚信用分 ${s} 分`, style: { '--score': s, '--min': min } as React.CSSProperties,
   };
   if (size === 'sm') {
     return (
       <span className="dc-gauge is-sm">
         <span {...meter}><span className="dc-gauge-arc" /><span className="dc-gauge-pointer" /></span>
-        <b className="dc-gauge-score" aria-hidden="true">{shown}</b>
+        <b className="dc-gauge-score" aria-hidden="true">{shown}{paused && ' 暂停'}</b>
       </span>
     );
   }
@@ -40,7 +42,8 @@ export function CreditGauge({ score, size, limit, next, min = 400, step = 5 }: {
       </div>
       <p className="dc-gauge-ends" aria-hidden="true"><span>0</span><span>1000</span></p>
       {limit !== undefined && <p className="dc-gauge-foot">{limit === null ? `${min} 分以上才能贷款` : <>贷款额度 <b>{limit} HTB</b></>}</p>}
-      {size === 'lg' && next != null && <p className="dc-gauge-next">再涨 {next} 分，额度加 {step} HTB</p>}
+      {size === 'lg' && next != null && !paused && <p className="dc-gauge-next">再涨 {next} 分，额度加 {step} HTB</p>}
+      {paused && <span className="dc-tag">已暂停</span>}
     </div>
   );
 }
@@ -57,6 +60,26 @@ export function useGaugeCurve() {
     },
   });
   return curve.data ? { min: curve.data.min_score, step: curve.data.limit_step } : {};
+}
+
+// 信用分开关 (PHASE-2.md §8.5): settings.credit_enabled, which every login reads; updated_at and updated_by are the last
+// turn. Until it is read, or when it cannot be, 信用分 counts as on.
+export type CreditSwitch = { value: boolean; updated_at: string; updated_by: string | null };
+export function useCreditSwitch() {
+  return useQuery({
+    queryKey: ['settings', 'credit_enabled'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('settings').select('value,updated_at,updated_by').eq('key', 'credit_enabled').single();
+      if (error) throw error;
+      return data as CreditSwitch;
+    },
+  });
+}
+export const useCreditPaused = () => useCreditSwitch().data?.value === false;
+
+// At the top of the back office's 信用分, 贷款 and 学生 pages while 信用分 is paused.
+export function CreditPausedNotice() {
+  return useCreditPaused() ? <Notice title="信用分已暂停：所有学生按 600 分计，分数不变。" /> : null;
 }
 
 // A student's score with what it gives: their own with no student number, any student's for the back office.

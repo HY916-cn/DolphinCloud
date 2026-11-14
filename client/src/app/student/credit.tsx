@@ -1,6 +1,6 @@
 import {
-  CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, MyLoans, Page, RateCard, TermList, today, TxnListLoading, useCredit, useCreditEvents, useGaugeCurve,
-  useMyLoans, useMyTerms,
+  CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, MyLoans, Page, RateCard, TermList, today, TxnListLoading, useCredit, useCreditEvents, useCreditPaused,
+  useGaugeCurve, useMyLoans, useMyTerms,
 } from '@/components';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
@@ -14,6 +14,7 @@ export default function StudentCredit() {
   const student = useMe().data!.student!;
   const credit = useCredit();
   const curve = useGaugeCurve();
+  const paused = useCreditPaused();
   const events = useCreditEvents(student.student_no, 20);
   const rows = events.data?.pages.flat();
   const fresh = useNewRows(rows?.map((e) => e.id));
@@ -32,7 +33,8 @@ export default function StudentCredit() {
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
                   {c ? <CreditGauge score={c.score} size="lg" limit={c.loan_limit} next={c.points_to_next} {...curve} /> : <CreditGaugeLoading size="lg" />}
                 </div>
-                <p className="dc-caption">每周一更新。按时还款、每周存钱、余额保持在 100 HTB 以上都会加分。</p>
+                <p className="dc-caption">{paused ? '信用分暂停中，所有同学都按 600 分计算额度和利率。重新开启后恢复你原来的分数。'
+                  : '每周一更新。按时还款、每周存钱、余额保持在 100 HTB 以上都会加分。'}</p>
               </section>
             )}
           </div>

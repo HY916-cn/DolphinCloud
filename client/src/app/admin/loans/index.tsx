@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Desk, Icon, link, ListLoading, LOAN_TAGS, Notice } from '@/components';
+import { CreditPausedNotice, Desk, Icon, link, ListLoading, LOAN_TAGS, Notice } from '@/components';
 import { classOf } from '@/lib/counter';
 import { formatAmount } from '@/lib/format';
 import { byUrgency, nextPayment, planText, type Loan, type LoanPeriod, type LoanStatus } from '@/lib/loans';
@@ -29,6 +29,7 @@ export default function Loans() {
 
   return (
     <Desk title="贷款">
+      <CreditPausedNotice />
       <div className="dc-stack dc-enter">
         <label className="dc-search">
           <Icon name="query" />

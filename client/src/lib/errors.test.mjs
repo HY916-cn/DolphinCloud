@@ -19,6 +19,7 @@ assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'deposit' }).text, '只能�
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'loan' }).text, '这笔贷款已经开始还款，不能再冲正。');
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'repay' }).text, '只能冲正这笔贷款最近的一笔还款。');
 
+assert.deepEqual(explain('CREDIT_DISABLED'), { title: '信用分已暂停', text: '暂停期间所有学生按 600 分计，不能调整。重新开启后再调整。' });
 assert.equal(explain('CREDIT_TOO_LOW', { score: 350, min_score: 400 }).text, '信用分 400 分以上才能贷款，现在是 350 分。');
 assert.equal(explain('OVER_CREDIT_LIMIT', { limit: 165 }).text, '按现在的信用分，最多能贷 165 HTB。');
 assert.equal(explain('REPAY_TOO_MUCH', { max: 100 }).text, '这笔贷款现在一共只需还 100 HTB。');

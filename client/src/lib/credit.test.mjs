@@ -1,6 +1,6 @@
 // node src/lib/credit.test.mjs — the curve's sums against PHASE-2.md §8.1, and the checks on an edited curve.
 import assert from 'node:assert/strict';
-const { creditLimit, creditNext, curveDraft, curveProblems, LIMIT_ORDER, LOAN_ORDER, loanFactor, preview, rulesDraft, rulesValue, savingFactor } = await import('./credit.ts');
+const { creditLimit, creditNext, curveDraft, curveProblems, LIMIT_ORDER, LOAN_ORDER, loanFactor, preview, rulesDraft, rulesValue, savingFactor, switchToast } = await import('./credit.ts');
 
 const curve = { min_score: 400, limit_min: 50, limit_max: 300, limit_step: 5, loan_max: 1.8, loan_min: 1.1, saving_min: 0.8, saving_max: 1.2 };
 const at = (s) => [creditLimit(curve, s), loanFactor(curve, s), savingFactor(curve, s), creditNext(curve, s)];
@@ -58,3 +58,8 @@ const rules = { repay_on_time: 5, repay_early: 10, overdue: -50, overdue_week: -
 assert.equal(rulesDraft(rules).overdue, '50');
 assert.deepEqual(rulesValue(rulesDraft(rules)), rules);
 assert.equal(Object.is(rulesValue({ ...rulesDraft(rules), overdue: '0' }).overdue, 0), true);
+
+// The 信用分开关 Toast.
+assert.equal(switchToast({ enabled: false, changed: true, students: 12 }), '已暂停，12 位学生按 600 分计');
+assert.equal(switchToast({ enabled: true, changed: true, students: 12 }), '已重新开启，12 位学生恢复原来的分数');
+assert.equal(switchToast({ enabled: true, changed: false, students: 0 }), '信用分本来就是这个状态');

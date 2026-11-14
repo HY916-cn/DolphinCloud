@@ -90,6 +90,7 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'NO_TERM': return { title: '现在不在学期内', text: d.business ? `现在不在学期内，不能${d.business}。` : '还没有登记当前学期，暂时不能办理贷款。' };
     case 'TERM_TOO_LONG':
       return { title: '期限超过学期末', text: `本学期 ${monthDay(String(d.ends_on))} 结束，${d.max_weeks == null ? '不到一周，不能贷款' : `最长只能选 ${d.max_weeks} 周`}。` };
+    case 'CREDIT_DISABLED': return { title: '信用分已暂停', text: '暂停期间所有学生按 600 分计，不能调整。重新开启后再调整。' };
     case 'CREDIT_TOO_LOW': return { title: '信用分不够', text: `信用分 ${d.min_score} 分以上才能贷款，现在是 ${d.score} 分。` };
     case 'OVER_CREDIT_LIMIT': return { title: '超过贷款额度', text: `按现在的信用分，最多能贷 ${d.limit} HTB。` };
     case 'REPAY_TOO_MUCH': return { title: '还款金额太多', text: `这笔贷款现在一共只需还 ${d.max} HTB。` };

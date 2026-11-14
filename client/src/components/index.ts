@@ -28,7 +28,10 @@ export { FilterBar, filtered, NO_FILTER, wrongTimes, type Chip, type Filter, typ
 export { Passbook, PassbookPage, PassbookRows, PassbookSeal } from './Passbook';
 export { BookCover, BookPages, BookShell, useCloseBook, useLines, useWide, ViewSwitch } from './Book';
 export { Avatar } from './Avatar';
-export { CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, useCredit, useCreditEvents, useGaugeCurve, type CreditEvent } from './Credit';
+export {
+  CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, CreditPausedNotice, useCredit, useCreditEvents, useCreditPaused, useCreditSwitch, useGaugeCurve,
+  type CreditEvent, type CreditSwitch,
+} from './Credit';
 export { RateCard, useInterest, useInTerm, type InterestProfile } from './Rate';
 export { outside, Stepper, type Range } from './Stepper';
 export { Toast } from './Toast';

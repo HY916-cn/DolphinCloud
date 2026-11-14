@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Avatar, BatchBar, CloseSheet, ConfirmSheet, Desk, eachOf, Icon, link, ListLoading, MorphIcon, Notice, noticePages, openingPages, OutputSheet, Pick,
+  Avatar, BatchBar, CloseSheet, ConfirmSheet, CreditPausedNotice, Desk, eachOf, Icon, link, ListLoading, MorphIcon, Notice, noticePages, openingPages, OutputSheet, Pick,
   ResetNoticeSheet, SheetList, today, type NoticeAccount,
 } from '@/components';
 import { classOf } from '@/lib/counter';
@@ -110,6 +110,7 @@ export default function Students() {
   const busy = step?.kind === 'busy';
   return (
     <Desk title="学生">
+      <CreditPausedNotice />
       <form className="dc-card dc-stack dc-filter" role="search" onSubmit={(e) => e.preventDefault()}>
         <label className="dc-search">
           <Icon name="query" />

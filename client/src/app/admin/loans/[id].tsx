@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
 import {
-  Avatar, ConfirmSheet, Desk, Icon, KvLoading, LOAN_TAGS, Notice, PERIOD_TAGS, PersonLoading, SkeletonGroup, Stats, Summary, Toast, useLoanSettings,
+  Avatar, ConfirmSheet, CreditPausedNotice, Desk, Icon, KvLoading, LOAN_TAGS, Notice, PERIOD_TAGS, PersonLoading, SkeletonGroup, Stats, Summary, Toast, useLoanSettings,
 } from '@/components';
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
@@ -49,6 +49,7 @@ export default function LoanPage() {
 
   return (
     <Desk title="贷款" back={() => router.navigate('/admin/loans' as Href)}>
+      <CreditPausedNotice />
       {loan.isError && <Notice tone="danger" title="暂时无法读取这笔贷款">请检查网络后刷新页面。</Notice>}
       {loan.isPending && <SkeletonGroup className="dc-stack"><PersonLoading side /><KvLoading rows={4} /></SkeletonGroup>}
       {loan.data === null && <Notice tone="danger" title="未找到这笔贷款">请返回贷款列表重新查找。</Notice>}
