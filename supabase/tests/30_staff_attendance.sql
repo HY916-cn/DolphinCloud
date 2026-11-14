@@ -21,7 +21,10 @@ select app_private.cn_date(now()) - 1 as y \gset
 select is((select count(*)::int from salary_rates), 10, 'five identities × two shifts');
 select is((select count(*)::int from salary_rates where amount = 10), 10, 'each at the pay salary_per_shift had');
 select is((select count(*)::int from salary_rates where role = 'sysadmin'), 0, 'the sysadmin has no pay');
-select is((select count(*)::int from settings where key = 'salary_per_shift'), 1, 'salary_per_shift stays for clients that still read it');
+select is((select count(*)::int from settings where key = 'salary_per_shift'), 0, 'salary_per_shift is gone: the pay is salary_rates');
+select is(tests.call(:'teacher', $$select set_setting('salary_per_shift', '{"am":10,"pm":10}')$$) - 'detail',
+  '{"error":"INVALID_INPUT"}', 'and set_setting takes it as an unknown key');
+select is(tests.call(:'teacher', $$select set_setting('salary_per_shift', '{"am":10,"pm":10}')$$) ->> 'detail', '{"field": "key"}', 'field key');
 
 -- 绑定工资账户: anyone counted their own, with the password
 select is(tests.call(:'acct', $$select bind_salary_account(auth.uid(), 's1', 'wrong')$$) ->> 'error', 'WRONG_PASSWORD', 'the accountant gives the password');
