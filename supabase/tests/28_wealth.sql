@@ -13,44 +13,56 @@ select tests.staff('ops', 'sysadmin') as ops \gset
 select app_private.cn_date(now()) as today \gset
 create function tests.at(p text) returns timestamptz language sql as $$ select (p::timestamp) at time zone 'Asia/Shanghai' $$;
 
--- wealth_params (§14.3) and the rate of a week: the change × 2, within ±5%.
-select is(app_private.setting('wealth_params'), '{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5,"max":5}', 'the default index, factor and bounds');
-select is(array[app_private.wealth_rate(1.2345, p), app_private.wealth_rate(-0.4, p), app_private.wealth_rate(3, p), app_private.wealth_rate(-7.5, p)],
-  array[2.469, -0.8, 5, -5]::numeric[], 'the change doubled, within −5% and +5%')
-from (select app_private.setting('wealth_params') p) x;
+-- wealth_params (§14.3): the base of each length 1.5 points above its 定期 rate, factor 3 and three tiers; a holding's
+-- rate of a week is base + multiplier × factor × the index's change, within its tier's bounds.
+select is(app_private.setting('wealth_params'), '{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'the default index, bases, factor and tiers');
+select is((select jsonb_object_agg(k, (app_private.setting('wealth_params') -> 'base' ->> k)::numeric - (app_private.setting('term_rates') ->> k)::numeric)
+    from jsonb_object_keys(app_private.setting('term_rates')) k), '{"2":1.5,"4":1.5,"12":1.5,"24":1.5,"48":1.5}', 'each base 1.5 points above the 定期 rate');
+select is(array(select app_private.holding_rate(row(null, null, 1, 2, null, null, null, 10000, null, 'open', null, null, t ->> 'key', t ->> 'name',
+    (t ->> 'multiplier')::numeric, 3, 4, (t ->> 'min')::numeric, (t ->> 'max')::numeric)::wealth_holdings, c)
+  from jsonb_array_elements(app_private.setting('wealth_params') -> 'tiers') with ordinality x(t, i), unnest(array[1, -1, 3, -3]) with ordinality y(c, j)
+  order by i, j), array[7, 1, 13, -5, 10, -2, 22, -14, 16, -8, 40, -30]::numeric[],
+  'an index week of +1% / −1% / +3% / −3%: 稳健 7 / 1 / 13 / −5, 平衡 10 / −2 / 22 / −14, 进取 16 / −8 / 40 (capped) / −30 (capped)');
 
 -- eastmoney's klines (§10.10): each week over by today's Monday after the week before it; the week not over waits, and a
 -- week with no week before it in the list has nothing to compare with.
 savepoint klines;
 select is(app_private.record_wealth_klines('["2025-02-28,5954.50","2025-03-07,5770.20","2025-03-14,5638.94","2025-03-28,5580.94","2025-04-04,5074.08"]',
   '2025-04-03'), 2, 'two weeks added');
-select is(array(select concat_ws(' ', week_start, close, prev_close, change, rate, source, created_by is null) from wealth_weeks
+select is(array(select concat_ws(' ', week_start, close, prev_close, change, source, created_by is null) from wealth_weeks
     where week_start < '2025-06-01' order by week_start),
-  array['2025-03-03 5770.2000 5954.5000 -3.0951 -5.0000 eastmoney t', '2025-03-10 5638.9400 5770.2000 -2.2748 -4.5496 eastmoney t'],
-  'each with its close, the close before, the change and the rate; 24 March has no week before it, 31 March is not over');
+  array['2025-03-03 5770.2000 5954.5000 -3.0951 eastmoney t', '2025-03-10 5638.9400 5770.2000 -2.2748 eastmoney t'],
+  'each with its close, the close before and the change; 24 March has no week before it, 31 March is not over');
 select is(app_private.record_wealth_klines('["2025-03-07,1","2025-03-14,1","2025-03-21,2"]', '2025-03-24'), 1, 'a week already in is kept as it was');
-select is((select rate from wealth_weeks where week_start = '2025-03-10'), -4.5496, 'kept');
+select is((select change from wealth_weeks where week_start = '2025-03-10'), -2.2748, 'kept');
 select throws_ok($$select app_private.record_wealth_klines('null')$$, 'no klines');
 select throws_ok($$select app_private.record_wealth_klines('["2025-03-28;1"]')$$);
-select throws_ok($$update wealth_weeks set rate = 0$$, '42501', null, 'a week entered is never changed');
+select throws_ok($$update wealth_weeks set change = 0$$, '42501', null, 'a week entered is never changed');
 rollback to savepoint klines;
 
--- wealth_params: the bank admin and the president.
-select is(tests.call(:'teacher', $$select set_setting('wealth_params', '{"secid":"1.000300","name":"沪深 300","factor":1.5,"min":-3,"max":3}')$$) -> 'value',
-  '{"secid":"1.000300","name":"沪深 300","factor":1.5,"min":-3,"max":3}', 'the bank admin changes the index, factor and bounds');
-select is(tests.call(:'president', $$select set_setting('wealth_params', '{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5,"max":5}')$$) -> 'value',
-  '{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5,"max":5}', 'so does the president');
-select is(tests.err(w, $$select set_setting('wealth_params', '{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5,"max":5}')$$), 'FORBIDDEN', 'not the others')
+-- wealth_params: the bank admin and the president, for the holdings bought after.
+select is(tests.call(:'teacher', $$select set_setting('wealth_params', '{"secid":"1.000300","name":"沪深 300","factor":2,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}')$$) -> 'value',
+  '{"secid":"1.000300","name":"沪深 300","factor":2,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'the bank admin changes the index, bases, factor and tiers');
+select is(tests.call(:'president', $$select set_setting('wealth_params', '{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}')$$) -> 'value',
+  '{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'so does the president');
+select is(tests.err(w, $$select set_setting('wealth_params', '{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}')$$), 'FORBIDDEN', 'not the others')
 from unnest(array[:'accountant', :'teller', :'ops']::uuid[]) w;
 select is(tests.call(:'teacher', format('select set_setting(''wealth_params'', %L)', v)) ->> 'detail', '{"field": "wealth_params"}', why)
-from (values ('{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5}', 'every key'),
-  ('{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5,"max":5,"x":1}', 'no other'),
-  ('{"secid":"SPX","name":"标普 500","factor":2,"min":-5,"max":5}', 'an eastmoney secid'),
-  ('{"secid":"100.SPX&x=1","name":"标普 500","factor":2,"min":-5,"max":5}', 'nothing more in it'),
-  ('{"secid":"100.SPX","name":"","factor":2,"min":-5,"max":5}', 'a name'),
-  ('{"secid":"100.SPX","name":"标普 500","factor":0,"min":-5,"max":5}', 'a factor from 0.01'),
-  ('{"secid":"100.SPX","name":"标普 500","factor":2,"min":1,"max":5}', 'min 0 or below'),
-  ('{"secid":"100.SPX","name":"标普 500","factor":2,"min":-5,"max":50.5}', 'max up to 50')) t(v, why);
+from (values ('{"secid":"100.SPX","name":"标普 500","base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'every key'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"x":1,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'no other'),
+  ('{"secid":"SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'an eastmoney secid'),
+  ('{"secid":"100.SPX&x=1","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'nothing more in it'),
+  ('{"secid":"100.SPX","name":"","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'a name'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":0,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'a factor from 0.01'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'a base for every length'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":-1,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'a base from 0'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[]}', 'a tier at least'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"steady","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'each tier its own key'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"Bold","name":"进取","multiplier":4,"min":-30,"max":40}]}', 'keys in lower case'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":0,"min":-30,"max":40}]}', 'a multiplier from 0.1'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-95,"max":40}]}', 'never more than 90% lost in a week'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30,"max":-1}]}', 'an upper bound of 0 or more'),
+  ('{"secid":"100.SPX","name":"标普 500","factor":3,"base":{"2":4,"4":4.25,"12":4.5,"24":4.75,"48":5},"tiers":[{"key":"steady","name":"稳健","multiplier":1,"min":-10,"max":15},{"key":"balanced","name":"平衡","multiplier":2,"min":-20,"max":25},{"key":"bold","name":"进取","multiplier":4,"min":-30}]}', 'every key of a tier')) t(v, why);
 
 -- The jobs (§10.10, §13) from Monday 3 March 2025: 春季 to Sunday 30 March, holidays, 夏季 from Monday 14 April. w1 buys
 -- a (100, 2 weeks) on Wednesday 5 March, b (200, 2 weeks) and c (300, 4 weeks) on Wednesday 26 March; wf buys 100 for 2
@@ -68,14 +80,17 @@ begin
   values (gen_random_uuid(), 'opening', p_no, p_opening, p_opening, p_opening, (select id from profiles where login_id = 'teacher'), tests.at('2025-03-01 08:00'));
 end $$;
 create function tests.buy(p_id text, p_no text, p_amount integer, p_weeks integer, p_at text) returns void language sql as $$
-  select app_private.start_wealth(('00000000-0000-4000-8000-0000000000' || p_id)::uuid, p_no, p_amount, p_weeks, (select id from profiles where login_id = 't1'), tests.at(p_at))
+  select app_private.start_wealth(('00000000-0000-4000-8000-0000000000' || p_id)::uuid, p_no, p_amount, p_weeks, 'plain', (select id from profiles where login_id = 't1'), tests.at(p_at))
 $$;
 create function tests.rates(p_with_april_7 boolean) returns void language sql as $$
-  insert into wealth_weeks (week_start, rate, source, params)
+  insert into wealth_weeks (week_start, change, source, params)
   select w::date, r, 'eastmoney', app_private.setting('wealth_params')
   from (values ('2025-03-10', 2), ('2025-03-17', -1.5), ('2025-03-24', 0.5), ('2025-03-31', 3), ('2025-04-07', -0.8), ('2025-04-14', -2), ('2025-04-21', 1)) x(w, r)
   where p_with_april_7 or w <> '2025-04-07'
 $$;
+-- A plain rule for these: base 0, factor 1, one tier ×1 within ±50%, so each holding moves by the index's change.
+update settings set value = '{"secid":"100.SPX","name":"标普 500","factor":1,"base":{"2":0,"4":0,"12":0,"24":0,"48":0},"tiers":[{"key":"plain","name":"测试","multiplier":1,"min":-50,"max":50}]}'
+where key = 'wealth_params';
 select tests.old('w1', 1000);
 select tests.old('wf', 100);
 select tests.buy('a1', 'w1', 100, 2, '2025-03-05 12:00');
@@ -91,7 +106,7 @@ select is(array(select concat_ws(' ', id, principal, weeks, opened_on, starts_on
   'from the next Monday, to the Sunday of the last week; the value starts at the principal');
 select is(array(select concat_ws(' ', student_no, balance, wealth_total) from accounts order by student_no), array['w1 400 600', 'wf 0 100'],
   '活期 goes into 理财');
-select is((select reason from txns where wealth_id = '00000000-0000-4000-8000-0000000000c1'), '4 周，4月27日 到期', 'the wealth_buy says the length and the last day');
+select is((select reason from txns where wealth_id = '00000000-0000-4000-8000-0000000000c1'), '4 周 · 测试 ×1，4月27日 到期', 'the wealth_buy says the length, the tier and the last day');
 
 create function tests.state() returns text language sql as $$
   select concat_ws(' | ',
@@ -140,8 +155,8 @@ select is(array(select concat_ws(' ', id, value_centi, valued_to, status) from w
 select is(tests.call(:'accountant', 'select wealth_overview()') -> 'missing', '["2025-04-07"]', 'the 理财 page lists the week missing');
 select is(tests.call(:'teacher', 'select wealth_overview()') -> 'open', '{"count": 2, "principal": 500, "value_centi": 51500}', 'and the holdings open');
 select tests.call(:'teacher', $$select record_wealth_week('2025-04-07', -0.8, '东方财富网页上的周涨跌 −0.40%')$$) as entered \gset
-select is(:'entered'::jsonb - 'created_at', jsonb_build_object('week_start', '2025-04-07', 'close', null, 'prev_close', null, 'change', null, 'rate', -0.8,
-  'source', 'manual', 'note', '东方财富网页上的周涨跌 −0.40%', 'created_by', :'teacher'), 'the bank admin enters the rate by hand');
+select is(:'entered'::jsonb - 'created_at', jsonb_build_object('week_start', '2025-04-07', 'close', null, 'prev_close', null, 'change', -0.8,
+  'source', 'manual', 'note', '东方财富网页上的周涨跌 −0.40%', 'created_by', :'teacher'), 'the bank admin enters the index''s change by hand');
 select is(app_private.run_jobs('2025-04-30') -> 'failed', 'null', 'the next jobs');
 select is(array(select concat_ws(' ', id, value_centi, status) from wealth_holdings where id::text like '%b1' or id::text like '%c1' order by id),
   array['00000000-0000-4000-8000-0000000000b1 20435 matured', '00000000-0000-4000-8000-0000000000c1 30338 matured'], 'apply it and the weeks after, then mature');
@@ -152,14 +167,37 @@ select is(tests.call(:'teacher', $$select record_wealth_week('2025-04-07', 1, 'x
 select is(tests.call(:'teacher', format('select record_wealth_week(%L, %s, %L)', w, r, n)) ->> 'detail', d, why)
 from (values ('2025-04-08', '1', 'x', '{"field": "week"}', 'a Monday'),
   (app_private.week_of(:'today'::date)::text, '1', 'x', '{"field": "week"}', 'a week over'),
-  ('2025-03-03', '5.5', 'x', '{"max": 5, "min": -5, "field": "rate"}', 'within the bounds'),
-  ('2025-03-03', '1.00001', 'x', '{"max": 5, "min": -5, "field": "rate"}', 'up to 4 decimals'),
+  ('2025-03-03', '50.5', 'x', '{"field": "change"}', '−50 to 50'),
+  ('2025-03-03', '1.00001', 'x', '{"field": "change"}', 'up to 4 decimals'),
   ('2025-03-03', '1', ' ', '{"field": "note"}', 'where it came from')) t(w, r, n, d, why);
 select is(tests.err(w, $$select record_wealth_week('2025-03-03', 1, 'x')$$), 'FORBIDDEN', 'the bank admin and the president alone')
 from unnest(array[:'accountant', :'teller', :'ops']::uuid[]) w;
 select is(tests.call(:'president', $$select record_wealth_week('2025-03-03', 1, 'x')$$) ->> 'source', 'manual', 'the president too');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 rollback to savepoint jobs;
+
+-- The tiers (§10.10) at the defaults: 100 each in 稳健, 平衡 and 进取 for 2 weeks from Monday 10 March 2025; the index
+-- +1%, then −3%. 稳健 7% then −5%, 平衡 10% then −14%, 进取 16% then −30% (its lower bound). A change to wealth_params
+-- after they were bought moves none of them.
+savepoint tiers;
+select tests.student('tier', 300);
+select app_private.start_wealth(('00000000-0000-4000-8000-0000000000e' || i)::uuid, 'tier', 100, 2, k, :'teller', '2025-03-05 12:00+08') is not null
+from unnest(array['steady', 'balanced', 'bold']) with ordinality x(k, i);
+select is(array(select concat_ws(' ', tier, tier_name, multiplier, factor, base, min_rate, max_rate) from wealth_holdings where student_no = 'tier' order by id),
+  array['steady 稳健 1.0000 3.0000 4.0000 -10.0000 15.0000', 'balanced 平衡 2.0000 3.0000 4.0000 -20.0000 25.0000', 'bold 进取 4.0000 3.0000 4.0000 -30.0000 40.0000'],
+  'each locks its tier, the factor and the base of its length');
+select is(array(select reason from txns where student_no = 'tier' and type = 'wealth_buy' order by wealth_id),
+  array['2 周 · 稳健 ×1，3月23日 到期', '2 周 · 平衡 ×2，3月23日 到期', '2 周 · 进取 ×4，3月23日 到期'], 'the wealth_buy says the tier');
+update settings set value = jsonb_set(value, '{factor}', '1') where key = 'wealth_params';
+insert into wealth_weeks (week_start, change, source, params) values ('2025-03-10', 1, 'eastmoney', '{}'), ('2025-03-17', -3, 'eastmoney', '{}');
+select is(app_private.value_wealth('2025-03-23'), 6, 'two weeks each');
+select is(array(select value_centi from wealth_holdings where student_no = 'tier' order by id), array[10165, 9460, 8120],
+  '稳健 100 × 1.07 × 0.95, 平衡 × 1.10 × 0.86, 进取 × 1.16 × 0.70: more won, more lost');
+select is(app_private.mature_wealth('2025-03-23'), 3, 'all mature');
+select is(array(select reason from txns where student_no = 'tier' and type = 'wealth_close' order by wealth_id),
+  array['到期，盈 +1.65 HTB', '到期，亏 −5.40 HTB', '到期，亏 −18.80 HTB'], 'each with its gain or loss');
+select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
+rollback to savepoint tiers;
 
 -- At the counter today.
 select tests.student('s1', 500) as s1 \gset
@@ -170,39 +208,55 @@ select tests.student('pay', 100);
 insert into staff_payroll (user_id, account) values (:'teller', 'pay');
 select app_private.week_of(:'today'::date) + 7 as monday \gset
 
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d1', 's1', 100, 12)$$) as bought \gset
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d1', 's1', 100, 12, 'bold')$$) as bought \gset
 select is(:'bought'::jsonb - 'id' - 'txn_no' - 'created_at' - 'holding',
   '{"type":"wealth_buy","amount":100,"balance_after":400,"denominations":null,"change_given":null}', '买理财: 100 out of 活期');
 select is((:'bought'::jsonb -> 'holding') - 'open_txn',
   jsonb_build_object('id', '00000000-0000-4000-8000-0000000000d1', 'student_no', 's1', 'principal', 100, 'weeks', 12, 'opened_on', :'today'::date,
     'starts_on', :'monday'::date, 'matures_on', :'monday'::date + 83, 'value_centi', 10000, 'valued_to', :'monday'::date, 'status', 'open',
-    'close_txn', null), 'a 12 week holding from next Monday');
+    'close_txn', null, 'tier', 'bold', 'tier_name', '进取', 'multiplier', 4, 'factor', 3, 'base', 4.5, 'min_rate', -30, 'max_rate', 40),
+  'a 12 week 进取 holding from next Monday, its base, factor and tier locked');
 select is((select concat_ws(' ', balance_delta, cash_delta, wealth_id, operator_id = :'teller', reason) from txns where id = (:'bought'::jsonb ->> 'id')::uuid),
-  concat_ws(' ', -100, 0, '00000000-0000-4000-8000-0000000000d1', true, '12 周，' || to_char(:'monday'::date + 83, 'FMMM月FMDD日') || ' 到期'),
-  'no cash moves; the length and the last day');
-select is(tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d1', 's1', 100, 12)$$) ->> 'id', :'bought'::jsonb ->> 'id',
+  concat_ws(' ', -100, 0, '00000000-0000-4000-8000-0000000000d1', true, '12 周 · 进取 ×4，' || to_char(:'monday'::date + 83, 'FMMM月FMDD日') || ' 到期'),
+  'no cash moves; the length, the tier and the last day');
+select is(tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d1', 's1', 100, 12, 'bold')$$) ->> 'id', :'bought'::jsonb ->> 'id',
   'sent again, the same result');
-select is(tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 's1', 401, 2)$$),
+select is(tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 's1', 401, 2, 'steady')$$),
   '{"error":"INSUFFICIENT_BALANCE","detail":"{\"short\": 1, \"balance\": 400}"}', 'not more than 活期');
-select is(tests.err(:'teller', format('select buy_wealth(gen_random_uuid(), %L, %s, %s)', n, a, w)), e, why)
-from (values ('s1', 0, 2, 'INVALID_AMOUNT', '1 HTB or more'), ('s1', 10, 8, 'INVALID_INPUT', '2, 4, 12, 24 or 48 weeks'),
-  ('frz', 10, 2, 'STUDENT_INACTIVE', 'an account in use'), ('pay', 10, 2, 'SELF_SERVICE_FORBIDDEN', 'not the teller''s own pay account'),
-  ('nobody', 10, 2, 'STUDENT_NOT_FOUND', 'a student that exists')) t(n, a, w, e, why);
-select is(tests.err(w, $$select buy_wealth(gen_random_uuid(), 's1', 10, 2)$$), 'FORBIDDEN', 'the counter''s alone')
+select is(tests.err(:'teller', format('select buy_wealth(gen_random_uuid(), %L, %s, %s, %L)', n, a, w, coalesce(k, 'steady'))), e, why)
+from (values ('s1', 0, 2, null, 'INVALID_AMOUNT', '1 HTB or more'), ('s1', 10, 8, null, 'INVALID_INPUT', '2, 4, 12, 24 or 48 weeks'),
+  ('s1', 10, 2, 'wild', 'INVALID_INPUT', 'a tier of wealth_params'),
+  ('frz', 10, 2, null, 'STUDENT_INACTIVE', 'an account in use'), ('pay', 10, 2, null, 'SELF_SERVICE_FORBIDDEN', 'not the teller''s own pay account'),
+  ('nobody', 10, 2, null, 'STUDENT_NOT_FOUND', 'a student that exists')) t(n, a, w, k, e, why);
+select is(tests.err(w, $$select buy_wealth(gen_random_uuid(), 's1', 10, 2, 'steady')$$), 'FORBIDDEN', 'the counter''s alone')
 from unnest(array[:'president', :'teacher', :'accountant', :'s1']::uuid[]) w;
 update duty set ended_at = now(), txns = 0 where user_id = :'teller2';
-select is(tests.err(:'teller2', $$select buy_wealth(gen_random_uuid(), 's1', 10, 2)$$), 'OFF_DUTY', 'on duty');
+select is(tests.err(:'teller2', $$select buy_wealth(gen_random_uuid(), 's1', 10, 2, 'steady')$$), 'OFF_DUTY', 'on duty');
 savepoint loan;
 select app_private.start_loan(gen_random_uuid(), 's2', 10, '测试', 'bullet', 1, 'account', :'teller', now()) is not null;
-select is(tests.err(:'teller', $$select buy_wealth(gen_random_uuid(), 's2', 10, 2)$$), 'LOAN_OUTSTANDING', 'none while a loan is not paid off');
+select is(tests.err(:'teller', $$select buy_wealth(gen_random_uuid(), 's2', 10, 2, 'steady')$$), 'LOAN_OUTSTANDING', 'none while a loan is not paid off');
 rollback to savepoint loan;
 
 -- The quote and 查询.
+-- Last week's change, as dolphin-jobs would have fetched it (a row already fetched stays).
+insert into wealth_weeks (week_start, change, source, params) values (app_private.week_of(:'today'::date) - 7, 1.25, 'eastmoney', '{}') on conflict do nothing;
+select change as last_change from wealth_weeks where week_start = app_private.week_of(:'today'::date) - 7 \gset
 select is(tests.call(:'teller', 'select wealth_quote(''s1'')') - 'holdings' - 'latest' - 'recent',
-  jsonb_build_object('student_no', 's1', 'index', jsonb_build_object('secid', '100.SPX', 'name', '标普 500'),
-    'options', (select jsonb_agg(jsonb_build_object('weeks', w, 'starts_on', :'monday'::date, 'matures_on', :'monday'::date + 7 * w - 1) order by w)
-      from unnest(array[2, 4, 12, 24, 48]) w),
-    'balance', 400, 'wealth_total', 100), 'the quote: the index, each length from next Monday, 活期 and 理财本金');
+  jsonb_build_object('student_no', 's1', 'index', jsonb_build_object('secid', '100.SPX', 'name', '标普 500'), 'factor', 3,
+    'tiers', app_private.setting('wealth_params') -> 'tiers',
+    'options', (select jsonb_agg(jsonb_build_object('weeks', w, 'starts_on', :'monday'::date, 'matures_on', :'monday'::date + 7 * w - 1, 'base', b,
+        'tiers', jsonb_build_array(
+          jsonb_build_object('key', 'steady', 'name', '稳健', 'multiplier', 1, 'rate', least(15, greatest(-10, b + 3 * :last_change)), 'min', -10, 'max', 15),
+          jsonb_build_object('key', 'balanced', 'name', '平衡', 'multiplier', 2, 'rate', least(25, greatest(-20, b + 6 * :last_change)), 'min', -20, 'max', 25),
+          jsonb_build_object('key', 'bold', 'name', '进取', 'multiplier', 4, 'rate', least(40, greatest(-30, b + 12 * :last_change)), 'min', -30, 'max', 40)))
+        order by w)
+      from (values (2, 4), (4, 4.25), (12, 4.5), (24, 4.75), (48, 5)) x(w, b)),
+    'balance', 400, 'wealth_total', 100),
+  'the quote: the index, the tiers, each length from next Monday with its base and each tier''s name, multiple, rate at last week''s change and bounds, 活期 and 理财本金');
+select is(tests.call(:'accountant', 'select wealth_overview()') -> 'weeks' -> 0 -> 'rates' -> '12',
+  jsonb_build_object('steady', least(15, greatest(-10, 4.5 + 3 * :last_change)), 'balanced', least(25, greatest(-20, 4.5 + 6 * :last_change)),
+    'bold', least(40, greatest(-30, 4.5 + 12 * :last_change))), 'the 理财 page has each length''s and tier''s rate of every week');
+select is(tests.call(:'teller', 'select wealth_quote(''s1'')') #>> '{latest,week_start}', (app_private.week_of(:'today'::date) - 7)::text, 'latest is last week');
 select is(jsonb_array_length(tests.call(:'teller', 'select wealth_quote(''s1'')') -> 'holdings'), 1, 'and the student''s holdings');
 select is(tests.call(:'teller', 'select wealth_quote(''s1'')') -> 'recent', app_private.wealth_recent(6), 'and the latest 6 weeks');
 select is(tests.err(:'teller', 'select wealth_quote(''pay'')'), 'SELF_SERVICE_FORBIDDEN', 'not of the teller''s own pay account');
@@ -235,14 +289,14 @@ select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_bala
 select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d1')$$) ->> 'amount', '103', 'it can be redeemed again');
 
 -- A loss: 50 worth 46.50 pays the 0.50 零头 and 46.50, 47 HTB.
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d2', 's1', 50, 2)$$) is not null;
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d2', 's1', 50, 2, 'steady')$$) is not null;
 update wealth_holdings set value_centi = 4650 where id = '00000000-0000-4000-8000-0000000000d2';
 select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d2')$$) ->> 'amount', '47', 'a loss pays less than the principal');
 select is((select reason from txns where wealth_id = '00000000-0000-4000-8000-0000000000d2' and type = 'wealth_close'), '赎回，亏 −3.50 HTB', 'and says so');
 select is(tests.err(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d2')$$) , null, 'sent again, the same result');
 
 -- 1 HTB worth 0.95 with no 零头 pays 0 HTB: the 0.95 waits as 零头.
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d6', 's2', 1, 2)$$) is not null;
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d6', 's2', 1, 2, 'steady')$$) is not null;
 update wealth_holdings set value_centi = 95 where id = '00000000-0000-4000-8000-0000000000d6';
 select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d6')$$) - 'id' - 'txn_no' - 'created_at' - 'holding',
   '{"type":"wealth_close","amount":0,"balance_after":99,"denominations":null,"change_given":null}', 'less than 1 HTB back: 0 to 活期');
@@ -254,21 +308,21 @@ select is((select concat_ws(' ', a.balance, a.interest_carry, a.wealth_total, h.
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 
 -- 买理财 reversed by the teller the same day; not once a week has been applied.
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d3', 's1', 20, 4)$$) as third \gset
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d3', 's1', 20, 4, 'steady')$$) as third \gset
 select is(tests.err(:'teller2', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'third'::jsonb ->> 'id')), 'REVERSAL_NOT_ALLOWED',
   'a teller reverses only their own');
 select is(tests.call(:'teller', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'third'::jsonb ->> 'id')) ->> 'amount', '20',
   'their own of today: the principal back to 活期');
 select is((select concat_ws(' ', h.status, a.wealth_total) from wealth_holdings h join accounts a using (student_no) where h.id = '00000000-0000-4000-8000-0000000000d3'),
   'reversed 0', 'the holding void');
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d4', 's1', 10, 2)$$) as fourth \gset
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000000d4', 's1', 10, 2, 'steady')$$) as fourth \gset
 update wealth_holdings set valued_to = valued_to + 7, value_centi = 1020 where id = '00000000-0000-4000-8000-0000000000d4';
 select is(tests.err(:'teacher', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'fourth'::jsonb ->> 'id')), 'REVERSAL_NOT_ALLOWED',
   'not once a week has moved it');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 
 -- A frozen account keeps its holding and cannot redeem it.
-select app_private.start_wealth('00000000-0000-4000-8000-0000000000d5', 'frz', 10, 2, :'teller', now()) is not null;
+select app_private.start_wealth('00000000-0000-4000-8000-0000000000d5', 'frz', 10, 2, 'steady', :'teller', now()) is not null;
 select is(tests.err(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000000d5')$$), 'STUDENT_INACTIVE', 'no 赎回 while frozen');
 
 -- Who reads what (§3, §16).
@@ -285,7 +339,7 @@ select is(tests.err(w, 'select wealth_overview()'), 'FORBIDDEN', 'the 理财 pag
 -- 排名 (§16.3) by 活期 + 定期 + 理财本金: ra keeps 100 of its 150 in 理财 and still comes first.
 select tests.student('ra', 150, null, 'junior') as ra \gset
 select tests.student('rb', 120, null, 'junior') as rb \gset
-select tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 'ra', 100, 2)$$) is not null;
+select tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 'ra', 100, 2, 'steady')$$) is not null;
 select is(jsonb_path_query_array(tests.call(:'rb', 'select deposit_ranking()') -> 'top', '$[*].balance'), '[150, 120]', 'ranked with the 理财本金');
 
 -- 注销 (P1 §6.4): the holdings open are redeemed at their value and leave with the balance.

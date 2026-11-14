@@ -1,7 +1,7 @@
 #!/bin/bash
 # One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past; each
 # school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 理财 bought or redeemed
-# (each week's 理财 rate fixed, no network), a few 信用分 changes and,
+# (in 稳健, 平衡 or 进取; each week's index change fixed, no network), a few 信用分 changes and,
 # mid-term, some frozen accounts, loans paid out and repaid, then the day's jobs run as at 00:05 and 00:10 (run_weekly on
 # Mondays before the day's business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances
 # finds nothing every day, that no run_daily takes 30 s, that every 定期 due by the last day simulated has come back
@@ -44,7 +44,8 @@ from public.accounts where student_no like '4%' and balance > 0;
 -- 17:30, a withdrawal never more than the balance; at 17:40 about 0.5% of those with no loan and 400 分 or more borrow up
 -- to 60 HTB within their 额度 for 1–4 weeks, into the account or in cash; at 17:45 about 1% open a 定期 of up to half
 -- their 活期 for 2, 4, 12, 24 or 48 weeks (none with a loan not paid off), and 2% of the 定期 open are withdrawn early;
--- at 17:47 about 0.5% of those with no loan buy 理财 with up to a third of their 活期 for 2, 4, 12, 24 or 48 weeks, and
+-- at 17:47 about 0.5% of those with no loan buy 理财 with up to a third of their 活期 for 2, 4, 12, 24 or 48 weeks in a
+-- random tier, and
 -- at 17:52 1% of the holdings open are redeemed; at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
 -- 信用分 changes by hand. The days' 自动扣款 and 逾期 come from run_daily.
 create function sim.business(p_day date) returns integer language plpgsql as $$
@@ -74,9 +75,10 @@ begin
     (p_day + time '17:50') at time zone 'Asia/Shanghai')
   from public.term_deposits d join public.students s using (student_no)
   where d.status = 'open' and s.status = 'normal' and d.matures_on >= p_day and random() < 0.02;
-  perform app_private.start_wealth(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 3))::integer, x.w,
+  perform app_private.start_wealth(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 3))::integer, x.w, x.tier,
     app_private.system_user(), (p_day + time '17:47') at time zone 'Asia/Shanghai')
-  from (select a.student_no, a.balance, (array[2, 4, 12, 24, 48])[1 + floor(random() * 5)::integer] as w
+  from (select a.student_no, a.balance, (array[2, 4, 12, 24, 48])[1 + floor(random() * 5)::integer] as w,
+          (array['steady', 'balanced', 'bold'])[1 + floor(random() * 3)::integer] as tier
         from public.accounts a join public.students s using (student_no)
         where s.status = 'normal' and a.balance >= 10 and random() < 0.005
           and not exists (select 1 from public.loans l where l.student_no = a.student_no and l.status in ('active', 'overdue'))) x;
@@ -131,10 +133,10 @@ begin
     v_n := sim.business(p_day);
   end if;
   if extract(isodow from p_day) = 7 then
-    -- The week's 理财 rate, as dolphin-jobs would have fetched it: a fixed cycle from −5% to +5%.
-    insert into public.wealth_weeks (week_start, change, rate, source, params)
-    select p_day - 6, r / 2, r, 'eastmoney', app_private.setting('wealth_params')
-    from (select (array[1.2, -0.8, 2.5, -3, 0.4, -5, 5, 0])[1 + ((p_day - date '2025-09-07') / 7) % 8] as r) x;
+    -- The week's index change, as dolphin-jobs would have fetched it: a fixed cycle from −2.5% to +2.5%.
+    insert into public.wealth_weeks (week_start, change, source, params)
+    select p_day - 6, c, 'eastmoney', app_private.setting('wealth_params')
+    from (select (array[0.6, -0.4, 1.25, -1.5, 0.2, -2.5, 2.5, 0])[1 + ((p_day - date '2025-09-07') / 7) % 8] as c) x;
   end if;
   v_t := clock_timestamp();
   v_status := app_private.run_daily(p_day) ->> 'status';

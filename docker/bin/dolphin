@@ -140,11 +140,15 @@ SQL
 }
 
 # 理财 (PHASE-2.md §10.10): the reference index's latest weekly closes from eastmoney into wealth_weeks, the weeks over
-# that have none yet. When the fetch or the data fails, says so and logs wealth.fetch_failed; the bank admin then enters
-# the week's rate by hand.
+# that have none yet; nothing to do once last week is in. When the fetch or the data fails, says so, logs
+# wealth.fetch_failed and exits 1, for dolphin-jobs to try again; a week still missing is entered by hand.
 jobs_fetch() {
   local secid body out
   ready
+  if [ "$(psql_ -qAt -c "select exists (select 1 from public.wealth_weeks where week_start = app_private.week_of(app_private.cn_date(now())) - 7)")" = t ]; then
+    echo "wealth: last week is in"
+    return 0
+  fi
   secid=$(psql_ -qAt -c "select app_private.setting('wealth_params') ->> 'secid'")
   if body=$(curl -fsS --max-time 20 "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=$secid&fields1=f1,f2,f3&fields2=f51,f53&klt=102&fqt=0&end=20500101&lmt=10" 2>&1) \
      && out=$(psql_ -qAt -v body="$body" 2>&1 <<'SQL'

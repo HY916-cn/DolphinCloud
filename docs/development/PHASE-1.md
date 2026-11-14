@@ -880,7 +880,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin check` | 运行 `app_private.check_balances()` 并输出结果；有不一致时退出码为 1 |
 | `dolphin jobs` | 定时任务（PHASE-2.md §13）每个任务处理到哪天、最后成功时间、最近一次失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务到昨天（周任务到今天的周一）；有任务失败时停在那天，退出码为 1 |
-| `dolphin jobs fetch` | 立即取理财参考指数的周 K 线写入 `wealth_weeks`（PHASE-2.md §10.10）；取不到时写日志 `wealth.fetch_failed`、退出码为 1。`dolphin-jobs` 每天补跑前先执行它 |
+| `dolphin jobs fetch` | 立即取理财参考指数的周 K 线写入 `wealth_weeks`（PHASE-2.md §10.10）；上一周已有数据时不再请求；取不到时写日志 `wealth.fetch_failed`、退出码为 1。`dolphin-jobs` 每天补跑前先执行它，取不到时当天每 10 分钟重试 6 次、之后每小时重试到当天结束 |
 | `dolphin status` | 各进程状态、版本、最近一次备份时间、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像的 `HEALTHCHECK`：Auth、PostgREST、Storage 各自应答且 Caddy 在运行 |
 

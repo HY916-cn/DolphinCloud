@@ -107,7 +107,7 @@ insert into tests.matrix values
   -- 理财: the counter's; the 理财 page the accountant's, president's and bank admin's, 手动登记 the president's and bank
   -- admin's (PHASE-2.md §10.10); students and the back office read the wealth tables
   ('wealth_quote(text)', 'select wealth_quote(''nobody'')', '{teller}'),
-  ('buy_wealth(uuid,text,integer,integer)', 'select buy_wealth(gen_random_uuid(), ''nobody'', 1, 2)', '{teller}'),
+  ('buy_wealth(uuid,text,integer,integer,text)', 'select buy_wealth(gen_random_uuid(), ''nobody'', 1, 2, ''steady'')', '{teller}'),
   ('redeem_wealth(uuid)', 'select redeem_wealth(gen_random_uuid())', '{teller}'),
   ('wealth_overview()', 'select wealth_overview()', '{accountant,president,teacher}'),
   ('record_wealth_week(date,numeric,text)', 'select record_wealth_week(current_date, 0, '''')', '{president,teacher}'),

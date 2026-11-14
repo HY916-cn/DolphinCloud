@@ -113,7 +113,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin check` | 核对余额与流水，有不一致时退出码为 1 |
 | `dolphin jobs` | 定时任务处理到哪天、最后成功时间、有没有失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务；有任务失败时退出码为 1 |
-| `dolphin jobs fetch` | 立即取理财参考指数的周 K 线（东方财富）；取不到时写日志并退出码为 1，`dolphin-jobs` 每天补跑前会自动执行 |
+| `dolphin jobs fetch` | 立即取理财参考指数的周 K 线（东方财富）；上一周已有数据时不再请求；取不到时写日志并退出码为 1。`dolphin-jobs` 每天补跑前会自动执行，取不到时当天每 10 分钟重试 6 次、之后每小时重试 |
 | `dolphin status` | 各进程状态、版本、最近一次备份、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像健康检查：Auth、PostgREST、Storage 应答且 Caddy 在运行 |
 | `dolphin reset-admin` | 银行管理员忘记密码时生成新的初始密码，解除停用和登录锁定 |
