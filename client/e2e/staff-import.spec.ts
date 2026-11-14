@@ -21,12 +21,12 @@ test('a staff sheet with problems is shown row by row and nothing is imported', 
   await page.getByRole('link', { name: '导入', exact: true }).click();
   await page.getByLabel('选择工作人员表').setInputFiles(sheet([
     ['teller71', '柜员甲', '柜员', '99999999'],
-    ['acct71', '财务甲', '财务', '20260001'],
+    ['ops71', '运维甲', '运维员', '20260001'],
     ['boss71', '管理员', '银行管理员', ''],
   ]));
   const problems = page.getByRole('list', { name: '需要修改的地方' });
   await expect(problems).toContainText('第 2 行：工资账户：学号 99999999 不存在');
-  await expect(problems).toContainText('第 3 行：只有柜员可以绑定工资账户');
+  await expect(problems).toContainText('第 3 行：运维员不参与考勤，工资账户请留空');
   await expect(problems).toContainText('第 4 行：银行管理员不能导入');
   await expect(page.getByRole('button', { name: '确认导入' })).toHaveCount(0);
 });
@@ -60,8 +60,8 @@ test('the bank admin imports staff, binds tellers at once and prints one notice 
   expect(texts).toContain('未绑定');
   password = texts[texts.indexOf('初始密码', texts.indexOf('teller71')) + 1];
   expect(password).toMatch(/^\d{8}$/);
-  // 库管 has no 工资账户 row.
-  expect(texts.slice(texts.indexOf('库管甲，你好'))).not.toContain('工资账户');
+  // 库管 is counted for pay too: its notice has the 工资账户 row.
+  expect(texts.slice(texts.indexOf('库管甲，你好'))).toContain('工资账户');
 
   await page.goto('/admin/staff');
   await expect(page.getByRole('list', { name: '工作人员' })).toContainText('柜员小林');

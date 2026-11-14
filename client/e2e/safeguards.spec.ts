@@ -47,7 +47,7 @@ test('a teller whose device knows they are off duty still registers deposits off
 
 test.describe(() => {
   test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
-  const salary = (url: URL) => url.pathname.endsWith('/rest/v1/settings') && url.search.includes('salary_per_shift');
+  const salary = (url: URL) => url.pathname.endsWith('/rest/v1/salary_rates');
 
   test('工资 cannot be paid on rates that were not read; with them, the amount confirmed is the amount paid', async ({ page }) => {
     test.skip(!process.env.E2E_CONTAINER, 'needs the test container');
@@ -55,22 +55,21 @@ test.describe(() => {
       on conflict (user_id) do update set account = excluded.account, attendance = true`);
     sql(`insert into public.attendance (user_id, day, shift, status, signed_by) select id, (now() at time zone 'Asia/Shanghai')::date, 'am', 'confirmed', id
       from public.profiles where login_id = 'teller01'`);
-    const pay = sql(`select value ->> 'am' from public.settings where key = 'salary_per_shift'`);
+    const pay = sql(`select amount from public.salary_rates where role = 'teller' and shift = 'am'`);
 
     await page.route(salary, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"test"}' }));
     await signIn(page, '工作人员', 'admin');
     await expect(page).toHaveURL(/\/admin$/);
     await page.goto('/admin/attendance');
-    await expect(page.locator('.dc-notice-danger')).toContainText('暂时无法读取工资费率', { timeout: 10_000 });
+    await expect(page.locator('.dc-notice-danger')).toContainText('暂时无法读取工资标准', { timeout: 10_000 });
     const paying = page.getByRole('button', { name: '发放工资' });
     await expect(paying).toBeDisabled();
-    await expect(page.locator('.dc-stat', { hasText: '每班工资' })).toContainText('—');
     await expect(page.locator('.dc-stat', { hasText: '本周工资' })).toContainText('—');
     await expect(page.locator('.dc-sheet')).toHaveCount(0);
 
     await page.unroute(salary);
     await page.getByRole('button', { name: '重试' }).click();
-    await expect(page.locator('.dc-stat', { hasText: '每班工资' })).toContainText(`${pay} /`);
+    await expect(page.locator('.dc-stat', { hasText: '本周工资' })).toContainText(pay);
     await paying.click();
     await expect(page.locator('.dc-sheet')).toContainText(`${pay} HTB`);
     await confirmIn(page, `发放 ${pay} HTB`);

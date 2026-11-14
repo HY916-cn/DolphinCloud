@@ -5,7 +5,7 @@ import { confirmIn, endDuty, resetData, signIn, startDuty } from './helpers';
 // (20260002) as the 工资账户; the bank admin counts the teller, whose 下班 and 上班 record the shift of now; the bank
 // admin reviews it, signs in one of last week (补签) and pays both weeks; 李思远 sees the pay in 明细.
 test.describe.configure({ mode: 'serial' });
-// 中午班 pays 12 and 下午班 15 (set below); the teller's shift today is the one of now.
+// A teller's 中午班 pays 12 and 下午班 15 (set below in the 工资标准); the teller's shift today is the one of now.
 const nowPay = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
   .format(new Date()) < '13:30' ? 12 : 15;
 test.beforeAll(resetData);
@@ -27,14 +27,14 @@ test('工资账户 first: the teller binds a student account with its password',
 test('参与考勤: the bank admin counts the bound teller and sets the pay', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  await expect(page.getByText('还没有参与考勤的柜员')).toBeVisible();
+  await expect(page.getByText('还没有参与考勤的人员')).toBeVisible();
   await page.locator('.dc-switch', { hasText: '柜员小林' }).click();
   await expect(page.getByRole('switch', { name: /柜员小林/ })).toBeChecked();
-  await expect(page.getByRole('table', { name: '本周考勤' })).toContainText('学号 20260002');
+  await expect(page.getByRole('table', { name: '本周考勤 · 柜员' })).toContainText('学号 20260002');
 
   await page.locator('.dc-nav-item', { hasText: '参数' }).click();
-  await page.getByLabel('中午班工资', { exact: true }).fill('12');
-  await page.getByLabel('下午班工资', { exact: true }).fill('15');
+  await page.getByLabel('柜员中午班工资', { exact: true }).fill('12');
+  await page.getByLabel('柜员下午班工资', { exact: true }).fill('15');
   await page.getByRole('button', { name: '保存参数' }).click();
   await expect(page.getByText('参数已保存')).toBeVisible();
 });
@@ -56,7 +56,7 @@ test('下班 and 上班 record the shift of now once, and the counter waits for 
 test('审查 once, 补签, then 发放工资 by the week once nothing waits', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  const week = page.getByRole('table', { name: '本周考勤' });
+  const week = page.getByRole('table', { name: '本周考勤 · 柜员' });
   await expect(page.getByRole('button', { name: '发放工资' })).toBeDisabled(); // a shift still waits
   await week.getByRole('button', { name: /^柜员小林 .*待审$/ }).click();
   await page.locator('.dc-sheet .dc-chip', { hasText: '有效' }).click();

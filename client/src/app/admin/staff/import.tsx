@@ -60,7 +60,7 @@ export default function ImportStaff() {
       setStage({ kind: 'importing', done: i, total: rows.length });
       try {
         const r = await call<Imported>('import_staff', { p_rows: rows.slice(i, i + BATCH) }, 60_000);
-        created.push(...r.accounts.map((a) => ({ ...a, role: ROLES[a.role], teller: a.role === 'teller' })));
+        created.push(...r.accounts.map((a) => ({ ...a, role: ROLES[a.role], payroll: a.role !== 'sysadmin' })));
         updated += r.updated;
         bound += r.bound;
       } catch (err) {
@@ -96,7 +96,7 @@ export default function ImportStaff() {
             <h2 className="heading">导入模板</h2>
             <Summary rows={[
               ['账号', '必填，2–32 位小写字母、数字、. _ -'], ['姓名', '必填'], ['身份', Object.keys(STAFF_ROLES).join('、')],
-              ['工资账户', '可空，学号，只有柜员可填'],
+              ['工资账户', '可空，学号；运维员不填'],
             ]} />
             <p className="dc-top-sub">已有的账号只更新姓名和工资账户（留空表示不改），不改密码和身份。绑定工资账户不需要学生密码，每次绑定都记入日志。每个新账号有各自的初始密码，印在通知单上。</p>
             <button className="dc-btn dc-btn-secondary" type="button" onClick={downloadTemplate}>下载模板</button>

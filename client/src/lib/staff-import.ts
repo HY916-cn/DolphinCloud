@@ -52,7 +52,7 @@ export function checkStaff(table: unknown[][], known: StaffKnown): { rows: Staff
 
     if (account) {
       const status = known.students.get(account);
-      if (role && role !== 'teller') say('只有柜员可以绑定工资账户，其他身份请留空。');
+      if (role === 'sysadmin') say('运维员不参与考勤，工资账户请留空。');
       else if (accounts.has(account)) say(`工资账户 ${account} 与第 ${accounts.get(account)} 行重复。`);
       else if (status === undefined) say(`工资账户：学号 ${account} 不存在。`);
       else if (status !== 'normal') say(`工资账户：学号 ${account} 不是在读账户。`);

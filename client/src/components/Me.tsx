@@ -2,6 +2,7 @@ import { savedAccounts } from '@/lib/accounts';
 import { formatAmount } from '@/lib/format';
 import { roleOf, ROLES, type Me, type Student } from '@/lib/session';
 import { Avatar } from './Avatar';
+import { PayAccount } from './Attendance';
 import { signed, useTerm } from './Account';
 import { SaveLogin } from './Accounts';
 import { ViewSwitch } from './Book';
@@ -33,7 +34,8 @@ function StudentAccount({ s }: { s: Student }) {
 }
 
 // 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号; a student also
-// picks the 页面样式 (普通版 or 存折版) here, and sees 我的账户 beside the list.
+// picks the 页面样式 (普通版 or 存折版) here, and sees 我的账户 beside the list; staff counted for pay (all but the
+// sysadmin) see their 工资账户.
 export function MeView({ me }: { me: Me }) {
   const s = me.student;
   const others = savedAccounts().filter((a) => a.id !== me.profile.id).length;
@@ -50,6 +52,7 @@ export function MeView({ me }: { me: Me }) {
         </div>
       </div>
       {s && <ViewSwitch current="normal" />}
+      {!s && me.roles.length > 0 && !me.roles.includes('sysadmin') && <PayAccount userId={me.profile.id} />}
       <ul className="dc-list">
         <li>
           <a className="dc-list-link" {...link('/login?switch=1')}>

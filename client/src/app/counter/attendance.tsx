@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { CounterPage, DutyCard, ListLoading, Notice, SalaryAccount, Stats, today, WeekBar, WeekShifts } from '@/components';
-import { earned, usePayroll, useSalaryRate, useShifts, weekOf } from '@/lib/attendance';
+import { usePayroll, useSalaryRates, useShifts, weekOf } from '@/lib/attendance';
 import { useDuties } from '@/lib/duty';
 import { formatAmount, formatTime, shiftDay } from '@/lib/format';
+import { earned } from '@/lib/salary';
 import { useMe } from '@/lib/session';
 
 // 考勤 (PHASE-1.md §7.5): 上班 and 下班, a week of shifts (any week by its arrows or a day from the calendar), the
@@ -12,12 +13,12 @@ export default function Attendance() {
   const [monday, setMonday] = useState(weekOf(today())[0]);
   const sunday = shiftDay(monday, 6);
   const payroll = usePayroll();
-  const rate = useSalaryRate();
+  const rates = useSalaryRates().data ?? undefined;
   const mine = payroll.data?.find((p) => p.user_id === me.profile.id);
   const shifts = useShifts(monday, sunday, me.profile.id);
   const duties = useDuties(me.profile.id, monday, sunday);
   const rows = shifts.data ?? [];
-  const r = rate.data;
+  const r = rates?.teller;
   return (
     <CounterPage title="考勤">
       <div className="dc-split">
@@ -30,7 +31,7 @@ export default function Attendance() {
           <Stats items={[
             ['有效', rows.filter((x) => x.status === 'confirmed').length, '个班次'],
             ['待审', rows.filter((x) => x.status === 'pending').length, '个班次'],
-            ['工资', r ? formatAmount(earned(rows, r)) : '—', 'HTB'],
+            ['工资', rates ? formatAmount(earned(rows, rates)) : '—', 'HTB'],
             ['已发', formatAmount(rows.reduce((s, x) => s + (x.pay ?? 0), 0)), 'HTB'],
           ]} />
           {shifts.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>

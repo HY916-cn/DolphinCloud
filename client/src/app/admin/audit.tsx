@@ -28,7 +28,7 @@ const ACTIONS: Record<string, string> = {
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
-  attendance: '考勤', staff_payroll: '考勤设置', duty: '上下班',
+  attendance: '考勤', staff_payroll: '考勤设置', duty: '上下班', salary_rates: '工资标准',
 };
 const OPS: Record<string, string> = { insert: '新增', update: '修改', delete: '删除' };
 // The type chips: each a group of actions, by prefix.
@@ -38,7 +38,7 @@ const GROUPS: Record<string, [string, string[]]> = {
   reverse: ['冲正', ['txn.']],
   product: ['商品', ['products.']],
   settings: ['参数', ['settings.']],
-  attendance: ['考勤与工资', ['attendance.', 'staff_payroll.', 'duty.', 'salary.', 'payroll.']],
+  attendance: ['考勤与工资', ['attendance.', 'staff_payroll.', 'duty.', 'salary.', 'salary_rates.', 'payroll.']],
   system: ['备份与自检', ['backup.', 'check.']],
 };
 const KINDS = Object.entries(GROUPS).map(([k, [name]]) => [k, name] as const);
@@ -60,7 +60,7 @@ const COLUMNS: Record<string, string> = {
   failures: '15 分钟内密码错误次数', locked_until: '锁定到', valid: '密码正确', student_nos: '学号', file: '备份文件',
   attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '记录时间',
   started_at: '上班时间', ended_at: '下班时间', txns: '业务笔数', closed_at: '注销时间',
-  from: '起', to: '止', rates: '班次工资', paid: '发放',
+  from: '起', to: '止', rates: '工资标准', paid: '发放',
 };
 // Columns that change on every write and say nothing to the reader.
 const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id',
@@ -104,6 +104,7 @@ function subject(e: Entry, names: Map<string, string>) {
   if (e.action === 'check.mismatch') return `${Array.isArray(e.after) ? e.after.length : 0} 处不一致`;
   if (e.action === 'salary.pay') return `${r.from} 至 ${r.to}`;
   if (e.action === 'salary.bind') return [names.get(profileOf(e) ?? ''), r.name, r.student_no].filter(Boolean).join(' · ');
+  if (e.action.startsWith('salary_rates.')) return [WORDS[String(r.role)], WORDS[String(r.shift)]].filter(Boolean).join(' · ');
   if (e.action.startsWith('attendance.') || e.action.startsWith('staff_payroll.'))
     return [names.get(String(r.user_id)), r.day, r.shift && WORDS[String(r.shift)]].filter(Boolean).join(' · ');
   return [...new Set([r.batch_no, r.txn_no, r.name ?? r.display_name, r.student_no ?? r.login_id])].filter((v) => v != null && v !== '').join(' · ');

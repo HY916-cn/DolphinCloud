@@ -26,8 +26,8 @@ const FIELDS: Record<string, string> = {
   reason: '冲正原因', items: '商品', payment: '付款方式', login_id: '账号', role: '身份', user_id: '账号',
   cohort: '学届', opening_balance: '期初余额', qty: '入库数量', product: '商品名称和价格', issue: '发行信息', batch_no: '批次号',
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限', ranking_size: '排名人数',
-  promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', salary_per_shift: '班次工资',
-  account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '补签说明', status: '审核结果', week: '发放的周',
+  promotion_date: '升年级日期', ranking_anonymous: '排名匿名', key: '参数', rates: '工资标准',
+  account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '说明', status: '审核结果', week: '发放的周',
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
   anchor_params: '锚点参数', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
   plan: '还款方式', periods: '期数', via: '放款方式', purpose: '用途', loan_id: '这笔贷款', terminate_reason: '终止原因',
@@ -59,16 +59,26 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'LAST_SYSADMIN': return { title: '至少保留一个运维员', text: '这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。' };
     case 'ONE_BANK_ADMIN': return { title: '银行管理员只有一个', text: '不能新增银行管理员，也不能更改银行管理员的身份。' };
     case 'INVALID_INPUT':
+      if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
+      if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '运维员不参与考勤。' };
       if (d.field === 'loan_id' && d.status) return { title: '这笔贷款不能还款', text: d.status === 'closed' ? '这笔贷款已经结清。' : '这笔贷款已经作废。' };
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };
-    case 'ALREADY_EXISTS': return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
+    case 'ALREADY_EXISTS':
+      if (d.field === 'attendance') return { title: '已经登记过', text: '这个班次已经有记录。' };
+      return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
     case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
     case 'PRODUCT_NOT_FOUND': return { title: '商品不存在', text: '请刷新后重新选择商品。' };
-    case 'SELF_SERVICE_FORBIDDEN': return { title: '不能为自己办理', text: '这是你本人或你的工资账户，请由其他柜员办理。' };
-    case 'ATTENDANCE_REVIEWED': return { title: '已经审查过', text: '审查过的班次不能再修改。' };
+    // `payroll` (登记, 作废, 工资账户, 参与考勤) is the attendance pages' own: the server sends no detail.
+    case 'SELF_SERVICE_FORBIDDEN':
+      if (d.payroll) return { title: '不能登记自己的班次', text: '行长的班次由银行管理员登记，银行管理员的由行长登记。' };
+      return { title: '不能为自己办理', text: '这是你本人或你的工资账户，请由其他柜员办理。' };
+    case 'ATTENDANCE_PAID': return { title: '已经发过工资', text: '这个班次的工资已经发放，不能作废。' };
+    case 'ATTENDANCE_REVIEWED':
+      if (d.payroll) return { title: '已经作废', text: '这个班次已经作废。' };
+      return { title: '已经审查过', text: '审查过的班次不能再修改。' };
     case 'ATTENDANCE_PENDING': return { title: '还有班次没审查', text: `截至这周日还有 ${d.count} 个待审班次，全部审查后才能发放工资。` };
     case 'ATTENDANCE_ON': return { title: '正在参与考勤', text: '先关闭参与考勤，才能解除工资账户；更换账户可以直接绑定新的。' };
-    case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: '柜员绑定学生账户作为工资账户后，才能参与考勤。' };
+    case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: '绑定学生账户作为工资账户后，才能参与考勤。' };
     case 'STALE_DUTY':
       return { title: '上次上班还没下班', text: `这次上班从 ${shanghaiTime(String(d.started_at))} 开始，已经跨天。请先下班，再重新上班办理业务。` };
     case 'OFF_DUTY': return { title: '还没有上班', text: '请先在「考勤」点「上班」，再办理业务。' };

@@ -1,12 +1,15 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { DatePicker, Desk, FormLoading, SkeletonGroup, Icon, Notice, outside, Stepper, today, Toast, type IconName, type Range } from '@/components';
+import { DatePicker, Desk, FormLoading, SkeletonGroup, Icon, Notice, outside, Stepper, today, Toast, useWide, type IconName, type Range } from '@/components';
+import { SHIFTS, useSalaryRates } from '@/lib/attendance';
 import {
   curveDraft, curveProblems, preview, ruleProblem, RULES, rulesDraft, rulesValue, type Curve, type CurveDraft, type Rules,
 } from '@/lib/credit';
 import { AppError, explain } from '@/lib/errors';
 import { rateDraft, rateProblems, rateValues, type AnchorParams, type RateDraft } from '@/lib/rates';
 import { call } from '@/lib/rpc';
+import { PAID_ROLES, rateWrong, ratesDraft, ratesValue, type Rates, type RatesDraft } from '@/lib/salary';
+import { ROLES } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
 type Values = Record<string, unknown>;
@@ -22,7 +25,6 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // The numbers set_settings takes; an empty or out-of-range one is said so here and never saved.
 const LIMIT: Range = { min: 1, max: 1_000_000 };
 const RANKING: Range = { min: 1, max: 100 };
-const PAY: Range = { min: 1, max: 10_000 };
 const allowed = ({ min, max }: Range) => `请输入 ${min} 到 ${max} 的整数`;
 const MIN_SCORE: Range = { min: 0, max: 999 };
 const CREDIT_LIMIT: Range = { min: 1, max: 10_000 };
@@ -129,6 +131,49 @@ function CreditGroup({ curve, problems, onCurve, rules, onRule }: {
   );
 }
 
+// 考勤与工资 (design system data.md 参数页分组): the 工资标准, identity × shift, saved whole with set_salary_rates. A
+// table on a computer; a card per identity, its two shifts side by side, on phones and tablets.
+function SalaryGroup({ draft, onChange }: { draft: RatesDraft; onChange: (role: keyof RatesDraft, shift: 'am' | 'pm', v: string) => void }) {
+  const wide = useWide();
+  const cell = (role: keyof RatesDraft, shift: 'am' | 'pm', label?: string) => {
+    const wrong = rateWrong(draft[role][shift]);
+    return (
+      <label className={`dc-field ${wrong ? 'is-error' : ''}`}>
+        {label && <span className="dc-field-label"><Icon name="coin" />{label}</span>}
+        <span className="dc-input-wrap">
+          <input className="dc-input" inputMode="numeric" aria-label={`${ROLES[role]}${SHIFTS[shift]}工资`} value={draft[role][shift]}
+            onChange={(e) => onChange(role, shift, e.target.value.replace(/\D/g, '').slice(0, 5))} />
+          <span className="dc-input-unit">HTB</span>
+        </span>
+        {wrong && <span className="dc-field-hint"><Icon name="warning" />工资标准每格 1～10000 HTB。</span>}
+      </label>
+    );
+  };
+  return (
+    <section className="dc-stack">
+      <h2 className="heading is-section">考勤与工资</h2>
+      <p className="dc-caption">每个有效班次按身份发工资，从下一次发放起生效。运维员不参与考勤。</p>
+      {wide ? (
+        <div className="dc-card">
+          <table className="dc-table" aria-label="工资标准">
+            <thead><tr><th scope="col">身份</th><th scope="col">{SHIFTS.am}</th><th scope="col">{SHIFTS.pm}</th></tr></thead>
+            <tbody>
+              {PAID_ROLES.map((role) => (
+                <tr key={role}><th scope="row">{ROLES[role]}</th><td>{cell(role, 'am')}</td><td>{cell(role, 'pm')}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : PAID_ROLES.map((role) => (
+        <div key={role} className="dc-card dc-stack" role="group" aria-label={`${ROLES[role]}的工资标准`}>
+          <p className="dc-list-title">{ROLES[role]}</p>
+          <div className="dc-denoms">{cell(role, 'am', SHIFTS.am)}{cell(role, 'pm', SHIFTS.pm)}</div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 // A percentage with up to 2 decimals typed in a Field, "%" after it.
 function Percent({ label, value, onChange, error }: { label: string; value: string; onChange: (v: string) => void; error?: string }) {
   return (
@@ -191,16 +236,17 @@ export default function Settings() {
       return Object.fromEntries(data.map((r) => [r.key, r.value])) as Values;
     },
   });
+  const rates = useSalaryRates();
   return (
     <Desk title="参数">
-      {settings.error ? <Notice tone="danger" title="暂时无法读取参数">请检查网络后刷新页面。</Notice>
-        : !settings.data ? <SkeletonGroup className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></SkeletonGroup>
-        : <SettingsForm saved={settings.data} />}
+      {settings.error || rates.error || rates.data === null ? <Notice tone="danger" title="暂时无法读取参数">请检查网络后刷新页面。</Notice>
+        : !settings.data || !rates.data ? <SkeletonGroup className="dc-split"><FormLoading fields={5} /><FormLoading fields={2} /></SkeletonGroup>
+        : <SettingsForm saved={settings.data} savedRates={rates.data} />}
     </Desk>
   );
 }
 
-function SettingsForm({ saved }: { saved: Values }) {
+function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates }) {
   const queryClient = useQueryClient();
   const single = saved.withdraw_single_limit as Limit;
   const daily = saved.withdraw_daily_limit as Limit;
@@ -210,9 +256,7 @@ function SettingsForm({ saved }: { saved: Values }) {
   const [dailyPrimary, setDailyPrimary] = useState(String(daily.primary));
   const [dailyJunior, setDailyJunior] = useState(String(daily.junior));
   const [rankingSize, setRankingSize] = useState(String(saved.ranking_size));
-  const pay = saved.salary_per_shift as { am: number; pm: number };
-  const [payAm, setPayAm] = useState(String(pay.am));
-  const [payPm, setPayPm] = useState(String(pay.pm));
+  const [pay, setPay] = useState(() => ratesDraft(savedRates));
   const [promoMonth, promoDay] = String(saved.promotion_date).split('-').map(Number);
   const [month, setMonth] = useState(promoMonth);
   const [day, setDay] = useState(promoDay);
@@ -232,7 +276,6 @@ function SettingsForm({ saved }: { saved: Values }) {
     withdraw_single_limit: { junior: Number(singleJunior), primary: Number(singlePrimary) },
     withdraw_daily_limit: { junior: Number(dailyJunior), primary: Number(dailyPrimary) },
     ranking_size: Number(rankingSize),
-    salary_per_shift: { am: Number(payAm), pm: Number(payPm) },
     promotion_date: `${pad(month)}-${pad(Math.min(day, days))}`,
     credit_curve: Object.fromEntries(Object.entries(curve).map(([k, v]) => [k, Number(v)])),
     credit_rules: rulesValue(rules),
@@ -243,22 +286,26 @@ function SettingsForm({ saved }: { saved: Values }) {
   const allFaces = [...new Set([...FACES, ...(saved.denominations as number[])])].sort((a, b) => a - b);
   const toggleFace = (f: number) => setFaces(faces.includes(f) ? faces.filter((x) => x !== f) : [...faces, f]);
   const changed = Object.keys(next).filter((k) => stable(next[k]) !== stable(saved[k]));
-  const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING], [payAm, PAY], [payPm, PAY]] as const)
+  const nextRates = ratesValue(pay);
+  const ratesChanged = !!nextRates && JSON.stringify(nextRates) !== JSON.stringify(ratesValue(ratesDraft(savedRates)));
+  const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING]] as const)
     .some(([value, range]) => outside(value, range)) || Object.keys(curveWrong).length > 0 || Object.values(rules).some((v) => ruleProblem(v))
-    || Object.keys(ratesWrong).length > 0;
+    || Object.keys(ratesWrong).length > 0 || !nextRates;
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
     queryClient.invalidateQueries({ queryKey: ['counter-settings'] }),
+    queryClient.invalidateQueries({ queryKey: ['salary_rates'] }),
   ]);
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (busy || invalid || !changed.length) return;
+    if (busy || invalid || !(changed.length || ratesChanged)) return;
     setBusy(true);
     setError(null);
     try {
-      await call('set_settings', { p_values: Object.fromEntries(changed.map((k) => [k, next[k]])) });
+      if (changed.length) await call('set_settings', { p_values: Object.fromEntries(changed.map((k) => [k, next[k]])) });
+      if (ratesChanged) await call('set_salary_rates', { p_rates: nextRates });
       setToast('参数已保存');
     } catch (err) {
       setError(failure(err));
@@ -319,16 +366,7 @@ function SettingsForm({ saved }: { saved: Values }) {
           </li>
         </ul>
       </section>
-      <section className="dc-stack">
-        <h2 className="heading is-section">考勤</h2>
-        <div className="dc-card dc-stack">
-          {([['中午班', '13:30 之前', payAm, setPayAm], ['下午班', '13:30 起', payPm, setPayPm]] as const).map(([name, when, value, set]) => (
-            <Field key={name} icon="coin" label={`${name}工资（HTB）`} hint={`${when}的有效班次，每个 1 到 10000 HTB`} error={outside(value, PAY) ? allowed(PAY) : undefined}>
-              <Stepper label={`${name}工资`} value={value} onChange={(v) => set(v.slice(0, 5))} step={1} range={PAY} />
-            </Field>
-          ))}
-        </div>
-      </section>
+      <SalaryGroup draft={pay} onChange={(role, shift, v) => setPay({ ...pay, [role]: { ...pay[role], [shift]: v } })} />
       <section className="dc-stack">
         <h2 className="heading is-section">学年</h2>
         <div className="dc-card">
@@ -343,7 +381,7 @@ function SettingsForm({ saved }: { saved: Values }) {
       <CreditGroup curve={curve} problems={curveWrong} onCurve={(k, v) => setCurve({ ...curve, [k]: v })}
         rules={rules} onRule={(k, v) => setRules({ ...rules, [k]: v })} />
       <div className="dc-actions">
-        <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || invalid || !changed.length}>
+        <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || invalid || !(changed.length || ratesChanged)}>
           {busy ? '正在保存' : '保存参数'}
         </button>
       </div>

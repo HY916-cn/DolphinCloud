@@ -16,7 +16,7 @@ export { ReversalSheet } from './Reversal';
 export { MoveList, type Move } from './Stock';
 export { noticePages, openingPages, ResetNoticeSheet, staffNotice, StaffNoticeSheet, staffNoticePages, type NoticeAccount, type NoticeStudent, type StaffNotice } from './Notices';
 export { Bars, Columns, Line, SCOPE_ICON, ScopePicker, Stats, Table, TimeRange } from './Report';
-export { DayShifts, SalaryAccount, ShiftLegend, ShiftMark, shiftWords, WeekBar, WeekShifts } from './Attendance';
+export { DayShifts, PayAccount, SalaryAccount, ShiftLegend, ShiftMark, shiftWords, statusWord, WeekBar, WeekShifts } from './Attendance';
 export { MeView } from './Me';
 export { DeviceAccounts, SaveLogin } from './Accounts';
 export { OutputSheet } from './Output';

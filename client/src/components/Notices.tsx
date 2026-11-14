@@ -55,22 +55,22 @@ export function noticePages(students: NoticeAccount[], resetAt?: Date) {
 }
 
 // A staff login with the initial password the server gave it (import_staff, create_staff, reset_password). `account`
-// is for a teller only.
-export type StaffNotice = { login_id: string; name: string; role: string; password: string; teller: boolean; account: string | null; account_name: string | null };
+// is for anyone counted for pay (every identity but the sysadmin).
+export type StaffNotice = { login_id: string; name: string; role: string; password: string; payroll: boolean; account: string | null; account_name: string | null };
 
 export function staffNotice(p: { login_id: string; display_name: string; role: Role | null }, password: string,
   pay?: { account: string | null; students: { name: string } | null }): StaffNotice {
-  return { login_id: p.login_id, name: p.display_name, role: p.role ? ROLES[p.role] : '', password, teller: p.role === 'teller',
+  return { login_id: p.login_id, name: p.display_name, role: p.role ? ROLES[p.role] : '', password, payroll: !!p.role && p.role !== 'sysadmin',
     account: pay?.account ?? null, account_name: pay?.students?.name ?? null };
 }
 
-// 工作人员通知单 (PHASE-2.md §5.3): the same page, one per person; a teller's also says where the pay goes.
+// 工作人员通知单 (PHASE-2.md §5.3): the same page, one per person; one counted for pay also says where the pay goes.
 export function staffNoticePages(staff: StaffNotice[], resetAt?: Date) {
   return drawNotices(staff.map((s): NoticeSheet => ({
     ...(resetAt ? resetHead(s.name, resetAt)
       : { kind: '账号通知', greeting: `${s.name}，你好`, lead: '你的海豚云工作账号已经开通，请按下面的步骤登录。' }),
     rows: [['身份', s.role], ['账号', s.login_id],
-      ...(s.teller ? [['工资账户', s.account ? `${s.account_name ?? ''}（${s.account}）` : '未绑定'] as [string, string]] : []),
+      ...(s.payroll ? [['工资账户', s.account ? `${s.account_name ?? ''}（${s.account}）` : '未绑定'] as [string, string]] : []),
       ['初始密码', s.password]],
     signIn: ['选「工作人员」', '输入账号和初始密码'], keep: KEEP,
   })));
@@ -189,7 +189,7 @@ async function drawNotices(sheets: NoticeSheet[]) {
 
     // dc-card with a SummaryList; the initial password is its total row.
     block(X, 304, W - 2 * X, 250, 28, v('surface-raised'), v('line'));
-    // A teller's fourth row fits by closing the rows up, so the page below stays where it is.
+    // A fourth row (the 工资账户) fits by closing the rows up, so the page below stays where it is.
     const compact = s.rows.length > 3;
     const heights = compact ? [42, 42, 42, 58] : [50, 50, 64];
     text('登录信息', X + 24, compact ? 340 : 349, 700, 20, v('ink'));

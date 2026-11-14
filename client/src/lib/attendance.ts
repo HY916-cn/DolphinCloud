@@ -2,14 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { AppError } from './errors';
 import { shiftDay } from './format';
 import { call } from './rpc';
+import { ratesOf, type PaidRole, type Rates, type Shift } from './salary';
 import { supabase } from './supabase';
 
-// 考勤与工资 (PHASE-1.md §6.9): one row per teller and shift; a shift counts once the bank admin confirms it.
-export type Shift = 'am' | 'pm';
+// 考勤与工资 (PHASE-1.md §6.9): one row per counted person and shift, with the identity it was signed under. A
+// teller's shift counts once the bank admin confirms it; anyone else's is registered (登记), confirmed at once.
+export type { Shift } from './salary';
 export type ShiftStatus = 'pending' | 'confirmed' | 'rejected';
 export type ShiftRow = {
   id: string; user_id: string; day: string; shift: Shift; status: ShiftStatus; signed_at: string; signed_by: string;
-  note: string | null; salary_txn: string | null; pay: number | null;
+  note: string | null; salary_txn: string | null; pay: number | null; role: PaidRole;
 };
 export type Payroll = { user_id: string; attendance: boolean; account: string | null; students: { name: string } | null };
 
@@ -26,7 +28,7 @@ export function useShifts(from: string, to: string, userId?: string) {
   return useQuery({
     queryKey: ['attendance', from, to, userId ?? 'all'],
     queryFn: async () => {
-      let q = supabase.from('attendance').select('id,user_id,day,shift,status,signed_at,signed_by,note,salary_txn,pay')
+      let q = supabase.from('attendance').select('id,user_id,day,shift,status,signed_at,signed_by,note,salary_txn,pay,role')
         .gte('day', from).lte('day', to).order('day').order('shift');
       if (userId) q = q.eq('user_id', userId);
       const { data, error } = await q;
@@ -36,7 +38,8 @@ export function useShifts(from: string, to: string, userId?: string) {
   });
 }
 
-// Who is counted and where their pay goes; the student's name is readable by the teller, and the bank admin.
+// Who is counted and where their pay goes: one's own row, or everyone's for the bank admin, the president and the
+// sysadmin. The student's name is there for those who read students (not the storekeeper).
 export async function readPayroll() {
   const { data, error } = await supabase.from('staff_payroll').select('user_id,attendance,account,students(name)');
   if (error) throw error;
@@ -47,21 +50,17 @@ export function usePayroll() {
   return useQuery({ queryKey: ['payroll'], queryFn: readPayroll });
 }
 
-// The pay of a 中午班 and of a 下午班.
-export function useSalaryRate() {
+// 工资标准: the salary_rates table, readable by every login; null data while a cell is missing.
+export function useSalaryRates() {
   return useQuery({
-    queryKey: ['settings', 'salary_per_shift'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('settings').select('value').eq('key', 'salary_per_shift').single();
+    queryKey: ['salary_rates'],
+    queryFn: async (): Promise<Rates | null> => {
+      const { data, error } = await supabase.from('salary_rates').select('role,shift,amount');
       if (error) throw error;
-      return data.value as Record<Shift, number>;
+      return ratesOf(data);
     },
   });
 }
-
-// What confirmed shifts pay: their own pay once paid, the current pay of their kind until then.
-export const earned = (rows: ShiftRow[], rates: Record<Shift, number>) =>
-  rows.filter((r) => r.status === 'confirmed').reduce((s, r) => s + (r.pay ?? rates[r.shift]), 0);
 
 // bind_salary_account answers a wrong password instead of raising it (the lockout count must stay).
 export async function bindSalaryAccount(userId: string, studentNo: string, password: string | null) {

@@ -27,7 +27,7 @@ const bad = checkStaff([head,
   ['t5', '五', '柜员', ''],               // 4: repeated login
   ['t6', '六', '柜员', '20260002'],       // 5: fine on its own
   ['t7', '七', '柜员', '20260002'],       // 6: repeated account
-  ['t8', '八', '财务', '20260001'],       // 7: not a teller
+  ['t8', '八', '运维员', '20260001'],     // 7: a sysadmin is not paid
   ['t9', '九', '柜员', '99999999'],       // 8: no such student
   ['t10', '十', '柜员', '20260003'],      // 9: frozen
   ['t11', '十一', '柜员', '20260004'],    // 10: bound to someone else
@@ -39,7 +39,7 @@ assert.deepEqual(bad.problems.map((p) => p.row), [2, 2, 2, 3, 4, 6, 7, 8, 9, 10,
 assert.match(bad.problems[2].text, /银行管理员不能导入/);
 assert.match(bad.problems[4].text, /与第 3 行重复/);
 assert.match(bad.problems[5].text, /与第 5 行重复/);
-assert.match(bad.problems[6].text, /只有柜员/);
+assert.match(bad.problems[6].text, /运维员不参与考勤/);
 assert.match(bad.problems[7].text, /不存在/);
 assert.match(bad.problems[8].text, /不是在读/);
 assert.match(bad.problems[9].text, /已绑定其他工作人员/);
