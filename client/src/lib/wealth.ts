@@ -10,6 +10,7 @@ const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8, 
 export type WealthHolding = {
   id: string; student_no: string; principal: number; weeks: number; opened_on: string; starts_on: string; matures_on: string;
   value_centi: number; valued_to: string; status: 'open' | 'matured' | 'redeemed' | 'reversed'; open_txn: string; close_txn: string | null;
+  closed_on: string | null; // the day of a 赎回; the day after the last one for a maturity; null while open
   tier: string; tier_name: string; multiplier: number; factor: number; base: number; min_rate: number; max_rate: number;
 };
 export type WealthDay = {
@@ -59,11 +60,11 @@ export function amountHint(amount: number, balance: number) {
 }
 
 // One line of a 理财 list: the sentence before the bold value, the value, the gain, the day after it, the status tag,
-// and whether 赎回 is offered. A redeemed one names the day it was redeemed when `closedOn` knows it.
-export function holdingLine(h: WealthHolding, closedOn?: string | null) {
+// and whether 赎回 is offered. A redeemed one names the day it was redeemed, a matured one its maturity day.
+export function holdingLine(h: WealthHolding) {
   const head = `理财 ${h.weeks} 周 · ${tierLabel(h)} · 本金 ${formatAmount(h.principal)} HTB，`;
   const g = gain(h.value_centi - 100 * h.principal);
-  const day = h.status === 'redeemed' ? (closedOn ? `${monthDay(closedOn)} 赎回` : null) : `${monthDay(h.matures_on)} 到期`;
+  const day = h.status !== 'redeemed' ? `${monthDay(h.matures_on)} 到期` : h.closed_on ? `${monthDay(h.closed_on)} 赎回` : null;
   return {
     lead: `${head}${h.status === 'open' ? '现在值' : '拿回'} `, amount: `${formatCenti(h.value_centi)} HTB`, gain: g, day,
     tag: h.status === 'open' ? 'open' as const : h.status === 'matured' ? 'matured' as const : 'redeemed' as const, canRedeem: h.status === 'open',

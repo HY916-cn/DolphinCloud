@@ -12,7 +12,7 @@ export { CashCounter, CounterPage, FindStudent, NeedsNetwork, Summary } from './
 export { DepositPanel, LoanPanel, QueryPanel, ShopPanel, TermPanel, WealthPanel, WithdrawPanel, servedAmount, type Served } from './Business';
 export { LOAN_TAGS, MyLoans, PeriodList, PERIOD_TAGS, useLoanSettings, useMyLoans, type MyLoan } from './Loan';
 export { TermList, useMyTerms } from './TermDeposit';
-export { useLatestDay, useMyWealth, WealthList, type ListedHolding } from './Invest';
+export { useLatestDay, useMyWealth, WealthList } from './Invest';
 export { ReversalSheet } from './Reversal';
 export { MoveList, type Move } from './Stock';
 export { noticePages, openingPages, ResetNoticeSheet, staffNotice, StaffNoticeSheet, staffNoticePages, type NoticeAccount, type NoticeStudent, type StaffNotice } from './Notices';

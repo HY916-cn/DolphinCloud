@@ -3,23 +3,14 @@ import { supabase } from '@/lib/supabase';
 import { holdingLine, shownHoldings, type WealthDay, type WealthHolding } from '@/lib/wealth';
 import { Icon } from './ui';
 
-// A day on the school's clock (Asia/Shanghai) of a timestamp: 2027-01-06.
-const cnDay = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date(iso));
-
-// A 理财 with the day it was redeemed, when it was (the time of its wealth_close).
-export type ListedHolding = WealthHolding & { closed_on?: string | null };
-
-// A student's own 理财 (我的理财), not the reversed ones, latest bought first, each with the day it ended; RLS shows a
-// student only their own.
+// A student's own 理财 (我的理财), not the reversed ones, latest bought first; RLS shows a student only their own.
 export function useMyWealth(studentNo: string) {
   return useQuery({
     queryKey: ['my-wealth', studentNo],
     queryFn: async () => {
-      const { data, error } = await supabase.from('wealth_holdings').select('*,close:txns!wealth_holdings_close_txn_fkey(created_at)')
-        .eq('student_no', studentNo).neq('status', 'reversed');
+      const { data, error } = await supabase.from('wealth_holdings').select('*').eq('student_no', studentNo).neq('status', 'reversed');
       if (error) throw error;
-      return shownHoldings((data as (WealthHolding & { close: { created_at: string } | null })[])
-        .map(({ close, ...h }) => ({ ...h, closed_on: close && cnDay(close.created_at) })));
+      return shownHoldings(data as WealthHolding[]);
     },
   });
 }
@@ -44,11 +35,11 @@ const TAGS = {
 
 // 理财 list (design system Invest): one row each, the sentence with its value in bold, the gain and its day, the
 // status; with onRedeem (the counter) an open one also offers 赎回.
-export function WealthList({ holdings, onRedeem }: { holdings: ListedHolding[]; onRedeem?: (h: WealthHolding) => void }) {
+export function WealthList({ holdings, onRedeem }: { holdings: WealthHolding[]; onRedeem?: (h: WealthHolding) => void }) {
   return (
     <ul className="dc-list">
       {shownHoldings(holdings).map((h) => {
-        const l = holdingLine(h, h.closed_on);
+        const l = holdingLine(h);
         return (
           <li key={h.id}>
             <div className="dc-list-item">

@@ -115,7 +115,7 @@ test('柜台「理财」: the index, lengths and tiers, 买理财 with its 冲�
   await expect(page.locator('.dc-toast')).toHaveText(`已赎回，转回活期 ${Math.floor((carry + 3123) / 100)} HTB`);
   await expect(receipt(page)).toContainText('理财赎回4 周，盈 +1.23 HTB · HT');
   await expect(receipt(page).getByRole('button', { name: '冲正理财赎回' })).toHaveCount(0);
-  await expect(page.locator('.dc-list-item')).toHaveText(['理财 4 周 · 稳健 ×1 · 本金 30 HTB，拿回 31.23 HTB盈 +1.23 HTB已赎回']);
+  await expect(page.locator('.dc-list-item')).toHaveText([`理财 4 周 · 稳健 ×1 · 本金 30 HTB，拿回 31.23 HTB盈 +1.23 HTB · ${md(DAY)} 赎回已赎回`]);
   await expect(page.locator('.dc-list-item .dc-pl')).toHaveClass(/is-up/);
 
   await buy(page, 2, '进取', 10);
@@ -128,7 +128,7 @@ test('柜台「理财」: the index, lengths and tiers, 买理财 with its 冲�
   await confirmIn(page, '赎回');
   await expect(page.locator('.dc-toast')).toHaveText(`已赎回，转回活期 ${Math.floor((carry + 650) / 100)} HTB`);
   const lost = page.locator('.dc-list-item', { hasText: '进取' });
-  await expect(lost).toHaveText('理财 2 周 · 进取 ×4 · 本金 10 HTB，拿回 6.50 HTB亏 −3.50 HTB已赎回');
+  await expect(lost).toHaveText(`理财 2 周 · 进取 ×4 · 本金 10 HTB，拿回 6.50 HTB亏 −3.50 HTB · ${md(DAY)} 赎回已赎回`);
   await expect(lost.locator('.dc-pl')).toHaveClass(/is-down/);
   await expect(page.locator('.dc-person-side')).toHaveText(`${balance()}当前余额 HTB`);
 

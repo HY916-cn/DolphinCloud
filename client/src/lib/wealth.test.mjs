@@ -31,7 +31,7 @@ assert.deepEqual(amountHint(0, 415), { text: '1 HTB 起，最多 415 HTB（活�
 assert.deepEqual(amountHint(500, 415), { text: '余额不足：活期余额 415 HTB，还差 85 HTB', error: true });
 
 const h = { id: 'a', student_no: '1', principal: 100, weeks: 12, opened_on: '2026-11-12', starts_on: '2026-11-13', matures_on: '2027-02-04',
-  value_centi: 10320, valued_to: '2026-11-15', status: 'open', open_txn: 't', close_txn: null, tier: 'balanced', tier_name: '平衡', multiplier: 2,
+  value_centi: 10320, valued_to: '2026-11-15', status: 'open', open_txn: 't', close_txn: null, closed_on: null, tier: 'balanced', tier_name: '平衡', multiplier: 2,
   factor: 2, base: 3.6637, min_rate: -10, max_rate: 10 };
 let l = holdingLine(h);
 assert.equal(l.lead, '理财 12 周 · 平衡 ×2 · 本金 100 HTB，现在值 ');
@@ -40,7 +40,7 @@ assert.equal(l.gain.text, '盈 +3.20 HTB');
 assert.equal(l.day, '2月4日 到期');
 assert.equal(l.tag, 'open');
 assert.equal(l.canRedeem, true);
-l = holdingLine({ ...h, status: 'redeemed', value_centi: 9650 }, '2027-01-06');
+l = holdingLine({ ...h, status: 'redeemed', value_centi: 9650, closed_on: '2027-01-06' });
 assert.equal(l.lead, '理财 12 周 · 平衡 ×2 · 本金 100 HTB，拿回 ');
 assert.equal(l.amount, '96.50 HTB');
 assert.equal(l.gain.text, '亏 −3.50 HTB');
@@ -48,6 +48,8 @@ assert.equal(l.day, '1月6日 赎回');
 assert.equal(l.canRedeem, false);
 assert.equal(holdingLine({ ...h, status: 'redeemed' }).day, null);
 assert.equal(holdingLine({ ...h, status: 'matured', value_centi: 95 }).amount, '0.95 HTB');
+// A matured one is dated by its maturity day, not closed_on (the day after it, when the money came back).
+assert.equal(holdingLine({ ...h, status: 'matured', closed_on: '2027-02-05' }).day, '2月4日 到期');
 
 assert.deepEqual(shownHoldings([{ status: 'open', opened_on: '2026-11-01' }, { status: 'reversed', opened_on: '2026-11-20' }, { status: 'matured', opened_on: '2026-11-10' }]),
   [{ status: 'matured', opened_on: '2026-11-10' }, { status: 'open', opened_on: '2026-11-01' }]);
