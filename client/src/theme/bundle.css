@@ -347,8 +347,8 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-kv { margin: 0; }
 .dc-kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 2px dashed var(--line); }
 .dc-kv > div:last-child { border-bottom: 0; }
-.dc-kv dt { font: 500 16px/26px var(--font-sans); color: var(--ink-muted); }
-.dc-kv dd { margin: 0; text-align: right; font: 600 16px/26px var(--font-sans); font-variant-numeric: tabular-nums; }
+.dc-kv dt { flex: none; max-width: 50%; font: 500 16px/26px var(--font-sans); color: var(--ink-muted); }
+.dc-kv dd { min-width: 0; margin: 0; text-align: right; font: 600 16px/26px var(--font-sans); font-variant-numeric: tabular-nums; }
 .dc-kv .is-total dt { font-weight: 700; color: var(--ink); }
 .dc-kv .is-total dd { font: 800 32px/40px var(--font-sans); }
 .dc-kv .is-total dd small { margin-left: var(--space-1); font: 600 16px/26px var(--font-sans); color: var(--ink-muted); }
