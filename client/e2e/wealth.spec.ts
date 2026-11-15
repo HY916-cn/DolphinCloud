@@ -175,6 +175,7 @@ test('后台「理财」: the figures, the rules, each day for one length, enter
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/wealth');
   await expect(page.locator('.dc-stat')).toHaveText([`${md(`'${W2}'`)} 指数涨跌+1.25%`, '持有中1笔本金 10 HTB', '当前总值10.50HTB']);
+  await expect(page.locator('.dc-stat b').first()).toHaveClass('dc-pl is-up');
   await expect(page.locator('.dc-notice', { hasText: '还没有行情' })).toHaveText(
     `有 1 个工作日还没有行情：${md(`'${W1}'`)}。需要这些日子的理财先停在前一天，取到或登记后自动补上。`);
   const rules = page.getByRole('region', { name: '收益规则' });

@@ -82,7 +82,7 @@ export default function BookAccount() {
           <dt>定期合计</dt>
           <dd>{!term.data ? (term.error ? '—' : '…') : term.data.term_total ? <>{formatAmount(term.data.term_total)} HTB{due && <small>{due}</small>}</> : '无'}</dd>
           <dt>理财</dt>
-          <dd>{wealth.isError ? '—' : !wealth.data ? '…' : held ? <>{held.text}<small>{held.gain.cls === 'is-down' ? <span className="dc-pl is-down">{held.gain.text}</span> : held.gain.text}</small></> : '无'}</dd>
+          <dd>{wealth.isError ? '—' : !wealth.data ? '…' : held ? <>{held.text}<small><span className={`dc-pl ${held.gain.cls}`}>{held.gain.text}</span></small></> : '无'}</dd>
           <dt>贷款</dt>
           <dd className={loan?.danger ? 'is-danger' : undefined}>{loan ? <>{loan.text}{loan.note && <small>{loan.note}</small>}</> : open === null ? '无' : loans.isError ? '—' : '…'}</dd>
         </dl>

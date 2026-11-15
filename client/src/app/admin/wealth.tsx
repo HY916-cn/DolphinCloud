@@ -74,7 +74,7 @@ export default function Wealth() {
       {overview.isError ? <Notice tone="danger" title="暂时无法读取理财">请检查网络后刷新页面。</Notice> : !o ? <ListLoading rows={4} label="正在加载理财" /> : (
         <section className="dc-stack dc-enter" aria-label="理财概况">
           <Stats items={[
-            [`${l ? dayName(l.day, now) : '今天'}${l && l.day !== now ? ' ' : ''}指数涨跌`, l ? signedPct(l.change) : '—'], // shortcut: no dc-pl colour, .dc-stat span would shrink it; add once the design system styles it
+            [`${l ? dayName(l.day, now) : '今天'}${l && l.day !== now ? ' ' : ''}指数涨跌`, l ? signedPct(l.change) : '—', undefined, undefined, undefined, l && plClass(l.change) ? `dc-pl ${plClass(l.change)}` : undefined],
             ['持有中', String(o.open.count), '笔', `本金 ${formatAmount(o.open.principal)} HTB`],
             ['当前总值', formatCenti(o.open.value_centi), 'HTB'],
           ]} />

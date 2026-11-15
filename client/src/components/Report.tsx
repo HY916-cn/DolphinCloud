@@ -75,14 +75,15 @@ export function TimeRange({ from, to, onChange }: { from: string; to: string; on
 
 // Figures: what each counts, the number and its unit, and how it compares (比上期); one row, or two even rows on a
 // narrow page.
-// `warn` marks the note under a figure as a warning (is-danger): only that line turns red.
-export function Stats({ items }: { items: [string, ReactNode, string?, string?, boolean?][] }) {
+// `warn` marks the note under a figure as a warning (is-danger): only that line turns red. `tone` colours a value that is
+// itself a rise or a fall (dc-pl is-up / is-down: 理财's 指数涨跌).
+export function Stats({ items }: { items: [string, ReactNode, string?, string?, boolean?, string?][] }) {
   return (
     <div className="dc-stats-box">
       <div className="dc-stats" data-n={items.length} style={{ '--n': items.length } as CSSProperties}>
-        {items.map(([label, value, unit, change, warn]) => (
+        {items.map(([label, value, unit, change, warn, tone]) => (
           <div key={label} className="dc-card dc-stat">
-            <span>{label}</span><b>{value}{unit && <small>{unit}</small>}</b>
+            <span>{label}</span><b className={tone}>{value}{unit && <small>{unit}</small>}</b>
             {change && <em className={warn ? 'is-danger' : change.includes('+') ? 'is-up' : /[-−]/.test(change) ? 'is-down' : undefined}>{change}</em>}
           </div>
         ))}
