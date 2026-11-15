@@ -37,6 +37,8 @@ assert.equal(formatCenti(37), '0.37');
 assert.equal(formatCenti(0), '0.00');
 assert.equal(formatCenti(105), '1.05');
 assert.equal(formatCenti(123456), '1,234.56');
+assert.equal(formatCenti(-12), '−0.12');
+assert.equal(formatCenti(-120), '−1.20');
 assert.equal(formatPoints(0.25), '+0.25');
 assert.equal(formatPoints(-0.5), '−0.50');
 assert.equal(formatPoints(0), '0.00');

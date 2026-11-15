@@ -8,7 +8,7 @@ import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { readAll, supabase } from '@/lib/supabase';
 import { jobFailure } from '@/lib/term';
-import { KINDS } from '@/lib/txns';
+import { toTxn } from '@/lib/txns';
 
 const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
 
@@ -156,7 +156,7 @@ export default function Admin() {
             <ul className="dc-txns" aria-label="最近 8 笔流水">
               {recent.data.map((r, i) => (
                 <li key={r.id} style={i ? { borderTop: '2px dashed var(--line)' } : undefined}>
-                  <a className={`dc-txn ${KINDS[r.type].kind} ${fresh.has(r.id) ? 'is-new' : ''}`} style={{ color: 'inherit', textDecoration: 'none' }}
+                  <a className={`dc-txn ${toTxn(r).kind} ${fresh.has(r.id) ? 'is-new' : ''}`} style={{ color: 'inherit', textDecoration: 'none' }}
                     {...link(`/admin/txns?student=${r.student_no}`)}>
                     <LedgerLine row={r} />
                   </a>

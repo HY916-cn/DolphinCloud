@@ -12,8 +12,8 @@ import { readAll, supabase } from './supabase';
 type Count = { count: number; amount: number };
 export type Report = {
   business: { deposit: Count; withdraw: Count; purchase_account: Count; purchase_cash: Count; students: number };
-  reversals: Count; reversed: number; openings: Count;
-  balance: { opening: number; closing: number; changes: Partial<Record<'opening' | 'deposit' | 'withdraw' | 'purchase' | 'reversal' | 'salary' | 'interest' | 'term_open' | 'term_close' | 'wealth_buy' | 'wealth_close' | 'loan' | 'repay' | 'closing', number>> };
+  reversals: Count; reversed: number; openings: Count; adjust: Count; // adjust: the 调账 not reversed, net
+  balance: { opening: number; closing: number; changes: Partial<Record<(typeof CHANGES)[number][0], number>> };
   cash: { in: number; out: number };
   days: { day: string; deposit: number; deposit_count: number; withdraw: number; withdraw_count: number; purchase: number; purchase_count: number; students: number; change: number }[];
   hours: { hour: number; count: number }[];
@@ -60,7 +60,7 @@ export function ledgerQuery(select: string, f: LedgerFilter, count?: 'exact') {
 
 type Cell = string | number | null;
 type Sheet = [string, Cell[][]];
-const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', salary: '工资', interest: '利息', term_open: '开定期', term_close: '定期转回', wealth_buy: '买理财', wealth_close: '理财转回', loan: '贷款', repay: '还款', closing: '注销清零' } as const;
+const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', salary: '工资', interest: '利息', term_open: '开定期', term_close: '定期转回', wealth_buy: '买理财', wealth_close: '理财转回', loan: '贷款', repay: '还款', closing: '注销清零', adjust: '调账' } as const;
 const PAYMENT = { account: '账户', cash: '现金' } as const;
 
 // Every transaction the filters choose, oldest first.
@@ -107,7 +107,7 @@ export function dailyBalance(r: Report) {
 
 // The changes of the balance check, in the order 报表 shows them.
 export const CHANGES = [['opening', '期初余额导入'], ['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换（账户支付）'],
-  ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['term_open', '开定期'], ['term_close', '定期转回'], ['wealth_buy', '买理财'], ['wealth_close', '理财转回'], ['loan', '贷款'], ['repay', '还款'], ['closing', '注销清零']] as const;
+  ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['adjust', '调账'], ['term_open', '开定期'], ['term_close', '定期转回'], ['wealth_buy', '买理财'], ['wealth_close', '理财转回'], ['loan', '贷款'], ['repay', '还款'], ['closing', '注销清零']] as const;
 export const dayLabel = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice(8))}`;
 export const classLabel = (c: Report['classes'][number]) => c.class_label ?? `${c.cohort} 届 ${c.class_no} 班`;
 
@@ -128,7 +128,7 @@ export function reportPages(r: Report, period: string, scope: string) {
       { kind: 'table', head: ['业务', '笔数', '金额（HTB）'], rows: [
         ['存款', b.deposit.count, b.deposit.amount], ['取款', b.withdraw.count, b.withdraw.amount],
         ['兑换（账户支付）', b.purchase_account.count, b.purchase_account.amount], ['兑换（现金支付）', b.purchase_cash.count, b.purchase_cash.amount],
-        ['冲正', r.reversals.count, r.reversals.amount], ['期初余额导入', r.openings.count, r.openings.amount]] },
+        ['冲正', r.reversals.count, r.reversals.amount], ['调账', r.adjust.count, r.adjust.amount], ['期初余额导入', r.openings.count, r.openings.amount]] },
       { kind: 'heading', text: '余额核对' },
       { kind: 'table', head: ['项目', '金额（HTB）'], rows: [['期初账面余额', r.balance.opening], ...CHANGES.map(([k, label]) => [label, ch[k] ?? 0])],
         foot: ['期末账面余额', r.balance.closing] },

@@ -50,8 +50,8 @@ export default function Student() {
     queryKey: ['admin-student-txns', no],
     enabled: money,
     queryFn: async () => {
-      const { data, error } = await supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,txn_items(name,qty)')
-        .eq('student_no', no).order('seq', { ascending: false }).limit(10);
+      const { data, error } = await supabase.from('txns').select('id,type,amount,balance_delta,payment,status,reason,created_at,entered_at,txn_items(name,qty)')
+        .eq('student_no', no).order('created_at', { ascending: false }).order('seq', { ascending: false }).limit(10);
       if (error) throw error;
       return (data as TxnRow[]).map(toTxn);
     },

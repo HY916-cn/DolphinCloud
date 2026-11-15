@@ -31,6 +31,12 @@ assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'deposit' }).text, '只能�
 
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'loan' }).text, '这笔贷款已经开始还款，不能再冲正。');
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'repay' }).text, '只能冲正这笔贷款最近的一笔还款。');
+// 补录 and 编辑 (PHASE-2.md §10.11).
+assert.deepEqual(explain('REVERSAL_NOT_ALLOWED', { type: 'deposit', edit: true }), { title: '不能编辑这笔流水', text: '这笔流水已经冲正或编辑过，不能再编辑。' });
+assert.deepEqual(explain('OCCURRED_OUT_OF_RANGE', { from: '2026-10-31T16:00:00+00:00', to: '2026-11-15T07:30:00+00:00' }),
+  { title: '时间不在补录范围内', text: '只能补录 11月1日 00:00 到现在之间发生的业务。' });
+assert.equal(explain('INSUFFICIENT_BALANCE', { balance: 10, short: 30, at: '2026-11-12T06:20:00+00:00' }).text, '补录后，11月12日 14:20 起活期会不够，差 30 HTB。');
+assert.equal(explain('INSUFFICIENT_BALANCE', { balance: 10, short: 30 }).text, '可用余额 10 HTB，还差 30 HTB，请减少金额。');
 
 assert.deepEqual(explain('CREDIT_DISABLED'), { title: '信用分已暂停', text: '暂停期间所有学生按 600 分计，不能调整。重新开启后再调整。' });
 assert.equal(explain('CREDIT_TOO_LOW', { score: 350, min_score: 400 }).text, '信用分 400 分以上才能贷款，现在是 350 分。');

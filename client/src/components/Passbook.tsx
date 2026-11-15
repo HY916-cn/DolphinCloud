@@ -74,7 +74,7 @@ export function PassbookRows({ items, lines = 0, start = 0, fresh = 0 }: { items
         {items.map((t, i) => {
           const [d, time] = t.time.split(' ');
           const { date, year } = printed(d);
-          const cash = t.amount ? '' : `${t.note} · ${formatAmount(t.paid)} HTB`;
+          const cash = [t.amount ? '' : `${t.note} · ${formatAmount(t.paid)} HTB`, t.entered].filter(Boolean).join(' · ');
           return (
             <tr key={t.key} className={`dc-txn ${i < fresh ? 'is-printing' : ''}`}
               style={i < fresh ? { '--row': fresh - 1 - i } as React.CSSProperties : undefined}>

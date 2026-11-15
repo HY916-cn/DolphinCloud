@@ -31,20 +31,26 @@ const FIELDS: Record<string, string> = {
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
   anchor_params: '锚点参数', term_rates: '定期周利率', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
   holding_id: '这笔理财', tier: '档位', change: '指数涨跌', wealth_params: '理财参数',
+  occurred_at: '原始发生时间', type: '类型', new: '改好的内容',
   plan: '还款方式', periods: '期数', via: '放款方式', purpose: '用途', loan_id: '这笔贷款', terminate_reason: '终止原因',
 };
 
 export function explain(code: string, d: Detail = {}): { title: string; text: string } {
   switch (code) {
     case 'STUDENT_NOT_FOUND': return { title: '未找到该学号', text: '请核对学号后重新输入。' };
-    case 'INSUFFICIENT_BALANCE': return { title: '余额不足', text: `可用余额 ${d.balance} HTB，还差 ${d.short} HTB，请减少金额。` };
+    // With `at` (补录, 编辑): the moment from which 活期 would fall short.
+    case 'INSUFFICIENT_BALANCE':
+      return d.at ? { title: '活期会不够', text: `补录后，${shanghaiTime(String(d.at))} 起活期会不够，差 ${d.short} HTB。` }
+        : { title: '余额不足', text: `可用余额 ${d.balance} HTB，还差 ${d.short} HTB，请减少金额。` };
+    case 'OCCURRED_OUT_OF_RANGE': return { title: '时间不在补录范围内', text: `只能补录 ${shanghaiTime(String(d.from))} 到现在之间发生的业务。` };
     case 'WITHDRAW_SINGLE_LIMIT': return { title: '超过单笔取款限额', text: `单笔最多取款 ${d.limit} HTB。` };
     case 'WITHDRAW_DAILY_LIMIT': return { title: '超过今日取款限额', text: `今日还可取款 ${d.remaining} HTB。` };
     case 'OUT_OF_STOCK': return { title: '已售罄', text: `${d.name} 库存不足，请调整数量。` };
     case 'PRODUCT_UNLISTED': return { title: '商品已下架', text: '请重新选择商品。' };
     case 'CASH_NOT_ENOUGH': return { title: '收款不足', text: `应付 ${d.due} HTB，已收 ${d.received} HTB。` };
-    // `type` (the business reversed) is the client's own: the server sends no detail.
+    // `type` (the business reversed) and `edit` (编辑) are the client's own: the server sends no detail.
     case 'REVERSAL_NOT_ALLOWED':
+      if (d.edit) return { title: '不能编辑这笔流水', text: '这笔流水已经冲正或编辑过，不能再编辑。' };
       return { title: '不能冲正这笔业务', text: d.type === 'term_open' ? '这笔定期已经到期或提前支取，不能再冲正。'
         : d.type === 'term_close' ? '已过到期日，不能再冲正这笔提前支取。'
         : d.type === 'wealth_buy' ? '这笔理财已经开始计收益或已转回，不能再冲正。'

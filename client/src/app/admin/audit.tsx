@@ -25,7 +25,7 @@ const ACTIONS: Record<string, string> = {
   'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
   'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
   'user.close': '注销账号', 'salary.bind': '绑定工资账户', 'staff.import': '工作人员导入', 'credit.adjust': '调整信用分',
-  'wealth.record': '登记理财指数涨跌', 'wealth.fetch_failed': '理财取数失败',
+  'wealth.record': '登记理财指数涨跌', 'wealth.fetch_failed': '理财取数失败', 'txn.manual': '补录流水', 'txn.correct': '编辑流水',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
@@ -36,7 +36,7 @@ const OPS: Record<string, string> = { insert: '新增', update: '修改', delete
 const GROUPS: Record<string, [string, string[]]> = {
   account: ['账号与登录', ['profiles.', 'user_roles.', 'user.', 'login.']],
   student: ['学生', ['students.', 'roster.']],
-  reverse: ['冲正', ['txn.']],
+  reverse: ['流水', ['txn.']],
   product: ['商品', ['products.']],
   settings: ['参数', ['settings.']],
   attendance: ['考勤与工资', ['attendance.', 'staff_payroll.', 'duty.', 'salary.', 'salary_rates.', 'payroll.']],
@@ -62,15 +62,16 @@ const COLUMNS: Record<string, string> = {
   failures: '15 分钟内密码错误次数', locked_until: '锁定到', valid: '密码正确', student_nos: '学号', file: '备份文件',
   attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '记录时间',
   started_at: '上班时间', ended_at: '下班时间', txns: '业务笔数', closed_at: '注销时间',
-  from: '起', to: '止', rates: '工资标准', paid: '发放',
+  from: '起', to: '止', rates: '工资标准', paid: '发放', change_given: '找零', payment: '支付方式',
 };
 // Columns that change on every write and say nothing to the reader.
 const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id',
-  'signed_by', 'reviewed_by', 'reviewed_at', 'salary_txn', 'pay']);
+  'signed_by', 'reviewed_by', 'reviewed_at', 'salary_txn', 'pay', 'entered_at', 'corrects', 'interest', 'reversal_of']);
 const WORDS: Record<string, string> = {
   primary: '小学部', junior: '初中部', normal: '正常', frozen: '冻结', graduated: '毕业', reversed: '已冲正',
   teller: '柜员', accountant: '财务', storekeeper: '库管', president: '行长', teacher: '银行管理员', sysadmin: '运维员',
   am: '中午班', pm: '下午班', pending: '待审', confirmed: '有效', rejected: '未通过',
+  deposit: '存款', withdraw: '取款', purchase: '兑换', adjust: '调账', account: '账户', cash: '现金',
 };
 
 const asRow = (v: unknown): Row => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Row) : {});
@@ -91,14 +92,14 @@ function targetOf(e: Entry, staff: Set<string>): Target {
   if (id) return staff.has(id) ? { href: `/admin/staff/${id}`, label: '查看账号' } : null;
   if (e.target?.startsWith('students:')) return { href: `/admin/students/${e.target.slice(9)}`, label: '查看学生' };
   if (e.target?.startsWith('products:')) return { href: `/admin/products/${e.target.slice(9)}`, label: '查看商品' };
-  const no = e.action === 'txn.reverse' ? asRow(e.before).student_no : null;
+  const no = e.action === 'txn.reverse' || e.action === 'txn.correct' ? asRow(e.before).student_no : e.action === 'txn.manual' ? asRow(e.after).student_no : null;
   return no ? { href: `/admin/txns?student=${no}`, label: '查看学生流水' } : null;
 }
 
-// What the entry is about, in the row's own words: the batch, student, product, login or setting; for a reversal the
-// original transaction, for a password reset or a sign-in the login, for a backup its file.
+// What the entry is about, in the row's own words: the batch, student, product, login or setting; for a reversal or an
+// 编辑 the original transaction, for a password reset or a sign-in the login, for a backup its file.
 function subject(e: Entry, names: Map<string, string>) {
-  const r = e.action === 'txn.reverse' ? asRow(e.before) : { ...asRow(e.before), ...asRow(e.after) };
+  const r = e.action === 'txn.reverse' || e.action === 'txn.correct' ? asRow(e.before) : { ...asRow(e.before), ...asRow(e.after) };
   if (e.action === 'user.reset_password' || e.action.startsWith('login.')) return names.get(profileOf(e) ?? '') ?? '';
   if (e.action === 'user.reissue_passwords') return `${Array.isArray(r.student_nos) ? r.student_nos.length : 0} 名学生`;
   if (e.action.startsWith('backup.')) return String(r.file ?? '');
@@ -123,12 +124,13 @@ function show(v: unknown): string {
 // The fields whose value differs between before and after.
 function changes(e: Entry): [string, string][] {
   const before = asRow(e.before);
-  const after = asRow(e.after);
+  // 编辑 logs the original and both new transactions; the new one is what it became.
+  const after = e.action === 'txn.correct' ? asRow(asRow(e.after).txn) : asRow(e.after);
   return [...new Set([...Object.keys(before), ...Object.keys(after)])]
     .filter((k) => !NOISE.has(k) && JSON.stringify(before[k]) !== JSON.stringify(after[k]))
     .map((k) => {
       // Notes counted per face ({"10": 2}) read as "10 元 × 2 张"; other values as they are.
-      const v = (x: unknown) => (k === 'denominations' && x && typeof x === 'object' && !Array.isArray(x) ? describeCash(x as Counts) : show(x));
+      const v = (x: unknown) => ((k === 'denominations' || k === 'change_given') && x && typeof x === 'object' && !Array.isArray(x) ? describeCash(x as Counts) : show(x));
       return [COLUMNS[k] ?? k, k in before && k in after ? `${v(before[k])} → ${v(after[k])}` : v(after[k] ?? before[k])];
     });
 }

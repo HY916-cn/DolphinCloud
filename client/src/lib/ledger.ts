@@ -6,7 +6,8 @@ import { toTxn, type TxnRow } from './txns';
 
 // A student's own ledger, read the same way by the 学生 pages and the 存折: the latest businesses, every business by
 // type and filter, and this month's money in and out.
-const COLUMNS = 'id,type,amount,balance_delta,balance_after,payment,status,reason,created_at,txn_items(name,qty)';
+// Newest first by when each business happened, so one entered after the fact (补录, 编辑) stands at its original time.
+const COLUMNS = 'id,type,amount,balance_delta,balance_after,payment,status,reason,created_at,entered_at,txn_items(name,qty)';
 const PAGE = 30;
 
 export const TXN_TABS = {
@@ -25,7 +26,8 @@ export function useRecent(studentNo: string) {
   return useQuery({
     queryKey: ['student-home', studentNo],
     queryFn: async () => {
-      const { data, error } = await supabase.from('txns').select(COLUMNS).eq('student_no', studentNo).order('seq', { ascending: false }).limit(9);
+      const { data, error } = await supabase.from('txns').select(COLUMNS).eq('student_no', studentNo)
+        .order('created_at', { ascending: false }).order('seq', { ascending: false }).limit(9);
       if (error) throw error;
       return (data as TxnRow[]).map(toTxn);
     },
@@ -56,7 +58,7 @@ export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enable
         if (error) throw error;
         q = q.or([`txn_no.ilike.*${words}*`, ...(data.length ? [`id.in.(${data.map((i) => i.txn_id).join(',')})`] : [])].join(','));
       }
-      const { data, error } = await q.order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
+      const { data, error } = await q.order('created_at', { ascending: false }).order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
       if (error) throw error;
       return data as TxnRow[];
     },

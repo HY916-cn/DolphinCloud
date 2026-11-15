@@ -909,8 +909,53 @@ function LoanRepay({ loan, balance, top, student, served, onDone, onEnd, onRever
   );
 }
 
-type Product = { id: string; name: string; price: number; stock: number; image_path: string | null };
+export type Product = { id: string; name: string; price: number; stock: number; image_path: string | null };
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+
+// The products to pick (one more with each tap, none past its stock) and the picked ones with their QtyStepper, as
+// 兑换 at the counter and in 补录 has them. `cart` is the quantity by product id.
+export function ProductPicker({ products, cart, onChange }: { products: Product[]; cart: Record<string, number>; onChange: (c: Record<string, number>) => void }) {
+  const lines = products.filter((p) => cart[p.id]).map((p) => ({ ...p, qty: cart[p.id] }));
+  const setQty = (p: Product, n: number) => onChange({ ...cart, [p.id]: Math.max(0, Math.min(p.stock, n)) });
+  return (
+    <>
+      <div className="dc-tiles">
+        {products.map((p) => (
+          <button key={p.id} type="button" className="dc-tile dc-kind-exchange" disabled={!p.stock} onClick={() => setQty(p, (cart[p.id] ?? 0) + 1)}
+            style={p.stock ? undefined : { opacity: 0.5, cursor: 'not-allowed' }}
+            aria-label={`${p.name}，${p.price} HTB，${p.stock ? `库存 ${p.stock}` : '已售罄'}`}>
+            <span className="dc-tile-icon">
+              {p.image_path ? <img src={imageUrl(p.image_path)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                : <Icon name="exchange" />}
+            </span>
+            {p.name}
+            <small>{p.price} HTB · {p.stock ? `库存 ${p.stock}` : '已售罄'}</small>
+          </button>
+        ))}
+      </div>
+      {lines.length > 0 && (
+        <>
+          <h2 className="heading is-section">已选商品</h2>
+          <div className="dc-denoms dc-kind-exchange">
+            {lines.map((l) => (
+              <div key={l.id} className="dc-qty is-product is-filled">
+                <div className="dc-qty-head">
+                  <span className="dc-qty-name">{l.name}</span>
+                  <QtySum amount={l.price * l.qty} />
+                </div>
+                <div className="dc-qty-ctrl">
+                  <button className="dc-qty-btn" type="button" aria-label={`减少一件${l.name}`} onClick={() => setQty(l, l.qty - 1)}><Icon name="minus" /></button>
+                  <input className="dc-qty-input" readOnly aria-label={`${l.name}数量`} value={l.qty} />
+                  <button className="dc-qty-btn" type="button" aria-label={`增加一件${l.name}`} disabled={l.qty >= l.stock} onClick={() => setQty(l, l.qty + 1)}><Icon name="plus" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
 
 // 兑换: pick products, then pay from the account or in cash with change worked out.
 export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) {
@@ -939,7 +984,6 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
   const paid = cashTotal(received);
   const change = Math.max(paid - due, 0);
   const items = lines.map((l) => `${l.name} × ${l.qty}`).join('、');
-  const setQty = (p: Product, n: number) => setCart({ ...cart, [p.id]: Math.max(0, Math.min(p.stock, n)) });
   const balance = student.balance ?? 0;
   const problem =
     !lines.length ? '请选择商品'
@@ -979,40 +1023,10 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
       <div className="dc-split">
         <section className="dc-stack">
           <h2 className="heading">选择商品</h2>
-          {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后重试。</Notice> : products.isPending ? <TilesLoading /> : (
-            <div className="dc-tiles">
-              {list.map((p) => (
-                <button key={p.id} type="button" className="dc-tile dc-kind-exchange" disabled={!p.stock} onClick={() => setQty(p, (cart[p.id] ?? 0) + 1)}
-                  style={p.stock ? undefined : { opacity: 0.5, cursor: 'not-allowed' }}
-                  aria-label={`${p.name}，${p.price} HTB，${p.stock ? `库存 ${p.stock}` : '已售罄'}`}>
-                  <span className="dc-tile-icon">
-                    {p.image_path ? <img src={imageUrl(p.image_path)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                      : <Icon name="exchange" />}
-                  </span>
-                  {p.name}
-                  <small>{p.price} HTB · {p.stock ? `库存 ${p.stock}` : '已售罄'}</small>
-                </button>
-              ))}
-            </div>
-          )}
+          {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后重试。</Notice> : products.isPending ? <TilesLoading />
+            : <ProductPicker products={list} cart={cart} onChange={setCart} />}
           {lines.length > 0 && (
             <>
-              <h2 className="heading is-section">已选商品</h2>
-              <div className="dc-denoms dc-kind-exchange">
-                {lines.map((l) => (
-                  <div key={l.id} className="dc-qty is-product is-filled">
-                    <div className="dc-qty-head">
-                      <span className="dc-qty-name">{l.name}</span>
-                      <QtySum amount={l.price * l.qty} />
-                    </div>
-                    <div className="dc-qty-ctrl">
-                      <button className="dc-qty-btn" type="button" aria-label={`减少一件${l.name}`} onClick={() => setQty(l, l.qty - 1)}><Icon name="minus" /></button>
-                      <input className="dc-qty-input" readOnly aria-label={`${l.name}数量`} value={l.qty} />
-                      <button className="dc-qty-btn" type="button" aria-label={`增加一件${l.name}`} disabled={l.qty >= l.stock} onClick={() => setQty(l, l.qty + 1)}><Icon name="plus" /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
               <h2 className="heading is-section">付款方式</h2>
               <div className="dc-choices dc-kind-exchange" role="radiogroup" aria-label="付款方式">
                 {([['account', 'savings', '账户扣款', `可用余额 ${formatAmount(balance)} HTB`], ['cash', 'coin', '现金支付', '收款并找零']] as const)
@@ -1062,9 +1076,12 @@ export function ShopPanel({ student, served, onDone, onEnd, onReverse }: Props) 
 }
 
 const HISTORY = 10;
-type HistoryRow = Omit<TxnRow, 'txn_items'> & { seq: number; txn_no: string; balance_after: number; operator: string; items: { name: string; qty: number }[] };
+// corrects_no and corrected_no: 更正自 and 已更正为 of an 编辑 (PHASE-2.md §10.11).
+type HistoryRow = Omit<TxnRow, 'txn_items'> & {
+  seq: number; txn_no: string; balance_after: number; operator: string; items: { name: string; qty: number }[]; corrects_no: string | null; corrected_no: string | null;
+};
 
-const QUERY_KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['opening', '期初']] as const;
+const QUERY_KINDS = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换'], ['adjust', '调账'], ['reversal', '冲正'], ['salary', '工资'], ['interest', '利息'], ['opening', '期初']] as const;
 
 // 查询: the student's account totals and every transaction, also other tellers' and earlier days', newest first,
 // ten at a time (student_txns), filtered as 流水 is: the days, a 时段, the types, and words of a 交易号 or a product.
@@ -1115,8 +1132,11 @@ export function QueryPanel({ student, served }: Props) {
                   <span className="dc-txn-icon"><Icon name={t.icon} /></span>
                   <div className="dc-txn-main">
                     <div className="dc-txn-title">{t.title}</div>
-                    <div className="dc-txn-time">{t.time} · 经办人 {r.operator}</div>
-                    <div className="dc-txn-time">交易号 {r.txn_no} · 办理后余额 {formatAmount(r.balance_after)} HTB</div>
+                    <div className="dc-txn-time">{t.time}{t.entered && ` · ${t.entered}`} · 经办人 {r.operator}</div>
+                    <div className="dc-txn-time">
+                      交易号 {r.txn_no} · {r.entered_at ? '录入时的余额' : '办理后余额'} {formatAmount(r.balance_after)} HTB
+                      {r.corrects_no && ` · 更正自 ${r.corrects_no}`}{r.corrected_no && ` · 已更正为 ${r.corrected_no}`}
+                    </div>
                   </div>
                   <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>
                     {t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small>

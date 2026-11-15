@@ -9,7 +9,7 @@ export { Desk } from './Desk';
 export { DatePicker, formatDate, today } from './DatePicker';
 export { FormLoading, KvLoading, ListLoading, PersonLoading, ShellLoading, SkeletonGroup, TilesLoading } from './Skeleton';
 export { CashCounter, CounterPage, FindStudent, NeedsNetwork, Summary } from './Counter';
-export { DepositPanel, LoanPanel, QueryPanel, ShopPanel, TermPanel, WealthPanel, WithdrawPanel, servedAmount, type Served } from './Business';
+export { DepositPanel, LoanPanel, ProductPicker, QueryPanel, ShopPanel, TermPanel, WealthPanel, WithdrawPanel, servedAmount, type Product, type Served } from './Business';
 export { LOAN_TAGS, MyLoans, PeriodList, PERIOD_TAGS, useLoanSettings, useMyLoans, type MyLoan } from './Loan';
 export { TermList, useMyTerms } from './TermDeposit';
 export { useLatestDay, useMyWealth, WealthList } from './Invest';

@@ -39,6 +39,7 @@ assert.deepEqual(rateProblems({ ...d, min: '0', initial: '5' }), { min: ANCHOR_R
 assert.deepEqual(rateProblems({ initial: '0.01', min: '0.01', max: '100' }), {});
 assert.equal(pendingNote(37), '满 1 HTB 再存进余额');
 assert.equal(pendingNote(99), '满 1 HTB 再存进余额');
+assert.equal(pendingNote(-12), '之前的利息有更正，之后的利息先补上这部分');
 assert.equal(pendingNote(100), '下周一存进余额');
 
 // term_rates as the server returns it (keys in jsonb's order: shortest key first), listed by weeks; 4 周 at 2.75% pays 111.00.

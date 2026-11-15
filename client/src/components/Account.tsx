@@ -55,7 +55,7 @@ export function TxnList({ items, fresh }: { items: Txn[]; fresh: ReadonlySet<str
           <span className="dc-txn-icon"><Icon name={t.icon} /></span>
           <div className="dc-txn-main">
             <div className="dc-txn-title">{t.title}</div>
-            <div className="dc-txn-time">{t.time}</div>
+            <div className="dc-txn-time">{t.time}{t.entered && ` · ${t.entered}`}</div>
           </div>
           <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>{t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small></div>
         </li>

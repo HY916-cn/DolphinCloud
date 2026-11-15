@@ -142,7 +142,7 @@ function Business({ r, p }: { r: Report; p: Prev }) {
         ['冲正', r.reversals.count, `笔 · ${formatAmount(r.reversals.amount)} HTB`, delta(r.reversals.count, p?.reversals.count)],
         ['办理业务的学生', b.students, '人', delta(b.students, pb?.students)],
       ]} />
-      <p className="dc-top-sub">兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB；另有 {r.reversed} 笔已冲正。</p>
+      <p className="dc-top-sub">兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB；另有 {r.reversed} 笔已冲正{r.adjust.count > 0 && `，调账 ${r.adjust.count} 笔 · ${formatSigned(r.adjust.amount)} HTB`}。</p>
       {r.days.length > 1 && (
         <Section title="每日业务">
           <div className="dc-charts">

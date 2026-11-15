@@ -7,9 +7,9 @@ const ROW = 44;
 
 // TimePicker (design system): two scrolling wheels, hours 00–23 and minutes 00–59. The number that comes to rest in
 // the middle band is the value, and a tapped number scrolls there. Values are "HH:MM"; with `placeholder` the field
-// may stay empty and the footer can clear it. `rule` says what may be picked.
-export function TimePicker({ label, value, onChange, rule, placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; rule: string; placeholder?: string;
+// may stay empty and the footer can clear it. `rule` says what may be picked; `locked` keeps the time as it is.
+export function TimePicker({ label, value, onChange, rule, placeholder, locked }: {
+  label: string; value: string; onChange: (v: string) => void; rule: string; placeholder?: string; locked?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -64,9 +64,9 @@ export function TimePicker({ label, value, onChange, rule, placeholder }: {
     <div className="dc-field dc-time" ref={root}>
       <label className="dc-field-label" htmlFor={id}><Icon name="clock" />{label}</label>
       <button ref={trigger} className="dc-date-trigger" id={id} type="button" aria-haspopup="dialog" aria-expanded={open}
-        aria-controls={`${id}-pop`} onClick={() => (open ? close() : setOpen(true))}>
+        aria-controls={`${id}-pop`} disabled={locked} onClick={() => (open ? close() : setOpen(true))}>
         <span style={value ? undefined : { color: 'var(--ink-muted)' }}>{value || placeholder}</span>
-        <Icon name="clock" />
+        <Icon name={locked ? 'lock' : 'clock'} />
       </button>
       <div className="dc-cal" id={`${id}-pop`} role="dialog" aria-label={`选择${label}`} hidden={!open} onKeyDown={key}>
         <div className="dc-time-heads" aria-hidden="true"><p className="dc-time-label">时</p><p className="dc-time-label">分</p></div>
