@@ -117,6 +117,10 @@ insert into tests.matrix values
   ('open_loan(uuid,text,integer,text,text,integer,text)', 'select open_loan(gen_random_uuid(), ''nobody'', 1, ''x'', ''bullet'', 1, ''account'')', '{teller}'),
   ('repay_loan(uuid,uuid,integer,text,jsonb)', 'select repay_loan(gen_random_uuid(), gen_random_uuid(), 1, ''account'', null)', '{teller}'),
   ('terminate_loan(uuid,text)', 'select terminate_loan(gen_random_uuid(), ''x'')', '{president,teacher}'),
+  -- 手动补录与更正: the bank admin alone (PHASE-2.md §10.11)
+  ('manual_entry(uuid,text,text,timestamp with time zone,text,integer,text,jsonb,jsonb)',
+   'select manual_entry(gen_random_uuid(), ''nobody'', ''adjust'', now(), ''x'', 1)', '{teacher}'),
+  ('correct_txn(uuid,uuid,jsonb,text)', 'select correct_txn(gen_random_uuid(), gen_random_uuid(), ''{}'', ''金额录错'')', '{teacher}'),
   -- 学期: the bank admin alone (PHASE-2.md §3)
   ('upsert_term(uuid,text,date,date)', 'select upsert_term(null, '''', current_date, current_date)', '{teacher}'),
   ('close_term(uuid)', 'select close_term(gen_random_uuid())', '{teacher}'),

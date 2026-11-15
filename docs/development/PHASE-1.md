@@ -398,17 +398,19 @@ create table salary_rates (                    -- 工资标准：除运维员外
 | `withdraw` | teller | `p_id, p_student_no, p_amount` | 整数 > 0；≤ 单笔上限；当天累计 ≤ 单日上限（两项上限按学生所在学部取值）；≤ 余额；`balance_delta = cash_delta = −金额` |
 | `purchase` | teller | `p_id, p_student_no, p_items [{product_id, qty}], p_payment, p_cash_received`（收到的各面额张数） | 商品须已上架且库存足够；同一商品多行时合并；账户扣款时金额 ≤ 余额，`balance_delta = −金额`，`cash_delta = 0`；现金支付时收到金额 ≥ 应付，`balance_delta = 0`，`cash_delta = +金额`，记录找零；扣库存并写 `stock_movements` |
 | `reverse_txn` | teller / teacher | `p_id, p_original_id, p_reason` | 见 6.3 |
+| `manual_entry` / `correct_txn` | teacher（行长不可） | 见 P2 §10.11、§15 | 系统故障时事后补录存款、取款、兑换、调账，记在原始发生时间；编辑 = 冲正原流水 + 记一笔更正后的流水，都记在原流水的时间 |
 
-公共校验：学生存在且 `status = 'normal'`。
+公共校验：学生存在且 `status = 'normal'`（补录只要求未注销，见 P2 §10.11）。
 
 返回值统一为 `{ txn_no, type, amount, balance_after, denominations, change_given }`，前端据此显示结果页（取款凭条的配钞取 `denominations`）。
 
 ### 6.3 冲正规则
 
-- 可冲正的类型：`deposit`、`withdraw`、`purchase`；银行管理员另可冲正 `opening`。
+- 可冲正的类型：`deposit`、`withdraw`、`purchase`；银行管理员另可冲正 `opening` 和调账 `adjust`（第二阶段的类型见 P2 §10.9）。
 - 柜员只能冲正本人办理、当天发生、状态为 `normal` 的流水；银行管理员不受「本人」和「当天」限制。
 - 冲正生成一笔 `reversal` 流水：`amount` 同原流水，`balance_delta`、`cash_delta` 取原值的相反数；兑换冲正同时把商品数量加回库存（`stock_movements.kind = 'reversal'`）。
 - 原流水 `status` 改为 `reversed`，两笔流水互相可查。
+- 冲正记在现在（`created_at = now()`）。银行管理员「编辑」存款、取款、兑换、调账时（`correct_txn`），冲正和更正后的流水都记在原流水的时间，`entered_at` 记录入时间，新流水的 `corrects` 指向原流水，之后已算的活期利息随之更正（P2 §10.11）。
 - 冲正存款时，若当前余额小于原存款金额，拦截并返回 `REVERSAL_INSUFFICIENT_BALANCE`，由银行管理员线下处理后再冲正。
 - 原因必选：金额录错、学号录错、业务选错、其他（「其他」须填写说明）。`p_reason` 传其中一项原文，「其他」写作 `其他：<说明>`。
 
@@ -484,11 +486,11 @@ create table salary_rates (                    -- 工资标准：除运维员外
 
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
-| `student_txns(p_student_no, p_before, p_limit, p_from, p_to, p_time_from, p_time_to, p_types, p_search)` | teller | 柜台「查询」：该生的全部交易，最新在前，每次 `p_limit` 笔（1–50，默认 10），`p_before` 为上一页最后一笔的 `seq`；可按上海时区的日期、每天的时段（不含结束时刻）、类型和交易号或商品名里的文字筛选；每笔含交易号、类型、金额、余额变动、办理后余额、支付方式、状态、原因、时间、经办人和兑换的商品。柜员不能查自己的学生账户（`SELF_SERVICE_FORBIDDEN`） |
+| `student_txns(p_student_no, p_before, p_limit, p_from, p_to, p_time_from, p_time_to, p_types, p_search)` | teller | 柜台「查询」：该生的全部交易，最新在前，每次 `p_limit` 笔（1–50，默认 10），`p_before` 为上一页最后一笔的 `seq`；可按上海时区的日期、每天的时段（不含结束时刻）、类型和交易号或商品名里的文字筛选；每笔含交易号、类型、金额、余额变动、办理后余额、支付方式、状态、原因、时间、经办人和兑换的商品，以及补录的录入时间与编辑的关联（`entered_at`、`corrects_no`、`corrected_no`，P2 §15）。柜员不能查自己的学生账户（`SELF_SERVICE_FORBIDDEN`） |
 | `bank_report(p_from, p_to, p_division, p_cohort, p_class_no, p_student_no, p_time_from, p_time_to)` | accountant / teacher | 报表：上海时区的日期 `p_from`–`p_to`（最长 366 天），范围为全行、一个学部、一个班（学部 + 学届 + 班号）或一位学生，可只取每天 `p_time_from`–`p_time_to` 之间（不含结束时刻）。返回 `business`（存款、取款、账户兑换、现金兑换各几笔多少，办理过业务的学生数，均不含已冲正的）、`reversals`、`reversed`、`openings`、`balance`（期初、期末账面余额和本期按类型的余额变动，期初 + 变动 = 期末）、`cash`（柜面现金收入、付出）、`days`（每天各业务笔数金额与余额变动）、`hours`、`tellers`、`classes`、`students`（人数、办理过业务、各状态人数 `normal` / `frozen` / `graduated` / `closed`、余额合计、中位数、最高；人数含已注销的账户）、`distribution`（期末余额分档人数）、`products`（兑换数量、金额、成本）、`stock`（期初、入库、出库、兑出、期末），以及早期登记的 `issues`（前端不再显示） |
 | `cn_time(txns)` | 表查询 | 流水的上海时间时刻，供「流水」按时段筛选：`txns?cn_time=gte.12:00&cn_time=lt.13:30` |
 
-- 期初、期末余额取每位学生在期间开始前、结束前最后一笔流水的 `balance_after`；余额核对始终按整天计算，不受时段影响。范围内的学生为期末前已开户或已有流水的学生。
+- 期初、期末余额取每位学生在期间开始前、结束前的流水之和（补录的流水记在以前的时间，见 P2 §10.11）；余额核对始终按整天计算，不受时段影响。范围内的学生为期末前已开户或已有流水的学生。
 - 库存是全行数据，不按学生范围筛选。
 - 报表在浏览器里画成 A4 页面（`lib/doc.ts`），可打印或下载 PDF：首页为营业概况、余额核对和柜面现金，之后每日业务、按日明细、营业时段、按柜员、账户与余额分布、按班级、日终账面余额、商品兑换、库存各占一页，图表在上、表格在下，长表格接到下一页并重复表头。
 - 流水页按当前筛选导出：「打印 / 导出」打开的面板里打印、下载 PDF（`ledgerPages`）或下载 Excel（SheetJS 生成 `.xlsx`）。学生姓名默认写作「张*明」，在同一面板勾选「导出完整姓名」才写全名。
