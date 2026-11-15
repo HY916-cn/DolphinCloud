@@ -1204,9 +1204,9 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-table .n { text-align: right; }
 .dc-table tfoot td { border-bottom: 0; font-weight: 700; }
 /* A link in a cell (a record number that opens its detail). */
-.dc-table a { color: var(--dolphin-deep); font-weight: 700; text-decoration: none; border-radius: var(--radius-sm); }
-.dc-table a:hover { text-decoration: underline; }
-.dc-table a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dc-table a, .dc-kv dd a { color: var(--dolphin-deep); font-weight: 700; text-decoration: none; border-radius: var(--radius-sm); }
+.dc-table a:hover, .dc-kv dd a:hover { text-decoration: underline; }
+.dc-table a:focus-visible, .dc-kv dd a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-table tr > :first-child { padding-left: 0; }
 .dc-table tr > :last-child { padding-right: 0; }
 
