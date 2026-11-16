@@ -59,6 +59,7 @@
         "gauge.svg",
         "school.svg",
         "rate.svg",
+        "balance.svg",
         "plus.svg",
         "minus.svg",
         "back.svg",
@@ -335,6 +336,12 @@
           "blob": "ec5683b1e12267838a2a01b6d0803f45",
           "size": 440,
           "type": "image/svg+xml"
+        },
+        "balance.svg": {
+          "name": "balance.svg",
+          "blob": "2883d8f4d4ca79134958e1316598b14a",
+          "size": 379,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -350,8 +357,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-16T09:41:34Z",
+    "at": "2026-11-16T14:33:27Z",
     "via": "Claude Code",
-    "note": "计息、锚点、信用分和贷款全年照常；贷款最长 8 周；补录从开户时间起"
+    "note": "轧账：柜台下班点钞与核对，后台复核、强制下班和财务总览；班次加“已作废”；导航最多 20 项"
   }
 }
