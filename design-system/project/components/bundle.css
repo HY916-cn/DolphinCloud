@@ -364,10 +364,12 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 @container qty (max-width: 159px) {
   .dc-qty-ctrl { grid-template-columns: 1fr 1fr; height: auto; row-gap: var(--space-1); }
   .dc-qty-input { grid-column: 1 / -1; grid-row: 1; }
+  .dc-qty-head { flex-wrap: wrap; row-gap: 0; }
+  .dc-qty-face, .dc-qty-sum { white-space: nowrap; }
   .dc-qty-btn { width: 100%; }
 }
 /* 轧账点钞：核对后每张面额卡的结果 */
-.dc-qty-sum b.is-danger, .dc-qty.is-off .dc-qty-diff { color: var(--danger); }
+.dc-qty .dc-qty-sum b.is-danger, .dc-qty.is-off .dc-qty-diff { color: var(--danger); }
 .dc-qty.is-off { border-color: var(--danger); }
 .dc-qty.is-even { border-color: var(--success); }
 .dc-qty-diff { margin: 0; font: 600 14px/20px var(--font-sans); color: var(--success); }
@@ -1234,6 +1236,7 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); white-space: nowrap; }
 .dc-table .n { text-align: right; }
 .dc-table .is-danger { color: var(--danger); }
+.dc-table td.is-wrap { min-width: 10em; max-width: 20em; white-space: normal; }
 .dc-table tr.is-total td { font-weight: 700; }
 .dc-table tfoot td { border-bottom: 0; font-weight: 700; }
 /* A link in a cell (a record number that opens its detail). */
