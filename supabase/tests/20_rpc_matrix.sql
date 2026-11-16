@@ -66,9 +66,15 @@ insert into tests.matrix values
     'select student_txns(''nobody'')', '{teller}'),
   ('start_duty(jsonb)', 'select start_duty()', '{teller}'),
   ('duty_txns()', 'select duty_txns()', '{teller}'),
-  ('end_duty(integer)', 'select end_duty(-1)', '{teller}'),
+  ('end_duty(integer,jsonb,text)', 'select end_duty(-1)', '{teller}'),
   -- 下班总结的现金表: the teller their own duty, the accountant, president and bank admin any (PHASE-2.md §4)
   ('duty_cash(uuid)', 'select duty_cash()', '{teller,accountant,president,teacher}'),
+  -- 轧账: the accountant reviews, the president and bank admin force a teller off duty, all three list (PHASE-2.md §7)
+  ('review_cash_count(uuid,jsonb,text)', 'select review_cash_count(gen_random_uuid())', '{accountant}'),
+  ('force_end_duty(uuid,text)', 'select force_end_duty(gen_random_uuid(), ''x'')', '{president,teacher}'),
+  ('cash_reviews(uuid,date,date,text[])', 'select cash_reviews()', '{accountant,president,teacher}'),
+  ('cash_review_overview()', 'select cash_review_overview()', '{accountant,president,teacher}'),
+  ('default_float()', 'select default_float()', '{teller}'),
   -- 冲正: the teller their own of today, the president and bank admin any (§6.3)
   ('reverse_txn(uuid,uuid,text)', 'select reverse_txn(gen_random_uuid(), gen_random_uuid(), ''金额录错'')', '{teller,president,teacher}'),
   -- 工资账户: any staff login their own, the bank admin and sysadmin anyone's (§6.9, PHASE-2.md §5.2)

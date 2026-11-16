@@ -500,9 +500,9 @@ create table salary_rates (                    -- 工资标准：除运维员外
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
 | `set_attendance(p_user_id, p_on)` | teacher | 设置工作人员是否参与考勤：除运维员外各身份都可以（运维员 `INVALID_INPUT`）；开启前须已绑定工资账户（`SALARY_UNBOUND`），已停用的账号不能开启 |
-| `start_duty(p_float)` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），同时登记备用金（`cash_counts`，见 PHASE-2.md §7.1；`p_float` 为各面额张数，不传时取本人上次的备用金，从未上过班则全为 0），已上班时返回原记录、不改备用金，返回值带 `float`（各面额张数）和 `stale`：这次上班开始于上海时间今天以前（跨天未下班）时为 `true`，此时不记班次，前端提示柜员先下班；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
+| `start_duty(p_float)` | teller | 上班：没有进行中的上班记录时新建一条（`duty`），同时登记备用金（`cash_counts`，见 PHASE-2.md §7.1；`p_float` 为各面额张数，不传时取本人上次下班的实点（财务复核录入了实点的取财务的数），都没有时取上次的备用金，从未上过班则全为 0；上班前用 `default_float()` 读这个默认值），已上班时返回原记录、不改备用金，返回值带 `float`（各面额张数）和 `stale`：这次上班开始于上海时间今天以前（跨天未下班）时为 `true`，此时不记班次，前端提示柜员先下班；参与考勤的柜员同时记下当前班次（上海时间 13:30 前为中午班 `am`，13:30 起为下午班 `pm`），状态为待审，同一班次已有记录时不重复 |
 | `duty_txns()` | teller | 下班总结：本人当前上班以来办理的全部业务（按办理时间，含学生姓名），与 `end_duty` 的计数口径相同（含离线补传和冲正）。柜员只能读当天流水，跨午夜的上班也由它完整列出；未上班时 `OFF_DUTY` |
-| `end_duty(p_txns)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理。下班时把按面额算出的应有写进 `cash_counts.expected`，状态改为待复核 `pending` |
+| `end_duty(p_txns, p_count, p_note)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理。下班时把按面额算出的应有写进 `cash_counts.expected`，同时录入储蓄盒各面额的实点（`p_count`）与应有比对，不等时须写原因（`p_note`，否则 `NOTE_REQUIRED`），状态改为待复核 `pending`；之后由财务复核（PHASE-2.md §7、§15）。行长、银行管理员可以强制柜员下班（`force_end_duty`），强制下班时不记班次 |
 | `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 下班总结的现金表（PHASE-2.md §4）：备用金、收入、付出、应有，各面额张数、金额与合计；不传时为本人当前的上班（未上班时 `OFF_DUTY`），柜员只能查本人的上班 |
 | `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | teacher | 柜员的补签，以及其他身份的登记：今天已开始的班次或以前的班次，须写说明，直接计为有效，不再审查；已有记录（含已作废的）时 `ALREADY_EXISTS`。不能登记自己的：行长的班次由银行管理员登记，银行管理员的由行长登记，行长之间也不互相登记（`SELF_SERVICE_FORBIDDEN`）。班次记下当时的身份（`attendance.role`） |
 | `void_attendance(p_id, p_note)` | teacher | 作废登记的班次（非柜员的），须写原因：状态改为未通过（`rejected`），不发工资，这个班次也不能再登记；柜员的班次（`INVALID_INPUT`）走审查；已发工资的不能作废（`ATTENDANCE_PAID`），已作废的不能再作废（`ATTENDANCE_REVIEWED`）；谁不能登记就不能作废（`SELF_SERVICE_FORBIDDEN`） |

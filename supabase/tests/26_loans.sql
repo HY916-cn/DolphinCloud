@@ -171,7 +171,7 @@ select tests.call(:'teller', $$select open_loan('00000000-0000-4000-8000-0000000
 select is(:'opened'::jsonb - 'id' - 'txn_no' - 'created_at' - 'loan',
   '{"type":"loan","amount":100,"balance_after":200,"denominations":null,"change_given":null}', '放款 into the account');
 select is((:'opened'::jsonb -> 'loan') - 'loan_txn' - 'loan_no' - 'operator_id' - 'schedule' - 'payments',
-  jsonb_build_object('id', '00000000-0000-4000-8000-0000000000f1', 'student_no', 's1', 'principal', 100, 'remaining', 100, 'rate', 6.2667,
+  jsonb_build_object('id', '00000000-0000-4000-8000-0000000000f1', 'student_no', 's1', 'principal', 100, 'remaining', 100, 'rate', 6.2667, 'penalty_rate', 9.4001,
     'score', 600, 'plan', 'installment', 'periods', 4, 'purpose', '买文具', 'disbursed_via', 'account', 'interest_centi', 0, 'status', 'active',
     'opened_on', :'today'::date, 'closed_on', null, 'terminated_at', null, 'terminated_by', null, 'terminate_reason', null,
     'payoff', 100, 'next', jsonb_build_object('seq', 1, 'due_on', :'today'::date + 7, 'amount', 25)),

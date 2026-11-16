@@ -75,6 +75,8 @@
 | 冲正本人当天的放款、还款、开定期 | | ✓ | | | | | |
 | 上班登记备用金、下班录入实点 | | ✓ | | | | | |
 | 复核轧账 | | | ✓ | | | | |
+| 查看轧账记录 | | | ✓ | | ✓ | ✓ | |
+| 强制柜员下班 | | | | | ✓ | ✓ | |
 | 查看全部贷款、定期、理财、信用分、利率 | | | ✓ | | ✓ | ✓ | |
 | 手动登记理财参考指数某一天的涨跌 | | | | | ✓ | ✓ | |
 | 风险提醒：查看、已查看、终止 | | | | | ✓ | ✓ | |
@@ -195,14 +197,17 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 ### 7.1 流程
 
-1. **上班**：柜员点「上班」时登记储蓄盒里的备用金（各面额张数）。默认填上次下班时的实点（M12 之前是上次的备用金），可修改；没有备用金就全填 0。
+1. **上班**：柜员点「上班」时登记储蓄盒里的备用金（各面额张数）：储蓄盒里现有的零钱。默认是上次下班时点出的张数，财务复核改过的按财务的数；按实际张数修改，没有就填 0。默认张数由服务器给出（`default_float()`）：财务录入的实点，否则柜员的实点，都没有时取上次的备用金，从未上过班时全为 0。
 2. **办理**：照常。
 3. **下班**：下班总结（第 4 节）生成后，柜员数储蓄盒，录入各面额的实点张数。系统按面额比对：
    - 每种面额都相等：显示「平账」，打印签字后确认下班。
-   - 有差额：显示每种面额多几张、少几张，以及本次上班的逐笔现金业务，供柜员逐笔核对；柜员必须写明原因才能确认下班，同时生成一条风险提醒（`cash_unbalanced`）。
+   - 有差额：显示每种面额多几张、少几张（差额 = 实点 − 应有），以及本次上班的逐笔现金业务，供柜员逐笔核对；柜员必须写明原因（1～200 字）才能确认下班，同时生成一条风险提醒（`cash_unbalanced`）。
+   - 确认下班后状态为「待复核」。
 4. **复核**：财务在后台「轧账」页看到待复核的上班记录（柜员、上下班时间、应有、柜员实点、差额、原因），收到储蓄盒后再点一遍：
    - 一致：点「复核通过」，状态变为「已轧账」。
    - 不一致：录入财务点出的各面额张数，写明原因后「复核通过」；以财务的数为准，差额重新计算，有差额时生成风险提醒。
+   - 强制下班的和没有柜员实点的：财务必须录入实点，与应有不同时写明原因。
+   - 每次上班只复核一次。财务不在柜台上班，不会复核到本人的上班。
 
 ### 7.2 状态
 
@@ -214,11 +219,12 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 | 强制下班 | 被风险提醒「终止」强制下班，没有柜员实点；由财务直接点数录入后复核 |
 
 - 轧账后不锁定流水。
-- 下班后第二天仍未复核的，在看板和财务总览上标红。
+- 下班后第二天仍未复核的（待复核、强制下班，上海时间的日期晚于下班那天），在看板和财务总览上标红。
+- 强制下班由行长或银行管理员执行（`force_end_duty`，写原因），之后风险提醒的「终止」也调用它。上班时记下的班次照常待审，强制下班时不再记班次；这次上班的业务笔数照常记下。
 
 ### 7.3 冲正与轧账
 
-- 柜员只能在上班时冲正本人当天的业务（P1 §6.9 的 `require_duty`），所以冲正总落在柜员的某一次上班里。冲正的现金进出算在**办理冲正的那次上班**：如果原业务在更早的一次上班里，那次的应有不变，复核页在那次上班旁注明「其中 N 笔已于 HH:MM 冲正」。
+- 柜员只能在上班时冲正本人当天的业务（P1 §6.9 的 `require_duty`），所以冲正总落在柜员的某一次上班里。冲正的现金进出算在**办理冲正的那次上班**：如果原业务在更早的一次上班里，那次的应有不变，复核页在那次上班旁注明「其中 N 笔已于 HH:MM 冲正」（`cash_reviews` 的 `reversed`；银行管理员、行长的冲正和编辑也列在这里，编辑取录入时间）。
 - 银行管理员、行长冲正（含风险提醒里的「终止」）不在任何一次上班里，冲正涉及的现金不进轧账，由银行管理员线下处理，货币监控里计入「银行应有现金」。
 - 银行管理员补录、编辑的流水（10.11）同样不在任何一次上班里，即使原始时间落在某位柜员上班期间，也不进那次上班的现金表。
 
@@ -932,12 +938,15 @@ create table cash_counts (                    -- 轧账，每次上班一行
   expected     jsonb,                         -- 下班时算出的应有
   teller_count jsonb,                         -- 柜员实点
   teller_note  text,
-  review_count jsonb,                         -- 财务实点（与柜员不同时）
+  review_count jsonb,                         -- 财务录入的实点；为空表示与柜员一致
   review_note  text,
   reviewed_by  uuid references profiles(id),
   reviewed_at  timestamptz,
-  status       text not null default 'open' check (status in ('open','pending','done','forced'))
+  status       text not null default 'open' check (status in ('open','pending','done','forced')),
+  forced_by     uuid references profiles(id),   -- 强制下班的人
+  forced_reason text
 );
+-- 读取：柜员读本人的，财务、行长、银行管理员读全部
 
 create table currency_moves (                 -- 货币登记（从上线起）
   id            uuid primary key default gen_random_uuid(),
@@ -1009,10 +1018,15 @@ create table job_runs (                       -- 定时任务进度
 | `void_attendance(p_id, p_note)` | president / teacher | 作废登记的班次：`{"id","user_id","day","shift","status":"rejected","note","role",…}`（`attendance` 一行）。错误：`INVALID_INPUT`（`field: id`，不存在或是柜员的班次；`field: note`，原因为空）、`SELF_SERVICE_FORBIDDEN`、`ATTENDANCE_PAID`（已发工资）、`ATTENDANCE_REVIEWED`（已作废） |
 | `set_salary_rates(p_rates)` | president / teacher | 工资标准，整表提交：`{"teller":{"am":10,"pm":10},"accountant":{"am":10,"pm":10},"storekeeper":{…},"president":{…},"teacher":{…}}`，每项 1～10000 的整数；返回同样格式的全表；缺身份、多身份（含 `sysadmin`）、缺班次或越界 `INVALID_INPUT`（`{"field":"rates"}`，某个身份的值不对时加 `role`）。前端读 `salary_rates` 表（所有登录可读：`role, shift, amount, updated_by, updated_at`） |
 | `pay_salaries(p_week)` | 改动 | 每个班次按 `attendance.role` 和班次取工资标准；返回的 `rates` 为整张工资标准（格式同 `set_salary_rates`）；`paid`、`skipped` 不变 |
-| `start_duty(p_float)` | 改动 | 上班时登记备用金 |
-| `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 第 4 节的现金表；柜员只能查本人的上班，不传时为本人当前的上班 |
-| `end_duty(p_txns, p_count, p_note)` | 改动 | 下班时录入实点；有差额时 `p_note` 必填（`NOTE_REQUIRED`） |
-| `review_cash_count(p_duty_id, p_count, p_note)` | accountant | 复核；`p_count` 为空表示与柜员一致 |
+| `start_duty(p_float)` | 改动 | 上班时登记备用金；不传时取上次下班的实点（7.1） |
+| `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 第 4 节的现金表；柜员只能查本人的上班，不传时为本人当前的上班。另有 `cash_txns`：计入现金表的逐笔现金业务（按时间），每笔 `{"txn_no","created_at","type","student_no","name","amount","payment","status","income","payout"}`，`income`、`payout` 为这笔收进、付出的各面额张数（没有时为 `null`），合计等于现金表的收入、付出；早先上班的业务在本次被冲正时，冲正流水在这里 |
+| 轧账记录 | — | 下面几个函数返回的一次上班的轧账：`{"duty_id","user_id","name","started_at","ended_at","status","float","expected","teller_count","teller_note","review_count","review_note","count","diff","balanced","reviewed_by","reviewer_name","reviewed_at","forced_by","forced_reason","overdue","reversed"}`。张数都是 `{"面额": 张数}`，含每个已配置的面额；`count` 为最终实点（财务录入了取财务的，否则取柜员的），`diff` 为 `count − expected`（多为正、少为负），`balanced` 为各面额都相等，没有实点时三者为 `null`；`expected_total`、`teller_total`、`count_total`、`diff_total` 为对应的金额合计（HTB，没有时 `null`）；`forced_by`、`forced_reason` 复核后仍保留，不为空即强制下班过；`name`、`reviewer_name` 为柜员、复核人的姓名；`overdue` 见 7.2；`reversed` 为本次上班计入现金、之后被冲正的业务 `[{"txn_no","reversed_at"}]`（7.3） |
+| `end_duty(p_txns, p_count default null, p_note default null)` | 改动 | 下班时录入实点（`p_count`，同备用金的写法，不合法时 `INVALID_AMOUNT`）。各面额都等于应有时 `p_note` 可以为空；不等时必填，否则 `NOTE_REQUIRED`（`{"diff"}`），不下班；原因超过 200 字 `INVALID_INPUT`（`field: note`）。返回 `duty` 一行（`id`、`txns` 等）加轧账记录，加 `cash_txns`（同 `duty_cash`），状态为 `pending`。不传 `p_count` 时不比对，柜员实点为空，由财务复核时录入 |
+| `review_cash_count(p_duty_id, p_count default null, p_note default null)` | accountant | 复核（7.1），返回轧账记录，状态为 `done`。`p_count` 为空表示与柜员一致，柜员没有实点时（强制下班、未录实点）`INVALID_INPUT`（`field: count`）；不为空时以它为准，与柜员实点不等时（没有柜员实点时与应有不等时）`p_note` 必填（`NOTE_REQUIRED`，`{"diff"}`，与应有的差额）。上班不存在 `INVALID_INPUT`（`field: duty_id`），还在上班或已复核 `INVALID_INPUT`（`{"field":"duty_id","status"}`）；原因超过 200 字 `INVALID_INPUT`（`field: note`） |
+| `force_end_duty(p_duty_id, p_reason)` | president / teacher | 强制下班（7.2、12.2），返回轧账记录，状态为 `forced`，没有柜员实点。原因为空或超过 200 字 `INVALID_INPUT`（`field: reason`）；上班不存在 `INVALID_INPUT`（`field: duty_id`），已下班 `INVALID_INPUT`（`{"field":"duty_id","status"}`） |
+| `cash_reviews(p_user_id, p_from, p_to, p_status)` | accountant / president / teacher | 16.2「轧账」页：轧账记录的数组，按上班时间从新到旧；参数都可省略：柜员、上班日期（上海时间）的起止、状态数组（`open`、`pending`、`done`、`forced`，其他值 `INVALID_INPUT`，`field: status`） |
+| `cash_review_overview()` | accountant / president / teacher | 16.2 财务总览：`{"pending","overdue","oldest"}`，待复核（`pending`、`forced`）的次数、其中隔天未复核的次数，`oldest` 为等待最久的至多 5 条轧账记录（按下班时间从早到晚） |
+| `default_float()` | teller | 上班卡片的备用金默认张数（7.1），`{"面额": 张数}`，含每个已配置的面额；`start_duty` 不传 `p_float` 时用同一个数 |
 | `upsert_term(p_id, p_name, p_starts, p_ends)` / `close_term(p_id)` | teacher（行长不可） | 第 6 节；返回学期一行 |
 | `term_quote(p_student_no)` | teller | 10.2 柜台「定期」面板：`{"student_no","score","term":{"id","name","ends_on"},"options":[{"weeks","rate","matures_on"}],"balance","term_total","deposits":[term_deposits 一行…]}`；`options` 列出全部 5 种存期（按周数排列），`rate` 为 `term_rates` 的固定周利率；不在学期内时 `term` 为 `null`，`options` 照常；`deposits` 为该生的全部定期，按开定期日期从新到旧。学生不存在 `STUDENT_NOT_FOUND`，已注销 `STUDENT_INACTIVE`，本人或本人工资账户 `SELF_SERVICE_FORBIDDEN` |
 | `open_term_deposit(p_id, p_student_no, p_amount, p_weeks)` | teller（行长不可） | 10.2；`p_id` 是定期的 id（幂等键，重复提交返回同一结果）；返回流水结果（同 P1）加 `term`（`term_deposits` 一行）。学期内和假期里都能开。错误：`INVALID_INPUT`（`field: weeks`，不是 2/4/12/24/48）、`INVALID_AMOUNT`、`INSUFFICIENT_BALANCE`（`{"balance","short"}`）、`STUDENT_INACTIVE`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY`、`LOAN_OUTSTANDING`（有未结清贷款） |
@@ -1027,7 +1041,7 @@ create table job_runs (                       -- 定时任务进度
 | `redeem_wealth(p_holding_id)` | teller（行长不可） | 10.10；按现值赎回，返回同上，`holding.status` 为 `redeemed`；重复提交返回原来那笔。理财不存在 `INVALID_INPUT`（`{"field":"holding_id"}`），已到期、已作废 `INVALID_INPUT`（`{"field":"holding_id","status"}`）；冻结、毕业 `STUDENT_INACTIVE` |
 | `wealth_overview(p_before default null, p_limit default 30)` | accountant / president / teacher | 16.2 后台「理财」页：`{"params","days","missing","open"}`。`params` 为 `wealth_params` 加各期限的当日基础收益 `day_base`。`days` 为 `p_before`（默认今天）之前的 `p_limit`（1～366）个自然日，新的在前，每天一行 `{"day","status","close","prev_close","change","source","source_name","note","created_by_name","created_at","rates"}`：`status` 为 `open`（开盘，有行情）、`closed`（周末或节假日休市：收盘价、涨跌为空，`source` 为 `closed`，`source_name` 为「休市」）、`pending`（还不知道：`source_name` 为「待登记」）或 `none`（早于第一条行情，什么都没有）；`rates` 为按现在的参数各期限、各档在这一天的收益率 `{"<周数>":{"<档位 key>":收益率}}`（休市日即当日基础收益，`pending`、`none` 为 `null`；已买的理财按自己锁定的参数算，可能不同）。往前翻页时 `p_before` 传上一页最早那天。`missing` 为持有中的理财还等着、已经过去却还不知道行情的工作日（从早到晚），`open` 为持有中的 `{"count","principal","value_centi"}`。`p_limit` 不在 1～366 `INVALID_INPUT`（`field: limit`）。持有中的理财读 `wealth_holdings` 表 |
 | `record_wealth_day(p_day, p_change, p_note)` | president / teacher | 10.10 手动登记某个开盘日的指数涨跌；返回 `wealth_days` 一行（不含 `params`）。`p_day` 是周末或不早于今天 `INVALID_INPUT`（`field: day`）；涨跌不在 −50～50 或超过 4 位小数 `INVALID_INPUT`（`field: change`）；说明为空或超过 200 字 `INVALID_INPUT`（`field: note`）；这一天已有行情 `ALREADY_EXISTS`（`field: day`） |
-| 贷款详情 | — | `loan_quote`、`open_loan`、`repay_loan`、`terminate_loan` 返回的 `loan`：`loans` 一行，加 `payoff`（全部结清的金额，未结清时才有）、`next`（`{"seq","due_on","amount"}`，最早一期没还清的期与本期应还，10.4；结清后为 `null`）、`schedule`（`loan_periods` 各行，不含 `loan_id`）、`payments`（`[{"txn_id","txn_no","created_at","amount","interest","principal","auto","payment","status"}]`） |
+| 贷款详情 | — | `loan_quote`、`open_loan`、`repay_loan`、`terminate_loan` 返回的 `loan`：`loans` 一行，加 `payoff`（全部结清的金额，未结清时才有）、`next`（`{"seq","due_on","amount"}`，最早一期没还清的期与本期应还，10.4；结清后为 `null`）、`schedule`（`loan_periods` 各行，不含 `loan_id`）、`payments`（`[{"txn_id","txn_no","created_at","amount","interest","principal","auto","payment","status"}]`）、`penalty_rate`（按锁定的 `rate` 算的罚息周利率，9.2） |
 | `adjust_credit(p_student_no, p_delta, p_reason)` | teacher（行长不可） | 8.3；返回 `{"event": 变动记录, "credit": 调整后的 credit_profile}`；信用分暂停时返回 `CREDIT_DISABLED` |
 | `set_credit_enabled(p_on, p_reason)` | teacher（行长不可） | 8.5；返回 `{"enabled","changed","students"}`，`changed` 为 `false` 表示已是这个状态、什么都没做，`students` 为这次分数有变化的学生数。暂停时原因为空 `INVALID_INPUT`（`field: reason`），开启时原因可以为空；`p_on` 为空 `INVALID_INPUT`（`field: on`） |
 | `credit_profile(p_student_no default null)` | 学生（不传，读本人）/ accountant / president / teacher | 8.1；返回 `{"student_no","score","loan_limit","points_to_next","loan_factor","saving_factor"}`，不能贷款时额度、贷款系数为 `null`，`points_to_next` 为 `null` 表示不显示「再涨 N 分」 |
@@ -1058,7 +1072,7 @@ create table job_runs (                       -- 定时任务进度
 | `TERM_OVERLAP` | 学期日期重叠 | 和「{term}」的日期重叠，请调整开始日或结束日。 |
 | `TERM_NOT_ENDED` | 学期还没结束 | {ends_on} 之后才能结转。 |
 | `TERM_CLOSED` | 学期已结转 | 结转后的学期不能再修改。 |
-| `NOTE_REQUIRED` | 请写明原因 | 现金和应有不一致，写明原因后才能下班。 |
+| `NOTE_REQUIRED` | 请写明原因 | 现金和应有不一致，写明原因后才能下班。（复核时：写明原因后才能复核通过。） |
 | `REPAY_TOO_MUCH` | 还多了 | 这笔贷款现在一共只需还 {max} HTB。 |
 | `CREDIT_DISABLED` | 信用分已暂停 | 暂停期间所有学生按 600 分计，不能调整。重新开启后再调整。 |
 | `OCCURRED_OUT_OF_RANGE` | 时间不在补录范围内 | 只能补录 {from} 开户以后、到现在之间发生的业务。（`from` 是这位学生的开户时间，写「M月D日 HH:mm」） |
@@ -1100,8 +1114,8 @@ create table job_runs (                       -- 定时任务进度
   - 赎回：持有中的有「赎回」按钮，二次确认写出现值和盈亏「按现在的价值 103.20 HTB 转回活期，盈 +3.20 HTB。赎回后不再随市场涨跌。」；成功后提示「已赎回，转回活期 103 HTB」（流水的 `amount`，零头留作待入账利息）。柜台不能冲正赎回；买理财当天、还没有计过收益时可在办理单冲正。
   - 冻结、毕业的账户不显示买入和赎回，提示「账户已冻结，不能买理财或赎回；理财照常计收益，到期转回活期。」
 - 「查询」：账户累计里加理财（`lookup_student` 的 `wealth_total` 本金、`wealth_value_centi` 现值）、定期合计（`lookup_student` 的 `term_total`）、贷款剩余（`loan_remaining`，逾期时标红）、信用分。
-- 上班：「上班」弹出备用金录入（各面额张数，默认上次实点）。
-- 下班：下班总结加现金表（第 4 节），录入实点，比对结果，有差额时写原因。
+- 上班：「上班」弹出备用金录入（各面额张数，默认取 `default_float()`）。
+- 下班：点钞 → 核对 → 打印总结 → 确认下班。点钞：在现金表（第 4 节）下的「实点」一行录入各面额张数；核对：逐面额显示差额（「多 N 张」「少 N 张」，取 `end_duty` 返回的 `diff`，提交前可按 `duty_cash` 的应有先算出来显示），都相等时显示「平账」，不等时列出本次上班的逐笔现金业务（`duty_cash` 的 `cash_txns`）并要求写原因；打印出来的总结里，实点一行仍然留空，手写填；最后确认下班（`end_duty`）。
 - 办理单、今日业务、下班总结都包含新类型的业务。
 
 ### 16.2 后台
@@ -1110,13 +1124,13 @@ create table job_runs (                       -- 定时任务进度
 
 | 页面 | 内容 |
 | --- | --- |
-| 总览 | 顶部经营看板（财务、行长、银行管理员）：账户余额（活期 + 定期）、银行应有现金、贷款余额（下面写「逾期 2 笔 · 45 HTB」，只有这一行标红）、文创库存（件数与成本）、本周业务笔数、本周锚点；下面是按周业务柱状图（最近 12 周）和未处理的风险提醒；库管、行长、银行管理员看到库存不足的商品；财务看到待复核和隔天未复核的轧账 |
+| 总览 | 顶部经营看板（财务、行长、银行管理员）：账户余额（活期 + 定期）、银行应有现金、贷款余额（下面写「逾期 2 笔 · 45 HTB」，只有这一行标红）、文创库存（件数与成本）、本周业务笔数、本周锚点；下面是按周业务柱状图（最近 12 周）和未处理的风险提醒；库管、行长、银行管理员看到库存不足的商品；财务看到待复核的次数、隔天未复核的次数（标红）和等待最久的 5 条（`cash_review_overview()`） |
 | 风险提醒 | 第 12 节 |
 | 贷款 | 读 `loans`、`loan_periods`、`loan_payments` 表。列表按状态分页签（全部 / 还款中 / 已逾期 / 已结清 / 已作废），逾期的排在前面，贷款号链接到详情；详情在各种宽度下都排成一列，依次是学生卡片、四项数字（本金、剩余本金、已付利息即 `loan_payments.interest` 之和且不算已冲正的、已产生利息 `interest_centi`）、放款信息、还款计划、还款记录（方式：账户 / 现金 / 自动扣款）；行长、银行管理员可终止：写原因，二次确认「剩余本金 98 HTB 和已产生利息 1.37 HTB 立即全部到期：先从活期扣，不够的部分算逾期。」 |
 | 利率 | 本周锚点与按分数的利率表（同 9.2，`rate_overview()`，标题「按分数的周利率 · 锚点 1.85%」，多一列逾期罚息）；每周历史（9.1 的全部输入和结果，`rate_weeks` 表，锚点没有变化时写「与上周持平」）；计算参数分两段：「可在参数页修改」列初始锚点、锚点范围并链接参数页，「系统固定」列目标存贷比、目标增速、每周最多调整、贷款倍数、罚息倍数，数值都读 `settings`。按分数的利率表只有活期、贷款、逾期罚息三列；表下另有一张只读卡片「定期周利率」，五行 2、4、12、24、48 周，读 `settings` 的 `term_rates`，右上角「在参数页修改」只有行长和银行管理员看得到。锚点下的说明：还没有锚点「还没有公布锚点，现在按初始锚点 2% 计算。每周一公布。」；其他「11月9日公布，下次 11月16日。」（假期里同样） |
 | 理财 | 导航图标 `invest`，排在「利率」后面；财务、行长、银行管理员能看，`wealth_overview()`。顶部三项统计：最近一个开盘日的指数涨跌、持有中笔数和本金、当前总值（`open`）。每日收益表（`days`，每个自然日一行，新的在上，先显示最近 30 天，「更早」用 `p_before` 往前取）：日期、参考指数、收盘价、指数涨跌、各档在这一天的收益率（`rates`，表上方选期限，默认 12 周；表下说明「按现在的参数计算；已经买的理财按买入时的参数，可能与这里不同。」）、来源（`source_name`：腾讯行情、新浪财经、东方财富、「手动登记 · 王老师」）；休市日收盘价和涨跌写「—」，来源「休市」，各档就是当日基础收益；`none` 的日子除日期外都写「—」；`missing` 不为空时表上方提示列出还没有行情的工作日；`pending` 的工作日标「待登记」，银行管理员和行长在这一行「登记」（日期默认取 `missing` 的第一天，从最早的一天起按顺序登记），页面主操作「登记指数涨跌」：这一天指数的涨跌（可以为负，−50～50，最多 4 位小数）和说明（必填，写数据从哪里来），二次确认「按指数涨跌 −0.80% 登记 11月14日？」「每笔持有中的理财按自己买入时的参数算这一天的收益，登记后不能修改。这一天休市的不用登记。」。持有中的理财列表读 `wealth_holdings`：学生、期限、档位、本金、现值、盈亏、到期日 |
 | 信用分 | 按学生查分数和全部变动（`credit_scores`、`credit_events` 表，详情用 `credit_profile(学号)`）；银行管理员可调整（`adjust_credit`）；计算参数与规则参数。页面最上面一张卡片是开关 Switch「启用信用分」（读 `settings.credit_enabled`），只有银行管理员能操作（`set_credit_enabled`）：暂停时先写原因，再二次确认「暂停后所有学生按 600 分计算额度和利率，分数不再加减。重新开启后恢复每位学生暂停前的分数。」；开启时直接二次确认，说明加一句「暂停期间没有加减的分不补。」；完成后提示「已暂停，12 位学生按 600 分计」「已重新开启，12 位学生恢复原来的分数」，状态没变时「信用分本来就是这个状态」。暂停时「调整信用分」按钮禁用 |
-| 轧账 | 财务：待复核、已轧账；按柜员、日期筛选；复核 |
+| 轧账 | 导航图标 `balance`，排在「报表」后面。财务、行长、银行管理员：`cash_reviews` 列表，按柜员、日期、状态筛选；每行柜员、上下班时间、应有、实点、差额、原因、复核人，`overdue` 标红，`reversed` 注明「其中 N 笔已于 HH:MM 冲正」；详情用 `duty_cash(p_duty_id)` 的现金表和逐笔现金业务。财务「复核通过」（一致）或录入实点和原因后复核（`review_cash_count`）；行长、银行管理员对上班中的柜员「强制下班」，写原因、二次确认（`force_end_duty`） |
 | 货币 | 第 11 节的登记与监控 |
 | 学期 | 第 6 节 |
 | 工作人员 | 增加「导入」（5.1）；导入、新增、重置密码都出每人一页的通知单（5.3），页面上不再显示密码 |
@@ -1171,7 +1185,7 @@ create table job_runs (                       -- 定时任务进度
 
 | 类别 | 内容 |
 | --- | --- |
-| 数据库（pgTAP） | 信用分（`supabase/tests/23_credit.sql`）：8.1 表格每个分数的额度与系数、「再涨 N 分」、截断、每条每周规则、冻结毕业注销不变、假期里和学期第一个周一照常加减分、同一周重复执行不变、整学期补跑与每周按时运行相同、手动调整的身份与记录、参数校验、读取权限、一学期的稳定存款学生（600 → 738）；信用分开关（`supabase/tests/29_credit_switch.sql`）：只有银行管理员能切换且要写原因、暂停后都是 600 分且额度和利率按 600 分算、暂停期间每周规则、还款、逾期和手动调整都不记分、补跑与按时运行相同、重新开启后恢复原分、重复切换不变；锚点公式的边界与限幅、活期每天计息与结息零头（跨学期和假期每天计息、每周一结息、每周一公布锚点）、补跑与按时运行相同、利息自检（`supabase/tests/24_interest.sql`）；定期的锁定利率、到期付息与零头、提前支取按天计息、各种不能开的情况、冲正与零头收回、注销、排名、存款余额与日均余额含定期、补跑与按时运行相同、自检（`supabase/tests/25_term_deposits.sql`）；定期定值：`term_rates` 的默认值、校验与谁能改，已开的定期保持原利率，跨学期与假期里到期、假期里开定期、提前支取按每一天（含假期）计活期利息、未到期的定期不影响结转（`supabase/tests/27_fixed_term.sql`）；理财：腾讯、新浪、东方财富日线的解析（当天 15:30 以前不写、缺上一个开盘日）、休市日的判断、`wealth_params` 校验、周基础收益的反推公式、当日基础收益、三档倍率的每日收益率与截断、买入时锁定参数、按周计收益与到期（假期里到期、冻结照常）、缺一个开盘日时等待与按天手动登记后补上、补跑与按时运行相同、买入与赎回的各种情况、零头、冲正、注销、排名、读取权限、自检（`supabase/tests/28_wealth.sql`）；贷款的等额本金计划、按天计息、估算利息、提前还款、多还重排、利息零头、自动扣款、逾期、罚息、扣分、终止、有贷款不能开定期、贷款可以跨学期末和在假期里办、未结清的贷款不影响结转、放款与还款的冲正、日均余额与排名不计借来的钱、存贷比、补跑与按时运行相同、自检（`supabase/tests/26_loans.sql`）；全员考勤与工资（`supabase/tests/30_staff_attendance.sql`）：各身份绑定本人的工资账户与密码、运维员不能参与、为他人绑定的权限、各身份开启考勤、登记与作废的权限和不能登记自己、工资标准的校验与日志、按记下的身份发放（身份改了也按原来的）、发放人本人的工资账户入账；手动补录与更正（`supabase/tests/31_manual_entries.sql`）：只限银行管理员、原因必填、四种类型各自的写法、时间范围（不晚于现在、不早于开户，与学期无关，已结转的学期里也能补录）、幂等、现在和历史余额不为负、现金不进柜员的上班、补录之后每个已计息的日子都按更正后的活期重算（已结息和未结息的周、学期内和假期）、更正等到下一次结息并写进说明、补录早于计息与当初就记对完全相同、跨过结息日时每天至多差 0.01 HTB、编辑生成冲正与新流水并互相关联（含改学生和类型）、不能编辑的类型、冲正调账、报表的期初期末、柜台查询的关联、自检；取消假期限制（`supabase/tests/32_no_holidays.sql`）：没有学期时每天、每个周一都做全部的事，迁移前已处理的日子不重算，假期里和跨学期末放款，结转不受未结清贷款影响，不再有函数报 `NO_TERM`、`TERM_TOO_LONG`；轧账比对；风险提醒的触发与终止；货币监控等式；免密码绑定只限管理员；`import_staff` |
+| 数据库（pgTAP） | 信用分（`supabase/tests/23_credit.sql`）：8.1 表格每个分数的额度与系数、「再涨 N 分」、截断、每条每周规则、冻结毕业注销不变、假期里和学期第一个周一照常加减分、同一周重复执行不变、整学期补跑与每周按时运行相同、手动调整的身份与记录、参数校验、读取权限、一学期的稳定存款学生（600 → 738）；信用分开关（`supabase/tests/29_credit_switch.sql`）：只有银行管理员能切换且要写原因、暂停后都是 600 分且额度和利率按 600 分算、暂停期间每周规则、还款、逾期和手动调整都不记分、补跑与按时运行相同、重新开启后恢复原分、重复切换不变；锚点公式的边界与限幅、活期每天计息与结息零头（跨学期和假期每天计息、每周一结息、每周一公布锚点）、补跑与按时运行相同、利息自检（`supabase/tests/24_interest.sql`）；定期的锁定利率、到期付息与零头、提前支取按天计息、各种不能开的情况、冲正与零头收回、注销、排名、存款余额与日均余额含定期、补跑与按时运行相同、自检（`supabase/tests/25_term_deposits.sql`）；定期定值：`term_rates` 的默认值、校验与谁能改，已开的定期保持原利率，跨学期与假期里到期、假期里开定期、提前支取按每一天（含假期）计活期利息、未到期的定期不影响结转（`supabase/tests/27_fixed_term.sql`）；理财：腾讯、新浪、东方财富日线的解析（当天 15:30 以前不写、缺上一个开盘日）、休市日的判断、`wealth_params` 校验、周基础收益的反推公式、当日基础收益、三档倍率的每日收益率与截断、买入时锁定参数、按周计收益与到期（假期里到期、冻结照常）、缺一个开盘日时等待与按天手动登记后补上、补跑与按时运行相同、买入与赎回的各种情况、零头、冲正、注销、排名、读取权限、自检（`supabase/tests/28_wealth.sql`）；贷款的等额本金计划、按天计息、估算利息、提前还款、多还重排、利息零头、自动扣款、逾期、罚息、扣分、终止、有贷款不能开定期、贷款可以跨学期末和在假期里办、未结清的贷款不影响结转、放款与还款的冲正、日均余额与排名不计借来的钱、存贷比、补跑与按时运行相同、自检（`supabase/tests/26_loans.sql`）；全员考勤与工资（`supabase/tests/30_staff_attendance.sql`）：各身份绑定本人的工资账户与密码、运维员不能参与、为他人绑定的权限、各身份开启考勤、登记与作废的权限和不能登记自己、工资标准的校验与日志、按记下的身份发放（身份改了也按原来的）、发放人本人的工资账户入账；手动补录与更正（`supabase/tests/31_manual_entries.sql`）：只限银行管理员、原因必填、四种类型各自的写法、时间范围（不晚于现在、不早于开户，与学期无关，已结转的学期里也能补录）、幂等、现在和历史余额不为负、现金不进柜员的上班、补录之后每个已计息的日子都按更正后的活期重算（已结息和未结息的周、学期内和假期）、更正等到下一次结息并写进说明、补录早于计息与当初就记对完全相同、跨过结息日时每天至多差 0.01 HTB、编辑生成冲正与新流水并互相关联（含改学生和类型）、不能编辑的类型、冲正调账、报表的期初期末、柜台查询的关联、自检；取消假期限制（`supabase/tests/32_no_holidays.sql`）：没有学期时每天、每个周一都做全部的事，迁移前已处理的日子不重算，假期里和跨学期末放款，结转不受未结清贷款影响，不再有函数报 `NO_TERM`、`TERM_TOO_LONG`；轧账（`supabase/tests/33_cash_review.sql`）：下班不录实点时不比对、实点的校验、不平时必须写原因且不下班、平账不用写原因、返回的差额与逐笔现金业务、下次上班默认取柜员或财务的实点、只有财务能复核且只复核一次、与柜员一致、财务重点与柜员不同时写原因、强制下班的身份与原因、强制下班后不能办理且不记班次、强制下班由财务录入实点复核、银行管理员的冲正不进柜员的上班、早先上班的业务之后被冲正的标注、列表的身份与筛选、金额合计、隔天未复核、财务总览、上班卡片的默认备用金；风险提醒的触发与终止；货币监控等式；免密码绑定只限管理员；`import_staff` |
 | 定时任务 | 用固定的「今天」跑 `run_daily`、`run_weekly`：学期内和假期的每天、每个周一都做（`done`）；重复执行结果不变；停机三天后补跑结果与每天都跑相同；失败时停在出错的那天并记录（`supabase/tests/22_terms_jobs.sql`）；冒烟测试检查 `dolphin-jobs` 在运行、`dolphin jobs` 的输出和重启后的补跑 |
 | 端到端 | 柜台办贷款（账户 / 现金）、还款、开定期、提前支取；上班登记备用金、下班实点不平写原因、财务复核；风险提醒终止贷款；学生「信用」页；利率页、待入账利息与「利息」流水（`client/e2e/rates.spec.ts`）；工作人员导入与通知单；后台暂停与重新开启信用分、暂停时学生「信用」页与后台的提示 |
 | 模拟 | `docker/sim-test.sh`：2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、买理财与赎回、放款与还款，部分贷款逾期、跨过学期末；理财每个开盘日用固定的模拟涨跌，10 月 1～7 日休市，不联网），检查每个周一都有锚点（19 个）且保持在 1%～4%、每天都计活期利息（含假期）、每天自检通过、单次 `run_daily` 在 30 秒内完成、到期的定期和理财全部转回活期（更长的转入下学期）、全部到期的贷款都已结清或逾期在册 |
@@ -1205,7 +1219,7 @@ M6 不依赖其他里程碑，最先做。M8 以后各里程碑依次依赖前�
 ## 19. 验收标准
 
 - [x] 上班登记备用金；下班总结按面额列出备用金、收入、付出、应有。
-- [ ] 下班录入实点后逐面额比对，财务复核。
+- [x] 下班录入实点后逐面额比对，财务复核。
 - [x] 用 Excel 一次导入多名工作人员并为柜员绑定工资账户，每人得到一页通知单；任何创建账号或重置密码的操作都有通知单。
 - [x] 每周一自动结息并公布新锚点；锚点按公式可复算，且始终在 1%～4%。
 - [x] 同一锚点、同一分数下，贷款利率高于活期；定期按银行管理员设定的固定利率；有未结清贷款时不能开定期。

@@ -44,7 +44,7 @@ select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000083'
 select tests.call(:'t1', $$select reverse_txn(gen_random_uuid(), '00000000-0000-4000-8000-000000000083', '金额录错')$$);
 
 select tests.call(:'t1', $$select duty_cash()$$) as c1 \gset
-select is(:'c1'::jsonb - 'duty_id' - 'user_id' - 'started_at', '{
+select is(:'c1'::jsonb - 'duty_id' - 'user_id' - 'started_at' - 'cash_txns', '{
   "ended_at": null, "status": "open", "denominations": [1, 2, 5, 10],
   "float":    {"counts": {"1": 20, "2": 10, "5": 4, "10": 0}, "amounts": {"1": 20, "2": 20, "5": 20, "10": 0}, "total": 60},
   "income":   {"counts": {"1": 0, "2": 0, "5": 1, "10": 3}, "amounts": {"1": 0, "2": 0, "5": 5, "10": 30}, "total": 35},
@@ -62,8 +62,8 @@ update duty set started_at = now() - interval '5 seconds', ended_at = now() - in
 set local session_replication_role = replica;
 update txns set created_at = now() - interval '4 seconds' where operator_id = :'t1';
 set local session_replication_role = origin;
-select is(tests.call(:'t1', format($$select duty_cash(%L)$$, :'d1'::jsonb ->> 'id')) - 'started_at' - 'ended_at' - 'status',
-  :'c1'::jsonb - 'started_at' - 'ended_at' - 'status', 'an ended duty counts as it did at 下班');
+select is(tests.call(:'t1', format($$select duty_cash(%L)$$, :'d1'::jsonb ->> 'id')) - 'started_at' - 'ended_at' - 'status' - 'cash_txns',
+  :'c1'::jsonb - 'started_at' - 'ended_at' - 'status' - 'cash_txns', 'an ended duty counts as it did at 下班');
 
 -- Duty 2: the last 备用金 by default; reversals of duty 1's deposit and withdrawal count here.
 select tests.call(:'t1', $$select start_duty()$$) as d2 \gset
