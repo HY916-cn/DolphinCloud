@@ -2,7 +2,7 @@
 
 贷款：柜台“贷款”面板（放款与还款），学生“我的贷款”，后台“贷款”页，以及放款、还款两种流水。规则见 PHASE-2 §10.3～10.9、§16。
 
-数据：柜台用 `loan_quote`（额度 `limit`、`rate`、`penalty_rate`、`max_periods`、`max_weeks`、`term.ends_on`、`balance`、不能办的原因 `blocked`、未结清的贷款 `loan`）和确认页的 `loan_preview`；学生读本人的 `loans`、`loan_periods`、`loan_payments`；后台读全部。本期应还 `loan.next.amount`、全部结清 `loan.payoff`、每期估算利息 `interest_centi` 都由后端算好，界面只照写，不自己取整。
+数据：柜台用 `loan_quote`（额度 `limit`、`rate`、`penalty_rate`、`max_periods`、`max_weeks`、`balance`、不能办的原因 `blocked`、未结清的贷款 `loan`）和确认页的 `loan_preview`；学生读本人的 `loans`、`loan_periods`、`loan_payments`；后台读全部。本期应还 `loan.next.amount`、全部结清 `loan.payoff`、每期估算利息 `interest_centi` 都由后端算好，界面只照写，不自己取整。
 
 ## 写法
 
@@ -37,7 +37,7 @@
 
 - 单笔额度“165 HTB”，不能贷款时写“不能贷款”。
 - 本周贷款利率“5.89%/周”。
-- 最晚应还日“1月20日（学期末）”。
+- 最长期限“8 周”（`max_weeks`）。
 
 下面按这位学生的情况，四种之一。
 
@@ -46,8 +46,6 @@
 按 `loan_quote.blocked` 用 `Notice`（`danger`）整句作标题，不显示表单（`LOAN_OUTSTANDING` 时显示下面“有未结清的贷款”）：
 
 - 信用分不够（`CREDIT_TOO_LOW`）：“信用分 400 分以上才能贷款，现在是 350 分。”
-- 不在学期内（`NO_TERM`）：“现在不在学期内，不能贷款。”
-- 学期剩下不到一周（`term` 不为空，`max_weeks` 和 `max_periods` 为 null）：“本学期 1月20日 结束，不到一周，不能贷款。”
 - 账户冻结、毕业（`STUDENT_INACTIVE`）：“账户已冻结，不能贷款。”（“账户已毕业”同理）。冻结、毕业的学生有未结清贷款时，照常显示这笔贷款和还款计划，但不显示还款表单，`Notice` 写“账户已冻结，不能在柜台还款；每期应还日结束时会从活期自动扣。”
 
 ### 新贷款
@@ -56,7 +54,7 @@
 
 1. **金额**：`Field`，单位 HTB，整数。提示“1 HTB 起，最多 165 HTB”；超过时 `is-error`“超过贷款额度：按现在的信用分最多能贷 165 HTB”。
 2. **用途**：`Field`，必填，最多 30 字，占位“例如：买文具”。
-3. **还款方式**：`Segmented`“分期还 / 一次还清”，下面一个 `QtyStepper`：分期是“期数”（每周一期），一次还清是“期限（周）”，1 到最长可选（8，或最后一期不晚于学期末的最大值）。提示写最后一期的日期：“最后一期 12月10日”。到了最大值时提示“最后一期不能晚于学期末 1月20日”。
+3. **还款方式**：`Segmented`“分期还 / 一次还清”，下面一个 `QtyStepper`：分期是“期数”（每周一期），一次还清是“期限（周）”，1 到 8（`max_periods`、`max_weeks`），可以跨学期。提示写最后一期的日期：“最后一期 12月10日”。
 4. **放款方式**：`ChoiceCard` 两张，不放图标：“存入账户”（说明“活期 +130 HTB”）和“付现金”（说明“按面额配钞”）。选付现金时下面写配钞，写法同取款：“配钞：10元 × 13”。
 
 右栏办理单：正在办理的一行“贷款 · 分 4 期，存入账户”，金额“+130”；付现金写“贷款 · 分 4 期，付现金”，金额写“现金 130”（活期不变）。`ActionBar` 主按钮“放款”，合计“贷款 130 HTB”。
@@ -150,6 +148,6 @@
 - `REPAY_TOO_MUCH`（`{max}`）：“这笔贷款现在一共只需还 100 HTB。”
 - `INVALID_AMOUNT` 带 `{payoff}`：“还清本金要连利息零头一起付，全部结清是 100 HTB。”
 - 注销账号时的 `LOAN_OUTSTANDING`（`{student_no, loan_no}`）：“张小明 还有贷款没还清，结清后才能注销。”
-- 其余同存取款和定期：`NO_TERM`、`STUDENT_INACTIVE`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY`、`INSUFFICIENT_BALANCE`、`INVALID_AMOUNT`。
+- 其余同存取款和定期：`STUDENT_INACTIVE`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY`、`INSUFFICIENT_BALANCE`、`INVALID_AMOUNT`。
 
 使用者提供：柜台是 `loan_quote` 的结果和这位学生未结清的贷款；学生是本人的贷款和还款计划；后台是贷款列表、计划和还款记录。
