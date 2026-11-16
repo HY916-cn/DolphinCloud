@@ -249,6 +249,30 @@ select is((select string_agg(concat_ws(' ', r ->> 'txn_no', coalesce(r ->> 'corr
    from txns t where t.id = :'orig' or t.reversal_of = :'orig' or t.corrects = :'orig'),
   '柜台查询 shows 更正自、已更正为 and 补录');
 
+-- 柜台查询 in the order things happened (§10.11): newest first by the time they are dated, page by page with p_before
+-- the seq of the last row before, none twice and none missed, the 补录 among the days they belong to.
+create function tests.pages(p_no text, p_limit integer) returns text[] language plpgsql as $$
+declare
+  v_page jsonb;
+  v_before bigint;
+  v_all text[] := '{}';
+begin
+  loop
+    v_page := tests.call((select id from profiles where login_id = 't1'),
+      format('select student_txns(%L, %s, %s)', p_no, coalesce(v_before::text, 'null'), p_limit));
+    exit when jsonb_array_length(v_page) = 0;
+    v_all := v_all || array(select e ->> 'txn_no' from jsonb_array_elements(v_page) e);
+    v_before := (v_page -> -1 ->> 'seq')::bigint;
+  end loop;
+  return v_all;
+end $$;
+select is(tests.pages('a', 3), array(select txn_no from txns where student_no = 'a' order by created_at desc, seq desc),
+  'a''s 柜台查询 three at a time: every transaction once, in the order they happened');
+select ok((select bool_or(e.seq > l.seq) from txns e join txns l using (student_no) where e.student_no = 'a' and e.entered_at is not null
+  and l.entered_at is null and l.created_at > e.created_at), 'though a 补录 was written after later ones');
+select is(tests.call(:'teller', format('select student_txns(''a'', %s, 3)', (select min(seq) from txns where student_no = 'b'))) ->> 'error',
+  'INVALID_INPUT', 'p_before is one of the student''s');
+
 -- Into another student and another type: b's 补录 存款 of 10 on day −4 was c's 取款 of 10.
 select tests.entry('b', 'deposit', tests.noon(:'today'::date - 4), p_den => '{"10":1}') ->> 'id' as orig2 \gset
 select is(tests.fix(:'orig2', '{"student_no":"c","type":"withdraw","amount":10}', '学号录错') #>> '{txn,student_no}', 'c', 'another student');

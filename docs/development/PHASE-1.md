@@ -486,7 +486,7 @@ create table salary_rates (                    -- 工资标准：除运维员外
 
 | 函数 | 角色 | 说明 |
 | --- | --- | --- |
-| `student_txns(p_student_no, p_before, p_limit, p_from, p_to, p_time_from, p_time_to, p_types, p_search)` | teller | 柜台「查询」：该生的全部交易，最新在前，每次 `p_limit` 笔（1–50，默认 10），`p_before` 为上一页最后一笔的 `seq`；可按上海时区的日期、每天的时段（不含结束时刻）、类型和交易号或商品名里的文字筛选；每笔含交易号、类型、金额、余额变动、办理后余额、支付方式、状态、原因、时间、经办人和兑换的商品，以及补录的录入时间与编辑的关联（`entered_at`、`corrects_no`、`corrected_no`，P2 §15）。柜员不能查自己的学生账户（`SELF_SERVICE_FORBIDDEN`） |
+| `student_txns(p_student_no, p_before, p_limit, p_from, p_to, p_time_from, p_time_to, p_types, p_search)` | teller | 柜台「查询」：该生的全部交易，按发生时间（`created_at`，同一时刻按 `seq`）最新在前，每次 `p_limit` 笔（1–50，默认 10），`p_before` 为上一页最后一笔的 `seq`，下一页从这一笔之后接着取（不是该生的流水时返回 `INVALID_INPUT`，`field: before`）；可按上海时区的日期、每天的时段（不含结束时刻）、类型和交易号或商品名里的文字筛选；每笔含交易号、类型、金额、余额变动、办理后余额、支付方式、状态、原因、时间、经办人和兑换的商品，以及补录的录入时间与编辑的关联（`entered_at`、`corrects_no`、`corrected_no`，P2 §15）。柜员不能查自己的学生账户（`SELF_SERVICE_FORBIDDEN`） |
 | `bank_report(p_from, p_to, p_division, p_cohort, p_class_no, p_student_no, p_time_from, p_time_to)` | accountant / teacher | 报表：上海时区的日期 `p_from`–`p_to`（最长 366 天），范围为全行、一个学部、一个班（学部 + 学届 + 班号）或一位学生，可只取每天 `p_time_from`–`p_time_to` 之间（不含结束时刻）。返回 `business`（存款、取款、账户兑换、现金兑换各几笔多少，办理过业务的学生数，均不含已冲正的）、`reversals`、`reversed`、`openings`、`balance`（期初、期末账面余额和本期按类型的余额变动，期初 + 变动 = 期末）、`cash`（柜面现金收入、付出）、`days`（每天各业务笔数金额与余额变动）、`hours`、`tellers`、`classes`、`students`（人数、办理过业务、各状态人数 `normal` / `frozen` / `graduated` / `closed`、余额合计、中位数、最高；人数含已注销的账户）、`distribution`（期末余额分档人数）、`products`（兑换数量、金额、成本）、`stock`（期初、入库、出库、兑出、期末），以及早期登记的 `issues`（前端不再显示） |
 | `cn_time(txns)` | 表查询 | 流水的上海时间时刻，供「流水」按时段筛选：`txns?cn_time=gte.12:00&cn_time=lt.13:30` |
 
