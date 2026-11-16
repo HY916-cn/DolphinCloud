@@ -17,7 +17,7 @@
 手机上入口多于 5 项、`TabBar` 放不下时（财务、行长、银行管理员），每个页面的页头 `dc-top` 最右边放一个九宫格按钮，点开列出这个身份的全部入口。入口不超过 5 项的身份（学生、柜员、库管、运维员）底部栏已经放下全部入口，不显示这个按钮。平板和电脑有侧边导航，也不显示。
 
 - 按钮：`<button class="dc-icon-btn dc-apps-btn" aria-label="全部功能" aria-haspopup="dialog">`，图标 `apps`（Lucide `grip`）。放在页头最后，排在页面自己的按钮后面；办理流程页（有返回按钮、不显示 `TabBar` 的页）不放。宽度 600px 起 `dc-apps-btn` 自动隐藏。
-- 弹层：`Sheet` 加 `is-apps`，从底部升起。标题行 `dc-section-head`：左边标题“全部功能”，右边 `dc-icon-btn`“关闭”（图标 `close`）。下面 `dc-tiles`（`ServiceTile` 的紧凑尺寸：图标块 44px、名称 16px），一行 4 格，顺序和侧边导航相同，从“总览”到“我的”，类别色同侧边导航（商品 `dc-kind-exchange`、贷款 `dc-kind-withdraw`）。不放底部按钮；弹层高过屏幕的 85% 时在弹层里滚动。
+- 弹层：`Sheet` 加 `is-apps`，从底部升起。标题行 `dc-section-head`：左边标题“全部功能”，右边 `dc-icon-btn`“关闭”（图标 `close`）。下面 `dc-tiles`（`ServiceTile` 的紧凑尺寸：图标块 44px、名称 16px），一行 4 格，顺序和侧边导航相同，从“总览”到“我的”，类别色同侧边导航（商品 `dc-kind-exchange`、贷款 `dc-kind-withdraw`）。不放底部按钮；高过屏幕时在弹层里滚动（同 `Sheet`）。
 - 当前页那一格加 `aria-current="page"`：描边 `dolphin`、`cloud-100` 底、名称 `dolphin-deep`。
 - 点一格跳到那一页，弹层随之关闭；点当前页那一格只关闭弹层。
 - 焦点：打开后落在当前页那一格（没有就第一格），Tab 和 Shift+Tab 在弹层内循环，按 Esc、点遮罩或右上角“关闭”都关上，焦点回到九宫格按钮。

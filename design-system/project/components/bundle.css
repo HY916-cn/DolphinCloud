@@ -148,7 +148,6 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* 全部功能：页头右边的九宫格按钮（只在手机上），点开是列出全部入口的弹层 */
 .dc-apps-btn { margin-left: auto; }
-.dc-sheet.is-apps { max-height: 85dvh; overflow-y: auto; }
 .dc-sheet.is-apps .dc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-3); }
 .dc-sheet.is-apps .dc-tile { gap: var(--space-1); padding: var(--space-2) var(--space-1); font-size: 16px; line-height: 24px; box-shadow: none; }
 .dc-sheet.is-apps .dc-tile-icon { width: 44px; height: 44px; border-radius: var(--radius-sm); }
@@ -422,6 +421,8 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 /* Sheet — 手机底部弹层，平板与电脑居中对话框 */
 .dc-scrim { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center; background: rgba(19, 40, 92, .45); animation: dc-fade var(--motion-enter) var(--ease-out) both; }
 .dc-sheet { box-sizing: border-box; width: 100%; padding: var(--space-3) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom)); background: var(--surface-raised); border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow-float); animation: dc-sheet-up var(--motion-enter) var(--ease-out) both; }
+/* 弹层比屏幕高时在弹层里滚动，按钮总能滚到 */
+.dc-sheet { max-height: 85dvh; overflow-y: auto; overscroll-behavior: contain; }
 .dc-sheet::before { content: ""; display: block; width: 48px; height: 6px; margin: 0 auto var(--space-4); border-radius: var(--radius-pill); background: var(--cloud-200); }
 .dc-sheet-title { margin: 0 0 var(--space-2); font: 700 20px/28px var(--font-sans); }
 .dc-sheet-text { margin: 0; }
@@ -430,6 +431,7 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 @container app (min-width: 600px) {
   .dc-scrim { align-items: center; padding: var(--space-6); }
   .dc-sheet { max-width: 440px; padding: var(--space-6); border-radius: var(--radius-lg); animation-name: dc-dialog-in; }
+  .dc-sheet { max-height: calc(100dvh - 2 * var(--space-6)); }
   .dc-sheet::before { display: none; }
   .dc-sheet-actions { flex-direction: row; }
   .dc-sheet-actions .dc-btn { flex: 1; width: auto; }
