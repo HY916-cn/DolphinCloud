@@ -40,14 +40,14 @@ export default function Terms() {
 
   return (
     <Desk title="学期">
-      {!editor && <p className="dc-top-sub">学期由银行管理员登记和结转</p>}
+      {!editor && <p className="dc-top-sub">学期用于结转和按学期查看历史，由银行管理员登记和结转。</p>}
       {terms.isError ? <Notice tone="danger" title="暂时无法读取学期">请检查网络后刷新页面。</Notice>
         : !terms.data ? <ListLoading rows={3} label="正在加载学期" />
         : !terms.data.length ? (
           <div className="dc-empty dc-enter">
             <span className="dc-empty-icon"><Icon name="calendar" /></span>
             <h3>还没有登记学期</h3>
-            <p>登记当前学期后，利息、贷款和定期才会开始。</p>
+            <p>登记学期后，才能按学期结转和查看历史。</p>
             {editor && add('dc-btn-secondary dc-btn-sm')}
           </div>
         ) : (

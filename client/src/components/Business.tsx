@@ -14,7 +14,7 @@ import { useOnline } from '@/lib/online';
 import { useBump, useNewRows } from '@/lib/motion';
 import { useStaleRefusal } from '@/lib/duty';
 import {
-  about, amountHint as loanAmountHint, interestText, lastDue, overdueText, penaltyRate, planText, rateText, repayProblem, repaySplit, termTooShort,
+  about, amountHint as loanAmountHint, interestText, lastDue, overdueText, penaltyRate, planText, rateText, repayProblem, repaySplit,
   type LoanDetail, type LoanPlan, type LoanQuote,
 } from '@/lib/loans';
 import { useMe } from '@/lib/session';
@@ -644,9 +644,8 @@ export function LoanPanel(props: Props) {
   );
   const blocked = !loan && (
     q.blocked === 'STUDENT_INACTIVE' ? `${inactive ?? '账户不可办理'}，不能贷款。`
-    : q.blocked === 'NO_TERM' ? explain('NO_TERM', { business: '贷款' }).text
     : q.blocked === 'CREDIT_TOO_LOW' || q.limit === null ? explain('CREDIT_TOO_LOW', { score: q.score, min_score: curve.min ?? 400 }).text
-    : termTooShort(q));
+    : null);
 
   return (
     <>
@@ -654,7 +653,7 @@ export function LoanPanel(props: Props) {
         <dl className="dc-kv">
           <div><dt>单笔额度</dt><dd>{q.limit === null ? '不能贷款' : `${formatAmount(q.limit)} HTB`}</dd></div>
           <div><dt>本周贷款利率</dt><dd>{q.rate == null ? '不能贷款' : rateText(q.rate)}</dd></div>
-          <div><dt>最晚应还日</dt><dd>{q.term ? <>{monthDay(q.term.ends_on)}<small>学期末</small></> : '不在学期内'}</dd></div>
+          <div><dt>最长期限</dt><dd>{q.max_weeks} 周</dd></div>
         </dl>
         <div className="dc-credit-summary-gauge"><CreditGauge score={q.score} size="md" limit={q.limit} {...curve} /></div>
       </section>
@@ -697,12 +696,12 @@ function LoanCard({ loan, penalty }: { loan: LoanDetail; penalty: string }) {
   );
 }
 
-// 新贷款: amount within the limit, purpose, plan and its length (the stepper's top is the most that ends in term), and
+// 新贷款: amount within the limit, purpose, plan and its length (1 to max_periods weeks), and
 // into the account or in cash. The sheet shows the plan with each period's interest estimated by loan_preview.
 function NewLoan({ q, student, served, onDone, onEnd, onReverse }: Props & { q: LoanQuote }) {
   const stale = useStaleRefusal();
   const { denominations } = useSettings();
-  const max = q.max_periods!;
+  const max = q.max_periods;
   const [text, setText] = useState('');
   const [purpose, setPurpose] = useState('');
   const [plan, setPlan] = useState<LoanPlan>('installment');
@@ -716,7 +715,7 @@ function NewLoan({ q, student, served, onDone, onEnd, onReverse }: Props & { q: 
   const periods = Number(n);
   const range = { min: 1, max };
   const hint = loanAmountHint(amount, q.limit!);
-  const due = lastDue(today(), periods || 1, max, q.term!.ends_on);
+  const due = lastDue(today(), periods || 1);
   const ready = !!amount && !hint.error && !!purpose.trim() && !outside(n, range);
   const payout = describeCash(makeChange(amount, denominations));
   const length = plan === 'installment' ? '期数' : '期限（周）';
@@ -779,11 +778,10 @@ function NewLoan({ q, student, served, onDone, onEnd, onReverse }: Props & { q: 
           <div className={`dc-qty ${outside(n, range) ? '' : 'is-filled'}`}>
             <div className="dc-qty-head">
               <span className="dc-qty-face">{n || '—'}<small>{plan === 'installment' ? '期' : '周'}</small></span>
-              <span className="dc-qty-sum">{length}<b>最后一期 {due.day}</b></span>
+              <span className="dc-qty-sum">{length}<b>最后一期 {due}</b></span>
             </div>
             <Stepper label={length} value={n} onChange={setN} step={1} range={range} />
           </div>
-          {due.note && <p className="dc-caption">{due.note}</p>}
           <div className="dc-choices dc-kind-withdraw" role="radiogroup" aria-label="放款方式">
             {([['account', '存入账户', `活期 +${formatAmount(amount)} HTB`], ['cash', '付现金', '按面额配钞']] as const).map(([value, name, note]) => (
               <label key={value} className="dc-choice">

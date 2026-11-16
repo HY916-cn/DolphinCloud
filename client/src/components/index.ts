@@ -33,6 +33,6 @@ export {
   CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, CreditPausedNotice, useCredit, useCreditEvents, useCreditPaused, useCreditSwitch, useGaugeCurve,
   type CreditEvent, type CreditSwitch,
 } from './Credit';
-export { RateCard, useInterest, useInTerm, type InterestProfile } from './Rate';
+export { RateCard, useInterest, type InterestProfile } from './Rate';
 export { outside, Stepper, type Range } from './Stepper';
 export { Toast } from './Toast';

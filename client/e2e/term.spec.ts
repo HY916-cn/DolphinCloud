@@ -195,7 +195,6 @@ test('in the holidays the counter opens a 定期 as in term, with no notice', as
   const before = Number(balance());
   await serve(page);
   await expect(cards(page)).toHaveCount(5);
-  await expect(page.getByText('不在学期内')).toHaveCount(0);
   await open(page, 2, 5);
   await expect(page.locator('.dc-person-side')).toHaveText(`${before - 5}当前余额 HTB`);
   expect(sql(`select weeks || ' ' || rate from public.term_deposits where status = 'open' order by opened_on desc, principal limit 1`)).toBe('2 2.5000');

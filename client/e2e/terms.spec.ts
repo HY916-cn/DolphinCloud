@@ -26,7 +26,7 @@ test('the bank admin registers a term, then changes its end', async ({ page }) =
   await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '学期' }).click();
   const empty = page.locator('.dc-empty');
   await expect(empty).toContainText('还没有登记学期');
-  await expect(empty).toContainText('登记当前学期后，利息、贷款和定期才会开始。');
+  await expect(empty).toContainText('登记学期后，才能按学期结转和查看历史。');
   await empty.getByRole('button', { name: '登记学期' }).click();
 
   await expect(sheet(page).locator('.dc-sheet-title')).toHaveText('登记学期');
@@ -123,7 +123,7 @@ test('the president reads the terms without a way to change them', async ({ page
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '学期' }).click();
-  await expect(page.getByText('学期由银行管理员登记和结转')).toBeVisible();
+  await expect(page.getByText('学期用于结转和按学期查看历史，由银行管理员登记和结转。')).toBeVisible();
   await expect(row(page, FIRST)).toContainText('已结转');
   await expect(row(page, '2025 学年第二学期')).toContainText('已结束未结转');
   await expect(page.getByRole('table', { name: '学期' }).getByRole('button')).toHaveCount(0);
@@ -134,7 +134,7 @@ test('the accountant reads the terms without a way to change them', async ({ pag
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '学期' }).click();
-  await expect(page.getByText('学期由银行管理员登记和结转')).toBeVisible();
+  await expect(page.getByText('学期用于结转和按学期查看历史，由银行管理员登记和结转。')).toBeVisible();
   await expect(row(page, FIRST)).toContainText('已结转');
   await expect(page.getByRole('table', { name: '学期' }).getByRole('button')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '登记学期' })).toHaveCount(0);

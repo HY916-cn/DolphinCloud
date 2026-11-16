@@ -2,10 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { formatCenti, formatRate } from '@/lib/format';
 import { byWeeks, maturityCenti, weekCenti, type TermRates } from '@/lib/rates';
 import { call } from '@/lib/rpc';
-import { supabase } from '@/lib/supabase';
-import { inTerm, monthDay } from '@/lib/term';
+import { monthDay } from '@/lib/term';
 import { CreditFailed } from './Credit';
-import { today } from './DatePicker';
 import { KvLoading } from './Skeleton';
 
 // interest_profile (PHASE-2.md §15): the week's anchor (week_start null: none published yet, the initial one stands),
@@ -16,24 +14,10 @@ export type InterestProfile = {
 };
 export const useInterest = () => useQuery({ queryKey: ['interest', 'me'], queryFn: () => call<InterestProfile>('interest_profile', {}) });
 
-// Whether today (Asia/Shanghai) is in a term; undefined until the terms are read or when they cannot be.
-export function useInTerm() {
-  const terms = useQuery({
-    queryKey: ['terms', 'dates'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('terms').select('starts_on,ends_on');
-      if (error) throw error;
-      return data;
-    },
-  });
-  return terms.data && inTerm(terms.data, today());
-}
-
 // 本周利率 (design system StudentCreditPage): every rate at the student's score as an example on 100 HTB, the weekly rate
 // in small type below, and where the rates come from.
 export function RateCard({ min }: { min: number }) {
   const interest = useInterest();
-  const term = useInTerm();
   const p = interest.data;
   const week = (r: number) => <small>{formatRate(r)}/周</small>;
   const htb = (centi: number) => <b>{formatCenti(centi)} HTB</b>;
@@ -51,8 +35,7 @@ export function RateCard({ min }: { min: number }) {
               <li>{p.rates.loan === null ? `${min} 分以上才能贷款` : <>借 100 HTB，一周利息约 {htb(weekCenti(p.rates.loan))}{week(p.rates.loan)}</>}</li>
             </ul>
             <p className="dc-caption">
-              信用分越高，活期多得，借钱少付；定期利率是固定的。{term === false ? '放假时活期不算利息，定期照常算。'
-                : !p.week_start ? '本周利率还没有公布，先按初始利率显示。每周一公布。'
+              信用分越高，活期多得，借钱少付；定期利率是固定的。{!p.week_start ? '本周利率还没有公布，先按初始利率显示。每周一公布。'
                 : `${monthDay(p.week_start)}公布，每周一更新。`}
             </p>
           </section>

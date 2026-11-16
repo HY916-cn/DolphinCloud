@@ -21,7 +21,7 @@ async function studentCredit(page: Page) {
   await page.goto('/student/credit');
 }
 
-test('学生「信用」: the week’s rates at my score, in the holidays before any anchor', async ({ page }) => {
+test('学生「信用」: the week’s rates at my score, with no term and no anchor yet', async ({ page }) => {
   await studentCredit(page);
   await expect(page.locator('.dc-list-title', { hasText: '本周利率' })).toHaveText('本周利率 · 按 600 分');
   // Each rate as an example on 100 HTB, the weekly rate in small type below it.
@@ -33,7 +33,7 @@ test('学生「信用」: the week’s rates at my score, in the holidays before
   ]);
   await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.08 HTB', ...TERM_BACK, '6.27 HTB']);
   await expect(rates(page).locator('.dc-rate-list > li').locator('small')).toHaveText(['2.08%/周', '2.5%/周', '2.75%/周', '3%/周', '3.25%/周', '3.5%/周', '6.2667%/周']);
-  await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。放假时活期不算利息，定期照常算。');
+  await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
 
   // Below the lowest score to borrow, no loan rate.
   sql(`update public.credit_scores set score = 350 where student_no = '20260001'`);
@@ -61,8 +61,8 @@ test('in a term with no anchor published: the initial rates, and 利率 says so;
   await expect(accountant).toHaveURL(/\/admin\/rates$/);
   const anchor = accountant.getByRole('region', { name: '本周锚点' });
   await expect(anchor.locator('.dc-stat')).toHaveText(['本周锚点2%', '存贷比—', '存款余额—HTB']);
-  await expect(anchor.locator('p.dc-caption')).toHaveText('还没有公布锚点，现在按初始锚点 2% 计算。学期内每周一公布。');
-  await expect(accountant.getByRole('region', { name: '每周历史' })).toContainText('还没有记录。学期内每周一公布一次锚点。');
+  await expect(anchor.locator('p.dc-caption')).toHaveText('还没有公布锚点，现在按初始锚点 2% 计算。每周一公布。');
+  await expect(accountant.getByRole('region', { name: '每周历史' })).toContainText('还没有记录。每周一公布一次锚点。');
   await expect(accountant.getByRole('region', { name: '计算参数' })).toContainText('罚息倍数×1.5');
   await expect(accountant.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
   await accountant.close();
@@ -154,10 +154,10 @@ test('a week’s 活期 interest: 攒着的利息 on 首页, the 利息 entry un
   await expect(line.getByRole('link', { name: '查看经办人' })).toHaveCount(0);
 });
 
-test('in the holidays the rates stand, and both pages say no interest is paid', async ({ page }) => {
+test('in the holidays interest goes on, and both pages say when the anchor was published as in term', async ({ page }) => {
   sql(`update public.terms set starts_on = ${DAY} - 120, ends_on = ${DAY} - 1`);
   await studentCredit(page);
-  await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。放假时活期不算利息，定期照常算。');
+  await expect(caption(page)).toHaveText(`信用分越高，活期多得，借钱少付；定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
   await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.34 HTB2.34%/周');
   await page.goto('/student');
   await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有理财没有贷款没有');
@@ -170,7 +170,7 @@ test('in the holidays the rates stand, and both pages say no interest is paid', 
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/rates');
-  await expect(page.getByRole('region', { name: '本周锚点' }).locator('p.dc-caption')).toHaveText('假期中不计息，下学期沿用此锚点。');
+  await expect(page.getByRole('region', { name: '本周锚点' }).locator('p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
 });
 
 test('参数「利率」: 定期周利率 and the anchor’s start and bounds, checked as the server checks them, the rest kept as read', async ({ page }) => {

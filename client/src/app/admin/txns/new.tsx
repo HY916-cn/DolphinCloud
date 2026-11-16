@@ -83,23 +83,10 @@ function EntryForm({ original }: { original?: LedgerRow }) {
   const [adjustText, setAdjustText] = useState(before?.type === 'adjust' ? String(Math.abs(before.amount)) : '');
   const [reason, setReason] = useState('');
   const [other, setOther] = useState('');
-  const [from, setFrom] = useState<string | null>(null); // the earliest time the server last allowed (OCCURRED_OUT_OF_RANGE)
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
 
-  // The term entries go back to: the latest begun, or once it is closed the day after it ended.
-  const term = useQuery({
-    queryKey: ['manual-term'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('terms').select('starts_on,ends_on,closed_at').lte('starts_on', today())
-        .order('starts_on', { ascending: false }).limit(1).maybeSingle();
-      if (error) throw error;
-      if (!data) return null;
-      const day = data.closed_at ? new Date(Date.parse(`${data.ends_on}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : data.starts_on;
-      return `${day}T00:00:00+08:00`;
-    },
-  });
   // Every product, as a 补录 may be of one taken off the shelf since; picked ones stay listed. An edited 兑换's own
   // goods come back to stock when it is reversed.
   const products = useQuery({
@@ -130,7 +117,7 @@ function EntryForm({ original }: { original?: LedgerRow }) {
   const same = !!original && !!before && sameEntry({ ...entry, student_no: chosen ?? '' }, { ...before, student_no: original.student_no });
   const ready = !!student && !problem && reasonOk && !!date && !!time && !same;
   const at = occurredAt(date, time);
-  const start = from ?? term.data ?? null;
+  const start = student?.opened_at ?? null;
   const balance = (s: AdminStudent | null) => s?.accounts?.balance ?? 0;
 
   async function submit() {
@@ -152,7 +139,8 @@ function EntryForm({ original }: { original?: LedgerRow }) {
       router.replace({ pathname: '/admin/txns', params: { no: result.txn_no, done: doneText(original ? '编辑' : '补录', result.interest) } });
     } catch (e) {
       const err = e instanceof AppError ? e : new AppError('');
-      if (err.code === 'OCCURRED_OUT_OF_RANGE' && err.detail.from) setFrom(String(err.detail.from));
+      // The range starts at the student's opening; read it again so the hint shows the server's.
+      if (err.code === 'OCCURRED_OUT_OF_RANGE') queryClient.invalidateQueries({ queryKey: ['admin-students'] });
       setError(explain(err.code, { ...err.detail, edit: !!original }));
       setBusy(false);
     }
@@ -210,9 +198,9 @@ function EntryForm({ original }: { original?: LedgerRow }) {
 
       <section className="dc-stack">
         <DatePicker label="日期" value={date} onChange={setDate} min={start ? dayAndTime(start).date : undefined} max={today()}
-          rule={start ? rangeHint(start) : '不晚于今天'} locked={original ? '编辑时间固定为原流水的时间' : undefined} />
+          rule={rangeHint(start)} locked={original ? '编辑时间固定为原流水的时间' : undefined} />
         <TimePicker label="时刻" value={time} onChange={setTime} rule="精确到分" locked={!!original} />
-        {!original && start && <p className="dc-field-hint">{rangeHint(start)}</p>}
+        {!original && <p className="dc-field-hint">{rangeHint(start)}</p>}
       </section>
 
       {type === 'deposit' && (

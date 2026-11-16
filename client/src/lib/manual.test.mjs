@@ -44,7 +44,8 @@ assert.ok(sameEntry({ ...deposit, student_no: '1' }, { ...deposit, denominations
 assert.equal(occurredAt('2026-11-12', '14:20'), '2026-11-12T14:20:00+08:00');
 assert.deepEqual(dayAndTime('2026-11-12T06:20:00Z'), { date: '2026-11-12', time: '14:20' });
 assert.deepEqual(dayAndTime('2026-10-31T16:05:00Z'), { date: '2026-11-01', time: '00:05' });
-assert.equal(rangeHint('2026-10-31T16:00:00+00:00'), '可补录 11月1日 00:00 以后的业务');
+assert.equal(rangeHint('2026-10-31T16:00:00+00:00'), '可补录 11月1日 00:00 开户以后的业务');
+assert.equal(rangeHint(null), '选好学生后，可补录开户以后的业务');
 
 // The words.
 assert.equal(signedCenti(15), '+0.15');

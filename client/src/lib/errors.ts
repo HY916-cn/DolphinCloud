@@ -42,7 +42,7 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'INSUFFICIENT_BALANCE':
       return d.at ? { title: '活期会不够', text: `补录后，${shanghaiTime(String(d.at))} 起活期会不够，差 ${d.short} HTB。` }
         : { title: '余额不足', text: `可用余额 ${d.balance} HTB，还差 ${d.short} HTB，请减少金额。` };
-    case 'OCCURRED_OUT_OF_RANGE': return { title: '时间不在补录范围内', text: `只能补录 ${shanghaiTime(String(d.from))} 到现在之间发生的业务。` };
+    case 'OCCURRED_OUT_OF_RANGE': return { title: '时间不在补录范围内', text: `只能补录 ${shanghaiTime(String(d.from))} 开户以后到现在之间发生的业务。` };
     case 'WITHDRAW_SINGLE_LIMIT': return { title: '超过单笔取款限额', text: `单笔最多取款 ${d.limit} HTB。` };
     case 'WITHDRAW_DAILY_LIMIT': return { title: '超过今日取款限额', text: `今日还可取款 ${d.remaining} HTB。` };
     case 'OUT_OF_STOCK': return { title: '已售罄', text: `${d.name} 库存不足，请调整数量。` };
@@ -102,10 +102,6 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };
     case 'WRONG_PASSWORD': return { title: '密码不对', text: '请输入该学生账户的登录密码；连续输错 5 次，该学生账号会锁定 15 分钟。' };
     case 'LOGIN_LOCKED': return { title: '该学生账号已锁定', text: '密码输错次数过多，请 15 分钟后再试。' };
-    // Only loans need a current term. `business` (贷款) is the counter's own: the server sends no detail.
-    case 'NO_TERM': return { title: '现在不在学期内', text: d.business ? `现在不在学期内，不能${d.business}。` : '还没有登记当前学期，暂时不能办理贷款。' };
-    case 'TERM_TOO_LONG':
-      return { title: '期限超过学期末', text: `本学期 ${monthDay(String(d.ends_on))} 结束，${d.max_weeks == null ? '不到一周，不能贷款' : `最长只能选 ${d.max_weeks} 周`}。` };
     case 'CREDIT_DISABLED': return { title: '信用分已暂停', text: '暂停期间所有学生按 600 分计，不能调整。重新开启后再调整。' };
     case 'CREDIT_TOO_LOW': return { title: '信用分不够', text: `信用分 ${d.min_score} 分以上才能贷款，现在是 ${d.score} 分。` };
     case 'OVER_CREDIT_LIMIT': return { title: '超过贷款额度', text: `按现在的信用分，最多能贷 ${d.limit} HTB。` };

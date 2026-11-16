@@ -11,16 +11,13 @@ export type TermState = 'upcoming' | 'current' | 'ended' | 'closed';
 export const termState = (t: Term, today: string): TermState =>
   t.closed_at ? 'closed' : today < t.starts_on ? 'upcoming' : today <= t.ends_on ? 'current' : 'ended';
 
-// 学期内: today falls between a term's first and last day (closed or not). Holidays accrue no interest (PHASE-2.md §9.3).
-export const inTerm = (terms: Pick<Term, 'starts_on' | 'ends_on'>[], today: string) => terms.some((t) => t.starts_on <= today && today <= t.ends_on);
-
 // 2027-01-20 → 1月20日.
 export const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8, 10))}日`;
 
 const JOBS: Record<string, string> = { daily: '每天的任务', weekly: '每周的任务' };
 
-// One line of the 还不能结转 list (TERM_OPEN_ITEMS): what is open and how it stands. Kinds this version does not know
-// yet (M11's 贷款) still get a line.
+// One line of the 还不能结转 list (TERM_OPEN_ITEMS): what is open and how it stands. A kind this version does not know
+// still gets a line.
 export function openItem(item: Record<string, unknown>, endsOn: string): [string, string] {
   if (item.kind === 'job') return [JOBS[String(item.job)] ?? '定时任务', `已处理到 ${monthDay(String(item.done_to))}，需处理到 ${monthDay(endsOn)}`];
   if (item.kind === 'term_deposit') return [String(item.name), `定期 ${Number(item.principal).toLocaleString('en-US')} HTB · ${monthDay(String(item.matures_on))} 到期`];

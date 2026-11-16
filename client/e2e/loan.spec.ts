@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 贷款 (PHASE-2.md §10.3–10.9, design system Loan) on the seed data (supabase/seed.sql): every student has 600 points
-// (limit 130 HTB, 6.2667%/周, 罚息 9.4001%/周 with no anchor published). 张小明 (20260001) has 108 HTB, 王小雨 (20260003) 0. A term around today ends in 40 days, so a loan runs 5 weeks at most. The tests run in order:
+// (limit 130 HTB, 6.2667%/周, 罚息 9.4001%/周 with no anchor published). 张小明 (20260001) has 108 HTB, 王小雨 (20260003) 0. A term around today ends in 40 days; a loan runs 8 weeks at most, past the term's end. The tests run in order:
 // teller01 lends to 张小明 and takes repayments, lends 李思远 cash and reverses it, lends 王小雨; 张小明 reads it; the loan
 // falls overdue and is paid off; the back office lists, opens and terminates.
 test.describe.configure({ mode: 'serial' });
@@ -49,7 +49,7 @@ test('柜台「贷款」: the seven businesses, a new loan with its plan, repaym
   expect(fifth!.y).toBeGreaterThan(first!.y + first!.height / 2);
   await page.setViewportSize({ width: 1180, height: 820 });
 
-  await expect(page.locator('.dc-credit-summary .dc-kv > div')).toHaveText(['单笔额度130 HTB', '本周贷款利率6.2667%/周', `最晚应还日${md(`${DAY} + 40`)}学期末`]);
+  await expect(page.locator('.dc-credit-summary .dc-kv > div')).toHaveText(['单笔额度130 HTB', '本周贷款利率6.2667%/周', '最长期限8 周']);
   const amount = page.getByPlaceholder('请输入金额');
   const hint = page.locator('.dc-field-hint').first();
   await expect(hint).toHaveText('1 HTB 起，最多 130 HTB');
@@ -59,10 +59,10 @@ test('柜台「贷款」: the seven businesses, a new loan with its plan, repaym
   await expect(bar(page, '放款')).toBeDisabled(); // no purpose yet
   await page.getByPlaceholder('例如：买文具').fill('买文具');
   await expect(page.locator('.dc-qty-sum')).toHaveText(`期数最后一期 ${md(`${DAY} + 28`)}`);
-  await page.getByRole('button', { name: '期数增加 1' }).click();
-  await expect(page.getByText(`最后一期不能晚于学期末 ${md(`${DAY} + 40`)}`)).toBeVisible();
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: '期数增加 1' }).click();
+  await expect(page.locator('.dc-qty-sum')).toHaveText(`期数最后一期 ${md(`${DAY} + 56`)}`);
   await expect(page.getByRole('button', { name: '期数增加 1' })).toBeDisabled();
-  await page.getByRole('button', { name: '期数减少 1' }).click();
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: '期数减少 1' }).click();
   await expect(receipt(page)).toContainText('贷款（正在办理）分 4 期，存入账户+100');
   await expect(receipt(page)).toContainText('办理后余额208 HTB');
 
@@ -340,4 +340,20 @@ test('后台「贷款」: the tabs with their counts, a loan’s page, 注销 re
   await expect(stat.locator('em.is-danger')).toHaveText('逾期 1 笔 · 20 HTB');
   await page.goto('/admin/txns?type=loan,repay');
   await expect(page.locator('.dc-txn-title', { hasText: '还款 · 终止，利息 0 HTB，本金 110 HTB' })).toBeVisible();
+});
+
+test('柜台: with no term registered, a loan still runs 8 weeks', async ({ page }) => {
+  sql(`delete from public.terms`);
+  await teller(page);
+  await serve(page, 'lsy', '李思远');
+  await expect(page.locator('.dc-credit-summary .dc-kv > div').nth(2)).toHaveText('最长期限8 周');
+  await page.getByPlaceholder('请输入金额').fill('20');
+  await page.getByPlaceholder('例如：买文具').fill('买书');
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: '期数增加 1' }).click();
+  await expect(page.locator('.dc-qty-sum')).toHaveText(`期数最后一期 ${md(`${DAY} + 56`)}`);
+  await bar(page, '放款').click();
+  await expect(sheet(page).getByRole('table', { name: '还款计划' }).locator('tbody tr')).toHaveCount(8);
+  await confirmIn(page, '确认放款');
+  await expect(receipt(page)).toContainText('贷款分 8 期，存入账户 · HT');
+  expect(sql(`select periods from public.loans where student_no = '20260002' and status = 'active'`)).toBe('8');
 });

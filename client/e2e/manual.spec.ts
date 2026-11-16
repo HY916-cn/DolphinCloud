@@ -2,14 +2,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 手动补录与更正 (PHASE-2.md §10.11, design system ManualEntry) on the seed data: 张小明 (20260001) has 108 HTB, 120 of it
-// since his opening 20 days ago. A term began 30 days ago and the three students opened then; 张小明's 活期 interest was
-// counted for the last three days (0.35 HTB a day on 120 HTB at 2.08%/周), so a 补录 before them corrects it. The tests
-// run in order and build the state up.
+// since 20 days ago. No term is registered: a 补录 goes back to the student's opening, 30 days ago for all three. 张小明's
+// 活期 interest was counted for the last three days (0.35 HTB a day on 120 HTB at 2.08%/周), so a 补录 before them corrects
+// it. The tests run in order and build the state up.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => {
   resetData();
-  sql(`insert into public.terms (name, starts_on, ends_on) values ('本学期', ${DAY} - 30, ${DAY} + 60);
-       update public.students set opened_at = now() - interval '30 days';
+  sql(`update public.students set opened_at = now() - interval '30 days';
        insert into public.interest_accruals (student_no, day, balance, rate, centi)
          select '20260001', ${DAY} - n, 120, 2.08, 35 from generate_series(1, 3) n;`);
 });
@@ -89,17 +88,27 @@ test('补录 is refused when 活期 would fall short at some time since, or the 
     new RegExp(`^活期会不够补录后，${md(`${DAY} - 5`)} \\d{2}:\\d{2} 起活期会不够，差 5 HTB。$`));
   await sheet(page).getByRole('button', { name: '取消' }).click();
 
-  // 王小雨 opened just now: two days ago is too early, and the form says from when.
-  sql(`update public.students set opened_at = now() - interval '1 minute' where student_no = '20260003'`);
+  // Before a student is picked the form says the range starts at the opening; once picked, from when.
+  await page.goto('/admin/txns/new');
+  await expect(page.locator('.dc-field-hint', { hasText: '可补录' }).last()).toHaveText('选好学生后，可补录开户以后的业务');
   await enter(page, '王小雨', '调账', 2);
+  await expect(page.locator('.dc-field-hint', { hasText: '可补录' }).last()).toHaveText(new RegExp(`^可补录 ${md(`${DAY} - 30`)} \\d{2}:\\d{2} 开户以后的业务$`));
+  // The form was opened when 王小雨 had opened 30 days ago; she opened just now after all: two days ago is too early, and
+  // the form then says from when, and the calendar no longer offers the days before.
+  sql(`update public.students set opened_at = now() - interval '1 minute' where student_no = '20260003'`);
   await page.getByPlaceholder('请输入金额').fill('5');
   await reason(page, '活动奖励漏记');
   await page.getByRole('button', { name: '补录', exact: true }).click();
   await confirmIn(page, '确认补录');
   await expect(sheet(page).locator('.dc-notice-title')).toHaveText('时间不在补录范围内');
-  await expect(sheet(page).locator('.dc-notice-text')).toHaveText(new RegExp(`^只能补录 ${md(DAY)} \\d{2}:\\d{2} 到现在之间发生的业务。$`));
+  await expect(sheet(page).locator('.dc-notice-text')).toHaveText(new RegExp(`^只能补录 ${md(DAY)} \\d{2}:\\d{2} 开户以后到现在之间发生的业务。$`));
   await sheet(page).getByRole('button', { name: '取消' }).click();
-  await expect(page.locator('.dc-field-hint', { hasText: '可补录' }).last()).toHaveText(new RegExp(`^可补录 ${md(DAY)} \\d{2}:\\d{2} 以后的业务$`));
+  await expect(page.locator('.dc-field-hint', { hasText: '可补录' }).last()).toHaveText(new RegExp(`^可补录 ${md(DAY)} \\d{2}:\\d{2} 开户以后的业务$`));
+  await page.locator('.dc-date .dc-date-trigger').click();
+  if (sql(`select (${DAY} - 1)::text`).slice(0, 7) === sql(`select ${DAY}::text`).slice(0, 7)) {
+    await expect(page.locator(`.dc-cal [data-day="${sql(`select (${DAY} - 1)::text`)}"]`)).toBeDisabled();
+  }
+  await expect(page.locator(`.dc-cal [data-day="${sql(`select ${DAY}::text`)}"]`)).toBeEnabled();
   sql(`update public.students set opened_at = now() - interval '30 days' where student_no = '20260003'`);
 });
 

@@ -6,10 +6,6 @@ assert.deepEqual(explain('STALE_DUTY', { started_at: '2026-11-08T23:45:00Z' }),
 assert.equal(explain('TERM_NOT_ENDED', { ends_on: '2027-01-20' }).text, '1月20日 之后才能结转。');
 assert.equal(explain('TERM_OVERLAP', { term: '2026 学年第一学期' }).text, '和「2026 学年第一学期」的日期重叠，请调整开始日或结束日。');
 assert.equal(explain('INVALID_INPUT', { field: 'starts_on' }).text, '请检查开始日。');
-// Only loans: a 定期 opens in the holidays and past the term's end.
-assert.deepEqual(explain('TERM_TOO_LONG', { ends_on: '2027-01-20', max_weeks: 4 }), { title: '期限超过学期末', text: '本学期 1月20日 结束，最长只能选 4 周。' });
-assert.equal(explain('TERM_TOO_LONG', { ends_on: '2027-01-20', max_weeks: null }).text, '本学期 1月20日 结束，不到一周，不能贷款。');
-assert.equal(explain('NO_TERM').text, '还没有登记当前学期，暂时不能办理贷款。');
 assert.equal(explain('INVALID_INPUT', { field: 'term_rates' }).text, '请检查定期周利率。');
 
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_open' }).text, '这笔定期已经到期或提前支取，不能再冲正。');
@@ -34,7 +30,7 @@ assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'repay' }).text, '只能冲
 // 补录 and 编辑 (PHASE-2.md §10.11).
 assert.deepEqual(explain('REVERSAL_NOT_ALLOWED', { type: 'deposit', edit: true }), { title: '不能编辑这笔流水', text: '这笔流水已经冲正或编辑过，不能再编辑。' });
 assert.deepEqual(explain('OCCURRED_OUT_OF_RANGE', { from: '2026-10-31T16:00:00+00:00', to: '2026-11-15T07:30:00+00:00' }),
-  { title: '时间不在补录范围内', text: '只能补录 11月1日 00:00 到现在之间发生的业务。' });
+  { title: '时间不在补录范围内', text: '只能补录 11月1日 00:00 开户以后到现在之间发生的业务。' });
 assert.equal(explain('INSUFFICIENT_BALANCE', { balance: 10, short: 30, at: '2026-11-12T06:20:00+00:00' }).text, '补录后，11月12日 14:20 起活期会不够，差 30 HTB。');
 assert.equal(explain('INSUFFICIENT_BALANCE', { balance: 10, short: 30 }).text, '可用余额 10 HTB，还差 30 HTB，请减少金额。');
 
@@ -50,7 +46,6 @@ assert.equal(explain('INVALID_INPUT', { field: 'purpose' }).text, '请检查用�
 assert.equal(explain('INVALID_INPUT', { field: 'periods' }).text, '请检查期数。');
 assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'closed' }).text, '这笔贷款已经结清。');
 assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'reversed' }).text, '这笔贷款已经作废。');
-assert.equal(explain('NO_TERM', { business: '贷款' }).text, '现在不在学期内，不能贷款。');
 
 // 考勤与工资 (M18): the attendance pages pass `payroll`; the counter's refusals read as before.
 assert.equal(explain('SELF_SERVICE_FORBIDDEN', { payroll: true }).title, '不能登记自己的班次');

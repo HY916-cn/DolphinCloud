@@ -74,7 +74,8 @@ export const dayAndTime = (iso: string) => {
   const t = shanghai(iso);
   return { date: `${t.year}-${t.month.padStart(2, '0')}-${t.day.padStart(2, '0')}`, time: `${t.hour}:${t.minute}` };
 };
-export const rangeHint = (from: string) => `可补录 ${atText(from)} 以后的业务`;
+// What a 补录 may go back to: the student's account opening (students.opened_at), up to now.
+export const rangeHint = (opened: string | null) => (opened ? `可补录 ${atText(opened)} 开户以后的业务` : '选好学生后，可补录开户以后的业务');
 
 const htb = (n: number) => Math.abs(n).toLocaleString('en-US');
 const signed = (n: number) => `${n < 0 ? '−' : '+'}${htb(n)}`;

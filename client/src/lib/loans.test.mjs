@@ -1,7 +1,7 @@
 // node src/lib/loans.test.mjs — 贷款 as the counter, 我的贷款 and the back office write them.
 import assert from 'node:assert/strict';
 const {
-  amountHint, byUrgency, penaltyRate, termTooShort, closedLine, homeLoanLine, lastDue, myLoanLine, nextPayment, openLoan, overdueText, periodLines, planText, repayProblem, repaySplit,
+  amountHint, byUrgency, penaltyRate, closedLine, homeLoanLine, lastDue, myLoanLine, nextPayment, openLoan, overdueText, periodLines, planText, repayProblem, repaySplit,
 } = await import('./loans.ts');
 
 assert.equal(planText('installment', 4), '分 4 期，每周一期');
@@ -17,15 +17,8 @@ assert.deepEqual(amountHint(0, 165), { text: '1 HTB 起，最多 165 HTB', error
 assert.deepEqual(amountHint(165, 165), { text: '1 HTB 起，最多 165 HTB', error: false });
 assert.deepEqual(amountHint(166, 165), { text: '超过贷款额度：按现在的信用分最多能贷 165 HTB', error: true });
 
-// Less than a week left: loan_quote gives max_weeks (and max_periods) null, not 0.
-const term = { id: 't', name: '2026 学年第一学期', ends_on: '2027-01-20' };
-assert.equal(termTooShort({ term, max_weeks: null }), '本学期 1月20日 结束，不到一周，不能贷款。');
-assert.equal(termTooShort({ term, max_weeks: 1 }), null);
-assert.equal(termTooShort({ term: null, max_weeks: null }), null); // out of term: NO_TERM says so
-
-assert.deepEqual(lastDue('2026-11-12', 4, 8, '2027-01-20'), { day: '12月10日', note: null });
-assert.deepEqual(lastDue('2026-11-12', 8, 8, '2027-01-20'), { day: '1月7日', note: null });
-assert.deepEqual(lastDue('2026-11-12', 5, 5, '2026-12-20'), { day: '12月17日', note: '最后一期不能晚于学期末 12月20日' });
+assert.equal(lastDue('2026-11-12', 4), '12月10日');
+assert.equal(lastDue('2026-11-12', 8), '1月7日');
 
 const period = (seq, due_on, principal, paid = 0, overdue_at = null) => ({ seq, due_on, principal, paid, overdue_at });
 const plan = [

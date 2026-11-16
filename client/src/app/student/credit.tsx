@@ -56,7 +56,7 @@ export default function StudentCredit() {
             {terms.isError ? <CreditFailed title="暂时无法读取定期" onRetry={() => terms.refetch()} />
               : !terms.data ? <TxnListLoading rows={2} label="正在加载定期" />
               : terms.data.length ? <TermList deposits={terms.data} today={today()} /> : (
-                <section className="dc-card"><p className="dc-caption">没有定期。可以在柜台把活期存成定期，存期 2、4 或 8 周，利率比活期高。</p></section>
+                <section className="dc-card"><p className="dc-caption">没有定期。可以在柜台把活期存成定期，存期 2 到 48 周，利率比活期高。</p></section>
               )}
           </div>
           <div {...enter(4)}>

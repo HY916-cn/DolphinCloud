@@ -30,7 +30,7 @@ test('银行管理员 pauses 信用分 with a reason and a second look', async (
   await card.click();
   await expect(sheet(page).locator('.dc-sheet-title')).toHaveText('暂停信用分');
   await expect(sheet(page).getByRole('button', { name: '下一步' })).toBeDisabled();
-  await sheet(page).getByPlaceholder('写清楚暂停的原因').fill('学期末统一核对');
+  await sheet(page).getByPlaceholder('写清楚暂停的原因').fill('月底统一核对');
   await confirmIn(page, '下一步');
   await expect(sheet(page).locator('.dc-sheet-title')).toHaveText('暂停信用分？');
   await confirmIn(page, '确认暂停');

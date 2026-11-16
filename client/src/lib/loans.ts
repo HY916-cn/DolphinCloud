@@ -22,17 +22,14 @@ export type LoanDetail = Loan & {
   payments: { txn_id: string; txn_no: string; created_at: string; amount: number; interest: number; principal: number; auto: boolean; payment: 'account' | 'cash'; status: 'normal' | 'reversed' }[];
 };
 export type LoanQuote = {
-  student_no: string; score: number; limit: number | null; rate: number; penalty_rate: number; max_weeks: number | null; max_periods: number | null;
+  student_no: string; score: number; limit: number | null; rate: number; penalty_rate: number; max_weeks: number; max_periods: number;
   term: { id: string; name: string; ends_on: string } | null; balance: number;
-  blocked: 'STUDENT_INACTIVE' | 'NO_TERM' | 'LOAN_OUTSTANDING' | 'CREDIT_TOO_LOW' | null; loan: LoanDetail | null;
+  blocked: 'STUDENT_INACTIVE' | 'LOAN_OUTSTANDING' | 'CREDIT_TOO_LOW' | null; loan: LoanDetail | null;
 };
 export type LoanPreview = {
   rate: number; penalty_rate: number; interest: number; interest_centi: number;
   schedule: { seq: number; due_on: string; principal: number; interest_centi: number; interest: number }[];
 };
-
-// Weeks a loan may run (loans.periods).
-export const MOST_PERIODS = 8;
 
 // "分 4 期，每周一期", "一次还清，4 周后"; `brief` as the 流水 says it: "分 4 期", "一次还清 4 周".
 export const planText = (plan: LoanPlan, n: number, brief = false) =>
@@ -47,14 +44,8 @@ export const amountHint = (amount: number, limit: number) => (amount > limit
   ? { text: `超过贷款额度：按现在的信用分最多能贷 ${formatAmount(limit)} HTB`, error: true }
   : { text: `1 HTB 起，最多 ${formatAmount(limit)} HTB`, error: false });
 
-// The term is on but ends within a week, so no loan fits (loan_quote gives max_weeks null then); null otherwise.
-export const termTooShort = (q: Pick<LoanQuote, 'term' | 'max_weeks'>) =>
-  (q.term && q.max_weeks === null ? `本学期 ${monthDay(q.term.ends_on)} 结束，不到一周，不能贷款。` : null);
-
-// The stepper's last due day, a week a period from today, and the note once the term's end holds it back.
-export function lastDue(today: string, n: number, max: number, endsOn: string) {
-  return { day: monthDay(shiftDay(today, 7 * n)), note: n >= max && max < MOST_PERIODS ? `最后一期不能晚于学期末 ${monthDay(endsOn)}` : null };
-}
+// The stepper's last due day, a week a period from today: 12月10日.
+export const lastDue = (today: string, n: number) => monthDay(shiftDay(today, 7 * n));
 
 const unpaid = (p: LoanPeriod) => p.paid < p.principal;
 
