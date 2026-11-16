@@ -70,6 +70,7 @@
         "logout.svg",
         "inbox.svg",
         "settings.svg",
+        "apps.svg",
         "person.svg",
         "student.svg",
         "teller.svg",
@@ -342,6 +343,12 @@
           "blob": "2883d8f4d4ca79134958e1316598b14a",
           "size": 379,
           "type": "image/svg+xml"
+        },
+        "apps.svg": {
+          "name": "apps.svg",
+          "blob": "b9fb15516ccd0bf35cd3dc9ce7df90c4",
+          "size": 527,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -357,8 +364,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-16T14:33:27Z",
+    "at": "2026-11-16T14:51:56Z",
     "via": "Claude Code",
-    "note": "轧账：柜台下班点钞与核对，后台复核、强制下班和财务总览；班次加“已作废”；导航最多 20 项"
+    "note": "手机页头的“全部功能”九宫格按钮和入口弹层；新图标 apps"
   }
 }

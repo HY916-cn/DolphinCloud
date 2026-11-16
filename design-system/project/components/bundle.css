@@ -146,6 +146,14 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-icon-btn .dc-icon { width: 26px; height: 26px; color: inherit; }
 .dc-icon-btn:active { transform: scale(.92); }
 .dc-icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* 全部功能：页头右边的九宫格按钮（只在手机上），点开是列出全部入口的弹层 */
+.dc-apps-btn { margin-left: auto; }
+.dc-sheet.is-apps { max-height: 85dvh; overflow-y: auto; }
+.dc-sheet.is-apps .dc-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-3); }
+.dc-sheet.is-apps .dc-tile { gap: var(--space-1); padding: var(--space-2) var(--space-1); font-size: 16px; line-height: 24px; box-shadow: none; }
+.dc-sheet.is-apps .dc-tile-icon { width: 44px; height: 44px; border-radius: var(--radius-sm); }
+.dc-sheet.is-apps .dc-tile-icon .dc-icon { width: 28px; height: 28px; }
+.dc-sheet.is-apps .dc-tile[aria-current="page"] { border-color: var(--dolphin); background: var(--cloud-100); color: var(--dolphin-deep); }
 
 /* Motion — 关键帧与通用动效类 */
 @keyframes dc-rise { from { opacity: 0; transform: translateY(12px); } }
@@ -260,6 +268,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 }
 @container app (min-width: 600px) {
   .dc-shell { grid-template: "nav main" 1fr / var(--nav-rail) minmax(0, 1fr); }
+  .dc-apps-btn { display: none; }
   .dc-shell > .dc-tabbar { display: none; }
   .dc-nav { display: block; }
   .dc-top { padding: var(--space-6) var(--space-6) 0; }

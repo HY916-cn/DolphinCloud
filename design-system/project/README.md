@@ -72,7 +72,7 @@
 
 ## 图标
 
-- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 44 个图标（25 个业务图标、12 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 45 个图标（25 个业务图标、13 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱、全部功能，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
 - 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
 - 图标状态切换：导航的选中底块滑动、展开箭头旋转、完成打勾用 `dc-pop`，都用 CSS 完成。同一个位置的图标因为状态改变换成另一个时（状态标签、随搜索变化的空状态图标），用 morphicons（MIT）把旧图标的线条变形成新图标，规则见“动效”。
 - 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、底部导航 30px、侧边导航 26～28px、提示条和余额卡 36px、宫格 52px。

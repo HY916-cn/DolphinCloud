@@ -41,6 +41,7 @@
 | `logout` | 退出登录 | `log-out` |
 | `inbox` | 空状态 | `inbox` |
 | `settings` | 设置 | `settings` |
+| `apps` | 全部功能 | `grip` |
 | `person` | 身份未知的账号头像 | `user-round` |
 | `student` | 学生 | `graduation-cap` |
 | `teller` | 柜员 | `banknote` |
