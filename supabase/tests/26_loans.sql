@@ -42,8 +42,8 @@ $$;
 
 -- run_jobs (§13) through 春季, Monday 3 March to Sunday 13 April 2025. All at 600 分 (6.2667%/周, 罚息 9.4001%):
 -- a borrows 100 in 4 periods into the account and keeps enough to pay each on its day; b borrows 50 in cash for 2 weeks
--- with nothing in 活期, deposits 30 on 25 March and 100 on 1 April; d borrows 40 for 6 weeks, past the term's last day
--- (a term shortened after); n borrows 100 for 4 weeks on top of 60 of its own.
+-- with nothing in 活期, deposits 30 on 25 March and 100 on 1 April; d borrows 40 for 6 weeks, due the day after the term's
+-- last day; n borrows 100 for 4 weeks on top of 60 of its own.
 savepoint jobs;
 insert into terms (name, starts_on, ends_on) values ('春季', '2025-03-03', '2025-04-13');
 update job_runs set done_to = '2025-03-02', last_ok = null, last_err = null;
@@ -65,10 +65,7 @@ select is(array(select concat_ws(' ', l.student_no, l.principal, l.rate, l.plan,
 select is(array(select concat_ws(' ', seq, due_on, principal) from loan_periods where loan_id = '00000000-0000-4000-8000-0000000000a1' order by seq),
   array['1 2025-03-10 25', '2 2025-03-17 25', '3 2025-03-24 25', '4 2025-03-31 25'], '等额本金, a period each 7 days');
 select is(jsonb_path_query_array(app_private.term_open_items((select t from terms t where name = '春季')), '$[*].kind'),
-  '["job","loan","loan","loan","loan"]', 'the loans not paid off keep the term from 结转');
-select is((app_private.term_open_items((select t from terms t where name = '春季')) -> 1) - 'loan_no',
-  '{"kind":"loan","id":"00000000-0000-4000-8000-0000000000b1","student_no":"b","name":"学生b","remaining":50,"status":"active","due_on":"2025-03-17"}',
-  'each named, the first due first');
+  '["job"]', 'only the daily job keeps the term from 结转; the loans not paid off carry over');
 
 create function tests.state() returns text language sql as $$
   select concat_ws(' | ',
@@ -125,8 +122,8 @@ select is(array(select concat_ws(' ', rule, delta, reason, at) from credit_event
   '−50 that night, −30 on the Monday a full week on, none once paid; no points for paying late');
 
 select is((select string_agg(concat_ws(' ', t.amount, t.created_at, p.due_on), ', ') from txns t join loan_periods p on p.loan_id = t.loan_id
-    where t.student_no = 'd' and t.type = 'repay'), concat_ws(' ', 55, tests.at('2025-04-14'), '2025-04-13'),
-  'd falls due in full on the term''s last day: 41 days at 0.35, 40 + 15');
+    where t.student_no = 'd' and t.type = 'repay'), concat_ws(' ', 55, tests.at('2025-04-15'), '2025-04-14'),
+  'd runs on past the term''s last day and is paid on its own: 42 days at 0.35, 40 + 15');
 select is((select count(*)::int from credit_events where student_no = 'd' and rule = 'repay_on_time'), 1, 'on time');
 select is((select amount from txns where student_no = 'n' and type = 'repay'), 125, 'n pays 100 and 28 × 0.89 = 24.92 → 25 on its day');
 select is((select count(*)::int from credit_events where student_no = 'n' and rule like 'balance%'), 0,
@@ -134,7 +131,7 @@ select is((select count(*)::int from credit_events where student_no = 'n' and ru
 select is((select array_agg(rule order by rule) from credit_events where student_no = 'a' and ref = 'weeks:2025-03-10'), array['balance_100'],
   'a kept 300, 100 of it borrowed');
 select is(array(select concat_ws(' ', week_start, loans) from rate_weeks order by week_start),
-  array['2025-03-03 0', '2025-03-10 290', '2025-03-17 265', '2025-03-24 240', '2025-03-31 196', '2025-04-07 40'],
+  array['2025-03-03 0', '2025-03-10 290', '2025-03-17 265', '2025-03-24 240', '2025-03-31 196', '2025-04-07 40', '2025-04-14 40'],
   '存贷比 counts the 贷款剩余本金 at each Monday''s start');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 select is(app_private.term_open_items((select t from terms t where name = '春季')), '[]', 'nothing keeps the term from 结转');
@@ -142,7 +139,7 @@ select is((tests.call(:'teacher', 'select bank_report(''2025-03-01'', ''2025-04-
   '{"loan":240,"repay":-361}', 'the report shows 放款 and 还款 among the balance changes');
 rollback to savepoint jobs;
 
--- At the counter today, in a term from 10 days ago to 30 days ahead: 4 weeks fit, 5 do not.
+-- At the counter today, in a term from 10 days ago to 30 days ahead: a loan may run past its end.
 insert into terms (name, starts_on, ends_on) values ('本学期', :'today'::date - 10, :'today'::date + 30);
 select tests.student('s1', 100) as s1 \gset
 select tests.student('s2', 120) as s2 \gset
@@ -157,10 +154,10 @@ select tests.student('pay', 100);
 insert into staff_payroll (user_id, account) values (:'teller', 'pay');
 
 select is(tests.call(:'teller', 'select loan_quote(''s1'')'),
-  jsonb_build_object('student_no', 's1', 'score', 600, 'limit', 130, 'rate', 6.2667, 'penalty_rate', 9.4001, 'max_weeks', 4, 'max_periods', 4,
+  jsonb_build_object('student_no', 's1', 'score', 600, 'limit', 130, 'rate', 6.2667, 'penalty_rate', 9.4001, 'max_weeks', 8, 'max_periods', 8,
     'term', jsonb_build_object('id', (select id from terms where name = '本学期'), 'name', '本学期', 'ends_on', :'today'::date + 30),
     'balance', 100, 'blocked', null, 'loan', null),
-  'the quote: score, 额度, this week''s rate and penalty, the most weeks before the term ends');
+  'the quote: score, 额度, this week''s rate and penalty, 8 weeks at most whatever the term');
 select is(tests.call(:'teller', 'select loan_preview(''s1'', 100, ''installment'', 4)'),
   jsonb_build_object('rate', 6.2667, 'penalty_rate', 9.4001, 'interest', 16, 'interest_centi', 1554, 'schedule', (select jsonb_agg(jsonb_build_object('seq', k,
     'due_on', :'today'::date + 7 * k, 'principal', 25, 'interest_centi', (array[623, 469, 308, 154])[k], 'interest', (array[6, 4, 4, 2])[k]) order by k)
@@ -185,8 +182,10 @@ select is((select concat_ws(' ', reason, payment, cash_delta, loan_id, operator_
   '分 4 期，用途：买文具 account 0 00000000-0000-4000-8000-0000000000f1 t', 'the loan transaction says the plan and the purpose');
 select is(tests.call(:'teller', $$select open_loan('00000000-0000-4000-8000-0000000000f1', 's1', 100, '买文具', 'installment', 4, 'account')$$) ->> 'id',
   :'opened'::jsonb ->> 'id', 'sent again, the same result');
-select is(tests.call(:'teller', $$select open_loan(gen_random_uuid(), 's2', 10, 'x', 'installment', 5, 'account')$$) - 'error',
-  jsonb_build_object('detail', jsonb_build_object('ends_on', :'today'::date + 30, 'max_weeks', 4)::text), 'TERM_TOO_LONG: the term ends first, 4 weeks at most');
+savepoint past_term;
+select is(tests.call(:'teller', $$select open_loan(gen_random_uuid(), 's2', 10, 'x', 'installment', 8, 'account')$$) #>> '{loan,schedule,7,due_on}',
+  (:'today'::date + 56)::text, '8 weeks, the last period due past the term''s end');
+rollback to savepoint past_term;
 select is(tests.call(:'teller', $$select open_loan(gen_random_uuid(), 's2', 131, 'x', 'bullet', 1, 'account')$$),
   '{"error":"OVER_CREDIT_LIMIT","detail":"{\"limit\": 130}"}', 'not over the 额度');
 select is(tests.call(:'teller', $$select open_loan(gen_random_uuid(), 'low', 10, 'x', 'bullet', 1, 'account')$$),
@@ -208,9 +207,10 @@ update duty set ended_at = now(), txns = 0 where user_id = :'teller2';
 select is(tests.err(:'teller2', $$select open_loan(gen_random_uuid(), 's2', 10, 'x', 'bullet', 1, 'account')$$), 'OFF_DUTY', 'on duty');
 savepoint holiday;
 update terms set starts_on = :'today'::date + 1, ends_on = :'today'::date + 60 where name = '本学期';
-select is(tests.err(:'teller', $$select open_loan(gen_random_uuid(), 's2', 10, 'x', 'bullet', 1, 'account')$$), 'NO_TERM', 'none in the holidays');
 select is(tests.call(:'teller', 'select loan_quote(''s2'')') - 'student_no' - 'score' - 'limit' - 'rate' - 'penalty_rate' - 'balance',
-  '{"term":null,"max_weeks":null,"max_periods":null,"blocked":"NO_TERM","loan":null}', 'the quote says why');
+  '{"term":null,"max_weeks":8,"max_periods":8,"blocked":null,"loan":null}', 'in the holidays the quote has no term and nothing in the way');
+select is(tests.call(:'teller', $$select open_loan(gen_random_uuid(), 's2', 10, 'x', 'bullet', 8, 'account')$$) #>> '{loan,status}', 'active',
+  'and a loan is paid out as in term');
 rollback to savepoint holiday;
 select is(tests.call(:'teller', 'select loan_quote(''low'')') ->> 'blocked', 'CREDIT_TOO_LOW', 'below 400 分');
 select is(tests.call(:'teller', 'select loan_quote(''low'')') -> 'limit', 'null', 'no 额度');
@@ -287,7 +287,7 @@ select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_bala
 
 -- 逾期 (§10.7): s3 borrowed 20 in cash 8 days ago for 1 week, with nothing in 活期.
 select tests.loan('00000000-0000-4000-8000-0000000000f3', 's3', 20, 'installment', 1, 'cash', (:'today'::date - 8 + time '12:00')::text);
-select app_private.collect_loans(:'today'::date - 1, false);
+select app_private.collect_loans(:'today'::date - 1);
 select is((select concat_ws(' ', l.status, p.overdue_at) from loans l join loan_periods p on p.loan_id = l.id where l.student_no = 's3'),
   concat_ws(' ', 'overdue', (:'today'::date)::timestamp at time zone 'Asia/Shanghai'), '逾期 at the end of the day due');
 select is((select concat_ws(' ', rule, delta) from credit_events where student_no = 's3'), 'overdue -50', '−50');

@@ -1,5 +1,6 @@
 -- 学期 and the scheduled jobs (PHASE-2.md §6, §13, §17): upsert_term and close_term with their rules and roles,
--- current_term and NO_TERM, and run_daily / run_weekly / run_jobs on fixed days.
+-- current_term, and run_daily / run_weekly / run_jobs on fixed days, every day and every Monday alike in term and in the
+-- holidays.
 \ir helpers/setup.psql
 
 select tests.staff('teacher', 'teacher') as teacher \gset
@@ -59,12 +60,10 @@ select is(tests.call(w, 'select count(*) from terms'), '5', 'terms readable') fr
 select is(tests.call(w, 'select count(*) from job_runs'), '2', 'job_runs readable') from unnest(array[:'ops', :'teacher', :'president']::uuid[]) w;
 select is(tests.call(w, 'select count(*) from job_runs'), '0', 'job_runs hidden') from unnest(array[:'student', :'teller', :'keeper']::uuid[]) w;
 
--- 当前学期 and NO_TERM.
+-- 当前学期.
 select is((app_private.current_term(:'today')).id::text, :'a'::jsonb ->> 'id', 'today is in the current term');
 select is((app_private.current_term(tests.d(25))).name, '2026 学年第一学期', 'its last day too');
 select ok((app_private.current_term(tests.d(26))).id is null, 'the days between terms are the holidays');
-select is((app_private.require_term()).id::text, :'a'::jsonb ->> 'id', 'require_term answers the current term');
-select throws_ok(format('select app_private.require_term(%L)', tests.d(30)), 'P0001', 'NO_TERM', 'and NO_TERM in the holidays');
 
 -- 结转 (§6.3).
 select count(*) as txns_before from txns \gset
@@ -94,13 +93,12 @@ select is(tests.term(:'teacher', :'c'::jsonb ->> 'id', '改名', tests.d(-100), 
 insert into terms (name, starts_on, ends_on) values ('春季', '2025-03-03', '2025-03-20'), ('夏季', '2025-03-26', '2025-04-30');
 update job_runs set done_to = '2025-02-27', last_ok = null, last_err = null;
 create table tests.ran (run text, n serial, line text);
--- One line per job a run_jobs did: job, day, status, term, and first for a term's first Monday.
+-- One line per job a run_jobs did: job, day, status.
 create function tests.run(p_run text, p_today date) returns jsonb language plpgsql as $$
 declare v jsonb := app_private.run_jobs(p_today);
 begin
   insert into tests.ran (run, line)
-  select p_run, concat_ws(' ', e ->> 'job', e ->> 'day', e ->> 'status', (select name from terms where id = (e ->> 'term_id')::uuid),
-    case when (e ->> 'first')::boolean then 'first' end)
+  select p_run, concat_ws(' ', e ->> 'job', e ->> 'day', e ->> 'status')
   from jsonb_array_elements(v -> 'ran') with ordinality x(e, i) order by i;
   return v;
 end $$;
@@ -110,9 +108,9 @@ create function tests.progress() returns text language sql as $$
 $$;
 
 select is(tests.run('start', '2025-03-05') -> 'failed', 'null', 'catching up from 28 February to 5 March');
-select is(tests.lines('start'), array['daily 2025-02-28 holiday', 'daily 2025-03-01 holiday', 'daily 2025-03-02 holiday',
-  'weekly 2025-03-03 done 春季 first', 'daily 2025-03-03 done 春季', 'daily 2025-03-04 done 春季'],
-  'the days up to yesterday and the Mondays up to today, in time order; the holidays are done with nothing to do');
+select is(tests.lines('start'), array['daily 2025-02-28 done', 'daily 2025-03-01 done', 'daily 2025-03-02 done',
+  'weekly 2025-03-03 done', 'daily 2025-03-03 done', 'daily 2025-03-04 done'],
+  'the days up to yesterday and the Mondays up to today, in time order, the holidays as the days in term');
 select is(tests.progress(), 'daily 2025-03-04 ok, weekly 2025-03-03 ok', 'job_runs records how far each job has got');
 select ok((select bool_and(last_ok = now()) from job_runs), 'and when it last succeeded');
 select is(app_private.run_jobs('2025-03-05'), '{"ran": [], "failed": null}', 'running again the same day does nothing');
@@ -134,15 +132,15 @@ where d not between '2025-03-15' and '2025-03-17';
 select is(tests.lines('down'), tests.lines('every day'), 'catching up after three days down does what running every day does');
 select is(tests.progress(), :'every_day', 'and gets as far');
 select is(tests.progress(), 'daily 2025-03-31 ok, weekly 2025-03-31 ok', 'to yesterday, and to today''s Monday');
-select is(array(select line from tests.ran where run = 'down' and line like 'weekly%' order by n), array['weekly 2025-03-10 done 春季',
-  'weekly 2025-03-17 done 春季', 'weekly 2025-03-24 holiday', 'weekly 2025-03-31 done 夏季 first'],
-  'only Mondays in a term are worked; the first Monday after a term starts is marked first');
-select is(array(select line from tests.ran where run = 'down' and line like 'daily 2025-03-2%' order by n), array['daily 2025-03-20 done 春季',
-  'daily 2025-03-21 holiday', 'daily 2025-03-22 holiday', 'daily 2025-03-23 holiday', 'daily 2025-03-24 holiday',
-  'daily 2025-03-25 holiday', 'daily 2025-03-26 done 夏季', 'daily 2025-03-27 done 夏季', 'daily 2025-03-28 done 夏季',
-  'daily 2025-03-29 done 夏季'], 'days between terms are holidays');
+select is(array(select line from tests.ran where run = 'down' and line like 'weekly%' order by n), array['weekly 2025-03-10 done',
+  'weekly 2025-03-17 done', 'weekly 2025-03-24 done', 'weekly 2025-03-31 done'],
+  'every Monday is worked, the one in the holidays and the first of a term too');
+select is(array(select line from tests.ran where run = 'down' and line like 'daily 2025-03-2%' order by n), array['daily 2025-03-20 done',
+  'daily 2025-03-21 done', 'daily 2025-03-22 done', 'daily 2025-03-23 done', 'daily 2025-03-24 done',
+  'daily 2025-03-25 done', 'daily 2025-03-26 done', 'daily 2025-03-27 done', 'daily 2025-03-28 done',
+  'daily 2025-03-29 done'], 'and every day, the days between terms too');
 select is((select line from tests.ran where run = 'down' and n = (select min(n) from tests.ran where run = 'down' and line like '% 2025-03-17%')),
-  'weekly 2025-03-17 done 春季', 'on a Monday the weekly job runs before that day''s daily job');
+  'weekly 2025-03-17 done', 'on a Monday the weekly job runs before that day''s daily job');
 
 -- A day that fails stops the run there and is recorded; the days before it stay done.
 update job_runs set done_to = '2025-03-04' where job = 'daily';
@@ -155,15 +153,15 @@ end $$;
 create trigger fail_on before update on job_runs for each row execute function tests.fail_on();
 select is(tests.run('failing', '2025-03-12') -> 'failed', '{"job": "daily", "day": "2025-03-07", "error": "disk full"}',
   'run_jobs reports the job and day that failed');
-select is(tests.lines('failing'), array['daily 2025-03-05 done 春季', 'daily 2025-03-06 done 春季'], 'after doing the days before it');
+select is(tests.lines('failing'), array['daily 2025-03-05 done', 'daily 2025-03-06 done'], 'after doing the days before it');
 select is(tests.progress(), 'daily 2025-03-06 2025-03-07: disk full, weekly 2025-03-03 ok', 'and stops there: neither 7 March nor the Monday after is done');
 select is((select last_err from job_runs where job = 'daily'), '2025-03-07: disk full', 'the error is kept in job_runs');
 select is((select after from audit_log where action = 'job.failed' order by id desc limit 1),
   '{"job": "daily", "day": "2025-03-07", "error": "disk full"}', 'and logged as job.failed');
 drop trigger fail_on on job_runs;
 select is(tests.run('fixed', '2025-03-12') -> 'failed', 'null', 'the next run goes on from the day that failed');
-select is(tests.lines('fixed'), array['daily 2025-03-07 done 春季', 'daily 2025-03-08 done 春季', 'daily 2025-03-09 done 春季',
-  'weekly 2025-03-10 done 春季', 'daily 2025-03-10 done 春季', 'daily 2025-03-11 done 春季'], 'up to yesterday');
+select is(tests.lines('fixed'), array['daily 2025-03-07 done', 'daily 2025-03-08 done', 'daily 2025-03-09 done',
+  'weekly 2025-03-10 done', 'daily 2025-03-10 done', 'daily 2025-03-11 done'], 'up to yesterday');
 select is(tests.progress(), 'daily 2025-03-11 ok, weekly 2025-03-10 ok', 'and clears the error');
 
 select * from finish();

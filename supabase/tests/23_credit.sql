@@ -137,8 +137,8 @@ select count(*) as week_events from credit_events \gset
 select app_private.credit_weekly('2025-03-17') as n \gset
 select is((select count(*) from credit_events), :'week_events'::bigint, 'counting the week again changes nothing');
 
--- run_weekly (§13): only Mondays in a term, and not a term's first Monday. 春季 runs from Monday 3 March to Sunday 6 July
--- 2025 (18 weeks); 夏季 from Wednesday 16 July.
+-- run_weekly (§13): every Monday, in term and in the holidays alike. 春季 runs from Monday 3 March to Sunday 6 July 2025
+-- (18 weeks); 夏季 from Wednesday 16 July.
 update students set status = 'frozen' where status = 'normal';
 insert into terms (name, starts_on, ends_on) values ('春季', '2025-03-03', '2025-07-06'), ('夏季', '2025-07-16', '2025-08-31');
 -- No 活期利息 here (an anchor of 0): the scores below count the deposits alone.
@@ -168,16 +168,16 @@ select is(app_private.run_jobs('2025-08-12') -> 'failed', 'null', 'catching up t
 select is(string_agg(concat_ws(' ', student_no, rule, delta, score, ref), ', ' order by student_no, id), :'every_week',
   'gives the same changes, in the same order, as every Monday on time')
 from credit_events where ref like 'weeks:%' and ref <> 'weeks:2025-03-17';
-select is(count(*)::int, 0, 'nothing for the first Monday of a term, the Mondays of the holidays, or the frozen') from credit_events
-  where ref in ('weeks:2025-03-03', 'weeks:2025-07-07', 'weeks:2025-07-14', 'weeks:2025-07-21')
-     or student_no not in ('saver', 'busy') and ref <> 'weeks:2025-03-17' and student_no <> 's2';
+select is(count(*)::int, 0, 'nothing on the Monday the accounts opened, nor for the frozen') from credit_events
+  where ref = 'weeks:2025-03-03' or student_no not in ('saver', 'busy') and ref <> 'weeks:2025-03-17' and student_no <> 's2';
 select is(array(select distinct ref from credit_events where student_no = 'busy' and ref > 'weeks:2025-07' order by ref),
-  array['weeks:2025-07-28', 'weeks:2025-08-04', 'weeks:2025-08-11'], 'the next term counts from its second Monday');
-select is((select count(distinct ref)::int from credit_events where student_no = 'saver' and ref < 'weeks:2025-07'), 17,
-  'the 18 weeks of 春季 count 17 times: the week after its last Monday ends in the holidays');
-select is((select array[score, app_private.credit_limit(score)] from credit_events where student_no = 'saver' and ref < 'weeks:2025-07'
-  order by id desc limit 1), array[733, 185],
-  'a steady saver goes from 600 to 733 in a term: 17 × (3 + 2) + 4 × 10 + 4 × 2, a limit of 185 HTB instead of 130');
+  array['weeks:2025-07-07', 'weeks:2025-07-14', 'weeks:2025-07-21', 'weeks:2025-07-28', 'weeks:2025-08-04', 'weeks:2025-08-11'],
+  'every Monday counts, those of the holidays and the first of the next term too');
+select is((select count(distinct ref)::int from credit_events where student_no = 'saver' and ref <= 'weeks:2025-07-07'), 18,
+  'the 18 weeks of 春季 count 18 times, the last on the Monday after it');
+select is((select array[score, app_private.credit_limit(score)] from credit_events where student_no = 'saver' and ref <= 'weeks:2025-07-07'
+  order by id desc limit 1), array[738, 190],
+  'a steady saver goes from 600 to 738 in a term: 18 × (3 + 2) + 4 × 10 + 4 × 2, a limit of 190 HTB instead of 130');
 
 -- 手动调整 (§8.3): the bank admin alone, with a reason.
 select is(tests.err(w, 'select adjust_credit(''s1'', 10, ''表现好'')'), 'FORBIDDEN', 'refused')

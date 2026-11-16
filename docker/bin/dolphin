@@ -115,7 +115,7 @@ jobs_show() {
 select format('%-6s done to %s, last ok %s%s', job, done_to,
   coalesce(to_char(last_ok at time zone 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI'), 'never'), ', FAILED ' || last_err)
 from public.job_runs order by job;
-select case when t.id is null then 'term:  none (holiday)' else format('term:  %s (%s to %s)', t.name, t.starts_on, t.ends_on) end
+select case when t.id is null then 'term:  none' else format('term:  %s (%s to %s)', t.name, t.starts_on, t.ends_on) end
 from (select (app_private.current_term(app_private.cn_date(now()))).*) t;
 SQL
 }

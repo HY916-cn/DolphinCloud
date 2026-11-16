@@ -70,7 +70,7 @@ npm --prefix client run lint
 | `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；`E2E_SHARDS=3` 时分 3 份同时跑，各用一个容器；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
-| `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）的随机业务（含开定期与提前支取、买理财与赎回、放款与还款）与每天的定时任务：锚点始终在 1%～4%，每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期和理财全部转回活期（更长的转入下学期）、贷款全部结清或逾期在册 |
+| `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、买理财与赎回、放款与还款）与每天的定时任务：每个周一都有锚点且始终在 1%～4%，每天都计活期利息（含假期），每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期和理财全部转回活期（更长的转入下学期），全部到期的贷款都已结清或逾期在册 |
 
 ```bash
 docker/upgrade-test.sh <生产环境当前的提交>

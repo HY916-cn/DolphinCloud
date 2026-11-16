@@ -1,12 +1,13 @@
 #!/bin/bash
-# One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past; each
-# school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a few 理财 bought or redeemed
-# (in 稳健, 平衡 or 进取; each trading day's index change fixed, a week's holiday in October, no network), a few 信用分 changes and,
-# mid-term, some frozen accounts, loans paid out and repaid, then the day's jobs run as at 00:05 and 00:10 (run_weekly on
-# Mondays before the day's business, run_daily after it). Checks that the anchor stays within 1%–4%, that check_balances
-# finds nothing every day, that no run_daily takes 30 s, that every 定期 due by the last day simulated has come back
-# (the longer ones run on into the next term), that every 理财 past its last day has come back and that every loan is
-# then paid off or 逾期.
+# One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past, then a
+# week of the holidays; each school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a
+# few 理财 bought or redeemed (in 稳健, 平衡 or 进取; each trading day's index change fixed, a week's holiday in October, no
+# network), a few 信用分 changes and, mid-term, some frozen accounts, loans paid out for 1–4 weeks (past the term's end
+# too) and repaid; every day the jobs run as at 00:05 and 00:10 (run_weekly on Mondays before the day's business,
+# run_daily after it), the holiday week as the term. Checks that the anchor stays within 1%–4% with one every Monday,
+# that 活期 accrues every day, that check_balances finds nothing every day, that no run_daily takes 30 s, that every 定期
+# due by the last day simulated has come back (the longer ones run on into the next term), that every 理财 past its last
+# day has come back and that every loan with all its periods due by then is paid off or 逾期.
 # Usage: docker/sim-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -92,8 +93,7 @@ begin
           case when random() < 0.5 then 'account' else 'cash' end as via
         from public.students s join public.credit_scores c using (student_no)
         where s.status = 'normal' and app_private.credit_limit(c.score) is not null and random() < 0.005
-          and not exists (select 1 from public.loans l where l.student_no = s.student_no and l.status in ('active', 'overdue'))) x
-  where p_day + 7 * x.k <= (app_private.current_term(p_day)).ends_on;
+          and not exists (select 1 from public.loans l where l.student_no = s.student_no and l.status in ('active', 'overdue'))) x;
   perform app_private.pay_loan(y.id, null, y.amount, y.via, case when y.via = 'cash' then app_private.make_change(y.amount) end,
     app_private.system_user(), (p_day + time '17:55') at time zone 'Asia/Shanghai', p_day, false, null)
   from (select x.id, x.amount, case when x.balance >= x.amount then 'account' else 'cash' end as via
@@ -163,15 +163,16 @@ done
 
 psql -c "select concat_ws(' ', count(*), min(anchor), max(anchor)) from public.rate_weeks" | {
   read -r weeks lo hi
-  [ "$weeks" = 18 ] || fail "$weeks weekly anchors, not 18"
+  [ "$weeks" = 19 ] || fail "$weeks weekly anchors, not 19 (every Monday from 1 September to 5 January)"
   awk -v lo="$lo" -v hi="$hi" 'BEGIN { exit !(lo >= 1 && hi <= 4) }' || fail "anchor went from $lo to $hi"
   echo "anchors: $weeks weeks, from $lo% to $hi%"
 }
 psql -c "select string_agg(concat_ws(' ', week_start, deposits, growth, adjust, anchor), E'\n' order by week_start) from public.rate_weeks"
 psql -c "select concat_ws(' ', (select count(*) from public.txns where type = 'interest'), (select sum(amount) from public.txns where type = 'interest'),
   (select count(*) from public.interest_accruals), (select count(*) from public.interest_accruals where settled_txn is null and day <= '2026-01-04' and centi > 0),
-  (select count(*) from public.txns))" | {
-  read -r paid total accruals unsettled txns
+  (select count(*) from public.txns), (select count(distinct day) from public.interest_accruals))" | {
+  read -r paid total accruals unsettled txns days
+  [ "$days" = 133 ] || fail "活期 accrued on $days days, not all 133"
   echo "interest: $paid payments, $total HTB in all; $accruals accruals ($unsettled below 1 HTB still waiting); $txns transactions"
 }
 psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'matured'), count(*) filter (where status = 'early'),
@@ -192,11 +193,13 @@ psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'mature
 psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'closed'), count(*) filter (where status = 'overdue'),
   count(*) filter (where status = 'active'), coalesce(sum(principal), 0),
   (select count(*) from public.loan_payments), (select count(*) from public.loan_payments where auto), (select coalesce(sum(interest), 0) from public.loan_payments),
-  (select count(distinct student_no) from public.credit_events where rule = 'overdue')) from public.loans" | {
-  read -r n closed overdue active principal repays auto interest late
+  (select count(distinct student_no) from public.credit_events where rule = 'overdue'),
+  count(*) filter (where status = 'active' and (select max(due_on) from public.loan_periods p where p.loan_id = loans.id) <= '2026-01-11'))
+  from public.loans" | {
+  read -r n closed overdue active principal repays auto interest late due
   [ "$n" -gt 0 ] || fail "no loans"
-  [ "$active" = 0 ] || fail "$active loans neither paid off nor 逾期 after the term"
-  echo "贷款: $n paid out ($principal HTB), $closed paid off, $overdue 逾期; $repays repayments ($auto 自动扣款), $interest HTB of interest; $late students ever 逾期"
+  [ "$due" = 0 ] || fail "$due loans due by 11 January neither paid off nor 逾期"
+  echo "贷款: $n paid out ($principal HTB), $closed paid off, $overdue 逾期, $active still running; $repays repayments ($auto 自动扣款), $interest HTB of interest; $late students ever 逾期"
 }
 echo "slowest run_daily: ${max_daily} ms; slowest run_weekly: ${max_weekly} ms; whole term: $(( $(date +%s) - start ))s"
 echo 'sim ok'

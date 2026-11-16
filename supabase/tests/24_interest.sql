@@ -65,31 +65,31 @@ savepoint anchors;
 create function tests.week(p date) returns text language sql as $$
   select concat_ws(' ', prev_anchor, deposits, loans, ratio, coalesce(growth::text, '-'), adjust, anchor) from rate_weeks where week_start = p
 $$;
-select is(tests.week((app_private.publish_anchor('2025-01-06', true)).week_start), '2.00 0 0 0.0000 - 0.00 2.00', 'the first Monday ever starts from 2% and does not adjust');
-select is(tests.week((app_private.publish_anchor('2025-01-13', false)).week_start), '2.00 0 0 0.0000 0.0000 -0.25 1.75',
+select is(tests.week((app_private.publish_anchor('2025-01-06')).week_start), '2.00 0 0 0.0000 - 0.00 2.00', 'the first Monday ever starts from 2% and does not adjust');
+select is(tests.week((app_private.publish_anchor('2025-01-13')).week_start), '2.00 0 0 0.0000 0.0000 -0.25 1.75',
   'no deposits: 存贷比 and 增速 count as 0');
 select tests.old('x', 1000, '2025-01-14');
-select is(tests.week((app_private.publish_anchor('2025-01-20', false)).week_start), '1.75 1000 0 0.0000 0.0000 -0.25 1.50',
+select is(tests.week((app_private.publish_anchor('2025-01-20')).week_start), '1.75 1000 0 0.0000 0.0000 -0.25 1.50',
   'growth from no deposits counts as 0');
 select tests.tx('x', 'deposit', 100, '2025-01-22');
-select is(tests.week((app_private.publish_anchor('2025-01-27', false)).week_start), '1.50 1100 0 0.0000 10.0000 -0.50 1.00',
+select is(tests.week((app_private.publish_anchor('2025-01-27')).week_start), '1.50 1100 0 0.0000 10.0000 -0.50 1.00',
   '增速 10%: −2.75, kept to −0.5');
-select is(tests.week((app_private.publish_anchor('2025-02-03', false)).week_start), '1.00 1100 0 0.0000 0.0000 -0.25 1.00',
+select is(tests.week((app_private.publish_anchor('2025-02-03')).week_start), '1.00 1100 0 0.0000 0.0000 -0.25 1.00',
   'and never below 1%');
 select tests.tx('x', 'withdraw', 1045, '2025-02-05');
-select is(tests.week((app_private.publish_anchor('2025-02-10', false)).week_start), '1.00 55 0 0.0000 -95.0000 0.50 1.50',
+select is(tests.week((app_private.publish_anchor('2025-02-10')).week_start), '1.00 55 0 0.0000 -95.0000 0.50 1.50',
   'deposits falling: up by 0.5 at most');
 select is(tests.call(:'teacher', $$select set_setting('anchor_params', '{"initial":1.8,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":1.8}')$$) ->> 'key',
   'anchor_params', 'the bank admin lowers the ceiling');
 select tests.tx('x', 'withdraw', 50, '2025-02-12');
-select is(tests.week((app_private.publish_anchor('2025-02-17', false)).week_start), '1.50 5 0 0.0000 -90.9091 0.50 1.80',
+select is(tests.week((app_private.publish_anchor('2025-02-17')).week_start), '1.50 5 0 0.0000 -90.9091 0.50 1.80',
   'from the next Monday: kept within the new ceiling');
 select is(array(select params ->> 'max' from rate_weeks order by week_start), array['4', '4', '4', '4', '4', '4', '1.8'],
   'each week keeps the parameters it used');
-select is(tests.week((app_private.publish_anchor('2025-03-03', false)).week_start), '1.80 5 0 0.0000 - 0.00 1.80',
+select is(tests.week((app_private.publish_anchor('2025-03-03')).week_start), '1.80 5 0 0.0000 - 0.00 1.80',
   'no row for the Monday before: no adjustment');
 select tests.tx('x', 'deposit', 500, '2025-03-04');
-select is(tests.week((app_private.publish_anchor('2025-03-03', false)).week_start), '1.80 5 0 0.0000 - 0.00 1.80',
+select is(tests.week((app_private.publish_anchor('2025-03-03')).week_start), '1.80 5 0 0.0000 - 0.00 1.80',
   'a week published keeps its row');
 select is(count(*)::int, 0, 'every week works out again from its row') from (
   select w.*, lag(anchor) over (order by week_start) as before from rate_weeks w) r
@@ -179,9 +179,9 @@ select is(array(select concat_ws(' ', kind, key, recorded, expected) from app_pr
   array['interest b 2394 2395', 'interest c 150 197'], 'check_balances: 100 × interest paid + carry against the settled accruals');
 rollback to savepoint accruals;
 
--- run_jobs (§13) through two terms: 春季 from Wednesday 5 March to Friday 28 March 2025, 夏季 from Wednesday 9 April to
--- Wednesday 30 April. A saver deposits every Wednesday, holidays too; mixed drops to 500 分 on 12 March and withdraws
--- most of it on 19 March; frozen never accrues.
+-- run_jobs (§13) through two terms and the holidays around them, every day alike: 春季 from Wednesday 5 March to Friday
+-- 28 March 2025, 夏季 from Wednesday 9 April to Wednesday 30 April. A saver deposits every Wednesday, holidays too; mixed
+-- drops to 500 分 on 12 March and withdraws most of it on 19 March; frozen never accrues.
 insert into terms (name, starts_on, ends_on) values ('春季', '2025-03-05', '2025-03-28'), ('夏季', '2025-04-09', '2025-04-30');
 update job_runs set done_to = '2025-03-02', last_ok = null, last_err = null;
 select tests.old('saver', 500, '2025-03-01');
@@ -218,22 +218,24 @@ select is(app_private.run_jobs('2025-05-06') -> 'ran', '[]', 'and running again 
 select is(tests.state(), :'every_day', 'nothing at all');
 
 select is(array(select concat_ws(' ', week_start, adjust, anchor) from rate_weeks order by week_start),
-  array(select concat_ws(' ', w, a, n) from (values ('2025-03-10', '0.00', '2.00'), ('2025-03-17', '-0.50', '1.50'), ('2025-03-24', '0.50', '2.00'),
-    ('2025-04-14', '0.00', '2.00'), ('2025-04-21', '-0.50', '1.50'), ('2025-04-28', '-0.50', '1.00')) t(w, a, n)),
-  'an anchor on each Monday in term; the first Monday of each term keeps the one before the holidays');
+  array(select concat_ws(' ', w, a, n) from (values ('2025-03-03', '0.00', '2.00'), ('2025-03-10', '-0.50', '1.50'), ('2025-03-17', '-0.50', '1.00'),
+    ('2025-03-24', '0.50', '1.50'), ('2025-03-31', '-0.50', '1.00'), ('2025-04-07', '-0.50', '1.00'), ('2025-04-14', '-0.50', '1.00'),
+    ('2025-04-21', '-0.50', '1.00'), ('2025-04-28', '-0.50', '1.00'), ('2025-05-05', '-0.50', '1.00')) t(w, a, n)),
+  'an anchor on every Monday, in the holidays and on the first Monday of a term too; the first ever starts from 2% unadjusted');
 select is(count(*)::int, 0, 'always within 1%–4%') from rate_weeks where anchor not between 1 and 4;
-select is((select array_agg(distinct day) from interest_accruals where day not between '2025-03-05' and '2025-03-28'
-  and day not between '2025-04-09' and '2025-04-30'), null, 'no interest in the holidays');
-select is((select count(*)::int from interest_accruals where student_no = 'saver'), 24 + 22, 'every day in term for the saver');
+select is((select count(*)::int from interest_accruals where student_no = 'saver'), 64,
+  'interest every day from 3 March to 5 May for the saver, the holidays too');
 select is((select count(*)::int from interest_accruals where student_no = 'frozen'), 0, 'none for the frozen');
 select is(array(select concat_ws(' ', created_at, reason) from txns where student_no = 'saver' and type = 'interest' order by created_at),
-  array(select concat_ws(' ', tests.at(a), r) from (values ('2025-03-10', '3月5日至3月9日活期利息'), ('2025-03-17', '3月10日至3月16日活期利息'),
-    ('2025-03-24', '3月17日至3月23日活期利息'), ('2025-03-29', '3月24日至3月28日活期利息'), ('2025-04-14', '4月9日至4月13日活期利息'),
-    ('2025-04-21', '4月14日至4月20日活期利息'), ('2025-04-28', '4月21日至4月27日活期利息'), ('2025-05-01', '4月28日至4月30日活期利息')) t(a, r)),
-  'paid every Monday in term, and on the last day of each term for its last days');
-select is((select count(*)::int from interest_accruals where student_no = 'saver' and settled_txn is null), 0, 'nothing of the terms left unpaid');
+  array(select concat_ws(' ', tests.at(a), r) from (values ('2025-03-10', '3月3日至3月9日活期利息'), ('2025-03-17', '3月10日至3月16日活期利息'),
+    ('2025-03-24', '3月17日至3月23日活期利息'), ('2025-03-31', '3月24日至3月30日活期利息'), ('2025-04-07', '3月31日至4月6日活期利息'),
+    ('2025-04-14', '4月7日至4月13日活期利息'), ('2025-04-21', '4月14日至4月20日活期利息'), ('2025-04-28', '4月21日至4月27日活期利息'),
+    ('2025-05-05', '4月28日至5月4日活期利息')) t(a, r)),
+  'paid every Monday for the week before, across the terms'' ends and starts alike');
+select is((select array_agg(day) from interest_accruals where student_no = 'saver' and settled_txn is null), array['2025-05-05'::date],
+  'only yesterday waits for next Monday');
 select is((select array_agg(rate order by day) from interest_accruals where student_no = 'mixed' and day in ('2025-03-11', '2025-03-12')),
-  array[2.08, 2.0], 'mixed: 600 分 at the end of 11 March, 500 分 at the end of 12 March, though the score now is neither');
+  array[1.5624, 1.5024], 'mixed at the anchor of 1.50: 600 分 at the end of 11 March, 500 分 at the end of 12 March, though the score now is neither');
 select is(count(*)::int, 0, 'every accrual works out again from the balance, anchor and score of its day') from interest_accruals
 where balance <> app_private.balance_on(student_no, day)
    or rate <> app_private.saving_rate(app_private.anchor_on(day), app_private.score_on(student_no, day))
@@ -251,13 +253,13 @@ select is((select array[disabled::text, (closed_at is not null)::text, display_n
 select ok((select banned_until > now() from auth.users where id = app_private.system_user()), 'and banned from Auth');
 
 -- 后台「利率」 (§16.2): the accountant, president and bank admin.
-select is(tests.call(:'accountant', 'select rate_overview()') - 'table', '{"week_start":"2025-04-28","anchor":1.00}', 'this week''s anchor');
+select is(tests.call(:'accountant', 'select rate_overview()') - 'table', '{"week_start":"2025-05-05","anchor":1.00}', 'this week''s anchor');
 select is(tests.call(:'president', 'select rate_overview()') -> 'table' -> 2, '{"score":600,"current":1.04,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":3.1333}',
   'and the rates by score under it');
 select is(jsonb_path_query_array(tests.call(:'teacher', 'select rate_overview()') -> 'table', '$[*].score'), '[0,400,600,750,900,1000]',
   'the scores of §9.2');
 select is(tests.err(w, 'select rate_overview()'), 'FORBIDDEN', 'not the others') from unnest(array[:'teller', :'keeper', :'ops', :'s1']::uuid[]) w;
-select is(tests.call(w, 'select to_jsonb(count(*) = 6) from rate_weeks'), 'true', 'they read the weekly history') from unnest(array[:'accountant', :'president', :'teacher']::uuid[]) w;
+select is(tests.call(w, 'select to_jsonb(count(*) = 10) from rate_weeks'), 'true', 'they read the weekly history') from unnest(array[:'accountant', :'president', :'teacher']::uuid[]) w;
 select is(tests.call(w, 'select count(*) from rate_weeks'), '0', 'the others do not') from unnest(array[:'teller', :'keeper', :'ops', :'s1']::uuid[]) w;
 
 -- The settings (§14.3): the president and the bank admin change the anchor's start and bounds; the anchor formula's

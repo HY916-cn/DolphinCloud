@@ -1,6 +1,6 @@
 -- 手动补录与更正 (PHASE-2.md §10.11, §9.3–9.4, §14, §15, §17): each type entered, the range of the time it happened, the
 -- bank admin alone, 活期 since then never below 0, the interest accrued since then corrected (weeks paid and not, a term
--- over), an entry made before its days were accrued against one made after, 编辑 as a reversal and an entry, what cannot
+-- 结转 and the holidays), an entry made before its days were accrued against one made after, 编辑 as a reversal and an entry, what cannot
 -- be edited, the cash outside every duty, the queries and the self-check. The days are counted back from today, since
 -- the entries may not be dated after now.
 \ir helpers/setup.psql
@@ -62,7 +62,7 @@ create function tests.worth(p_no text) returns integer language sql as $$
   select 100 * balance + app_private.pending_interest(p_no) from accounts where student_no = p_no
 $$;
 
--- The term from 20 days ago; the jobs from the day before; the students opened 25 days ago.
+-- The term from 20 days ago; the jobs from the day before; the students opened 25 days ago at 8:00.
 insert into terms (name, starts_on, ends_on) values ('本学期', :'today'::date - 20, :'today'::date + 40);
 update job_runs set done_to = :'today'::date - 21, last_ok = null, last_err = null;
 insert into products (id, name, price, listed, stock) values ('00000000-0000-4000-8000-000000000001', '笔记本', 6, true, 10),
@@ -79,41 +79,38 @@ select is(tests.entry('a', 'adjust', tests.noon(:'today'::date - 3), 0) ->> 'err
 select is(tests.entry('nobody', 'adjust', tests.noon(:'today'::date - 3), 5) ->> 'error', 'STUDENT_NOT_FOUND', 'a student who exists');
 select is(tests.entry('a', 'adjust', null, 5) -> 'detail', '{"field":"occurred_at"}', 'when it happened is required');
 
--- The range: not after now, not before the term's start, nor before the account was opened.
+-- The range: not after now, nor before the account was opened, whatever the terms.
+select (:'today'::date - 25 + time '08:00') at time zone 'Asia/Shanghai' as opened \gset
 select is(tests.entry('a', 'adjust', now() + interval '1 minute', 5) -> 'detail',
-  jsonb_build_object('from', (:'today'::date - 20)::timestamp at time zone 'Asia/Shanghai', 'to', now()), 'not after now: the range is given');
-select is(tests.entry('a', 'adjust', (:'today'::date - 20)::timestamp at time zone 'Asia/Shanghai' - interval '1 second', 5) ->> 'error',
-  'OCCURRED_OUT_OF_RANGE', 'not before the term began');
+  jsonb_build_object('from', :'opened'::timestamptz, 'to', now()), 'not after now: the range is given, from the account''s opening');
+select is(tests.entry('a', 'adjust', :'opened'::timestamptz - interval '1 second', 5) ->> 'error',
+  'OCCURRED_OUT_OF_RANGE', 'nor before the account was opened');
 select tests.student('late', 0);
 update students set opened_at = tests.noon(:'today'::date - 2) where student_no = 'late';
 select is(tests.entry('late', 'adjust', tests.noon(:'today'::date - 3), 5) -> 'detail' ->> 'from', to_jsonb(tests.noon(:'today'::date - 2)) #>> '{}',
-  'nor before the account was opened');
+  'each student from their own opening');
 savepoint no_term;
 delete from terms;
-select is(tests.entry('a', 'adjust', tests.noon(:'today'::date - 3), 5) ->> 'error', 'NO_TERM', 'no term begun yet: nothing to date it in');
+select is(tests.entry('a', 'adjust', :'opened'::timestamptz, 5) ->> 'amount', '5', 'with no term at all, from the opening on');
 rollback to savepoint no_term;
 
--- A term over (§10.11): it ended ten days ago and the jobs have run through it. A 补录 in it corrects its last days, all
--- paid; the corrections wait for the next 结息 (the next term's first Monday). In the holidays the range starts with the
--- term just over; once it is 结转, the day after it ended.
+-- A term over (§10.11): it ended ten days ago and the jobs have run through it and the holidays since. A 补录 in it
+-- corrects every day accrued from then on, in term and in the holidays; the corrections wait for the next 结息. Once the
+-- term is 结转, a 补录 is still dated in it: the one way left to change it.
 savepoint holidays;
 update terms set starts_on = :'today'::date - 22, ends_on = :'today'::date - 10;
 select is(app_private.run_jobs(:'today') -> 'failed', 'null', 'a term that ended ten days ago, run through');
-select is(tests.entry('a', 'deposit', tests.noon(:'today'::date - 15), p_den => '{"10":5}') #>> '{interest,0,days}', '6',
-  'a 补录 fifteen days ago corrects the term''s last six days');
-select is((select count(*)::int from interest_adjustments j join interest_accruals i using (student_no, day) where i.settled_txn is null), 0,
-  'all of them paid at the end of the term');
-select is((select count(*)::int from interest_adjustments where settled_txn is null), 6, 'the corrections wait');
-select is(app_private.run_jobs(:'today') -> 'ran', '[]', 'nothing pays them in the holidays');
-select is(app_private.settle_interest(now()) > 0, true, 'the next 结息 does');
+select is(tests.entry('a', 'deposit', tests.noon(:'today'::date - 15), p_den => '{"10":5}') #>> '{interest,0,days}', '15',
+  'a 补录 fifteen days ago corrects each day since, the holidays too');
+select is((select count(*)::int from interest_adjustments where settled_txn is null), 15, 'the corrections wait');
+select is(app_private.settle_interest(now()) > 0, true, 'the next 结息 pays them');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 select diag(jsonb_agg(c)::text) from app_private.check_balances() c;
-select is(tests.entry('a', 'adjust', (:'today'::date - 22)::timestamp at time zone 'Asia/Shanghai' - interval '1 second', 5) #>> '{detail,from}',
-  to_jsonb((:'today'::date - 22)::timestamp at time zone 'Asia/Shanghai') #>> '{}', 'in the holidays: from the start of the term just over');
+select is(tests.entry('a', 'adjust', :'opened'::timestamptz - interval '1 second', 5) #>> '{detail,from}',
+  to_jsonb(:'opened'::timestamptz) #>> '{}', 'in the holidays the range is the same: from the account''s opening');
 update terms set closed_at = now();
-select is(tests.entry('a', 'adjust', tests.noon(:'today'::date - 15), 5) #>> '{detail,from}',
-  to_jsonb((:'today'::date - 9)::timestamp at time zone 'Asia/Shanghai') #>> '{}', 'once 结转, from the day after it ended');
-select is(tests.entry('a', 'adjust', tests.noon(:'today'::date - 5), 5) -> 'interest', '[]', 'a day in the holidays: no interest to correct');
+select is(tests.entry('a', 'adjust', tests.noon(:'today'::date - 15), 5) #>> '{interest,0,days}', '15', 'once 结转, a 补录 in the term still corrects its interest');
+select is(tests.entry('a', 'adjust', tests.noon(:'today'::date - 5), 5) #>> '{interest,0,days}', '5', 'and one in the holidays');
 rollback to savepoint holidays;
 
 -- Each type, dated when it happened and entered now (§10.11), before any day has been accrued.
@@ -287,8 +284,8 @@ select is(tests.fix(id, '{"amount":1}') ->> 'error', 'REVERSAL_NOT_ALLOWED', 'no
 select is(tests.fix(:'orig2', '{}', '随便') -> 'detail', '{"field":"reason"}', 'the reason one of 冲正''s');
 select is(tests.fix(gen_random_uuid(), '{}') ->> 'error', 'TXN_NOT_FOUND', 'an original that exists');
 select is(tests.fix(:'orig2', '{}', p_as => 'p1') ->> 'error', 'FORBIDDEN', 'the bank admin alone');
-select tests.tx('g', 'deposit', 5, :'today'::date - 22) as before_term \gset
-select is(tests.fix(:'before_term', '{"denominations":{"5":2}}') ->> 'error', 'OCCURRED_OUT_OF_RANGE', 'nor one from before the term');
+select tests.tx('g', 'deposit', 5, :'today'::date - 26) as before_opened \gset
+select is(tests.fix(:'before_opened', '{"denominations":{"5":2}}') ->> 'error', 'OCCURRED_OUT_OF_RANGE', 'nor one from before the account was opened');
 select is(tests.fix((select id from txns where student_no = 'e' and type = 'withdraw' and entered_at is null), '{"amount":110}') #>> '{detail,at}',
   to_jsonb(tests.noon(:'today'::date - 5)) #>> '{}', 'and 活期 since then never below 0: e''s 取款 of 80 five days ago was not 110');
 

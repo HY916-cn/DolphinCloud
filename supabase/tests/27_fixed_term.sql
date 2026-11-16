@@ -1,6 +1,6 @@
 -- 定期定值 (PHASE-2.md §9.2, §9.5, §10.2, §14.3, §17): the fixed weekly rate of each length in term_rates, who sets it,
 -- the 定期 already open keeping theirs; 定期 running past the term into the holidays and the next term, maturing there,
--- and carried over by 结转; 提前支取 paying 活期 interest for the days in term only.
+-- and carried over by 结转; 提前支取 paying 活期 interest for every day it was open.
 \ir helpers/setup.psql
 
 select tests.staff('teacher', 'teacher') as teacher \gset
@@ -61,11 +61,11 @@ from unnest(array[2, 4]) w;
 select app_private.start_term_deposit('00000000-0000-4000-8000-0000000000b8', 'h', 100, 48, :'teller', tests.at('2025-03-24 12:00')) is not null;
 select app_private.start_term_deposit('00000000-0000-4000-8000-0000000000e1', 'h', 100, 4, :'teller', tests.at('2025-03-24 12:00')) is not null;
 
--- 提前支取 on 16 April: 活期 interest for the 7 days in 春季 and the 2 in 夏季 before the day, none for the holidays: 9 ×
--- ⌊100 × 2.08% ÷ 7⌋ (the initial anchor, 600 分) = 9 × 0.29.
-select is(app_private.early_interest(d, '2025-04-16'), 9 * 29, '提前支取 pays the days in term only')
+-- 提前支取 on 16 April: 活期 interest for each of the 23 days before the day, those in the holidays too: 23 ×
+-- ⌊100 × 2.08% ÷ 7⌋ (the initial anchor, 600 分) = 23 × 0.29.
+select is(app_private.early_interest(d, '2025-04-16'), 23 * 29, '提前支取 pays 活期 interest for every day it was open')
 from term_deposits d where id = '00000000-0000-4000-8000-0000000000e1';
-select is(app_private.early_interest(d, '2025-04-10'), 7 * 29, 'nothing for the days in the holidays')
+select is(app_private.early_interest(d, '2025-04-10'), 17 * 29, 'in the holidays as in term')
 from term_deposits d where id = '00000000-0000-4000-8000-0000000000e1';
 
 select is(app_private.run_jobs('2025-04-23') -> 'failed', 'null', 'the jobs run through the term, the holidays and into 夏季');
