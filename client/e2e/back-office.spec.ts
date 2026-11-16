@@ -174,3 +174,35 @@ test('日志: the 参数 change made above, with its fields', async ({ page }) =
   await expect(rows.first()).toBeVisible();
   await expect(rows.filter({ hasNotText: '张小明' })).toHaveCount(0);
 });
+
+test('全部功能: every page from the phone header, 利率 from it, Esc back to the button; not for tellers or computers', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  const apps = page.getByRole('button', { name: '全部功能' });
+  const sheet = page.getByRole('dialog', { name: '全部功能' });
+  const tiles = sheet.getByRole('navigation', { name: '全部功能' }).getByRole('link');
+  await apps.click();
+  await expect(tiles).toHaveText(['总览', '学生', '流水', '报表', '商品', '出入库', '人员', '考勤', '学期', '信用分', '贷款', '利率', '理财', '参数', '日志', '我的']);
+  await expect(sheet.locator('[aria-current="page"]')).toHaveText('总览');
+  await expect(tiles.first()).toBeFocused();
+  await tiles.filter({ hasText: '利率' }).click();
+  await expect(page).toHaveURL(/\/admin\/rates$/);
+  await expect(sheet).toHaveCount(0);
+
+  await apps.click();
+  await expect(tiles.filter({ hasText: '利率' })).toBeFocused();
+  await expect(tiles.filter({ hasText: '利率' })).toHaveAttribute('aria-current', 'page');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(apps).toBeFocused();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(apps).toBeHidden();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, '工作人员', 'teller01');
+  await expect(page).toHaveURL(/\/counter$/);
+  await expect(page.locator('.dc-top-title')).toContainText('办理');
+  await expect(apps).toHaveCount(0);
+});

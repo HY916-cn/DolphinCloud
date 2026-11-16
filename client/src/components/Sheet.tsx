@@ -6,7 +6,7 @@ import { signOutCurrent } from '@/lib/accounts';
 
 // Tab and Shift+Tab stay in the sheet: from its last control to its first and back, and in again if focus got out. Of
 // a radio group only the checked one takes a Tab.
-function keepTab(e: KeyboardEvent, sheet: HTMLElement) {
+export function keepTab(e: KeyboardEvent, sheet: HTMLElement) {
   const controls = [...sheet.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
     .filter((el) => el.offsetParent && !(el.matches('input[type="radio"]:not(:checked)') && sheet.querySelector('input[type="radio"]:checked')));
   const [to, edge] = e.shiftKey ? [controls.at(-1), controls[0]] : [controls[0], controls.at(-1)];

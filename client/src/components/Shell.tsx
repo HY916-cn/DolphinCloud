@@ -1,7 +1,9 @@
 import { usePathname } from 'expo-router';
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { replay } from '@/lib/motion';
 import type { Me, Role } from '@/lib/session';
+import { keepTab } from './Sheet';
 import { Icon, link, type IconName } from './ui';
 
 // Back-office sections and who may open them (PHASE-1.md §4.2).
@@ -23,8 +25,10 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
 ];
 export const sectionsFor = (me: Me) => SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)));
 
+type NavItem = { href: string; icon: IconName; label: string; exact?: boolean; kind?: string };
+
 // The pages of this login's identity.
-function navItems(me: Me): { href: string; icon: IconName; label: string; exact?: boolean }[] {
+function navItems(me: Me): NavItem[] {
   if (me.student) {
     return [
       { href: '/student', icon: 'home', label: '首页', exact: true },
@@ -47,6 +51,8 @@ function navItems(me: Me): { href: string; icon: IconName; label: string; exact?
 
 // A page in the middle of a business (it has a back button) hides the phone TabBar (layout.md, AppShell).
 const InFlow = createContext<(on: boolean) => void>(() => {});
+// Opens 全部功能 when the login has more pages than the phone TabBar holds.
+const OpenApps = createContext<(() => void) | null>(null);
 
 // Whether the page change under way goes back: a page's back button or the browser's history; every other is forward.
 // shortcut: the browser's forward button fires the same popstate and slides as a return, read the history index to tell them apart.
@@ -77,10 +83,12 @@ export function Shell({ me, children }: { me: Me; children: ReactNode }) {
   const path = usePathname();
   const main = usePageMotion(path);
   const items = navItems(me);
-  // The phone TabBar holds five, the last one 我的; every section is also a tile on 总览.
-  const tabs = items.length > 5 ? [...items.slice(0, 4), items[items.length - 1]] : items;
+  // The phone TabBar holds five, the last one 我的; 全部功能 in the page header opens every page.
+  const many = items.length > 5;
+  const tabs = many ? [...items.slice(0, 4), items[items.length - 1]] : items;
   const [inFlow, setInFlow] = useState(false);
-  const current = (i: (typeof items)[number]) => (i.exact ? path === i.href : path.startsWith(i.href)) ? ('page' as const) : undefined;
+  const [apps, setApps] = useState(false);
+  const current = (i: NavItem) => (i.exact ? path === i.href : path.startsWith(i.href)) ? ('page' as const) : undefined;
   return (
     <div className="dc-app" onClickCapture={() => { returning = false; }}>
       <div className="dc-shell">
@@ -92,14 +100,64 @@ export function Shell({ me, children }: { me: Me; children: ReactNode }) {
             </nav>
           </div>
         </aside>
-        <div className="dc-main" ref={main}><InFlow.Provider value={setInFlow}>{children}</InFlow.Provider></div>
+        <div className="dc-main" ref={main}>
+          <InFlow.Provider value={setInFlow}><OpenApps.Provider value={many ? () => setApps(true) : null}>{children}</OpenApps.Provider></InFlow.Provider>
+        </div>
         {tabs.length > 1 && !inFlow && (
           <nav className="dc-tabbar" aria-label="主导航">
             {tabs.map((i) => <a key={i.href} className="dc-tab" aria-current={current(i)} {...link(i.href)}><Icon name={i.icon} />{i.label}</a>)}
           </nav>
         )}
       </div>
+      {apps && <AppsSheet items={items} current={current} onClose={() => setApps(false)} />}
     </div>
+  );
+}
+
+// 全部功能 (design system AppShell): every page of the login as a tile, the way ConfirmSheet opens and closes. A
+// tile goes to its page and closes the sheet; the current page's only closes it. Focus starts on the current page's
+// tile, stays in the sheet, and goes back to the 全部功能 button, the new page's after a tile was followed.
+function AppsSheet({ items, current, onClose }: { items: NavItem[]; current: (i: NavItem) => 'page' | undefined; onClose: () => void }) {
+  const [leaving, setLeaving] = useState(false);
+  const sheet = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tile = (q: string) => sheet.current!.querySelector<HTMLElement>(q);
+    (tile('.dc-tile[aria-current="page"]') ?? tile('.dc-tile'))?.focus();
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLeaving(true);
+      if (e.key === 'Tab') keepTab(e, sheet.current!);
+    };
+    document.addEventListener('keydown', keys);
+    return () => {
+      document.removeEventListener('keydown', keys);
+      document.querySelector<HTMLElement>('.dc-apps-btn')?.focus();
+    };
+  }, []);
+  return createPortal(
+    <div className="dc-app" style={{ position: 'fixed', inset: 0, zIndex: 10, minHeight: 0, background: 'none' }}>
+    <div className={`dc-scrim ${leaving ? 'is-leaving' : ''}`} onClick={(e) => e.target === e.currentTarget && setLeaving(true)}
+      onAnimationEnd={(e) => leaving && e.target === e.currentTarget && onClose()}>
+      <div ref={sheet} className="dc-sheet is-apps" role="dialog" aria-modal="true" aria-labelledby="dc-apps-title">
+        <div className="dc-section-head">
+          <h2 className="dc-sheet-title" id="dc-apps-title">全部功能</h2>
+          <button className="dc-icon-btn" type="button" aria-label="关闭" onClick={() => setLeaving(true)}><Icon name="close" /></button>
+        </div>
+        <nav className="dc-tiles" aria-label="全部功能">
+          {items.map((i) => {
+            const here = current(i);
+            const go = link(i.href);
+            return (
+              <a key={i.href} className={`dc-tile ${i.kind ?? ''}`} aria-current={here} href={go.href}
+                onClick={(e) => { if (here) e.preventDefault(); else go.onClick(e); setLeaving(true); }}>
+                <span className="dc-tile-icon"><Icon name={i.icon} /></span>{i.label}
+              </a>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -108,6 +166,7 @@ export function Page({ title, sub, back, actions, children }: {
   title: string; sub?: ReactNode; back?: () => void; actions?: ReactNode; children: ReactNode;
 }) {
   const setInFlow = useContext(InFlow);
+  const openApps = useContext(OpenApps);
   const inFlow = !!back;
   useEffect(() => {
     setInFlow(inFlow);
@@ -119,6 +178,9 @@ export function Page({ title, sub, back, actions, children }: {
         {back && <button className="dc-icon-btn" type="button" aria-label="返回" onClick={() => { returning = true; back(); }}><Icon name="back" /></button>}
         <h1 className="dc-top-title title">{title}{sub && <span className="dc-top-sub">{sub}</span>}</h1>
         {actions}
+        {!back && openApps && (
+          <button className="dc-icon-btn dc-apps-btn" type="button" aria-label="全部功能" aria-haspopup="dialog" onClick={openApps}><Icon name="apps" /></button>
+        )}
       </header>
       <main className="dc-content">{children}</main>
     </>

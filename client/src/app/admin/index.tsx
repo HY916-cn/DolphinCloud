@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, sectionsFor, Stats, Summary, today, TxnListLoading, type IconName, type Move,
+  Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Stats, Summary, today, TxnListLoading, type IconName, type Move,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { formatAmount, formatTime } from '@/lib/format';
@@ -12,8 +12,7 @@ import { toTxn } from '@/lib/txns';
 
 const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
 
-// 总览: the sections this login may open (on phones the tiles are the way to the sections the TabBar has no room
-// for), then what each role looks after, every item a link to the page that handles it: today's business, the bank's
+// 总览: what each role looks after, every item a link to the page that handles it: today's business, the bank's
 // balance, the loans outstanding with those overdue, and the latest transactions (accountant, teacher); logins that need attention (teacher, sysadmin); products
 // running out and the latest stock movements (storekeeper, teacher). Teachers also see the last ledger check that
 // found a difference (§9.4). Each read is only made for the roles RLS lets see it.
@@ -246,15 +245,6 @@ export default function Admin() {
         </Notice>
       )}
       {left && right ? <div className="dc-split">{left}{right}</div> : left || right}
-      {/* Every section as a tile, last: the data comes first, and phones reach the sections the TabBar has no room for. */}
-      <div>
-        <p className="dc-list-title">全部管理</p>
-        <div className="dc-tiles dc-enter">
-          {sectionsFor(me).map((s) => (
-            <a key={s.href} className={`dc-tile ${s.kind ?? ''}`} {...link(s.href)}><span className="dc-tile-icon"><Icon name={s.icon} /></span>{s.label}</a>
-          ))}
-        </div>
-      </div>
     </Desk>
   );
 }
