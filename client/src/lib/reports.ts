@@ -63,8 +63,8 @@ type Sheet = [string, Cell[][]];
 const TYPE = { opening: '期初余额', deposit: '存款', withdraw: '取款', purchase: '兑换', reversal: '冲正', salary: '工资', interest: '利息', term_open: '开定期', term_close: '定期转回', wealth_buy: '买理财', wealth_close: '理财转回', loan: '贷款', repay: '还款', closing: '注销清零', adjust: '调账' } as const;
 const PAYMENT = { account: '账户', cash: '现金' } as const;
 
-// Every transaction the filters choose, oldest first.
-const ledgerRows = (select: string, f: LedgerFilter) => readAll((from, to) => ledgerQuery(select, f).order('seq').range(from, to) as unknown as
+// Every transaction the filters choose, oldest first by when it happened (a 补录 at its original time).
+const ledgerRows = (select: string, f: LedgerFilter) => readAll((from, to) => ledgerQuery(select, f).order('created_at').order('seq').range(from, to) as unknown as
   PromiseLike<{ data: LedgerRow[] | null; error: unknown }>);
 const shownName = (r: LedgerRow, fullNames: boolean) => (fullNames ? r.students?.name ?? '' : maskName(r.students?.name ?? ''));
 const business = (r: LedgerRow) => TYPE[r.type] + (['purchase', 'loan', 'repay'].includes(r.type) && r.payment ? `（${PAYMENT[r.payment]}）` : '');

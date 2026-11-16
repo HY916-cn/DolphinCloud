@@ -73,7 +73,8 @@ export default function Admin() {
     queryKey: ['admin-overview', 'recent'],
     enabled: money,
     queryFn: async () => {
-      const { data, error } = await supabase.from('txns').select(LEDGER).order('seq', { ascending: false }).limit(8);
+      const { data, error } = await supabase.from('txns').select(LEDGER)
+        .order('created_at', { ascending: false }).order('seq', { ascending: false }).limit(8);
       if (error) throw error;
       return data as unknown as LedgerRow[];
     },
