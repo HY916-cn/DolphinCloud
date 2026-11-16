@@ -27,9 +27,9 @@ export function SheetList({ people, label = '本次涉及' }: { people: [string,
 // holds the choices a confirmation needs (e.g. a reason); `ready` keeps the confirm button off until they are made.
 // Focus starts on the first button, stays in the sheet, and goes back to what opened it when the sheet is gone.
 // `alt` adds a second way to go on beside the confirm button (下载 PDF beside 打印); `cancel={null}` leaves the
-// confirm button alone (知道了).
-export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = true, busy = false, alt, onConfirm, onClose, children }: {
-  title: string; text?: ReactNode; confirm: string; cancel?: string | null; ready?: boolean; busy?: boolean;
+// confirm button alone (知道了); `danger` draws the confirm button as a ghost danger one (强制下班 beside 关闭).
+export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = true, busy = false, danger, alt, onConfirm, onClose, children }: {
+  title: string; text?: ReactNode; confirm: string; cancel?: string | null; ready?: boolean; busy?: boolean; danger?: boolean;
   alt?: { label: string; onClick: () => void }; onConfirm: () => void; onClose: () => void; children?: ReactNode;
 }) {
   const [leaving, setLeaving] = useState(false);
@@ -61,7 +61,7 @@ export function ConfirmSheet({ title, text, confirm, cancel = '取消', ready = 
         <div className="dc-sheet-actions">
           {cancel !== null && <button ref={first} className="dc-btn dc-btn-secondary" type="button" onClick={() => setLeaving(true)}>{cancel}</button>}
           {alt && <button className="dc-btn dc-btn-secondary" type="button" disabled={!ready || busy} onClick={alt.onClick}>{alt.label}</button>}
-          <button ref={cancel === null ? first : undefined} className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!ready || busy} onClick={onConfirm}>{confirm}</button>
+          <button ref={cancel === null ? first : undefined} className={`dc-btn ${danger ? 'dc-btn-ghost is-danger' : 'dc-btn-primary'} ${busy ? 'is-loading' : ''}`} type="button" disabled={!ready || busy} onClick={onConfirm}>{confirm}</button>
         </div>
       </div>
     </div>

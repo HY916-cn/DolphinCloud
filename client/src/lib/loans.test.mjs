@@ -1,7 +1,7 @@
 // node src/lib/loans.test.mjs — 贷款 as the counter, 我的贷款 and the back office write them.
 import assert from 'node:assert/strict';
 const {
-  amountHint, byUrgency, penaltyRate, closedLine, homeLoanLine, lastDue, myLoanLine, nextPayment, openLoan, overdueText, periodLines, planText, repayProblem, repaySplit,
+  amountHint, byUrgency, closedLine, homeLoanLine, lastDue, myLoanLine, nextPayment, openLoan, overdueText, periodLines, planText, repayProblem, repaySplit,
 } = await import('./loans.ts');
 
 assert.equal(planText('installment', 4), '分 4 期，每周一期');
@@ -9,9 +9,6 @@ assert.equal(planText('bullet', 4), '一次还清，4 周后');
 assert.equal(planText('installment', 4, true), '分 4 期');
 assert.equal(planText('bullet', 4, true), '一次还清 4 周');
 
-assert.equal(penaltyRate(6.2667, 1.5), 9.4001); // 9.40005 rounds up
-assert.equal(penaltyRate(5.89, 1.5), 8.835);
-assert.equal(penaltyRate(2, 1.5), 3);
 
 assert.deepEqual(amountHint(0, 165), { text: '1 HTB 起，最多 165 HTB', error: false });
 assert.deepEqual(amountHint(165, 165), { text: '1 HTB 起，最多 165 HTB', error: false });

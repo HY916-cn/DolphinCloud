@@ -7,7 +7,8 @@ import {
 import { classOf } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatCenti, formatTime } from '@/lib/format';
-import { penaltyRate, periodLines, planText, rateText, type Loan, type LoanPeriod } from '@/lib/loans';
+import { periodLines, planText, rateText, type Loan, type LoanPeriod } from '@/lib/loans';
+import { penaltyRate } from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';

@@ -3,7 +3,10 @@ import {
   Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Stats, Summary, today, TxnListLoading, type IconName, type Move,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
-import { formatAmount, formatTime } from '@/lib/format';
+import { diffAmount } from '@/lib/cash';
+import type { CashReview } from '@/lib/duty';
+import { dutySpan, formatAmount, formatTime } from '@/lib/format';
+import { call } from '@/lib/rpc';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 import { readAll, supabase } from '@/lib/supabase';
@@ -24,6 +27,7 @@ export default function Admin() {
   const logins = has('teacher', 'sysadmin');
   const goods = has('storekeeper', 'teacher', 'president');
   const ops = has('sysadmin');
+  const accountant = has('accountant');
   const day = today();
 
   // A scheduled job that failed (PHASE-2.md §13); the notice goes once the job next succeeds.
@@ -114,6 +118,13 @@ export default function Admin() {
     },
   });
 
+  // 待复核的轧账 (PHASE-2.md §7.2): how many wait, how many since before today, and the five waiting longest.
+  const cash = useQuery({
+    queryKey: ['cash-overview'],
+    enabled: accountant,
+    queryFn: () => call<{ pending: number; overdue: number; oldest: CashReview[] }>('cash_review_overview', {}),
+  });
+
   const fresh = useNewRows(recent.data?.map((r) => r.id));
 
   const todos: { href: string; icon: IconName; text: string }[] = todo.data ? [
@@ -144,6 +155,36 @@ export default function Admin() {
             })} />
           )}
       </section>
+      {!!cash.data?.pending && (
+        <section className="dc-stack" aria-label="待复核的轧账">
+          <div>
+            <div className="dc-section-head">
+              <h2 className="heading">待复核的轧账 · {cash.data.pending} 次</h2>
+              <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/cash')}>去复核<Icon name="next" /></a>
+            </div>
+            {!!cash.data.overdue && <p className="dc-caption is-danger">{cash.data.overdue} 次已超过一天未复核</p>}
+          </div>
+          <ul className="dc-list" aria-label="待复核的轧账">
+            {[...cash.data.oldest].sort((a, b) => Number(b.overdue) - Number(a.overdue)).map((r) => (
+              <li key={r.duty_id}>
+                <a className="dc-list-link" {...link(`/admin/cash?duty=${r.duty_id}`)}>
+                  <span className="dc-list-icon"><Icon name="balance" /></span>
+                  <span>
+                    {r.name} · {dutySpan(r.started_at, null).split(' ')[0]}
+                    {r.overdue && <> <span className="dc-tag dc-tag-danger"><Icon name="warning" />超过一天</span></>}
+                    {r.status === 'forced' && <> <span className="dc-tag dc-tag-danger"><Icon name="warning" />强制下班</span></>}
+                    <small className="dc-top-sub">
+                      {dutySpan(r.started_at, r.ended_at).split(' ').slice(1).join(' ')} · {r.teller_total === null ? '没有柜员实点'
+                        : `柜员实点 ${formatAmount(r.teller_total)} HTB · ${r.diff ? diffAmount(r.diff) : '—'}`}
+                    </small>
+                  </span>
+                  <Icon name="next" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="dc-stack" aria-label="最近流水">
         <div className="dc-section-head">
           <h2 className="heading">最近流水</h2>

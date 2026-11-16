@@ -46,6 +46,23 @@ export default function Serve() {
   const [reversing, setReversing] = useState<Served | null>(null);
   const current: Business = online ? business : 'deposit';
 
+  // 强制下班: the duty this counter was serving under ended elsewhere while a visit was open (a business came back
+  // OFF_DUTY and 上班 was read again); the visit ends and the counter says why. Offline visits without 上班 stay open.
+  const [onDuty, setOnDuty] = useState<string | null>(null);
+  const [forced, setForced] = useState(false);
+  if (duty.data && duty.data.id !== onDuty) {
+    setOnDuty(duty.data.id);
+    setForced(false);
+  }
+  if (duty.data === null && onDuty && online) {
+    setOnDuty(null);
+    if (student) {
+      setStudent(null);
+      setServed([]);
+      setForced(true);
+    }
+  }
+
   // A stale balance is checked again by the server. An answer that comes after 结束办理 (or after another student was
   // opened) is dropped, so it never reopens the visit.
   const refresh = (no: string) =>
@@ -100,7 +117,12 @@ export default function Serve() {
   // Offline it opens straight to the search, for offline deposits only: the server takes those without 上班
   // (require_duty, PHASE-1.md §7.5). A visit refused for a stale duty ends first (useStaleRefusal).
   if (!student && online && (!duty.data || staleDuty(duty.data))) {
-    return <CounterPage title="办理"><DutyCard me={me} whole /></CounterPage>;
+    return (
+      <CounterPage title="办理">
+        {forced && <Notice tone="danger" title="已被强制下班">行长或银行管理员结束了这次上班。重新上班后才能继续办理。</Notice>}
+        <DutyCard me={me} whole />
+      </CounterPage>
+    );
   }
   if (!student) {
     return (

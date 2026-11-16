@@ -1,12 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { bindSalaryAccount, SHIFT_STATUS, SHIFTS, usePayroll, weekOf, type Payroll, type Shift, type ShiftRow } from '@/lib/attendance';
+import { bindSalaryAccount, SHIFT_STATUS, SHIFTS, usePayroll, useSalaryRates, useShifts, weekOf, type Payroll, type Shift, type ShiftRow } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
-import { formatTime, shiftDay } from '@/lib/format';
+import { formatAmount, formatTime, shiftDay } from '@/lib/format';
 import { call } from '@/lib/rpc';
+import { earned, type PaidRole } from '@/lib/salary';
 import { Summary } from './Counter';
 import { DatePicker, formatDate, today } from './DatePicker';
+import { Stats } from './Report';
 import { ConfirmSheet } from './Sheet';
+import { ListLoading } from './Skeleton';
 import { Toast } from './Toast';
 import { Icon, Notice } from './ui';
 
@@ -15,20 +18,21 @@ const ORDER: Shift[] = ['am', 'pm'];
 // Every refusal here is about attendance and pay, which the error texts are told (`payroll`).
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, { ...e.detail, payroll: true }) : explain(''));
 
-// A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it.
-export function ShiftMark({ shift, row }: { shift: Shift; row?: ShiftRow }) {
-  return <i className={`dc-shift is-${row?.status ?? 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
-}
-// A registered shift (anyone's but a teller's) that was voided reads 已作废; a teller's not passed, 未通过.
-export const statusWord = (row: ShiftRow) => (row.status === 'rejected' && row.role !== 'teller' ? '已作废' : SHIFT_STATUS[row.status]);
+// A registered shift (anyone's but a teller's) that was voided is 已作废 (is-void); a teller's not passed, 未通过.
+const voided = (row: ShiftRow) => row.status === 'rejected' && row.role !== 'teller';
+export const statusWord = (row: ShiftRow) => (voided(row) ? '已作废' : SHIFT_STATUS[row.status]);
 export const shiftWords = (shift: Shift, row?: ShiftRow) => `${SHIFTS[shift]}${row ? statusWord(row) : '未上班'}`;
 
+// A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it.
+export function ShiftMark({ shift, row }: { shift: Shift; row?: ShiftRow }) {
+  return <i className={`dc-shift is-${!row ? 'none' : voided(row) ? 'void' : row.status}`}>{shift === 'am' ? '中' : '下'}</i>;
+}
+
+const LEGEND = [['confirmed', SHIFT_STATUS.confirmed], ['pending', SHIFT_STATUS.pending], ['rejected', SHIFT_STATUS.rejected], ['void', '已作废'], ['none', '未上班']];
 export function ShiftLegend() {
   return (
     <p className="dc-shift-legend" aria-hidden="true">
-      {(['confirmed', 'pending', 'rejected', 'none'] as const).map((s) => (
-        <span key={s}><i className={`dc-shift is-${s}`}>中</i>{s === 'none' ? '未上班' : SHIFT_STATUS[s]}</span>
-      ))}
+      {LEGEND.map(([s, word]) => <span key={s}><i className={`dc-shift is-${s}`}>中</i>{word}</span>)}
     </p>
   );
 }
@@ -264,6 +268,37 @@ export function SalaryAccount({ userId, payroll, readOnly, admin }: { userId: st
       {unbinding && (
         <ConfirmSheet title="解除工资账户的绑定？" text="解除后工资暂不发放，直到绑定新的账户。" confirm="解除绑定"
           onClose={() => setUnbinding(false)} onConfirm={unbind} />
+      )}
+    </section>
+  );
+}
+
+// 我的班次 on 我的 (design system SettingsPage), for staff counted for pay other than tellers (who have 考勤): the week
+// chosen, its 有效班次 and pay at the rates of one's identity now, and its shifts; or why there are none.
+export function MyShifts({ userId, role }: { userId: string; role: PaidRole }) {
+  const [monday, setMonday] = useState(weekOf(today())[0]);
+  const payroll = usePayroll();
+  const rates = useSalaryRates().data ?? undefined;
+  const shifts = useShifts(monday, shiftDay(monday, 6), userId);
+  const mine = payroll.data?.find((p) => p.user_id === userId);
+  const rows = shifts.data ?? [];
+  const r = rates?.[role];
+  return (
+    <section className="dc-stack" aria-label="我的班次">
+      <p className="dc-list-title">我的班次</p>
+      {payroll.data && !mine?.attendance ? (
+        <Notice title="还没有参与考勤">先绑定工资账户，再请银行管理员开启。</Notice>
+      ) : (
+        <>
+          <WeekBar monday={monday} onMonday={setMonday} />
+          <Stats items={[
+            ['有效', rows.filter((x) => x.status === 'confirmed').length, '个班次'],
+            ['工资', rates ? formatAmount(earned(rows, rates)) : '—', 'HTB'],
+          ]} />
+          {shifts.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
+            : shifts.isPending ? <ListLoading rows={3} label="正在加载考勤" /> : <WeekShifts monday={monday} rows={rows} />}
+          <p className="dc-caption">工资：中午班每个 {r?.am ?? '—'} HTB，下午班每个 {r?.pm ?? '—'} HTB。</p>
+        </>
       )}
     </section>
   );

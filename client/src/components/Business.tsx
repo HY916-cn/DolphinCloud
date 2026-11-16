@@ -14,7 +14,7 @@ import { useOnline } from '@/lib/online';
 import { useBump, useNewRows } from '@/lib/motion';
 import { useStaleRefusal } from '@/lib/duty';
 import {
-  about, amountHint as loanAmountHint, interestText, lastDue, overdueText, penaltyRate, planText, rateText, repayProblem, repaySplit,
+  about, amountHint as loanAmountHint, interestText, lastDue, overdueText, planText, rateText, repayProblem, repaySplit,
   type LoanDetail, type LoanPlan, type LoanQuote,
 } from '@/lib/loans';
 import { useMe } from '@/lib/session';
@@ -618,7 +618,7 @@ export function LoanPanel(props: Props) {
   const inactive = INACTIVE[student.status];
   const loan = q?.loan ?? null;
   const shownSettled = settled && served.some((s) => s.txnId === settled.txnId && !s.reversed) ? settled.loan : null;
-  const penalty = (l: LoanDetail) => (settings ? rateText(penaltyRate(l.rate, settings.multiplier)) : '…');
+  const penalty = (l: LoanDetail) => rateText(l.penalty_rate);
   const idle = (left: ReactNode) => (
     <div className="dc-split">
       <section className="dc-stack">{left}</section>

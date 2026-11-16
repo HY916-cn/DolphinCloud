@@ -4,6 +4,7 @@ import { renderDoc, type CashGroup } from './doc';
 import { AppError } from './errors';
 import { formatAmount, formatTime, shanghai } from './format';
 import { readKept, writeKept } from './accounts';
+import { call } from './rpc';
 import { supabase } from './supabase';
 import { KINDS } from './txns';
 
@@ -39,11 +40,12 @@ const dayOf = (d: Date) => { const t = shanghai(d); return `${t.year}-${t.month.
 export const staleDuty = (d: Duty | null | undefined) => !!d && dayOf(new Date(d.started_at)) < dayOf(new Date());
 
 // A business the server refused for a duty left open overnight (STALE_DUTY): 上班 is read again, so once the visit ends
-// the counter shows the card that asks for 下班.
+// the counter shows the card that asks for 下班. One refused as off duty (OFF_DUTY: the president or the bank admin
+// ended the duty, 强制下班) reads 上班 again too, and the counter then ends the visit.
 export function useStaleRefusal() {
   const queryClient = useQueryClient();
   return (err: unknown) => {
-    if (err instanceof AppError && err.code === 'STALE_DUTY') queryClient.invalidateQueries({ queryKey: ['duty'] });
+    if (err instanceof AppError && (err.code === 'STALE_DUTY' || err.code === 'OFF_DUTY')) queryClient.invalidateQueries({ queryKey: ['duty'] });
   };
 }
 
@@ -60,13 +62,8 @@ export function useDuties(uid: string, from: string, to: string) {
   });
 }
 
-// The notes in the cash box at the teller's last 上班 (its 备用金), or null before the first.
-export async function lastFloat(uid: string) {
-  const { data, error } = await supabase.from('duty').select('started_at,cash_counts!inner(float)').eq('user_id', uid)
-    .order('started_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error;
-  return (data?.cash_counts as { float: Counts } | undefined)?.float ?? null;
-}
+// 上班's default 备用金 (default_float): what the teller counted at the last 下班, as the accountant corrected it.
+export const defaultFloat = () => call<Counts>('default_float', {});
 
 type Row = {
   txn_no: string; type: keyof typeof KINDS; amount: number; balance_delta: number; payment: 'account' | 'cash' | null;
@@ -81,15 +78,29 @@ async function dutyTxns() {
   return data as Row[];
 }
 
-// The cash of the open duty by face value (duty_cash): the 备用金, what came in and went out, and what the box should
-// hold, leaving out the transactions reversed within the duty.
+// The cash of a duty by face value (duty_cash; the open one without `id`): the 备用金, what came in and went out,
+// what the box should hold, leaving out the transactions reversed within the duty, and each cash business by time.
 type CashPart = Omit<CashGroup, 'label' | 'strong'>;
-export type DutyCash = { denominations: number[]; float: CashPart; income: CashPart; payout: CashPart; expected: CashPart };
-async function dutyCash() {
-  const { data, error } = await supabase.rpc('duty_cash');
-  if (error) throw error;
-  return data as DutyCash;
-}
+export type CashTxn = {
+  txn_no: string; created_at: string; type: keyof typeof KINDS; student_no: string; name: string | null; amount: number;
+  payment: 'account' | 'cash' | null; status: 'normal' | 'reversed'; income: Counts | null; payout: Counts | null;
+};
+export type DutyCash = {
+  denominations: number[]; float: CashPart; income: CashPart; payout: CashPart; expected: CashPart; cash_txns: CashTxn[];
+};
+export const dutyCash = (id?: string) => call<DutyCash>('duty_cash', id ? { p_duty_id: id } : {});
+
+// 轧账 of one duty (PHASE-2.md §7, cash_reviews): what the box should hold, what the teller and the accountant counted,
+// and the difference by the accountant's count when there is one; null counts before any.
+export type CashStatus = 'open' | 'pending' | 'forced' | 'done';
+export type CashReview = {
+  duty_id: string; user_id: string; name: string; started_at: string; ended_at: string | null; status: CashStatus;
+  float: Counts; expected: Counts; teller_count: Counts | null; teller_note: string | null; review_count: Counts | null;
+  review_note: string | null; count: Counts | null; diff: Counts | null; balanced: boolean | null; expected_total: number;
+  teller_total: number | null; count_total: number | null; diff_total: number | null; reviewed_by: string | null;
+  reviewer_name: string | null; reviewed_at: string | null; forced_by: string | null; forced_reason: string | null;
+  overdue: boolean; reversed: { txn_no: string; reversed_at: string }[];
+};
 
 // How many transactions the teller made since 上班: what end_duty checks when 下班 skips the summary.
 export async function dutyCount() {

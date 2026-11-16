@@ -44,13 +44,25 @@ export async function startDuty(page: Page) {
   await page.getByRole('button', { name: '确认上班' }).click();
 }
 
-// 下班: the summary is kept as a PDF, then the duty ends; `skip` goes on without it.
+// 下班: the cash box is counted as it should hold (a face it should be short of counts 0, with a reason), then the
+// summary is kept as a PDF and the duty ends; `skip` goes on without it.
 export async function endDuty(page: Page, skip = false) {
   await page.getByRole('button', { name: '下班' }).click();
+  const card = page.locator('section[aria-label="点储蓄盒"]');
+  await expect(card.locator('.dc-qty').first()).toBeVisible();
+  for (const qty of await card.locator('.dc-qty').all()) {
+    const expected = await qty.locator('.dc-qty-sum b').textContent();
+    await qty.locator('.dc-qty-input').fill(/^\d+$/.test(expected!) ? expected! : '0');
+  }
+  const actions = page.locator('.dc-actions');
+  await actions.getByRole('button', { name: '核对' }).click();
+  await expect(card.locator('.dc-notice-success, .dc-notice-danger')).toBeVisible();
+  if (await card.locator('.dc-notice-danger').isVisible()) await card.getByLabel('原因').fill('储蓄盒少了零钱');
   if (skip) {
-    await page.locator('.dc-sheet').getByRole('button', { name: '跳过打印' }).click();
+    await actions.getByRole('button', { name: '下班', exact: true }).click();
     await confirmIn(page, '确认下班');
   } else {
+    await actions.getByRole('button', { name: '打印总结' }).click();
     const download = page.waitForEvent('download');
     await confirmIn(page, '下载 PDF');
     expect((await download).suggestedFilename()).toMatch(/^下班总结-.*\.pdf$/);

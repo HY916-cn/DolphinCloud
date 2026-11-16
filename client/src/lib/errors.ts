@@ -61,13 +61,24 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系银行管理员。` };
     case 'STUDENT_INACTIVE':
       return { title: '账户不可办理', text: d.status === 'closed' ? '该账户已注销。' : '该账户已冻结或已毕业，请联系银行管理员。' };
+    // `cash` (end: 下班, review: 复核, force: 强制下班) is the 轧账 pages' own: the server sends no such detail.
     case 'INVALID_AMOUNT':
+      if (d.cash) return { title: '张数有误', text: '实点张数不对，请检查各面额。' };
       return { title: '金额有误', text: d.payoff != null ? `还清本金要连利息零头一起付，全部结清是 ${d.payoff} HTB。` : '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
     case 'FORBIDDEN': return { title: '没有权限', text: '当前账号不能办理这项业务。' };
     case 'LAST_SYSADMIN': return { title: '至少保留一个运维员', text: '这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。' };
     case 'ONE_BANK_ADMIN': return { title: '银行管理员只有一个', text: '不能新增银行管理员，也不能更改银行管理员的身份。' };
     case 'INVALID_INPUT':
+      if (d.cash && d.field === 'note') return { title: '原因太长', text: '原因最多 200 字。' };
+      if (d.cash && d.field === 'reason') return { title: '请写明原因', text: '请写明强制下班的原因，最多 200 字。' };
+      if (d.cash && d.field === 'count') return { title: '请录入实点', text: '这次上班没有柜员实点，请录入点出的各面额张数。' };
+      if (d.cash && d.field === 'duty_id') {
+        return !d.status ? { title: '找不到这次上班', text: '找不到这次上班，请刷新后再试。' }
+          : d.cash === 'force' ? { title: '已经下班', text: '这位柜员已经下班了。' }
+          : d.status === 'open' ? { title: '还在上班', text: '柜员还在上班，下班后才能复核。' }
+          : { title: '已经复核过', text: '这次上班已经复核过了。' };
+      }
       if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
       if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '运维员不参与考勤。' };
       if (d.field === 'tier') return { title: '还没有选档位', text: '请选择档位。' };
@@ -97,6 +108,9 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: '绑定学生账户作为工资账户后，才能参与考勤。' };
     case 'STALE_DUTY':
       return { title: '上次上班还没下班', text: `这次上班从 ${shanghaiTime(String(d.started_at))} 开始，已经跨天。请先下班，再重新上班办理业务。` };
+    case 'NOTE_REQUIRED':
+      return d.cash === 'review' ? { title: '请写明原因', text: '点出的现金和应有不一致，写明原因后才能复核通过。' }
+        : { title: '请写明原因', text: '现金和应有不一致，写明原因后才能下班。' };
     case 'OFF_DUTY': return { title: '还没有上班', text: '请先在「考勤」点「上班」，再办理业务。' };
     case 'SUMMARY_STALE': return { title: '总结需要重新生成', text: `上班后又办理了业务（共 ${d.txns} 笔），请重新生成并打印总结后再下班。` };
     case 'ACCOUNT_CLOSED': return { title: '账号已注销', text: '注销的账号不能再启用或修改。' };

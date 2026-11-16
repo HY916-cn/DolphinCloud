@@ -14,6 +14,8 @@ const e4 = (x: number) => BigInt(Math.round(x * 10_000));
 // numerator / denominator (both positive) to 4 decimals, half away from zero as SQL's round(…, 4).
 const round4 = (n: bigint, d: bigint) => Number((2n * n * 10_000n + d) / (2n * d)) / 10_000;
 
+// The 罚息倍数 is a fixed system value and a loan's rate is locked when it is paid out, so this equals the server's
+// app_private.penalty_rate; the back office's loan page uses it, the counter takes loan.penalty_rate.
 export const penaltyRate = (loan: number, penalty: number) => round4(e4(loan) * e4(penalty), 10n ** 8n);
 
 // The student's examples on 100 HTB (design system StudentCreditPage 本周利率), in 0.01 HTB from the rate in

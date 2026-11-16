@@ -45,3 +45,17 @@ assert.equal(formatPoints(0), '0.00');
 assert.equal(formatPercent(40), '40.0%');
 assert.equal(formatPercent(2.3456, true), '+2.3%');
 assert.equal(formatPercent(-1.25, true), '−1.3%');
+
+// 轧账: a duty's span and the businesses reversed after it.
+{
+  const { dutySpan, reversedNote } = await import('./format.ts');
+  const now = new Date('2026-11-16T04:00:00Z');
+  assert.equal(dutySpan('2026-11-12T23:45:00Z', '2026-11-13T04:30:00Z', now), '11月13日 07:45 – 12:30');
+  assert.equal(dutySpan('2026-11-12T23:45:00Z', '2026-11-13T16:10:00Z', now), '11月13日 07:45 – 11月14日 00:10');
+  assert.equal(dutySpan('2026-11-15T23:45:00Z', null, now), '11月16日 07:45 起');
+  assert.equal(reversedNote([], '2026-11-13T04:30:00Z', now), '');
+  assert.equal(reversedNote([{ reversed_at: '2026-11-13T06:05:00Z' }, { reversed_at: '2026-11-13T06:05:00Z' }], '2026-11-13T04:30:00Z', now),
+    '其中 2 笔已于 14:05 冲正');
+  assert.equal(reversedNote([{ reversed_at: '2026-11-13T06:05:00Z' }, { reversed_at: '2026-11-17T01:10:00Z' }], '2026-11-13T04:30:00Z', now),
+    '其中 2 笔已于 14:05、11月17日 09:10 冲正');
+}

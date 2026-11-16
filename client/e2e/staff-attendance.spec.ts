@@ -25,6 +25,7 @@ test('财务 binds their own 工资账户 on 我的 with the student\'s password
   await expect(page.locator('.dc-toast')).toHaveText('已绑定');
   await expect(card).toContainText('学号 20260001 · 张小明');
   await expect(card.getByRole('button', { name: '更换' })).toBeVisible();
+  await expect(page.locator('section[aria-label="我的班次"]')).toContainText('还没有参与考勤先绑定工资账户，再请银行管理员开启。');
 });
 
 test('the sysadmin\'s 我的 has no 工资账户', async ({ page }) => {
@@ -68,6 +69,19 @@ test('the president registers two of last week\'s shifts and voids one', async (
   await expect(week.getByRole('img', { name: /^财务小郑 .* 下午班已作废 · 登记错了$/ })).toHaveCount(1);
   expect(sql(`select string_agg(shift || ' ' || status || ' ' || role, ', ' order by shift) from public.attendance a
     join public.profiles p on p.id = a.user_id where p.login_id = 'accountant01'`)).toBe('am confirmed accountant, pm rejected accountant');
+});
+
+test('财务 sees their own week on 我的: the shift voided reads 已作废', async ({ page }) => {
+  await signIn(page, '工作人员', 'accountant01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/me');
+  const mine = page.locator('section[aria-label="我的班次"]');
+  await mine.getByRole('button', { name: '上一周' }).click();
+  await expect(mine.locator('.dc-stat', { hasText: '有效' })).toContainText('1个班次');
+  await expect(mine.locator('.dc-shift.is-void')).toHaveCount(2); // the week and the legend
+  await expect(mine.getByRole('table', { name: '本周班次' })).toContainText('已作废');
+  await expect(mine.locator('.dc-shift-legend > span')).toHaveText(['中有效', '中待审', '中未通过', '中已作废', '中未上班']);
+  await expect(mine.locator('.dc-caption')).toHaveText(/^工资：中午班每个 \d+ HTB，下午班每个 \d+ HTB。$/);
 });
 
 test('a president registers neither their own shifts nor another president\'s; the bank admin does', async ({ page }) => {

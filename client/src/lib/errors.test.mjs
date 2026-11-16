@@ -57,4 +57,20 @@ assert.equal(explain('INVALID_INPUT', { field: 'rates', role: 'teller' }).text, 
 assert.equal(explain('INVALID_INPUT', { field: 'user_id', payroll: true }).text, '运维员不参与考勤。');
 assert.equal(explain('INVALID_INPUT', { field: 'user_id' }).text, '请检查账号。');
 
+// 轧账 (M12): the pages pass `cash` (end, review, force).
+assert.equal(explain('NOTE_REQUIRED', { diff: { 10: -1 }, cash: 'end' }).text, '现金和应有不一致，写明原因后才能下班。');
+assert.equal(explain('NOTE_REQUIRED', { diff: { 10: -1 }, cash: 'review' }).text, '点出的现金和应有不一致，写明原因后才能复核通过。');
+assert.equal(explain('NOTE_REQUIRED', { cash: 'review' }).title, '请写明原因');
+assert.equal(explain('INVALID_INPUT', { field: 'note', cash: 'end' }).text, '原因最多 200 字。');
+assert.equal(explain('INVALID_INPUT', { field: 'reason', cash: 'force' }).text, '请写明强制下班的原因，最多 200 字。');
+assert.equal(explain('INVALID_INPUT', { field: 'reason' }).text, '请检查冲正原因。');
+assert.equal(explain('INVALID_INPUT', { field: 'count', cash: 'review' }).text, '这次上班没有柜员实点，请录入点出的各面额张数。');
+assert.equal(explain('INVALID_INPUT', { field: 'duty_id', status: 'done', cash: 'review' }).text, '这次上班已经复核过了。');
+assert.equal(explain('INVALID_INPUT', { field: 'duty_id', status: 'open', cash: 'review' }).text, '柜员还在上班，下班后才能复核。');
+assert.equal(explain('INVALID_INPUT', { field: 'duty_id', status: 'forced', cash: 'force' }).text, '这位柜员已经下班了。');
+assert.equal(explain('INVALID_INPUT', { field: 'duty_id', status: 'pending', cash: 'force' }).text, '这位柜员已经下班了。');
+assert.equal(explain('INVALID_INPUT', { field: 'duty_id', cash: 'force' }).text, '找不到这次上班，请刷新后再试。');
+assert.equal(explain('INVALID_AMOUNT', { cash: 'end' }).text, '实点张数不对，请检查各面额。');
+assert.equal(explain('OFF_DUTY').text, '请先在「考勤」点「上班」，再办理业务。');
+
 console.log('errors ok');

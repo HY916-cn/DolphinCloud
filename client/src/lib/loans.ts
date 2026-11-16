@@ -18,7 +18,7 @@ export type Loan = {
   opened_on: string; closed_on: string | null; terminated_at: string | null; terminated_by: string | null; terminate_reason: string | null;
 };
 export type LoanDetail = Loan & {
-  payoff: number | null; next: { seq: number; due_on: string; amount: number } | null; schedule: LoanPeriod[];
+  penalty_rate: number; payoff: number | null; next: { seq: number; due_on: string; amount: number } | null; schedule: LoanPeriod[];
   payments: { txn_id: string; txn_no: string; created_at: string; amount: number; interest: number; principal: number; auto: boolean; payment: 'account' | 'cash'; status: 'normal' | 'reversed' }[];
 };
 export type LoanQuote = {
@@ -35,9 +35,6 @@ export type LoanPreview = {
 export const planText = (plan: LoanPlan, n: number, brief = false) =>
   plan === 'installment' ? (brief ? `分 ${n} 期` : `分 ${n} 期，每周一期`) : brief ? `一次还清 ${n} 周` : `一次还清，${n} 周后`;
 export const rateText = (r: number) => `${formatRate(r)}/周`;
-// A loan's 罚息 rate: its locked rate × penalty_multiplier, to 4 decimals (app_private.penalty_rate), in integers so a half
-// rounds up as numeric does.
-export const penaltyRate = (rate: number, multiplier: number) => Math.round((Math.round(rate * 10_000) * Math.round(multiplier * 10_000)) / 10_000) / 10_000;
 
 // The new loan's amount field: the range, or over the limit.
 export const amountHint = (amount: number, limit: number) => (amount > limit

@@ -59,3 +59,22 @@ export function greeting(now = new Date()) {
   const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', hour: 'numeric', hourCycle: 'h23' }).format(now));
   return h < 12 ? '上午好' : h < 18 ? '下午好' : '晚上好';
 }
+
+// One 上班 (轧账): "11月13日 07:45 – 12:30", the day again when it ended on another; "11月16日 07:45 起" while open.
+export function dutySpan(start: string, end: string | null, now = new Date()) {
+  if (!end) return `${formatTime(start, now)} 起`;
+  const [day, time] = formatTime(end, now).split(' ');
+  return `${formatTime(start, now)} – ${formatTime(start, now).startsWith(`${day} `) ? time : `${day} ${time}`}`;
+}
+
+// The cash businesses of a duty reversed afterwards: "其中 2 笔已于 14:05 冲正", each different time listed, with
+// its day when it was not the day the duty ended ("14:05、11月17日 09:10"); empty when there are none.
+export function reversedNote(reversed: { reversed_at: string }[], end: string | null, now = new Date()) {
+  if (!reversed.length) return '';
+  const endDay = end ? formatTime(end, now).split(' ')[0] : '';
+  const times = [...new Set(reversed.map((r) => {
+    const [day, time] = formatTime(r.reversed_at, now).split(' ');
+    return day === endDay ? time : `${day} ${time}`;
+  }))];
+  return `其中 ${reversed.length} 笔已于 ${times.join('、')} 冲正`;
+}

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
-import { describeCash, type Counts } from '@/lib/cash';
+import { describeCash, diffNotes, type Counts } from '@/lib/cash';
 import { classOf, deposit, lookupStudent, useRoster, type Student } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount } from '@/lib/format';
@@ -21,29 +21,34 @@ export function QtySum({ amount }: { amount: number }) {
   return <span className="dc-qty-sum">小计<b ref={ref}>{formatAmount(amount)}</b></span>;
 }
 
-// QtyStepper: one card per face value, two columns, counts entered with − / + or typed.
-export function CashCounter({ faces, counts, onChange, kind }: { faces: number[]; counts: Counts; onChange: (c: Counts) => void; kind: string }) {
+// QtyStepper: one card per face value, two columns, counts entered with − / + or typed. `sum` replaces the 小计 (轧账
+// writes 应有 there), `diff` adds each face's 核对 result under its control, and `what` names the count for screen readers.
+export function CashCounter({ faces, counts, onChange, kind, sum, diff, what = '张数' }: {
+  faces: number[]; counts: Counts; onChange: (c: Counts) => void; kind: string; sum?: (face: number) => ReactNode; diff?: Counts | null; what?: string;
+}) {
   const set = (face: number, n: number) => onChange({ ...counts, [face]: Math.max(0, Math.min(999, n || 0)) });
   return (
     <div className={`dc-denoms ${kind}`}>
       {[...faces].sort((a, b) => a - b).map((face) => {
         const n = counts[face] ?? 0;
+        const off = diff?.[face];
         return (
-          <div key={face} className={`dc-qty ${n ? 'is-filled' : ''}`}>
+          <div key={face} className={`dc-qty ${n ? 'is-filled' : ''} ${off === undefined ? '' : off ? 'is-off' : 'is-even'}`}>
             <div className="dc-qty-head">
               <span className="dc-qty-face">{face}<small>元</small></span>
-              <QtySum amount={face * n} />
+              {sum ? sum(face) : <QtySum amount={face * n} />}
             </div>
             <div className="dc-qty-ctrl">
               <button className="dc-qty-btn" type="button" aria-label={`减少一张 ${face} 元`} disabled={!n} onClick={() => set(face, n - 1)}>
                 <Icon name="minus" />
               </button>
-              <input className="dc-qty-input" inputMode="numeric" aria-label={`${face} 元张数`} value={n}
+              <input className="dc-qty-input" inputMode="numeric" aria-label={`${face} 元${what}`} value={n}
                 onFocus={(e) => e.target.select()} onChange={(e) => set(face, Number(e.target.value.replace(/\D/g, '')))} />
               <button className="dc-qty-btn" type="button" aria-label={`增加一张 ${face} 元`} onClick={() => set(face, n + 1)}>
                 <Icon name="plus" />
               </button>
             </div>
+            {off !== undefined && <p className="dc-qty-diff">{diffNotes(off)}</p>}
           </div>
         );
       })}
