@@ -88,6 +88,10 @@ JOBS=$(docker exec "$NAME" dolphin jobs) || fail "dolphin jobs"
 grep -q "^daily  done to $YESTERDAY, last ok " <<<"$JOBS" && grep -q '^weekly done to ' <<<"$JOBS" && grep -q '^term:  none' <<<"$JOBS" \
   || fail "dolphin jobs: $JOBS"
 docker exec "$NAME" dolphin status | grep -q "^jobs: ok, daily done to $YESTERDAY" || fail "dolphin status has no jobs line"
+# On a Monday this week's weekly job may still wait for dolphin-jobs, whose start fetches the 理财 closes first (up to a
+# minute, depending on the network): one run catches up whatever is left, and then there is nothing to do.
+OUT=$(docker exec "$NAME" dolphin jobs run) || fail "dolphin jobs run: $OUT"
+grep -qvE "^(Nothing to catch up|weekly $(sql "select app_private.cn_date(now())") (holiday|done))\$" <<<"$OUT" && fail "dolphin jobs run caught up more than today's weekly job: $OUT"
 [ "$(docker exec "$NAME" dolphin jobs run)" = "Nothing to catch up" ] || fail "dolphin jobs run when up to date"
 pass "dolphin-jobs runs; dolphin jobs and dolphin status show the jobs up to yesterday"
 
