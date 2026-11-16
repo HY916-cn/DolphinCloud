@@ -14,10 +14,11 @@ for _ in $(seq 1 90); do
   sleep 2
 done
 docker exec "$NAME" test -f /data/run/image-version || { docker logs --tail 40 "$NAME" >&2; echo "FAIL: migrations did not finish" >&2; exit 1; }
-# dolphin-jobs stops and what its start-up catch-up did is undone (a Monday's anchor), so every run starts from the
-# migrated state whatever the day; the lock waits for a catch-up still running.
+# dolphin-jobs stops, with the fetch or catch-up it was running, and what its start-up catch-up did is undone (a
+# Monday's anchor), so every run starts from the migrated state whatever the day; the lock waits for a statement of
+# theirs still under way. 28_wealth clears the 理财 days it fetched itself.
 docker exec "$NAME" supervisorctl stop dolphin-jobs >/dev/null
-docker exec "$NAME" psql -U postgres -qAt -c "lock public.job_runs; set local session_replication_role = replica;
+docker exec "$NAME" psql -U postgres -qAt -c "lock public.job_runs, public.wealth_days, public.rate_weeks; set local session_replication_role = replica;
   delete from public.rate_weeks; update public.job_runs set done_to = app_private.cn_date(now()) - 1, last_ok = null, last_err = null" >/dev/null
 
 failed=0

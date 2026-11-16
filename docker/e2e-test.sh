@@ -33,18 +33,20 @@ for _ in $(seq 1 90); do
 done
 # The snapshot: the migrated rows of every app, Auth and Storage table plus the stored files, restored without
 # replacing tables, so Auth, PostgREST and Storage keep their connections. Replica mode skips triggers and foreign
-# keys (txns refers to itself) while it truncates and reloads. dolphin-jobs stops first and what it did at start-up is
-# undone: the 理财 days it may have fetched and a Monday's anchor, the jobs back where the migrations left them (the lock
-# waits for a catch-up still running); so every run starts from the same data, and a spec that needs them inserts its own.
+# keys (txns refers to itself) while it truncates and reloads. dolphin-jobs stops first, with what it was running, and
+# the lock waits for a statement of theirs still under way. Whatever it did at start-up stays out of the snapshot: no
+# 理财 days and no anchor (a spec that needs them inserts its own), the jobs where the migrations left them. So every
+# restore gives the same data, however late a fetch or catch-up wrote.
 docker exec "$NAME" supervisorctl stop dolphin-jobs >/dev/null
-docker exec "$NAME" psql -U postgres -qAt -c "lock public.job_runs; set local session_replication_role = replica;
-  delete from public.wealth_days; delete from public.rate_weeks;
-  update public.job_runs set done_to = app_private.cn_date(now()) - 1, last_ok = null, last_err = null" >/dev/null
 docker exec -i "$NAME" sh -e <<'SH'
+psql -U postgres -qAt -c "begin; lock public.job_runs, public.wealth_days, public.rate_weeks; commit" >/dev/null
 { echo "set session_replication_role = replica;"
   psql -U postgres -qAt -c "select 'truncate ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ';'
     from pg_tables where schemaname in ('public', 'app_private', 'auth', 'storage')"
-  pg_dump -U postgres --data-only -n public -n app_private -n auth -n storage postgres 2>/dev/null # warns about txns' self-reference
+  pg_dump -U postgres --data-only -n public -n app_private -n auth -n storage \
+    --exclude-table-data=public.wealth_days --exclude-table-data=public.rate_weeks postgres 2>/dev/null # warns about txns' self-reference
+  psql -U postgres -qAt -c "select format('update public.job_runs set done_to = %L, last_ok = null, last_err = null;',
+    app_private.cn_date(now()) - 1)"
 } > /tmp/e2e-base.sql
 tar -cf /tmp/e2e-storage.tar -C /data storage
 SH
