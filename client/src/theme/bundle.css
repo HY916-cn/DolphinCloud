@@ -984,6 +984,8 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-fields dd small { margin-left: var(--space-2); font: 600 13px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-pb-fields dd.is-total { font-size: 20px; font-weight: 800; }
 .dc-pb-fields dd.is-danger { color: rgb(198 40 40); }
+.dc-pb-fields dd.is-in { color: var(--rise); }
+.dc-pb-fields dd.is-out { color: var(--fall); }
 .dc-pb-table col.is-rank { width: 44px; }
 .dc-pb-table td.is-rank { text-align: center; font-weight: 700; }
 .dc-pb-table tr.is-me td { background: rgba(255, 194, 51, .2); font-weight: 700; }
@@ -1380,7 +1382,7 @@ button.dc-week-btn:not(:disabled):focus-visible { box-shadow: var(--focus-ring);
 .dc-list-item small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-list-item > :not(:first-child) { flex: none; }
 /* A gain or a loss (理财): always with its sign and 盈 / 亏 in words, the colour only adds to them. */
-.dc-pl { font-weight: 700; font-variant-numeric: tabular-nums; }
+.dc-pl { font-variant-numeric: tabular-nums; }
 .dc-pl.is-up { color: var(--rise); }
 .dc-pl.is-down { color: var(--fall); }
 @container app (max-width: 599px) {
