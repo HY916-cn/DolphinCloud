@@ -23,10 +23,10 @@ select ok(app_private.term_rate(2) > app_private.saving_rate(2, 1000) and app_pr
 -- Who sets them, and what they take.
 select is(tests.call(:'teacher', $$select set_setting('term_rates', '{"2":2.6,"4":2.8,"12":3.1,"24":3.3,"48":3.6}')$$) -> 'value',
   '{"2":2.6,"4":2.8,"12":3.1,"24":3.3,"48":3.6}', 'the bank admin sets them');
-select is(tests.call(:'president', $$select set_settings('{"term_rates":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5}}')$$),
-  '{"term_rates":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5}}', 'so does the president');
+select is(tests.call(:'teacher', $$select set_settings('{"term_rates":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5}}')$$),
+  '{"term_rates":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5}}', 'all at once too');
 select is(tests.err(w, $$select set_setting('term_rates', '{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5}')$$), 'FORBIDDEN', 'not the others')
-from unnest(array[:'accountant', :'teller', :'ops', :'s1']::uuid[]) w;
+from unnest(array[:'president', :'accountant', :'teller', :'ops', :'s1']::uuid[]) w;
 select is(tests.call(:'teacher', format('select set_setting(''term_rates'', %L)', v)) ->> 'detail', '{"field": "term_rates"}', why)
 from (values ('{"2":2.5,"4":2.75,"12":3,"24":3.25}', 'every length'),
   ('{"2":2.5,"4":2.75,"8":3,"12":3,"24":3.25,"48":3.5}', 'no other'),

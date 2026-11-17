@@ -1,4 +1,5 @@
--- 行长 (president): many logins, the bank admin's rights but managing logins (PHASE-1.md §4.1).
+-- 行长 (president): many logins, the bank admin's business but managing logins, settings and 考勤 review, and reading the
+-- audit log (PHASE-1.md §4.1).
 \ir helpers/setup.psql
 
 select tests.staff('teacher', 'teacher') as teacher \gset
@@ -18,10 +19,7 @@ update profiles set must_change_password = false where id = :'p2';
 
 -- The bank admin's business.
 select is(tests.err(:'p1', $$select bank_report(current_date, current_date)$$), null, '报表');
-select is(tests.err(:'p1', $$select set_setting('ranking_anonymous', 'true')$$), null, '参数');
-select is(tests.err(:'p1', format($$select set_attendance(%L, false)$$, :'t1')), null, '考勤');
 select is(tests.err(:'p1', $$select upsert_product(null, '海豚书签', 2, 1)$$) is distinct from 'FORBIDDEN', true, '商品');
-select is((tests.call(:'p1', $$select count(*) from audit_log$$))::int > 0, true, '日志');
 select is((tests.call(:'p1', $$select count(*) from accounts$$))::int, 2, 'every balance');
 select is((tests.call(:'p1', $$select count(*) from profiles where login_kind = 'staff' and closed_at is null$$))::int, 5, 'the staff list, to read');
 
@@ -38,6 +36,12 @@ select is(tests.err(:'p1', format($$select bind_salary_account(%L, 's1', '123456
 select is(tests.err(:'p1', format($$select unbind_salary_account(%L)$$, :'t1')), 'FORBIDDEN', 'nor unbinding one');
 select is(tests.err(:'p1', $$select register_issue('P1', current_date, '{"10":1}', '开学发行', '王行长')$$), 'FORBIDDEN', 'no 登记发行');
 select is((select count(*)::int from app_private.login_attempts), 0, 'and no student login is tried');
+
+-- Nor settings, 参与考勤 or the audit log.
+select is(tests.err(:'p1', $$select set_setting('ranking_anonymous', 'true')$$), 'FORBIDDEN', 'no 参数');
+select is(tests.err(:'p1', format($$select set_attendance(%L, false)$$, :'t1')), 'FORBIDDEN', 'no 参与考勤');
+select is((tests.call(:'p1', $$select count(*) from audit_log$$))::int, 0, 'no 日志');
+select is((tests.call(:'teacher', $$select count(*) from audit_log$$))::int > 0, true, 'which the bank admin reads');
 
 -- One bank admin still.
 select is(tests.err(:'p1', format($$select set_role(%L, 'teacher')$$, :'p1')), 'FORBIDDEN', 'a president does not become the bank admin');

@@ -262,12 +262,13 @@ select is(tests.err(w, 'select rate_overview()'), 'FORBIDDEN', 'not the others')
 select is(tests.call(w, 'select to_jsonb(count(*) = 10) from rate_weeks'), 'true', 'they read the weekly history') from unnest(array[:'accountant', :'president', :'teacher']::uuid[]) w;
 select is(tests.call(w, 'select count(*) from rate_weeks'), '0', 'the others do not') from unnest(array[:'teller', :'keeper', :'ops', :'s1']::uuid[]) w;
 
--- The settings (§14.3): the president and the bank admin change the anchor's start and bounds; the anchor formula's
+-- The settings (§14.3): the bank admin changes the anchor's start and bounds; the anchor formula's
 -- other keys and the multipliers are fixed.
 select is(tests.call(:'teacher', $$select set_settings('{"anchor_params":{"initial":2.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1.25,"max":5}}')$$),
   '{"anchor_params":{"initial":2.5,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1.25,"max":5}}', 'the bank admin changes the start and bounds');
-select is(tests.call(:'president', $$select set_setting('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}')$$) -> 'value',
-  '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'so does the president');
+select is(tests.err(:'president', $$select set_setting('anchor_params', '{}')$$), 'FORBIDDEN', 'not the president');
+select is(tests.call(:'teacher', $$select set_setting('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}')$$) -> 'value',
+  '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4}', 'and back');
 select is(tests.call(:'teacher', format('select set_setting(%L, %L)', k, v)) ->> 'detail', format('{"field": "%s"}', k), why)
 from (values ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1}', 'every key'),
   ('anchor_params', '{"initial":2,"ratio_target":30,"ratio_step":10,"growth_target":2,"growth_step":1,"weight":0.25,"max_adjust":0.5,"min":1,"max":4,"x":1}', 'no other'),

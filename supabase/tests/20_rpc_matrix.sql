@@ -88,15 +88,18 @@ insert into tests.matrix values
     'select upsert_product(gen_random_uuid(), ''x'', 1, p_listed => true)', '{storekeeper,president,teacher}'),
   ('stock_in(uuid,integer,text)', 'select stock_in(gen_random_uuid(), 1, null)', '{storekeeper,president,teacher}'),
   ('stock_move(text,jsonb,text)', 'select stock_move(''stock_in'', ''[]'', null)', '{storekeeper,president,teacher}'),
-  -- 考勤、工资、参数
-  ('set_attendance(uuid,boolean)', 'select set_attendance(gen_random_uuid(), false)', '{president,teacher}'),
+  -- 考勤: 签到 the accountant, storekeeper and president their own; 补签 and 作废 the president and bank admin;
+  -- 参与考勤, 审查, 发放 and 工资标准 the bank admin (PHASE-2.md §3)
+  ('sign_in_attendance()', 'select sign_in_attendance()', '{accountant,storekeeper,president}'),
   ('makeup_attendance(uuid,date,text,text)', 'select makeup_attendance(gen_random_uuid(), current_date, ''am'', '''')', '{president,teacher}'),
-  ('review_attendance(uuid[],text,text)', 'select review_attendance(''{}'', ''nonsense'', null)', '{president,teacher}'),
-  ('pay_salaries(date)', 'select pay_salaries(null)', '{president,teacher}'),
-  ('set_salary_rates(jsonb)', 'select set_salary_rates(''{}'')', '{president,teacher}'),
   ('void_attendance(uuid,text)', 'select void_attendance(gen_random_uuid(), '''')', '{president,teacher}'),
-  ('set_setting(text,jsonb)', 'select set_setting(''nonsense'', ''1'')', '{president,teacher}'),
-  ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{president,teacher}'),
+  ('set_attendance(uuid,boolean)', 'select set_attendance(gen_random_uuid(), false)', '{teacher}'),
+  ('review_attendance(uuid[],text,text)', 'select review_attendance(''{}'', ''nonsense'', null)', '{teacher}'),
+  ('pay_salaries(date)', 'select pay_salaries(null)', '{teacher}'),
+  ('set_salary_rates(jsonb)', 'select set_salary_rates(''{}'')', '{teacher}'),
+  -- 参数: the bank admin
+  ('set_setting(text,jsonb)', 'select set_setting(''nonsense'', ''1'')', '{teacher}'),
+  ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{teacher}'),
   -- 登记发行: the bank admin alone (PHASE-2.md §3)
   ('register_issue(text,date,jsonb,text,text)', 'select register_issue('''', current_date, ''{}'', '''', '''')', '{teacher}'),
   -- 信用分: the student their own, the accountant, president and bank admin anyone's; 手动调整 the bank admin alone (PHASE-2.md §3)

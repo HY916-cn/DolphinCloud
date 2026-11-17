@@ -18,9 +18,9 @@ select app_private.cn_date(now()) as d \gset
 select app_private.cn_date(now()) - 1 as y \gset
 
 -- 迁移: every counted identity has both shifts at the pay salary_per_shift had
-select is((select count(*)::int from salary_rates), 10, 'five identities × two shifts');
-select is((select count(*)::int from salary_rates where amount = 10), 10, 'each at the pay salary_per_shift had');
-select is((select count(*)::int from salary_rates where role = 'sysadmin'), 0, 'the sysadmin has no pay');
+select is((select count(*)::int from salary_rates), 8, 'four identities × two shifts');
+select is((select count(*)::int from salary_rates where amount = 10), 8, 'each at the pay salary_per_shift had');
+select is((select count(*)::int from salary_rates where role in ('sysadmin', 'teacher')), 0, 'the sysadmin and the bank admin have no pay');
 select is((select count(*)::int from settings where key = 'salary_per_shift'), 0, 'salary_per_shift is gone: the pay is salary_rates');
 select is(tests.call(:'teacher', $$select set_setting('salary_per_shift', '{"am":10,"pm":10}')$$) - 'detail',
   '{"error":"INVALID_INPUT"}', 'and set_setting takes it as an unknown key');
@@ -31,9 +31,7 @@ select is(tests.call(:'acct', $$select bind_salary_account(auth.uid(), 's1', 'wr
 select is(tests.call(:'acct', $$select bind_salary_account(auth.uid(), 's1', '123456')$$) ->> 'account', 's1', 'and binds their own');
 select is(tests.call(:'keeper', $$select bind_salary_account(auth.uid(), 's2', '123456')$$) ->> 'name', '李四', 'the storekeeper too');
 select is(tests.call(:'p1', $$select bind_salary_account(auth.uid(), 's3', '123456')$$) ->> 'account', 's3', 'and a president');
-select is(tests.call(:'teacher', $$select bind_salary_account(auth.uid(), 's4', null)$$) ->> 'error', 'WRONG_PASSWORD',
-  'the bank admin binding their own gives the password');
-select is(tests.call(:'teacher', $$select bind_salary_account(auth.uid(), 's4', '123456')$$) ->> 'account', 's4', 'and binds with it');
+select is(tests.err(:'teacher', $$select bind_salary_account(auth.uid(), 's4', '123456')$$), 'INVALID_INPUT', 'the bank admin has no 工资账户');
 select is(tests.err(:'ops', $$select bind_salary_account(auth.uid(), 's5', '123456')$$), 'INVALID_INPUT', 'the sysadmin has no 工资账户');
 select is(tests.err(:'teacher', format($$select bind_salary_account(%L, 's5', null)$$, :'ops')), 'INVALID_INPUT', 'not even from the bank admin');
 select is(tests.err(:'p1', format($$select bind_salary_account(%L, 's5', null)$$, :'p2')), 'FORBIDDEN', 'a president binds only their own');
@@ -47,8 +45,9 @@ select is(tests.call(:'teacher', format($$select bind_salary_account(%L, 's6', n
 -- 参与考勤
 select is(tests.err(:'teacher', format($$select set_attendance(%L, true)$$, :'p2')), 'SALARY_UNBOUND', 'counted only with a bound account');
 select is(tests.err(:'teacher', format($$select set_attendance(%L, true)$$, :'ops')), 'INVALID_INPUT', 'the sysadmin is never counted');
-select is(count(*), 0::bigint, 'every bound identity is counted') from unnest(array[:'t1', :'acct', :'keeper', :'p1', :'teacher']::uuid[]) id
-  where tests.err(:'p1', format($$select set_attendance(%L, true)$$, id)) is not null;
+select is(tests.err(:'teacher', $$select set_attendance(auth.uid(), true)$$), 'INVALID_INPUT', 'nor the bank admin');
+select is(count(*), 0::bigint, 'every bound identity is counted') from unnest(array[:'t1', :'acct', :'keeper', :'p1']::uuid[]) id
+  where tests.err(:'teacher', format($$select set_attendance(%L, true)$$, id)) is not null;
 select is(tests.err(:'acct', $$select unbind_salary_account(auth.uid())$$), 'ATTENDANCE_ON', 'and keeps the account while counted');
 
 -- 登记: the president or the bank admin, with a note, confirmed at once
@@ -62,10 +61,9 @@ select is(tests.err(:'acct', format($$select makeup_attendance(%L, %L, 'pm', '�
 select is(tests.err(:'p1', format($$select makeup_attendance(%L, %L, 'am', '值班')$$, :'p1', :'y')), 'SELF_SERVICE_FORBIDDEN', 'not their own');
 select is(tests.err(:'p2', format($$select makeup_attendance(%L, %L, 'am', '值班')$$, :'p1', :'y')), 'SELF_SERVICE_FORBIDDEN',
   'a president''s shifts are the bank admin''s to register');
-select is(tests.err(:'teacher', format($$select makeup_attendance(%L, %L, 'am', '值班')$$, :'teacher', :'y')), 'SELF_SERVICE_FORBIDDEN',
-  'and the bank admin''s a president''s');
+select is(tests.err(:'p1', format($$select makeup_attendance(%L, %L, 'am', '值班')$$, :'teacher', :'y')), 'INVALID_INPUT',
+  'the bank admin has no shifts');
 select is(tests.call(:'teacher', format($$select makeup_attendance(%L, %L, 'pm', '值班')$$, :'p1', :'y')) ->> 'role', 'president', 'the bank admin registers a president');
-select is(tests.call(:'p1', format($$select makeup_attendance(%L, %L, 'am', '值班')$$, :'teacher', :'y')) ->> 'role', 'teacher', 'a president the bank admin');
 select tests.call(:'teacher', format($$select makeup_attendance(%L, %L, 'pm', '值班')$$, :'keeper', :'y'));
 select tests.call(:'teacher', format($$select makeup_attendance(%L, %L, 'pm', '值班')$$, :'acct', :'y'));
 
@@ -86,39 +84,40 @@ select tests.call(:'t1', $$select start_duty()$$);
 select is((select row(role, status)::text from attendance where user_id = :'t1'), row('teller', 'pending')::text, '上班 signs a teller''s shift to review');
 select is(tests.err(:'teacher', format($$select pay_salaries(%L)$$, :'d')), 'ATTENDANCE_PENDING', 'and pay waits for it');
 select is(tests.err(:'teacher', format($$select void_attendance((select id from attendance where user_id = %L), '作废')$$, :'t1')), 'INVALID_INPUT',
-  'a teller''s shift is reviewed, not voided');
+  'a waiting shift is reviewed, not voided');
 select tests.call(:'teacher', format($$select review_attendance(array[(select id from attendance where user_id = %L)], 'confirmed')$$, :'t1'));
 
 -- 读取: their own shifts, or all for the president and the bank admin
 select is(tests.call(:'acct', $$select count(*) from attendance$$), '2', 'the accountant reads their own shifts');
-select is(tests.call(:'p2', $$select count(*) from attendance$$), '7', 'a president reads them all');
-select is(tests.call(:'keeper', $$select count(*) from salary_rates$$), '10', 'everyone reads the 工资标准');
+select is(tests.call(:'p2', $$select count(*) from attendance$$), '6', 'a president reads them all');
+select is(tests.call(:'keeper', $$select count(*) from salary_rates$$), '8', 'everyone reads the 工资标准');
 
 -- 工资标准
 create temp table rates as select '{"teller": {"am": 11, "pm": 12}, "accountant": {"am": 21, "pm": 22}, "storekeeper": {"am": 31, "pm": 32},
-  "president": {"am": 41, "pm": 42}, "teacher": {"am": 51, "pm": 52}}'::jsonb as v;
+  "president": {"am": 41, "pm": 42}}'::jsonb as v;
 grant select on rates to authenticated;
-select is(tests.err(:'acct', $$select set_salary_rates((select v from rates))$$), 'FORBIDDEN', 'only the president and the bank admin set the pay');
-select is(tests.err(:'teacher', $$select set_salary_rates((select v - 'teacher' from rates))$$), 'INVALID_INPUT', 'every identity has its pay');
+select is(tests.err(:'acct', $$select set_salary_rates((select v from rates))$$), 'FORBIDDEN', 'only the bank admin sets the pay');
+select is(tests.err(:'p1', $$select set_salary_rates((select v from rates))$$), 'FORBIDDEN', 'not a president');
+select is(tests.err(:'teacher', $$select set_salary_rates((select v - 'president' from rates))$$), 'INVALID_INPUT', 'every identity has its pay');
+select is(tests.err(:'teacher', $$select set_salary_rates((select v || '{"teacher": {"am": 1, "pm": 1}}' from rates))$$), 'INVALID_INPUT', 'but the bank admin');
 select is(tests.err(:'teacher', $$select set_salary_rates((select v || '{"sysadmin": {"am": 1, "pm": 1}}' from rates))$$), 'INVALID_INPUT', 'but the sysadmin');
 select is(tests.err(:'teacher', $$select set_salary_rates((select jsonb_set(v, '{teller,am}', '0') from rates))$$), 'INVALID_INPUT', 'a shift pays at least 1');
 select is(tests.err(:'teacher', $$select set_salary_rates((select jsonb_set(v, '{teller}', '{"am": 11}') from rates))$$), 'INVALID_INPUT',
   'each shift has its pay');
-select is(tests.call(:'p1', $$select set_salary_rates((select v from rates))$$), (select v from rates), 'a president sets the pay, answered as set');
-select is((select count(*)::int from audit_log where action = 'salary_rates.update'), 10, 'each change is logged');
+select is(tests.call(:'teacher', $$select set_salary_rates((select v from rates))$$), (select v from rates), 'the bank admin sets the pay, answered as set');
+select is((select count(*)::int from audit_log where action = 'salary_rates.update'), 8, 'each change is logged');
 select is(tests.call(:'teacher', $$select set_salary_rates((select v from rates))$$), (select v from rates), 'setting it again changes nothing');
-select is((select count(*)::int from audit_log where action = 'salary_rates.update'), 10, 'and logs nothing');
+select is((select count(*)::int from audit_log where action = 'salary_rates.update'), 8, 'and logs nothing');
 
 -- 发放: each shift at the pay of the identity it was signed under, whatever the identity is now
 update user_roles set role = 'storekeeper' where user_id = :'acct';
 select tests.call(:'teacher', format($$select pay_salaries(%L)$$, :'d')) as paid \gset
 select is((select jsonb_object_agg(p ->> 'name', p -> 'amount') from jsonb_array_elements(:'paid'::jsonb -> 'paid') p),
-  jsonb_build_object('acct', 21 + 22, 'keeper', 32, 'p1', 42, 'teacher', 51, 't1', case when app_private.shift_of(now()) = 'am' then 11 else 12 end),
+  jsonb_build_object('acct', 21 + 22, 'keeper', 32, 'p1', 42, 't1', case when app_private.shift_of(now()) = 'am' then 11 else 12 end),
   'everyone is paid at their own rate');
 select is(:'paid'::jsonb -> 'rates', (select v from rates), 'with the 工资标准 it read');
 select is((select jsonb_agg(pay order by shift) from attendance where user_id = :'acct'), '[21, 22]', 'each shift keeps what it paid');
 select is((select balance from accounts where student_no = 's1'), 43, 'into the bound account');
-select is((select balance from accounts where student_no = 's4'), 51, 'the bank admin''s too, paid by themself');
 select is((select pay from attendance where id = :'wrong'), null, 'a voided shift pays nothing');
 select is(tests.err(:'teacher', format($$select void_attendance(%L, '作废')$$, :'p1_shift')), 'ATTENDANCE_PAID', 'nor is a paid shift voided');
 select is((select count(*)::int from app_private.check_balances()), 0, 'the ledger self-check still holds');

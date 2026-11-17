@@ -198,9 +198,10 @@ select is(tests.call(:'teacher', 'select adjust_credit(''s1'', 1000, ''表现好
 select is(tests.call(:'teacher', 'select adjust_credit(''s1'', 1, ''表现好'')') ->> 'detail', '{"field": "delta"}', 'and no further');
 select tests.call(:'teacher', 'select adjust_credit(''s1'', -400, ''恢复'')') is not null as restored \gset
 
--- The settings (§14.3): the president and the bank admin, checked for shape, range and the order of each pair.
-select is(tests.call(:'president', $$select set_setting('credit_curve', '{"min_score":300,"limit_min":40,"limit_max":400,"limit_step":10,"loan_max":2,"loan_min":1,"saving_min":0.5,"saving_max":1.5}')$$) ->> 'key',
-  'credit_curve', 'the president changes the curve');
+-- The settings (§14.3): the bank admin, checked for shape, range and the order of each pair.
+select is(tests.err(:'president', $$select set_setting('credit_curve', '{}')$$), 'FORBIDDEN', 'not the president');
+select is(tests.call(:'teacher', $$select set_setting('credit_curve', '{"min_score":300,"limit_min":40,"limit_max":400,"limit_step":10,"loan_max":2,"loan_min":1,"saving_min":0.5,"saving_max":1.5}')$$) ->> 'key',
+  'credit_curve', 'the bank admin changes the curve');
 select is(array[app_private.credit_limit(600), app_private.loan_factor(600), app_private.saving_factor(600)], array[190, 1.5714, 1.1],
   'and the scores follow it at once');
 select is(tests.call(:'teacher', format('select set_setting(''credit_curve'', %L)', c)) ->> 'detail', '{"field": "credit_curve"}', why)
