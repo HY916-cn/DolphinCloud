@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { bindSalaryAccount, SHIFT_STATUS, SHIFTS, usePayroll, useSalaryRates, useShifts, weekOf, type Payroll, type Shift, type ShiftRow } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatTime, shiftDay } from '@/lib/format';
+import { formatAmount, formatTime, shiftAt, shiftDay } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { earned, type PaidRole } from '@/lib/salary';
 import { Summary } from './Counter';
@@ -18,8 +18,11 @@ const ORDER: Shift[] = ['am', 'pm'];
 // Every refusal here is about attendance and pay, which the error texts are told (`payroll`).
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, { ...e.detail, payroll: true }) : explain(''));
 
-// A registered shift (anyone's but a teller's) that was voided is 已作废 (is-void); a teller's not passed, 未通过.
-const voided = (row: ShiftRow) => row.status === 'rejected' && row.role !== 'teller';
+// A shift signed in from the 考勤 table starts confirmed, so once rejected it was voided: 已作废 (is-void). One signed
+// by its own person (上班, or 签到 on 我的) that is rejected was not passed at review: 未通过.
+// shortcut: such a self-signed shift confirmed and then voided also reads 未通过, since attendance keeps no mark of a
+// void; read one once the backend adds it.
+const voided = (row: ShiftRow) => row.status === 'rejected' && row.signed_by !== row.user_id;
 export const statusWord = (row: ShiftRow) => (voided(row) ? '已作废' : SHIFT_STATUS[row.status]);
 export const shiftWords = (shift: Shift, row?: ShiftRow) => `${SHIFTS[shift]}${row ? statusWord(row) : '未上班'}`;
 
@@ -64,7 +67,7 @@ export function WeekShifts({ monday, rows, names }: { monday: string; rows: Shif
     return (
       <span className="dc-week-cell">
         <ShiftMark shift={r.shift} row={r} />
-        <span>{statusWord(r)}<small>{makeup ? `${names?.get(r.signed_by) ?? '银行管理员'}补签` : `${formatTime(r.signed_at).split(' ')[1]} 打卡`}
+        <span>{statusWord(r)}<small>{makeup ? `${names?.get(r.signed_by) ?? '银行管理员'}签到` : `${formatTime(r.signed_at).split(' ')[1]} ${r.role === 'teller' ? '打卡' : '签到'}`}
           {r.note && ` · ${r.note}`}{r.pay != null && ` · 已发 ${r.pay} HTB`}</small></span>
       </span>
     );
@@ -108,7 +111,7 @@ export function DayShifts({ day, rows, names, shifts = ORDER, action }: {
                 <b>{SHIFTS[s]} · {r ? statusWord(r) : '未上班'}</b>
                 {r && (
                   <small className="dc-top-sub">
-                    {makeup ? `${names?.get(r.signed_by) ?? '银行管理员'}${r.role === 'teller' ? '补签' : '登记'} ${formatTime(r.signed_at)}` : `${formatTime(r.signed_at)} 打卡`}
+                    {makeup ? `${names?.get(r.signed_by) ?? '银行管理员'}签到 ${formatTime(r.signed_at)}` : `${formatTime(r.signed_at)} ${r.role === 'teller' ? '打卡' : '签到'}`}
                     {r.note && ` · ${r.note}`}{r.pay != null && ` · 已发工资 ${r.pay} HTB`}
                   </small>
                 )}
@@ -123,7 +126,7 @@ export function DayShifts({ day, rows, names, shifts = ORDER, action }: {
 }
 
 // 工资账户 on 我的 (design system SettingsPage 工作人员的“我的”): where one's own pay goes, bound or changed (更换) in a
-// sheet with the student's password, for every counted identity (all but the sysadmin).
+// sheet with the student's password, for every counted identity (teller, accountant, storekeeper, president).
 export function PayAccount({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
   const payroll = usePayroll();
@@ -181,6 +184,67 @@ export function PayAccount({ userId }: { userId: string }) {
         </ConfirmSheet>
       )}
       {toast && <Toast text="已绑定" onDone={() => setToast(false)} />}
+    </section>
+  );
+}
+
+// 签到 on 我的 (accountant, storekeeper, president; design system SettingsPage): the shift of now (中午班 before 13:30)
+// and how it stands, or 签到 to sign in to it, waiting for the bank admin's review. Without a bound 工资账户 or while
+// not counted the button is off and says why; a refusal shows above the card, and one for a shift already recorded
+// reads the card again.
+export function SignIn({ userId }: { userId: string }) {
+  const queryClient = useQueryClient();
+  const day = today();
+  const shift = shiftAt(new Date());
+  const payroll = usePayroll();
+  const shifts = useShifts(day, day, userId);
+  const mine = payroll.data?.find((p) => p.user_id === userId);
+  const row = shifts.data?.find((r) => r.shift === shift);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<{ title: string; text: string } | null>(null);
+  const [toast, setToast] = useState(false);
+  const why = !mine?.account ? '先绑定工资账户，再签到。' : !mine.attendance ? '还没有参与考勤，请银行管理员开启后再签到。' : null;
+
+  async function sign() {
+    setBusy(true);
+    setError(null);
+    try {
+      await call('sign_in_attendance', {});
+      setToast(true);
+    } catch (err) {
+      setError(err instanceof AppError ? explain(err.code, { ...err.detail, payroll: true, sign: true }) : explain(''));
+    } finally {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['attendance'] }), queryClient.invalidateQueries({ queryKey: ['payroll'] })]);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="dc-stack" aria-label="签到">
+      {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      <div className="dc-card dc-duty">
+        {payroll.isError || shifts.isError ? (
+          <span className="dc-duty-main"><b>暂时无法读取签到</b><small className="dc-top-sub">请检查网络后刷新页面。</small></span>
+        ) : !payroll.data || !shifts.data ? (
+          <span className="dc-duty-main"><b>正在读取…</b></span>
+        ) : row ? (
+          <span className="dc-duty-main">
+            <b>{SHIFTS[shift]} <ShiftMark shift={shift} row={row} /> {statusWord(row)}</b>
+            <small className="dc-top-sub">{formatTime(row.signed_at)} 签到</small>
+          </span>
+        ) : (
+          <>
+            <span className="dc-duty-main">
+              <b>{SHIFTS[shift]} · 还没有签到</b>
+              <small className="dc-top-sub">{why ?? '签到后由银行管理员审查，通过后计入工资。'}</small>
+            </span>
+            <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={!!why || busy} onClick={sign}>
+              <Icon name="check" />签到
+            </button>
+          </>
+        )}
+      </div>
+      {toast && <Toast text="已签到，等银行管理员审查" onDone={() => setToast(false)} />}
     </section>
   );
 }
@@ -273,7 +337,7 @@ export function SalaryAccount({ userId, payroll, readOnly, admin }: { userId: st
   );
 }
 
-// 我的班次 on 我的 (design system SettingsPage), for staff counted for pay other than tellers (who have 考勤): the week
+// 我的班次 on 我的 (design system SettingsPage), for accountants, storekeepers and presidents (tellers have 考勤): the week
 // chosen, its 有效班次 and pay at the rates of one's identity now, and its shifts; or why there are none.
 export function MyShifts({ userId, role }: { userId: string; role: PaidRole }) {
   const [monday, setMonday] = useState(weekOf(today())[0]);

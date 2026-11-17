@@ -48,13 +48,18 @@ assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'closed' }).te
 assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'reversed' }).text, '这笔贷款已经作废。');
 
 // 考勤与工资 (M18): the attendance pages pass `payroll`; the counter's refusals read as before.
-assert.equal(explain('SELF_SERVICE_FORBIDDEN', { payroll: true }).title, '不能登记自己的班次');
+assert.equal(explain('SELF_SERVICE_FORBIDDEN', { payroll: true }).title, '不能给自己签到');
+assert.equal(explain('SELF_SERVICE_FORBIDDEN', { payroll: true }).text, '行长的班次由银行管理员签到。');
+assert.equal(explain('ATTENDANCE_OFF').text, '请银行管理员开启参与考勤后再签到。');
+assert.equal(explain('SALARY_UNBOUND', { sign: true }).text, '先绑定工资账户，再签到。');
+assert.equal(explain('SALARY_UNBOUND').text, '先绑定工资账户，再开启参与考勤。');
+assert.equal(explain('INVALID_INPUT', { field: 'id', payroll: true }).text, '待审的班次请审查。');
 assert.equal(explain('SELF_SERVICE_FORBIDDEN').title, '不能为自己办理');
 assert.equal(explain('ATTENDANCE_REVIEWED', { payroll: true }).text, '这个班次已经作废。');
 assert.equal(explain('ATTENDANCE_PAID').text, '这个班次的工资已经发放，不能作废。');
 assert.equal(explain('ALREADY_EXISTS', { field: 'attendance' }).text, '这个班次已经有记录。');
 assert.equal(explain('INVALID_INPUT', { field: 'rates', role: 'teller' }).text, '工资标准每格 1～10000 HTB。');
-assert.equal(explain('INVALID_INPUT', { field: 'user_id', payroll: true }).text, '运维员不参与考勤。');
+assert.equal(explain('INVALID_INPUT', { field: 'user_id', payroll: true }).text, '银行管理员和运维员不参与考勤。');
 assert.equal(explain('INVALID_INPUT', { field: 'user_id' }).text, '请检查账号。');
 
 // 轧账 (M12): the pages pass `cash` (end, review, force).

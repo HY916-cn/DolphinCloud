@@ -39,7 +39,7 @@ test('行长 reads 信用分 with the curve and the rules, and has no 调整信�
   await expect(page.locator('.dc-kv')).toContainText('能贷款的最低分400 分');
   await expect(page.locator('.dc-kv')).toContainText('贷款系数×1.8 → ×1.1');
   await expect(page.getByRole('table', { name: '加减分规则' }).locator('tr', { hasText: '逾期（应还日结束仍未还清）' })).toContainText('−50');
-  await expect(page.getByRole('link', { name: '在参数页修改' })).toHaveCount(2);
+  await expect(page.getByRole('link', { name: '在参数页修改' })).toHaveCount(0); // 参数 is the bank admin's
 });
 
 test('银行管理员 adjusts a score in two steps, and the student sees it', async ({ page, browser }) => {

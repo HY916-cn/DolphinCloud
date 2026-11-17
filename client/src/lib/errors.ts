@@ -80,7 +80,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
           : { title: '已经复核过', text: '这次上班已经复核过了。' };
       }
       if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
-      if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '运维员不参与考勤。' };
+      if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '银行管理员和运维员不参与考勤。' };
+      if (d.field === 'id' && d.payroll) return { title: '不能作废', text: '待审的班次请审查。' };
       if (d.field === 'tier') return { title: '还没有选档位', text: '请选择档位。' };
       if (d.field === 'holding_id') return { title: '不能赎回', text: '这笔理财已经到期或冲正，不能赎回。' };
       if (d.field === 'change') return { title: '指数涨跌有误', text: '指数涨跌要在 −50% 到 50% 之间，最多 4 位小数。' };
@@ -90,14 +91,14 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       if (d.field === 'loan_id' && d.status) return { title: '这笔贷款不能还款', text: d.status === 'closed' ? '这笔贷款已经结清。' : '这笔贷款已经作废。' };
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };
     case 'ALREADY_EXISTS':
-      if (d.field === 'attendance') return { title: '已经登记过', text: '这个班次已经有记录。' };
+      if (d.field === 'attendance') return { title: '不能签到', text: '这个班次已经有记录。' };
       if (d.wealth && d.field === 'day') return { title: '已经有行情', text: '这一天已经有行情，不能再登记。' };
       return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };
     case 'USER_NOT_FOUND': return { title: '未找到', text: '请刷新后重试。' };
     case 'PRODUCT_NOT_FOUND': return { title: '商品不存在', text: '请刷新后重新选择商品。' };
-    // `payroll` (登记, 作废, 工资账户, 参与考勤) is the attendance pages' own: the server sends no detail.
+    // `payroll` (签到, 作废, 工资账户, 参与考勤) is the attendance pages' own: the server sends no detail.
     case 'SELF_SERVICE_FORBIDDEN':
-      if (d.payroll) return { title: '不能登记自己的班次', text: '行长的班次由银行管理员登记，银行管理员的由行长登记。' };
+      if (d.payroll) return { title: '不能给自己签到', text: '行长的班次由银行管理员签到。' };
       return { title: '不能为自己办理', text: '这是你本人或你的工资账户，请由其他柜员办理。' };
     case 'ATTENDANCE_PAID': return { title: '已经发过工资', text: '这个班次的工资已经发放，不能作废。' };
     case 'ATTENDANCE_REVIEWED':
@@ -105,7 +106,9 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       return { title: '已经审查过', text: '审查过的班次不能再修改。' };
     case 'ATTENDANCE_PENDING': return { title: '还有班次没审查', text: `截至这周日还有 ${d.count} 个待审班次，全部审查后才能发放工资。` };
     case 'ATTENDANCE_ON': return { title: '正在参与考勤', text: '先关闭参与考勤，才能解除工资账户；更换账户可以直接绑定新的。' };
-    case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: '绑定学生账户作为工资账户后，才能参与考勤。' };
+    // `sign` (签到 on 我的 or in the 考勤 table) is the attendance pages' own; otherwise it is 参与考勤 that was refused.
+    case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: d.sign ? '先绑定工资账户，再签到。' : '先绑定工资账户，再开启参与考勤。' };
+    case 'ATTENDANCE_OFF': return { title: '还没有参与考勤', text: '请银行管理员开启参与考勤后再签到。' };
     case 'STALE_DUTY':
       return { title: '上次上班还没下班', text: `这次上班从 ${shanghaiTime(String(d.started_at))} 开始，已经跨天。请先下班，再重新上班办理业务。` };
     case 'NOTE_REQUIRED':

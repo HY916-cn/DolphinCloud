@@ -90,7 +90,7 @@ export default function Wealth() {
         <section className="dc-card dc-stack dc-enter" aria-label="收益规则" style={enter(1)}>
           <div className="dc-section-head">
             <h2 className="heading">收益规则</h2>
-            {admin && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/settings')}>在参数页修改</a>}
+            {me.roles.includes('teacher') && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/settings')}>在参数页修改</a>}
           </div>
           <Kv rows={[['参考指数', `${o.params.name} · ${o.params.symbol}`], ['系数', `×${o.params.factor}`]]} />
           <p className="dc-list-title">每天的基础收益</p>

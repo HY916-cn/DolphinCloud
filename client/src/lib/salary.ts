@@ -1,10 +1,10 @@
 import type { Role } from './session';
 
-// 工资标准 (PHASE-1.md §5.2, PHASE-2.md §16.2): pay per identity and shift. Every staff identity but the sysadmin is
-// counted; a shift is paid at the rate of the identity it was signed under (attendance.role). Kept apart from
-// lib/attendance so the unit tests load it on its own.
+// 工资标准 (PHASE-1.md §5.2, PHASE-2.md §16.2): pay per identity and shift. Tellers, accountants, storekeepers and
+// presidents are counted, not the bank admin or the sysadmin; a shift is paid at the rate of the identity it was
+// signed under (attendance.role). Kept apart from lib/attendance so the unit tests load it on its own.
 export type Shift = 'am' | 'pm';
-export type PaidRole = Exclude<Role, 'sysadmin'>;
+export type PaidRole = Exclude<Role, 'teacher' | 'sysadmin'>;
 export type Rates = Record<PaidRole, Record<Shift, number>>;
 type Counted = { role: PaidRole; shift: Shift; status: string; pay?: number | null };
 
@@ -29,11 +29,10 @@ export const tally = (rows: Counted[], rates: Rates) => {
   return { am: confirmed.filter((r) => r.shift === 'am').length, pm: confirmed.filter((r) => r.shift === 'pm').length, amount: earned(confirmed, rates) };
 };
 
-// Whose shifts a president or the bank admin registers (登记) and voids (作废): a counted identity other than the
-// teller (whose shifts come from 上班 / 下班) and other than their own, so nobody registers themselves, presidents
-// never each other, and the bank admin's are a president's to register.
-export const mayRegister = (mine: Role | undefined, theirs: Role | null | undefined) =>
-  !!theirs && theirs !== 'teller' && theirs !== 'sysadmin' && theirs !== mine;
+// Whose shifts a president or the bank admin signs in from the 考勤 table and voids (作废): anyone counted but
+// themselves, and a president's only by the bank admin.
+export const maySign = (mine: Role | undefined, theirs: Role | null | undefined, self: boolean) =>
+  !self && !!theirs && (PAID_ROLES as Role[]).includes(theirs) && (mine === 'teacher' || (mine === 'president' && theirs !== 'president'));
 
 // The 工资标准 as typed: a cell's problem, if any, and the table set_salary_rates takes once every cell is right.
 export type RatesDraft = Record<PaidRole, Record<Shift, string>>;

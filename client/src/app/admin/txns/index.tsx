@@ -284,8 +284,8 @@ function TxnLine({ row, page, first, isNew, open, teacher, admin, onReverse }: {
           <Summary rows={facts} />
           {teacher && (
             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-              <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/students/${row.student_no}`)}><Icon name="me" />查看学生</a>
-              {!system && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/staff/${row.operator_id}`)}><Icon name="teacher" />查看经办人</a>}
+              {admin && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/students/${row.student_no}`)}><Icon name="me" />查看学生</a>}
+              {admin && !system && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/staff/${row.operator_id}`)}><Icon name="teacher" />查看经办人</a>}
               {canEdit && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/txns/new?edit=${row.id}`)}><Icon name="settings" />编辑</a>}
               {canReverse && <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={onReverse}><Icon name="transfer" />冲正</button>}
             </div>

@@ -22,7 +22,7 @@ const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', 
 export default function Admin() {
   const me = useMe().data!;
   const has = (...roles: string[]) => me.roles.some((r) => roles.includes(r));
-  const teacher = has('teacher', 'president');
+  const teacher = has('teacher'); // the president reads no audit log, where 自检 records a difference
   const money = has('accountant', 'teacher', 'president');
   const logins = has('teacher', 'sysadmin');
   const goods = has('storekeeper', 'teacher', 'president');

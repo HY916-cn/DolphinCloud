@@ -1,6 +1,6 @@
 // node src/lib/salary.test.mjs — 工资标准 by identity and shift (PHASE-2.md §16.2), and who registers whose shifts.
 import assert from 'node:assert/strict';
-const { earned, mayRegister, PAID_ROLES, ratesDraft, ratesOf, ratesValue, tally } = await import('./salary.ts');
+const { earned, maySign, PAID_ROLES, ratesDraft, ratesOf, ratesValue, tally } = await import('./salary.ts');
 
 const rows = PAID_ROLES.flatMap((role, i) => [{ role, shift: 'am', amount: 10 + i }, { role, shift: 'pm', amount: 20 + i }]);
 const rates = ratesOf(rows);
@@ -13,7 +13,7 @@ const shifts = [
   { role: 'accountant', shift: 'am', status: 'confirmed' },
   { role: 'accountant', shift: 'pm', status: 'confirmed' },
   { role: 'teller', shift: 'pm', status: 'confirmed' },
-  { role: 'teacher', shift: 'am', status: 'confirmed', pay: 5 },
+  { role: 'president', shift: 'am', status: 'confirmed', pay: 5 },
   { role: 'storekeeper', shift: 'am', status: 'rejected' },
   { role: 'storekeeper', shift: 'pm', status: 'pending' },
 ];
@@ -21,16 +21,17 @@ assert.equal(earned(shifts, rates), 11 + 21 + 20 + 5);
 assert.deepEqual(tally(shifts.slice(0, 3), rates), { am: 1, pm: 2, amount: 52 });
 assert.deepEqual(tally(shifts.slice(4), rates), { am: 0, pm: 0, amount: 0 });
 
-// Nobody registers their own identity; presidents never each other; tellers and the sysadmin never.
-assert.equal(mayRegister('president', 'teacher'), true);
-assert.equal(mayRegister('president', 'accountant'), true);
-assert.equal(mayRegister('president', 'president'), false);
-assert.equal(mayRegister('teacher', 'president'), true);
-assert.equal(mayRegister('teacher', 'storekeeper'), true);
-assert.equal(mayRegister('teacher', 'teacher'), false);
-assert.equal(mayRegister('teacher', 'teller'), false);
-assert.equal(mayRegister('teacher', 'sysadmin'), false);
-assert.equal(mayRegister('teacher', null), false);
+// The president and the bank admin sign anyone counted but themselves; a president's only by the bank admin.
+for (const role of PAID_ROLES) assert.equal(maySign('teacher', role, false), true, role);
+assert.equal(maySign('president', 'teller', false), true);
+assert.equal(maySign('president', 'accountant', false), true);
+assert.equal(maySign('president', 'storekeeper', false), true);
+assert.equal(maySign('president', 'president', false), false);
+assert.equal(maySign('president', 'accountant', true), false); // their own row
+assert.equal(maySign('teacher', 'teacher', false), false);
+assert.equal(maySign('teacher', 'sysadmin', false), false);
+assert.equal(maySign('teacher', null, false), false);
+assert.equal(maySign('accountant', 'teller', false), false);
 
 // The table as typed: every cell an integer from 1 to 10000, or nothing to save.
 const draft = ratesDraft(rates);

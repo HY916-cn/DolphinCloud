@@ -29,10 +29,10 @@ const Kv = ({ rows }: { rows: [string, string][] }) => <dl className="dc-kv">{ro
 
 // 利率 (PHASE-2.md §9, design system data.md 利率（后台）): the week's anchor with where it comes from, the weekly
 // rates by score, the fixed 定期周利率, every Monday's anchor with all it was worked out from, and the parameters, read
-// only; the president and the bank admin change them on 参数.
+// only; the bank admin changes them on 参数.
 export default function Rates() {
   const me = useMe().data!;
-  const edit = me.roles.includes('teacher') || me.roles.includes('president');
+  const edit = me.roles.includes('teacher');
   const [shown, setShown] = useState<Week | null>(null);
   const overview = useQuery({ queryKey: ['rate-overview'], queryFn: () => call<Overview>('rate_overview', {}) });
   const weeks = useQuery({

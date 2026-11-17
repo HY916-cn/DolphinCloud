@@ -1,9 +1,9 @@
 import { savedAccounts } from '@/lib/accounts';
 import { formatAmount } from '@/lib/format';
-import type { PaidRole } from '@/lib/salary';
+import { PAID_ROLES, type PaidRole } from '@/lib/salary';
 import { roleOf, ROLES, type Me, type Student } from '@/lib/session';
 import { Avatar } from './Avatar';
-import { MyShifts, PayAccount } from './Attendance';
+import { MyShifts, PayAccount, SignIn } from './Attendance';
 import { signed, useTerm } from './Account';
 import { SaveLogin } from './Accounts';
 import { ViewSwitch } from './Book';
@@ -35,11 +35,12 @@ function StudentAccount({ s }: { s: Student }) {
 }
 
 // 我的 (every login): who is signed in, 切换账号 (this device's accounts), 在此设备保存登录 and 退出账号; a student also
-// picks the 页面样式 (普通版 or 存折版) here, and sees 我的账户 beside the list; staff counted for pay (all but the
-// sysadmin) see their 工资账户, and those but tellers (who have 考勤) 我的班次.
+// picks the 页面样式 (普通版 or 存折版) here, and sees 我的账户 beside the list; staff counted for pay (not the bank
+// admin or the sysadmin) see their 工资账户, and those but tellers (who have 考勤) 签到 and 我的班次.
 export function MeView({ me }: { me: Me }) {
   const s = me.student;
   const others = savedAccounts().filter((a) => a.id !== me.profile.id).length;
+  const paid = s ? undefined : me.roles.find((r): r is PaidRole => (PAID_ROLES as string[]).includes(r));
   const main = (
     <div className="dc-stack dc-enter">
       <div className="dc-person">
@@ -53,8 +54,9 @@ export function MeView({ me }: { me: Me }) {
         </div>
       </div>
       {s && <ViewSwitch current="normal" />}
-      {!s && me.roles.length > 0 && !me.roles.includes('sysadmin') && <PayAccount userId={me.profile.id} />}
-      {!s && me.roles.length > 0 && !me.roles.some((r) => r === 'sysadmin' || r === 'teller') && <MyShifts userId={me.profile.id} role={me.roles[0] as PaidRole} />}
+      {paid && <PayAccount userId={me.profile.id} />}
+      {paid && paid !== 'teller' && <SignIn userId={me.profile.id} />}
+      {paid && paid !== 'teller' && <MyShifts userId={me.profile.id} role={paid} />}
       <ul className="dc-list">
         <li>
           <a className="dc-list-link" {...link('/login?switch=1')}>

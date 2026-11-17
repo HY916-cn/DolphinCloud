@@ -6,23 +6,23 @@ import type { Me, Role } from '@/lib/session';
 import { keepTab } from './Sheet';
 import { Icon, link, type IconName } from './ui';
 
-// Back-office sections and who may open them (PHASE-1.md §4.2).
+// Back-office sections and who may open them (PHASE-1.md §4.2); the president has no 学生, 人员, 参数 or 日志.
 export const SECTIONS: { href: string; icon: IconName; label: string; roles: Role[]; kind?: string }[] = [
-  { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'president', 'sysadmin'] },
+  { href: '/admin/students', icon: 'me', label: '学生', roles: ['teacher', 'sysadmin'] },
   { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/reports', icon: 'ranking', label: '报表', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/cash', icon: 'balance', label: '轧账', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher', 'president'], kind: 'dc-kind-exchange' },
   { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher', 'president'] },
-  { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'president', 'sysadmin'] },
+  { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },
   { href: '/admin/attendance', icon: 'calendar', label: '考勤', roles: ['teacher', 'president'] },
   { href: '/admin/terms', icon: 'school', label: '学期', roles: ['teacher', 'president', 'accountant'] },
   { href: '/admin/credit', icon: 'gauge', label: '信用分', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/loans', icon: 'loan', label: '贷款', roles: ['accountant', 'teacher', 'president'], kind: 'dc-kind-withdraw' },
   { href: '/admin/rates', icon: 'rate', label: '利率', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/wealth', icon: 'invest', label: '理财', roles: ['accountant', 'teacher', 'president'] },
-  { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher', 'president'] },
-  { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'president', 'sysadmin'] },
+  { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher'] },
+  { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'sysadmin'] },
 ];
 export const sectionsFor = (me: Me) => SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)));
 

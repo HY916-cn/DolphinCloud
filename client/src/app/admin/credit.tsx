@@ -24,7 +24,6 @@ const POINTS = { min: 1, max: 1000 };
 export default function Credit() {
   const me = useMe().data!;
   const admin = me.roles.includes('teacher');
-  const editsSettings = admin || me.roles.includes('president');
   const students = useStudents();
   const [text, setText] = useState('');
   const [picked, setPicked] = useState<AdminStudent | null>(null);
@@ -67,7 +66,7 @@ export default function Credit() {
         </div>
       )}
 
-      <CurveCards edit={editsSettings} />
+      <CurveCards edit={admin} />
     </Desk>
   );
 }
@@ -302,7 +301,7 @@ function SwitchSheets({ on, onClose, onDone }: { on: boolean; onClose: () => voi
   );
 }
 
-// The curve and the rules as they stand, read only; the president and the bank admin change them on 参数.
+// The curve and the rules as they stand, read only; the bank admin changes them on 参数.
 function CurveCards({ edit }: { edit: boolean }) {
   const settings = useQuery({
     queryKey: ['settings', 'credit'],

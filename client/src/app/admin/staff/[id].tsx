@@ -6,6 +6,7 @@ import {
   type StaffNotice,
 } from '@/components';
 import { readPayroll, usePayroll } from '@/lib/attendance';
+import { PAID_ROLES } from '@/lib/salary';
 import { AppError, explain } from '@/lib/errors';
 import { formatTime } from '@/lib/format';
 import { call } from '@/lib/rpc';
@@ -16,7 +17,8 @@ type Action = { title: string; text: string; confirm: string; fn: string; args: 
 
 // One staff login: correct its role, reset its password, stop or restore it, or close it for good (注销). Only a
 // teacher manages a teacher's login, which is never closed, and nobody stops or closes their own (PHASE-1.md §6.4). Links to the transactions a teller handled (流水 is the teacher's) and
-// to the login's 日志. Anyone's but a sysadmin's 考勤: whether they are counted, and their 工资账户, which a president reads only.
+// to the login's 日志. A counted login's 考勤 (teller, accountant, storekeeper, president): whether they are counted,
+// which the bank admin switches, and their 工资账户.
 export default function StaffLogin() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe().data!;
@@ -73,16 +75,16 @@ export default function StaffLogin() {
                 ['创建时间', formatTime(p.created_at)],
               ]} />
             </div>
-            {p.role && p.role !== 'sysadmin' && (
+            {p.role && (PAID_ROLES as Role[]).includes(p.role) && (
               <>
                 <div>
                   <p className="dc-list-title">考勤</p>
                   <ul className="dc-list">
                     <li>
                       <label className="dc-switch">
-                        <span className="dc-switch-text"><b>参与考勤</b><small>{p.role === 'teller' ? '开启后上下班计入考勤' : '开启后由行长或银行管理员登记班次'}，有效班次按周发放工资{bankAdmin(me) ? '' : '；由银行管理员设置'}</small></span>
+                        <span className="dc-switch-text"><b>参与考勤</b><small>开启后，柜员上班时自动记班次，其他身份在「我的」里签到。</small></span>
                         <input type="checkbox" role="switch" checked={!!payroll.data?.find((x) => x.user_id === p.id)?.attendance}
-                          disabled={!bankAdmin(me) || !payroll.data}
+                          disabled={!me.roles.includes('teacher') || !payroll.data}
                           onChange={(e) => run({ title: '', text: '', confirm: '', fn: 'set_attendance', args: { p_user_id: p.id, p_on: e.target.checked },
                             done: e.target.checked ? '已参与考勤' : '已停止考勤' })} />
                         <span className="dc-switch-track" />

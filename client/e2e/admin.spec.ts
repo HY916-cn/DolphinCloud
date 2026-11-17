@@ -280,29 +280,27 @@ test('a sign-in with a password notes this device, its IP and its browser on the
   await expect.poll(noted).toBe(`${device}|t|${userAgent}`);
 });
 
-test('行长 has every bank page, and reads students and staff without managing their logins', async ({ page }) => {
+test('行长 has the bank pages but not 学生, 人员, 参数 or 日志, whose addresses go back to 总览', async ({ page }) => {
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
   const nav = page.getByRole('navigation', { name: '主导航' });
-  for (const name of ['学生', '流水', '报表', '商品', '出入库', '人员', '考勤', '参数', '日志']) {
-    await expect(nav.getByRole('link', { name })).toBeVisible();
+  await expect(nav.getByRole('link')).toHaveText(['总览', '流水', '报表', '轧账', '商品', '出入库', '考勤', '学期', '信用分', '贷款', '利率', '理财', '我的']);
+  await expect(page.getByRole('region', { name: '待办' })).toHaveCount(0);
+  for (const path of ['/admin/students', '/admin/students/20260001', '/admin/staff', '/admin/staff/new', '/admin/settings', '/admin/audit']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.locator('.dc-top-title')).toContainText('总览');
   }
+  // 流水 still names the student, with no way to their page.
+  await page.goto('/admin/txns?student=20260001');
+  const first = page.locator('section[aria-label="流水"] details').first();
+  await first.locator('summary').click();
+  await expect(first.getByRole('link', { name: '查看学生' })).toHaveCount(0);
+  await expect(first.getByRole('link', { name: '查看经办人' })).toHaveCount(0);
 
-  await page.goto('/admin/students');
-  await expect(page.getByRole('list', { name: '学生' })).toContainText('张小明');
-  await expect(page.getByRole('button', { name: '选择', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: '导入名册' })).toHaveCount(0);
-  await page.goto('/admin/students/20260001');
-  await expect(page.locator('.dc-person-side')).toContainText('当前余额');
-  await expect(page.getByRole('heading', { name: '最近交易' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '注销账号' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /冻结/ })).toHaveCount(0);
-
-  await page.goto('/admin/staff');
-  await expect(page.getByRole('link', { name: '新增账号' })).toHaveCount(0);
-  await page.getByRole('list', { name: '工作人员' }).locator('.dc-list-link', { hasText: '柜员小林' }).click();
-  await expect(page.getByRole('button', { name: '重置密码' })).toHaveCount(0);
-  await page.goto('/admin/staff/new');
-  await expect(page).toHaveURL(/\/admin$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/admin');
+  await page.getByRole('button', { name: '全部功能' }).click();
+  await expect(page.getByRole('dialog', { name: '全部功能' }).getByRole('link'))
+    .toHaveText(['总览', '流水', '报表', '轧账', '商品', '出入库', '考勤', '学期', '信用分', '贷款', '利率', '理财', '我的']);
 });

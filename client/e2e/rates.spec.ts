@@ -97,10 +97,10 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
   await expect(table.locator('thead th')).toHaveText(['分数', '活期', '贷款', '逾期罚息']);
   await expect(table.locator('tbody tr').first()).toHaveText('0 分1.8%不能贷款不能贷款');
   await expect(table.locator('tbody tr', { hasText: '600 分' })).toHaveText('600 分2.34%7.05%10.575%');
-  // 定期周利率: the fixed rates, below the table; the president changes them on 参数.
+  // 定期周利率: the fixed rates, below the table; the bank admin, not the president, changes them on 参数.
   const term = page.getByRole('region', { name: '定期周利率' });
   await expect(term.locator('.dc-kv > div')).toHaveText(['2 周2.5%', '4 周2.75%', '12 周3%', '24 周3.25%', '48 周3.5%']);
-  await expect(term.getByRole('link', { name: '在参数页修改' })).toBeVisible();
+  await expect(term.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
 
   const history = page.getByRole('table', { name: '每周历史' }).locator('tbody tr');
   await expect(history).toHaveCount(2);
@@ -119,7 +119,7 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
   await expect(card.locator('.dc-kv').first().locator('> div')).toHaveText(['初始锚点2%', '锚点范围1%～4%']);
   await expect(card.locator('.dc-kv').last().locator('> div')).toHaveText(['目标存贷比30%（每差 10% 调整 0.25 个百分点）',
     '目标增速2%（每差 1% 调整 0.25 个百分点）', '每周最多调整±0.5 个百分点', '贷款倍数×2', '罚息倍数×1.5']);
-  await expect(card.getByRole('link', { name: '在参数页修改' })).toBeVisible();
+  await expect(card.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
 });
 
 test('a week’s 活期 interest: 攒着的利息 on 首页, the 利息 entry under 明细 and in 流水, never reversible', async ({ page }) => {

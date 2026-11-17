@@ -155,7 +155,7 @@ function SalaryGroup({ draft, onChange }: { draft: RatesDraft; onChange: (role: 
   return (
     <section className="dc-stack">
       <h2 className="heading is-section">考勤与工资</h2>
-      <p className="dc-caption">每个有效班次按身份发工资，从下一次发放起生效。运维员不参与考勤。</p>
+      <p className="dc-caption">每个有效班次按身份发工资，从下一次发放起生效。银行管理员和运维员不参与考勤。</p>
       {wide ? (
         <div className="dc-card">
           <table className="dc-table" aria-label="工资标准">

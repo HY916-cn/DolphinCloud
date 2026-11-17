@@ -3,7 +3,7 @@ import { confirmIn, endDuty, resetData, signIn, startDuty } from './helpers';
 
 // 考勤与工资 (PHASE-1.md §6.9, §7.5, §7.9) on the seed data: teller01 (柜员小林, on duty) binds 李思远's account
 // (20260002) as the 工资账户; the bank admin counts the teller, whose 下班 and 上班 record the shift of now; the bank
-// admin reviews it, signs in one of last week (补签) and pays both weeks; 李思远 sees the pay in 明细.
+// admin reviews it, signs in one of last week from the table and pays both weeks; 李思远 sees the pay in 明细.
 test.describe.configure({ mode: 'serial' });
 // A teller's 中午班 pays 12 and 下午班 15 (set below in the 工资标准); the teller's shift today is the one of now.
 const nowPay = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -53,7 +53,7 @@ test('下班 and 上班 record the shift of now once, and the counter waits for 
   await expect(teller.locator('section[aria-label="上下班记录"] li')).toHaveCount(2);
 });
 
-test('审查 once, 补签, then 发放工资 by the week once nothing waits', async ({ page }) => {
+test('审查 once, 签到 from the table, then 发放工资 by the week once nothing waits', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
   const week = page.getByRole('table', { name: '本周考勤 · 柜员' });
@@ -63,15 +63,16 @@ test('审查 once, 补签, then 发放工资 by the week once nothing waits', as
   await confirmIn(page, '下一步');
   await confirmIn(page, '确认有效');
   await expect(page.getByText('已确认')).toBeVisible();
-  await expect(week.getByRole('img', { name: /^柜员小林 .*有效$/ })).toHaveCount(1); // reviewed: shown, not opened
+  await expect(week.getByRole('button', { name: /^柜员小林 .*有效$/ })).toHaveCount(1); // reviewed: now it may be voided
   await expect(page.getByRole('button', { name: '全部确认 0' })).toBeDisabled();
 
   await page.getByRole('button', { name: '上一周' }).click();
   await week.getByRole('button', { name: /^柜员小林 .* 中午班未上班$/ }).first().click();
-  await page.getByLabel('补签说明').fill('忘记上班，已核实到岗');
-  await confirmIn(page, '补签');
-  await expect(page.getByText('已补签')).toBeVisible();
-  await expect(week.getByRole('img', { name: /^柜员小林 .* 中午班有效$/ })).toHaveCount(1);
+  await expect(page.locator('.dc-sheet-title')).toHaveText('给柜员小林签到？');
+  await page.locator('.dc-sheet').getByLabel('说明').fill('忘记上班，已核实到岗');
+  await confirmIn(page, '签到');
+  await expect(page.locator('.dc-toast')).toHaveText('已签到');
+  await expect(week.getByRole('button', { name: /^柜员小林 .* 中午班有效 · 忘记上班，已核实到岗$/ })).toHaveCount(1); // still voidable
 
   // Last week's payout pays last week's shift; this week's the one confirmed today; then nothing is left.
   await page.getByRole('button', { name: '发放工资' }).click();
@@ -82,6 +83,7 @@ test('审查 once, 补签, then 发放工资 by the week once nothing waits', as
   await confirmIn(page, `发放 ${nowPay} HTB`);
   await expect(page.getByText(`柜员小林 1 个班次 ${nowPay} HTB → 学号 20260002`)).toBeVisible();
   await expect(page.getByRole('button', { name: '发放工资' })).toBeDisabled();
+  await expect(week.getByRole('img', { name: /^柜员小林 .*有效$/ })).toHaveCount(1); // paid: no longer voided
 });
 
 test('the teller sees what each shift paid', async ({ page: teller }) => {

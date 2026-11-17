@@ -1,6 +1,7 @@
 import { renderDoc, type Block } from '@/lib/doc';
 import { formatAmount, shanghai } from '@/lib/format';
 import { A4, type PdfPage } from '@/lib/pdf';
+import { PAID_ROLES } from '@/lib/salary';
 import { ROLES, type Role } from '@/lib/session';
 import { icons, type IconName } from '@/theme/icons';
 import { today } from './DatePicker';
@@ -55,12 +56,12 @@ export function noticePages(students: NoticeAccount[], resetAt?: Date) {
 }
 
 // A staff login with the initial password the server gave it (import_staff, create_staff, reset_password). `account`
-// is for anyone counted for pay (every identity but the sysadmin).
+// is for anyone counted for pay (teller, accountant, storekeeper, president).
 export type StaffNotice = { login_id: string; name: string; role: string; password: string; payroll: boolean; account: string | null; account_name: string | null };
 
 export function staffNotice(p: { login_id: string; display_name: string; role: Role | null }, password: string,
   pay?: { account: string | null; students: { name: string } | null }): StaffNotice {
-  return { login_id: p.login_id, name: p.display_name, role: p.role ? ROLES[p.role] : '', password, payroll: !!p.role && p.role !== 'sysadmin',
+  return { login_id: p.login_id, name: p.display_name, role: p.role ? ROLES[p.role] : '', password, payroll: !!p.role && (PAID_ROLES as Role[]).includes(p.role),
     account: pay?.account ?? null, account_name: pay?.students?.name ?? null };
 }
 
