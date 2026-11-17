@@ -9,7 +9,7 @@ export type Rates = Record<PaidRole, Record<Shift, number>>;
 type Counted = { role: PaidRole; shift: Shift; status: string; pay?: number | null };
 
 // The rows of the 工资标准 table and the groups of the 考勤 page, in this order.
-export const PAID_ROLES: PaidRole[] = ['teller', 'accountant', 'storekeeper', 'teacher', 'president'];
+export const PAID_ROLES: PaidRole[] = ['teller', 'accountant', 'storekeeper', 'president'];
 export const SALARY_RANGE = { min: 1, max: 10_000 };
 
 // The salary_rates rows as one table; null while any identity or shift is missing (nothing is paid on a guess).

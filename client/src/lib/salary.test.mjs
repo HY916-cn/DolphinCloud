@@ -5,7 +5,7 @@ const { earned, mayRegister, PAID_ROLES, ratesDraft, ratesOf, ratesValue, tally 
 const rows = PAID_ROLES.flatMap((role, i) => [{ role, shift: 'am', amount: 10 + i }, { role, shift: 'pm', amount: 20 + i }]);
 const rates = ratesOf(rows);
 assert.deepEqual(rates.teller, { am: 10, pm: 20 });
-assert.deepEqual(rates.president, { am: 14, pm: 24 });
+assert.deepEqual(rates.president, { am: 13, pm: 23 });
 assert.equal(ratesOf(rows.slice(1)), null); // a missing cell: no table to pay by
 
 // Each shift at the rate of the identity it was signed under; a paid one at what it paid; others nothing.
