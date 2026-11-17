@@ -3,15 +3,15 @@
 交易明细列表：每一笔都有图标、名称、时间和带文字的金额。
 
 - `<ul class="dc-txns">` 内每条 `<li class="dc-txn">`：`dc-txn-icon`（业务图标）、`dc-txn-main` 里放 `dc-txn-title`（“业务 · 详情”）、`dc-txn-time`、`dc-txn-amount`。
-- 收入加 `is-in`，用 `success` 色并写 “+”；支出用 `ink` 色写 “−”。金额下方总是有一个字说明方向（存入 / 支出 / 奖励），不只靠颜色。
+- 红涨绿跌：收入加 `is-in`，用 `rise`（红）并写“+”；支出加 `is-out`，用 `fall`（绿）写“−”；金额为 0 时不加类。金额下方总是有一个字说明方向（存入 / 支出 / 奖励），不只靠颜色。信用分变动同样：加分 `is-in`，扣分 `is-out`。
 - 条目之间用 `line` 色的虚线分隔。
 - 在 `dc-txn` 上加业务类别类（存款 `dc-kind-save`、取款与转账 `dc-kind-withdraw`、兑换 `dc-kind-exchange`、奖励、工资与利息 `dc-kind-reward`），图标块随之换色，扫一眼就能分出钱是怎么动的。收支方向仍由金额的 `+` / `−` 和文字说明。
 
 - 活期利息（`interest`）：图标 `rate`，`dc-kind-reward`，标题“利息 · 11月10日至11月16日活期利息”（后半句是流水的说明），金额加 `is-in`，下方写“存入”。经办人写“系统”；利息不能冲正，任何地方都不给它放冲正入口。
-- 开定期（`term_open`）和定期转回（`term_close`）：图标 `savings`，`dc-kind-save`；开定期“−100”下写“转定期”，定期转回“+112”加 `is-in`、下写“转回”。标题、经办人和冲正规则见 `TermDeposit`。
-- 买理财和理财转回：图标 `invest`，`dc-kind-reward`；买理财“−100”下写“转理财”，理财转回“+103”加 `is-in`、下写“转回”。标题、冲正规则见 `Invest`。
-- 贷款（`loan`）和还款（`repay`）：图标 `loan`，`dc-kind-withdraw`；存入账户的放款“+130”加 `is-in`、下写“放款”，从账户扣的还款“−33”、下写“还款”；付现金、交现金的活期不变，金额不带正负号、用 `ink` 色，下写“现金”。自动扣款的经办人写“系统”。标题、冲正规则见 `Loan`。
-- 调账（`adjust`）：增加时图标 `deposit`、`dc-kind-save`，“+20”加 `is-in`；减少时图标 `withdraw`、`dc-kind-withdraw`，“−20”；下面都写“调账”。
+- 开定期（`term_open`）和定期转回（`term_close`）：图标 `savings`，`dc-kind-save`；开定期“−100”加 `is-out`、下写“转定期”，定期转回“+112”加 `is-in`、下写“转回”。标题、经办人和冲正规则见 `TermDeposit`。
+- 买理财和理财转回：图标 `invest`，`dc-kind-reward`；买理财“−100”加 `is-out`、下写“转理财”，理财转回“+103”加 `is-in`、下写“转回”。标题、冲正规则见 `Invest`。
+- 贷款（`loan`）和还款（`repay`）：图标 `loan`，`dc-kind-withdraw`；存入账户的放款“+130”加 `is-in`、下写“放款”，从账户扣的还款“−33”加 `is-out`、下写“还款”；付现金、交现金的活期不变，金额不带正负号、用 `ink` 色，下写“现金”。自动扣款的经办人写“系统”。标题、冲正规则见 `Loan`。
+- 调账（`adjust`）：增加时图标 `deposit`、`dc-kind-save`，“+20”加 `is-in`；减少时图标 `withdraw`、`dc-kind-withdraw`，“−20”加 `is-out`；下面都写“调账”。
 - 补录、编辑生成的流水按原始时间排列，时间一行后面接“ · 11月15日 补录”。写法见 `ManualEntry`。
 
 使用者提供：交易数组（业务类型、标题、时间、金额、方向）。时间写“10月27日 14:20”，不写年份（当年内）。
