@@ -4,7 +4,7 @@ import { bindSalaryAccount, SHIFT_STATUS, SHIFTS, usePayroll, useSalaryRates, us
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, formatTime, shiftAt, shiftDay } from '@/lib/format';
 import { call } from '@/lib/rpc';
-import { earned, type PaidRole } from '@/lib/salary';
+import { earned, shiftState, type PaidRole } from '@/lib/salary';
 import { Summary } from './Counter';
 import { DatePicker, formatDate, today } from './DatePicker';
 import { Stats } from './Report';
@@ -18,17 +18,13 @@ const ORDER: Shift[] = ['am', 'pm'];
 // Every refusal here is about attendance and pay, which the error texts are told (`payroll`).
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, { ...e.detail, payroll: true }) : explain(''));
 
-// A shift signed in from the 考勤 table starts confirmed, so once rejected it was voided: 已作废 (is-void). One signed
-// by its own person (上班, or 签到 on 我的) that is rejected was not passed at review: 未通过.
-// shortcut: such a self-signed shift confirmed and then voided also reads 未通过, since attendance keeps no mark of a
-// void; read one once the backend adds it.
-const voided = (row: ShiftRow) => row.status === 'rejected' && row.signed_by !== row.user_id;
-export const statusWord = (row: ShiftRow) => (voided(row) ? '已作废' : SHIFT_STATUS[row.status]);
+// 已作废 (is-void) for a voided shift, 未通过 for one rejected at review.
+export const statusWord = (row: ShiftRow) => { const s = shiftState(row); return s === 'void' ? '已作废' : SHIFT_STATUS[s]; };
 export const shiftWords = (shift: Shift, row?: ShiftRow) => `${SHIFTS[shift]}${row ? statusWord(row) : '未上班'}`;
 
 // A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it.
 export function ShiftMark({ shift, row }: { shift: Shift; row?: ShiftRow }) {
-  return <i className={`dc-shift is-${!row ? 'none' : voided(row) ? 'void' : row.status}`}>{shift === 'am' ? '中' : '下'}</i>;
+  return <i className={`dc-shift is-${row ? shiftState(row) : 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
 }
 
 const LEGEND = [['confirmed', SHIFT_STATUS.confirmed], ['pending', SHIFT_STATUS.pending], ['rejected', SHIFT_STATUS.rejected], ['void', '已作废'], ['none', '未上班']];

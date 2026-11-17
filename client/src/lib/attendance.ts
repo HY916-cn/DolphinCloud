@@ -11,7 +11,7 @@ export type { Shift } from './salary';
 export type ShiftStatus = 'pending' | 'confirmed' | 'rejected';
 export type ShiftRow = {
   id: string; user_id: string; day: string; shift: Shift; status: ShiftStatus; signed_at: string; signed_by: string;
-  note: string | null; salary_txn: string | null; pay: number | null; role: PaidRole;
+  note: string | null; salary_txn: string | null; pay: number | null; role: PaidRole; voided_at: string | null;
 };
 export type Payroll = { user_id: string; attendance: boolean; account: string | null; students: { name: string } | null };
 
@@ -28,7 +28,7 @@ export function useShifts(from: string, to: string, userId?: string) {
   return useQuery({
     queryKey: ['attendance', from, to, userId ?? 'all'],
     queryFn: async () => {
-      let q = supabase.from('attendance').select('id,user_id,day,shift,status,signed_at,signed_by,note,salary_txn,pay,role')
+      let q = supabase.from('attendance').select('id,user_id,day,shift,status,signed_at,signed_by,note,salary_txn,pay,role,voided_at')
         .gte('day', from).lte('day', to).order('day').order('shift');
       if (userId) q = q.eq('user_id', userId);
       const { data, error } = await q;

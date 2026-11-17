@@ -3,9 +3,10 @@ import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 全员考勤与工资 (PHASE-2.md §16.2, M18, M21) on the seed data: 财务小郑 (accountant01) binds 张小明's account (20260001)
 // on 我的; the bank admin counts them; they sign in to the shift of now on 我的, which 王行长 (president01) sees waiting
-// and only the bank admin reviews; 王行长 signs in two of last week's shifts from the table and voids one, and does
-// the same for a teller; the bank admin sets the accountant's 中午班 to 30 HTB and pays it. A president signs neither
-// their own shifts nor another president's; the bank admin and the sysadmin have no 工资账户.
+// and only the bank admin reviews; 王行长 then voids it, and it reads 已作废, not 未通过. 王行长 signs in two of last
+// week's shifts from the table and voids one, and does the same for a teller; the bank admin sets the accountant's
+// 中午班 to 30 HTB and pays it. A president signs neither their own shifts nor another president's; the bank admin and
+// the sysadmin have no 工资账户.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 
@@ -87,6 +88,31 @@ test('财务 signs in on 我的; the president sees it waiting, read only; the b
   await expect(page.getByText('已确认')).toBeVisible();
   expect(sql(`select status from public.attendance a join public.profiles p on p.id = a.user_id
     where p.login_id = 'accountant01'`)).toBe('confirmed');
+});
+
+test('the shift signed on 我的 and confirmed, once voided, reads 已作废 and not 未通过', async ({ page }) => {
+  await signIn(page, '工作人员', 'president01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/attendance');
+  const week = page.getByRole('table', { name: '本周考勤 · 财务' });
+  await week.getByRole('button', { name: /^财务小郑 .*有效$/ }).click();
+  await page.locator('.dc-sheet').getByLabel('作废原因').fill('当天不在岗');
+  await confirmIn(page, '作废');
+  await expect(page.locator('.dc-toast')).toHaveText('已作废');
+  await expect(week.getByRole('img', { name: /^财务小郑 .*已作废 · 当天不在岗$/ })).toHaveCount(1);
+  await expect(week.locator('.dc-shift.is-void')).toHaveCount(1);
+  await expect(week.locator('.dc-shift.is-rejected')).toHaveCount(0);
+  expect(sql(`select status || ' ' || (voided_at is not null) || ' ' || (signed_by = user_id) from public.attendance a
+    join public.profiles p on p.id = a.user_id where p.login_id = 'accountant01'`)).toBe('rejected true true');
+
+  await signIn(page, '工作人员', 'accountant01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/me');
+  const signing = page.locator('section[aria-label="签到"]');
+  await expect(signing.locator('b')).toHaveText(/^(中午班|下午班) (中|下) 已作废$/);
+  await expect(signing.locator('.dc-shift.is-void')).toHaveCount(1);
+  await expect(page.getByRole('table', { name: '本周班次' })).toContainText('已作废');
+  await expect(page.getByRole('table', { name: '本周班次' })).not.toContainText('未通过');
 });
 
 test('the president signs in two of last week\'s shifts from the table and voids one', async ({ page }) => {

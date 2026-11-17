@@ -1,6 +1,6 @@
 // node src/lib/salary.test.mjs — 工资标准 by identity and shift (PHASE-2.md §16.2), and who registers whose shifts.
 import assert from 'node:assert/strict';
-const { earned, maySign, PAID_ROLES, ratesDraft, ratesOf, ratesValue, tally } = await import('./salary.ts');
+const { earned, maySign, shiftState, PAID_ROLES, ratesDraft, ratesOf, ratesValue, tally } = await import('./salary.ts');
 
 const rows = PAID_ROLES.flatMap((role, i) => [{ role, shift: 'am', amount: 10 + i }, { role, shift: 'pm', amount: 20 + i }]);
 const rates = ratesOf(rows);
@@ -32,6 +32,12 @@ assert.equal(maySign('teacher', 'teacher', false), false);
 assert.equal(maySign('teacher', 'sysadmin', false), false);
 assert.equal(maySign('teacher', null, false), false);
 assert.equal(maySign('accountant', 'teller', false), false);
+
+// 已作废 is read from voided_at, whoever signed the shift; rejected without it is 未通过.
+assert.equal(shiftState({ status: 'rejected', voided_at: '2026-12-01T05:00:00Z' }), 'void');
+assert.equal(shiftState({ status: 'rejected', voided_at: null }), 'rejected');
+assert.equal(shiftState({ status: 'confirmed', voided_at: null }), 'confirmed');
+assert.equal(shiftState({ status: 'pending', voided_at: null }), 'pending');
 
 // The table as typed: every cell an integer from 1 to 10000, or nothing to save.
 const draft = ratesDraft(rates);

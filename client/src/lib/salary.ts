@@ -19,6 +19,10 @@ export function ratesOf(rows: { role: string; shift: string; amount: number }[])
   return PAID_ROLES.every((r) => rates[r].am != null && rates[r].pm != null) ? rates as Rates : null;
 }
 
+// The state a shift shows: 已作废 once voided (voided_at, PHASE-1.md §6.9), else its status; a rejected one never
+// voided was not passed at review (未通过).
+export const shiftState = <S extends string>(row: { status: S; voided_at: string | null }): S | 'void' => (row.voided_at ? 'void' : row.status);
+
 // What confirmed shifts pay: their own pay once paid, the current rate of their identity and kind until then.
 export const earned = (rows: Counted[], rates: Rates) =>
   rows.filter((r) => r.status === 'confirmed').reduce((s, r) => s + (r.pay ?? rates[r.role][r.shift]), 0);
