@@ -1,7 +1,7 @@
 import { expect, test, type Download } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import * as XLSX from 'xlsx';
-import { confirmIn, resetData, signIn } from './helpers';
+import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 报表 and the counter's 查询 (PHASE-1.md §6.8, §7.5, §7.9) on the seed data: today teller01 served 张小明 (20260001: a
 // deposit of 25, a withdrawal of 15, an exchange of 22 from the account) and 李思远 (20260002: a cash exchange of 6, a
@@ -51,7 +51,11 @@ test('报表: today in figures, charts and tables, the balance check, and the PD
   expect((await download).suggestedFilename()).toMatch(/^银行报表-\d{4}-\d{2}-\d{2}至\d{4}-\d{2}-\d{2}-学号20260001\.pdf$/);
   expect(await pagesOf(await download)).toBeGreaterThanOrEqual(6);
 
-  // A 时段 that ends before the day's business leaves it out.
+  // A 时段 that ends before the day's business leaves it out. 张小明's business of today (seeded at one instant) moves to
+  // noon first, so this holds at any hour; txns is append-only, so replica mode skips its trigger for the update.
+  sql(`set session_replication_role = replica; update public.txns
+    set created_at = (app_private.cn_date(now()) + time '12:00') at time zone 'Asia/Shanghai'
+    where student_no = '20260001' and app_private.cn_date(created_at) = app_private.cn_date(now())`);
   await page.getByRole('button', { name: '按时段' }).click();
   await page.getByRole('button', { name: '每天到', exact: true }).click();
   await page.getByRole('button', { name: '0时', exact: true }).click();
