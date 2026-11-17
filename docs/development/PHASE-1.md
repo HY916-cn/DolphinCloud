@@ -1012,7 +1012,9 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 | 模拟 | `docker/sim-test.sh`：新容器里 2000 名学生、一个 18 周的学期和之后一周假期，每个上学日随机存取款、开定期与提前支取、买理财与赎回（每个开盘日固定的模拟涨跌）、放款与还款、信用分变动，学期中冻结一批账户，按天运行 `run_weekly`、`run_daily`（假期与学期内相同） | 每个周一都有锚点（19 个）且始终在 1%～4%，每天都计活期利息，每天 `check_balances` 无差异，单次 `run_daily` < 30 秒，到期的定期和理财全部转回活期（更长的转入下学期），全部到期的贷款都已结清或逾期在册 |
 
-CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 同时运行三项：类型检查、代码检查与单元测试；构建镜像并运行 `docker/db-test.sh` 与 `docker/smoke-test.sh`；端到端测试分 4 份在 4 台机器上同时运行（各自从 Actions 缓存构建镜像），失败时上传各份的 Playwright 结果。只改 Markdown 或 `docs/` 的推送不运行 CI。推送到 `main` 时，镜像测试通过后先以 `ci-<7 位提交号>` 推送到 GHCR，全部通过后再给同一镜像加上 `main` 与 `sha-<7 位提交号>` 标签（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
+CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 同时运行三项：依赖审计、类型检查、代码检查与单元测试；构建镜像并运行 `docker/db-test.sh` 与 `docker/smoke-test.sh`；端到端测试分 4 份在 4 台机器上同时运行（各自从 Actions 缓存构建镜像），失败时上传各份的 Playwright 结果。只改 Markdown 或 `docs/` 的推送不运行 CI。推送到 `main` 时，镜像测试通过后先以 `ci-<7 位提交号>` 推送到 GHCR，全部通过后再给同一镜像加上 `main` 与 `sha-<7 位提交号>` 标签（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
+
+依赖审计：`npm audit --omit=dev --json` 的结果交给 `.github/npm-audit.mjs` 判定，有 high 或 critical 级别、且不在脚本 `ALLOWED` 放行名单里的公告即失败；只因依赖了放行公告所在的包而被标记的上游包随之放行。放行名单目前只有 `GHSA-fc5q-39xc-vjpf`（picomatch ReDoS）：没有修复版本，只有 expo/metro 构建工具用到 picomatch，导出的静态站点不包含它；有修复版本后删去这一条。
 
 ---
 

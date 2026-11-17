@@ -36,7 +36,8 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
         working-directory: client
-      - run: npm audit --omit=dev --audit-level=high
+      # Fails on high or critical advisories outside the allow list in .github/npm-audit.mjs.
+      - run: npm audit --omit=dev --json | node ../.github/npm-audit.mjs
         working-directory: client
       # Expo writes this file (CSS and asset module types) on `expo start`; it is not committed.
       - run: echo '/// <reference types="expo/types" />' > expo-env.d.ts && npm run typecheck
