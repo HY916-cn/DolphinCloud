@@ -101,6 +101,26 @@ select is(tests.call(:'p1', format($$select void_attendance(%L, '签错了')$$, 
   'a president voids a teller''s');
 select is(tests.call(:'teacher', format($$select void_attendance(%L, '签错了')$$, :'p1_y')) ->> 'status', 'rejected',
   'the bank admin a president''s');
+-- 已作废 apart from 未通过: a voided shift records who voided it and when, a rejected one at review does not
+select is((select row(status, voided_by, voided_at = reviewed_at)::text from attendance where id = (:'t1_y'::jsonb ->> 'id')::uuid),
+  row('rejected', :'p1', true)::text, 'a voided shift is rejected, with who voided it and when');
+select is((select row(status, voided_by, voided_at)::text from attendance where id = :'keeper_in'), row('rejected', null, null)::text,
+  'a shift rejected at review is not voided');
+select throws_ok(format($$update attendance set voided_at = now(), voided_by = %L where status = 'confirmed'$$, :'teacher'), '23514', null,
+  'only a rejected shift is voided');
+select throws_ok(format($$update attendance set voided_at = now() where id = %L$$, :'keeper_in'), '23514', null, 'with who voided it');
+select is((tests.call(:'t1', $$select jsonb_agg(jsonb_build_object('by', voided_by, 'void', voided_at is not null)) from attendance$$)),
+  jsonb_build_array(jsonb_build_object('by', :'p1', 'void', true)), 'the teller reads their own voided shift, and only their own');
+select is((tests.call(:'keeper', $$select jsonb_agg(voided_at is not null order by day) from attendance$$)), '[false, false]',
+  'the storekeeper their own, none voided');
+select is((tests.call(:'p2', $$select count(*) filter (where voided_at is not null) from attendance$$))::int, 2, 'a president reads every voided one');
+-- 回填: the shifts voided before these columns, from the audit log
+update attendance set voided_at = null, voided_by = null where id = (:'t1_y'::jsonb ->> 'id')::uuid;
+select is(app_private.mark_voided_from_log(), 1, 'the backfill marks the shift the log shows voided');
+select is((select row(voided_by, voided_at = reviewed_at)::text from attendance where id = (:'t1_y'::jsonb ->> 'id')::uuid), row(:'p1', true)::text,
+  'with who voided it and when');
+select is((select voided_at from attendance where id = :'keeper_in'), null, 'not the one rejected at review');
+select is(app_private.mark_voided_from_log(), 0, 'and marks nothing again');
 select tests.call(:'t1', $$select start_duty()$$);
 select is(tests.err(:'p1', format($$select void_attendance(%L, '签错了')$$, (select id from attendance where user_id = :'t1' and day = :'d'))),
   'INVALID_INPUT', 'a waiting shift is reviewed, not voided');

@@ -333,7 +333,10 @@ create table attendance (                      -- 每个工作人员每个班次
   reviewed_at timestamptz,
   salary_txn  uuid references txns(id),                     -- 发放这个班次工资的 salary 流水
   pay         integer,                                      -- 发放时这个身份、这种班次的工资
-  unique (user_id, day, shift)
+  voided_at   timestamptz,                                  -- 作废时间；审查未通过的为空
+  voided_by   uuid references profiles(id),                 -- 作废人
+  unique (user_id, day, shift),
+  check ((voided_at is null) = (voided_by is null) and (voided_at is null or status = 'rejected'))
 );
 
 create table salary_rates (                    -- 工资标准：参与考勤的每个身份、每种班次一行
@@ -508,7 +511,7 @@ create table salary_rates (                    -- 工资标准：参与考勤的
 | `end_duty(p_txns, p_count, p_note)` | teller | 下班：`p_txns` 是下班总结里列出的业务笔数，与上班以来本人办理的笔数不同时返回 `SUMMARY_STALE`（总结已过时，需重新打印）；未上班时 `OFF_DUTY`。参与考勤的柜员同时记下下班时所在的班次。跨天未下班的上班也照此下班，之后重新上班即可办理。下班时把按面额算出的应有写进 `cash_counts.expected`，同时录入储蓄盒各面额的实点（`p_count`）与应有比对，不等时须写原因（`p_note`，否则 `NOTE_REQUIRED`），状态改为待复核 `pending`；之后由财务复核（PHASE-2.md §7、§15）。行长、银行管理员可以强制柜员下班（`force_end_duty`），强制下班时不记班次 |
 | `duty_cash(p_duty_id)` | teller / accountant / president / teacher | 下班总结的现金表（PHASE-2.md §4）：备用金、收入、付出、应有，各面额张数、金额与合计；不传时为本人当前的上班（未上班时 `OFF_DUTY`），柜员只能查本人的上班 |
 | `makeup_attendance(p_user_id, p_day, p_shift, p_note)` | president / teacher | 在考勤表里为他人签到，柜员、财务、库管、行长都一样：今天已开始的班次或以前的班次（`INVALID_INPUT`，`field: day`），须写说明（`field: note`），直接计为有效，不再审查；已有记录（含已作废的）时 `ALREADY_EXISTS`；对象是银行管理员、运维员时 `INVALID_INPUT`（`field: user_id`）。不能给自己签，行长的班次只由银行管理员签（`SELF_SERVICE_FORBIDDEN`）。班次记下当时的身份（`attendance.role`） |
-| `void_attendance(p_id, p_note)` | president / teacher | 作废有效的班次（各身份都一样），须写原因：状态改为未通过（`rejected`），不发工资，这个班次也不能再签到；待审的班次走审查（`INVALID_INPUT`，`field: id`）；已发工资的不能作废（`ATTENDANCE_PAID`），已作废的不能再作废（`ATTENDANCE_REVIEWED`）；本人的、以及行长作废行长的（`SELF_SERVICE_FORBIDDEN`） |
+| `void_attendance(p_id, p_note)` | president / teacher | 作废有效的班次（各身份都一样），须写原因：状态改为 `rejected` 并记下作废时间和作废人（`voided_at`、`voided_by`，以此与审查未通过区分），不发工资，这个班次也不能再签到；待审的班次走审查（`INVALID_INPUT`，`field: id`）；已发工资的不能作废（`ATTENDANCE_PAID`），已作废的不能再作废（`ATTENDANCE_REVIEWED`）；本人的、以及行长作废行长的（`SELF_SERVICE_FORBIDDEN`） |
 | `set_salary_rates(p_rates)` | teacher（行长不可） | 设定工资标准：`{"teller":{"am":10,"pm":10},"accountant":{…},"storekeeper":{…},"president":{…}}`，四个身份、两种班次都要给，每项 1～10000 的整数（`INVALID_INPUT`，`field: rates`）；返回同样格式的全表；改动由 `salary_rates` 的审计触发器逐行记录（`salary_rates.update`） |
 | `review_attendance(p_ids, p_status, p_note)` | teacher（行长不可） | 审查待审班次（柜员上班记下的、其他身份本人签到的；「全部确认」一次传一周的全部待审班次）：设为有效（`confirmed`）或未通过（`rejected`）；审查后不能再改（`ATTENDANCE_REVIEWED`） |
 | `bind_salary_account(p_user_id, p_student_no, p_password)` | 柜员、财务、库管、行长（本人）/ teacher / sysadmin（他人） | 绑定工资账户。本人绑定（含行长）须输入该学生账户的登录密码；银行管理员、运维员为他人绑定不需要密码（PHASE-2.md §5.2），行长不能为他人绑定（`FORBIDDEN`）；银行管理员、运维员不能有工资账户（`INVALID_INPUT`，`field: user_id`）。输错计入该学生账号的登录锁定（15 分钟内 5 次锁定 15 分钟），因此不报错而返回 `{"error":"WRONG_PASSWORD"}` 或 `{"error":"LOGIN_LOCKED"}`；一个学生账户只绑定一个工作人员（`ALREADY_EXISTS`）；只能绑定在读（`normal`）的账户（`STUDENT_INACTIVE`） |
