@@ -2,7 +2,7 @@
 
 考勤：柜员上下班和老师审核班次用的一组部件，用“中”“下”两个字的小标记表示中午班和下午班。
 
-- 班次标记 `<i class="dc-shift is-confirmed">中</i>`，五种状态：`is-confirmed` 已确认（`success` 实底）、`is-pending` 待审（白底 `dolphin-deep` 描边）、`is-rejected` 未通过（柜员的班次审查未通过，`danger-soft` 底加删除线）、`is-void` 已作废（登记的班次被作废，白底 `line-strong` 描边、`ink-muted` 字加删除线）、`is-none` 未上班（`cloud-100` 底）。旁边总有文字或读屏文字，图例用 `dc-shift-legend`，五种都列出。
+- 班次标记 `<i class="dc-shift is-confirmed">中</i>`，五种状态：`is-confirmed` 有效（`success` 实底）、`is-pending` 待审（白底 `dolphin-deep` 描边）、`is-rejected` 未通过（柜员的班次审查未通过，`danger-soft` 底加删除线）、`is-void` 已作废（登记的班次被作废，白底 `line-strong` 描边、`ink-muted` 字加删除线）、`is-none` 未上班（`cloud-100` 底）。旁边总有文字或读屏文字，图例用 `dc-shift-legend`，五种都列出。
 - 周选择 `dc-weekbar`：上一周、日期（`DatePicker is-bare`）、下一周，不在本周时多一个“本周”。页面主操作不放在这里，手机上放进 `ActionBar`。
 - 上下班卡片 `dc-duty`：`dc-duty-main` 里 `<b>` 写状态、`<small>` 写一句说明，按钮放右边（多个时用 `dc-duty-actions`）。四种状态：
   - 未上班：“未上班”，说明两个班次的分界，主按钮“上班”。
@@ -17,7 +17,7 @@
 - 办理页在未上班和跨天未下班时，整页只有这张卡片，放大成 `EmptyState`：未上班用 `clock` 图标；跨天未下班用 `warning` 图标并加 `dc-empty-icon is-danger`（`danger-soft` 底、`danger` 图标），按钮是主按钮“下班”。
 - 办理中服务器拒绝为跨天未下班（`STALE_DUTY`）时，用 `Notice`（`danger`）提示，结束这次办理后回到上面的整页卡片。
 - 单个班次一行 `dc-shift-row`，内容放 `dc-shift-main`。
-- 周表：`DataTable` 再加 `dc-week`，今天的列加 `is-today`，单元格里 `dc-week-marks` 放两个班次，可操作的是 `<button class="dc-week-btn">`，只读的是 `<span class="dc-week-btn">`；柜员自己的一周用 `dc-week-cell`（标记加文字）。`dc-week-btn` 是 32×36px，属于电脑表格内密集控件的例外。
+- 周表：`DataTable` 再加 `dc-week`，今天的列加 `is-today`，单元格里 `dc-week-marks` 放两个班次，可操作的是 `<button class="dc-week-btn">`（带 `line-strong` 描边，一眼看出能点），只读的是 `<span class="dc-week-btn">`（没有描边）；柜员自己的一周用 `dc-week-cell`（标记加文字）。`dc-week-btn` 是 32×36px，属于电脑表格内密集控件的例外。
 
 ## 全员考勤
 
@@ -25,7 +25,7 @@
 - 后台考勤周表按身份分组，每组一个 `dc-list-title`（柜员、财务、库管、行长），组里一人一行；没有绑定工资账户的人那一行写“未绑定工资账户”，不能签到。
 - 点格子签到：行长和银行管理员点周表里还没有记录的那一格（`dc-week-btn`），给那个人签那一个班次，柜员和其他身份一样，签上即有效，不再审查（`makeup_attendance`）。
   - 能点的格子：今天已经开始的班次（13:30 前只有中午班）和以前的日子。以后的班次、自己那一行、行长看行长那一行都是只读的 `<span class="dc-week-btn">`。
-  - 点了打开 `ConfirmSheet`“给王小林签到？”，说明“11月16日 中午班，签上即有效，计入工资。”，下面说明（多行 `Field`，必填，最多 100 字，提示“例如：值周检查、补记柜台班次”），按钮“取消”“签到”。成功后 `Toast`“已签到”，那一格变成已确认，`aria-label` 带上说明。
+  - 点了打开 `ConfirmSheet`“给王小林签到？”，说明“11月16日 中午班，签上即有效，计入工资。”，下面说明（多行 `Field`，必填，最多 100 字，提示“例如：值周检查、补记柜台班次”），按钮“取消”“签到”。成功后 `Toast`“已签到”，那一格变成有效，`aria-label` 带上说明。
   - 页面上没有单独的“登记班次”按钮。
 - 作废：行长和银行管理员点一个有效、还没发工资的班次（柜员的也一样），打开 `ConfirmSheet`“作废王小林 11月16日的中午班？”，说明“作废后这个班次不计工资，不能恢复。”，写原因（必填），按钮“取消”“作废”（`void_attendance`）。作废后那一格显示 `is-void`，文字“已作废”。能不能作废同签到：自己的、行长对行长的不能。
 - 待审的班次只有银行管理员能审查（有效 / 未通过），页面主操作“全部确认”“发放工资”也只给银行管理员；行长看到的待审格子是只读的。
