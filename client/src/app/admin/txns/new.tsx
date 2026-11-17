@@ -8,7 +8,7 @@ import { LEDGER, type LedgerRow } from '@/components/Ledger';
 import { cashTotal, type Counts } from '@/lib/cash';
 import { classOf, newId, useSettings } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, signClass, trendClass } from '@/lib/format';
 import {
   ADJUST_MAX, atText, balanceMove, dayAndTime, doneText, ENTRY_NAME, ENTRY_TYPES, entryAmount, entryArgs, entryDelta, entryProblem, entryQuestion,
   occurredAt, rangeHint, REASON_MAX, sameEntry, type Entry, type EntryType,
@@ -302,13 +302,15 @@ function EntryForm({ original }: { original?: LedgerRow }) {
         <button className="dc-btn dc-btn-primary" type="submit" disabled={!ready}>{original ? '编辑' : '补录'}</button>
         <div className="dc-actions-total">
           <span>{original ? `改为${ENTRY_NAME[type]}` : type === 'adjust' ? '调账' : `补录${ENTRY_NAME[type]}`}<small>记在 {atText(at)}</small></span>
-          <b>{type === 'adjust' && entry.amount ? `${entry.amount < 0 ? '−' : '+'}${formatAmount(entry.amount)}` : formatAmount(entry.amount)}<small>HTB</small></b>
+          <b className={type === 'adjust' && entry.amount ? `dc-pl ${trendClass(entry.amount)}` : undefined}>{type === 'adjust' && entry.amount ? `${entry.amount < 0 ? '−' : '+'}${formatAmount(entry.amount)}` : formatAmount(entry.amount)}<small>HTB</small></b>
         </div>
       </div>
     </form>
   );
 
   const delta = entryDelta(entry);
+  // A 调账's amount in 红涨绿跌.
+  const adjusted = (e: Pick<Entry, 'type' | 'amount'>, text: string) => (e.type === 'adjust' ? <span className={`dc-pl ${trendClass(e.amount)}`}>{text}</span> : text);
   const oldDelta = original?.balance_delta ?? 0;
   const sheet = confirming && student && (original && before ? (
     <ConfirmSheet title={`编辑 ${original.txn_no}？`} confirm={busy ? '正在编辑' : '确认编辑'} busy={busy} onConfirm={submit}
@@ -318,9 +320,10 @@ function EntryForm({ original }: { original?: LedgerRow }) {
           <thead><tr><th scope="col">项目</th><th scope="col">原来</th><th scope="col">改为</th></tr></thead>
           <tbody>
             {([['学生', name(first) || original.student_no, student.name], ['类型', ENTRY_NAME[before.type], ENTRY_NAME[type]],
-              ['金额', entryAmount(before), entryAmount(entry)]] as const).map(([k, a, b]) => (
-              <tr key={k}><td>{k}</td><td>{a}</td><td>{a === b ? b : <b>{b}</b>}</td></tr>
-            ))}
+              ['金额', entryAmount(before), entryAmount(entry)]] as const).map(([k, a, b]) => {
+              const cell = (e: Pick<Entry, 'type' | 'amount'>, text: string) => (k === '金额' ? adjusted(e, text) : text);
+              return <tr key={k}><td>{k}</td><td>{cell(before, a)}</td><td>{a === b ? cell(entry, b) : <b>{cell(entry, b)}</b>}</td></tr>;
+            })}
           </tbody>
         </table>
       </div>
@@ -334,7 +337,7 @@ function EntryForm({ original }: { original?: LedgerRow }) {
     <ConfirmSheet title={entryQuestion(student.name, entry)} confirm={busy ? '正在补录' : '确认补录'} busy={busy} onConfirm={submit}
       onClose={() => { setConfirming(false); setError(null); }}>
       <Summary rows={[
-        ['学生', `${student.name} · ${student.student_no}`], ['类型', ENTRY_NAME[type]], ['金额', entryAmount(entry)], ['原始时间', atText(at)],
+        ['学生', `${student.name} · ${student.student_no}`], ['类型', ENTRY_NAME[type]], ['金额', entryAmount(entry), type === 'adjust' ? signClass(entry.amount) : ''], ['原始时间', atText(at)],
         ['活期余额', balanceMove(balance(student), delta)],
       ]} />
       <p className="dc-caption">

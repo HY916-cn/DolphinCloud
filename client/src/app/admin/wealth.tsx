@@ -183,7 +183,7 @@ function DayRow({ d, weeks, tiers, onEnter }: { d: OverviewDay; weeks: number; t
       <td className="n">{d.change == null ? '—' : <span className={`dc-pl ${plClass(d.change)}`}>{signedPct(d.change)}</span>}</td>
       {tiers.map((t) => {
         const r = rates?.[t.key];
-        return <td key={t.key} className="n">{r == null ? '—' : clipped(r, t) ? <b>{signedPct(r)}</b> : signedPct(r)}</td>;
+        return <td key={t.key} className="n">{r == null ? '—' : <span className={`dc-pl ${plClass(r)}`}>{clipped(r, t) ? <b>{signedPct(r)}</b> : signedPct(r)}</span>}</td>;
       })}
       <td>
         {source}

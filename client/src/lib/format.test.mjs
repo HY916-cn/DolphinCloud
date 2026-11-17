@@ -1,12 +1,15 @@
 // node src/lib/format.test.mjs — checks the wording rules the screens rely on.
 import assert from 'node:assert/strict';
-const { formatAmount, formatCenti, formatPercent, formatNet, formatPoints, formatRate, formatSigned, formatTime, maskName, periodOf, shanghai, shiftAt, shiftDay } = await import('./format.ts');
+const { formatAmount, formatCenti, formatPercent, formatNet, formatPoints, formatRate, formatSigned, formatTime, maskName, periodOf, shanghai, shiftAt, shiftDay, signClass, trendClass } = await import('./format.ts');
 assert.equal(formatAmount(1280), '1,280');
 assert.equal(formatSigned(50), '+50');
 assert.equal(formatSigned(-20), '−20');
 assert.equal(formatNet(-20), '−20');
 assert.equal(formatNet(1280), '1,280');
 assert.equal(formatNet(0), '0');
+// 红涨绿跌: + red, − green, 0 uncoloured.
+assert.deepEqual([50, -20, 0].map(signClass), ['is-in', 'is-out', '']);
+assert.deepEqual([0.25, -0.5, 0].map(trendClass), ['is-up', 'is-down', '']);
 assert.equal(formatTime('2026-10-27T06:20:00Z', new Date('2026-12-01T00:00:00Z')), '10月27日 14:20');
 assert.equal(formatTime('2025-01-02T01:05:00Z', new Date('2026-12-01T00:00:00Z')), '2025年1月2日 09:05');
 assert.equal(maskName('张小明'), '张*明');

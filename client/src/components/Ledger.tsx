@@ -1,4 +1,4 @@
-import { formatAmount, formatSigned } from '@/lib/format';
+import { formatAmount, formatSigned, signClass } from '@/lib/format';
 import { toTxn, type TxnRow } from '@/lib/txns';
 import { Icon } from './ui';
 
@@ -29,7 +29,7 @@ export function LedgerLine({ row }: { row: LedgerRow }) {
         <div className="dc-txn-time">{row.students?.name} · 学号 {row.student_no} · 经办人 {row.operator?.display_name}</div>
         <div className="dc-txn-time">交易号 {row.txn_no} · {t.time}{t.entered && ` · ${t.entered}`}</div>
       </div>
-      <div className={`dc-txn-amount ${delta > 0 ? 'is-in' : ''}`}>
+      <div className={`dc-txn-amount ${signClass(delta)}`}>
         {delta ? formatSigned(delta) : formatAmount(row.amount)}<small>{delta ? t.note : '现金'}</small>
       </div>
     </>

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet, Desk, link, ListLoading, Notice, Stats } from '@/components';
-import { formatAmount, formatPercent, formatPoints, formatRate, shiftDay } from '@/lib/format';
+import { formatAmount, formatPercent, formatPoints, formatRate, shiftDay, trendClass } from '@/lib/format';
 import { byWeeks, penaltyRate, type AnchorParams, type TermRates } from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { useMe } from '@/lib/session';
@@ -127,8 +127,9 @@ export default function Rates() {
                       <td className="n">{formatAmount(w.deposits)}</td>
                       <td className="n">{formatAmount(w.loans)}</td>
                       <td className="n">{formatPercent(w.ratio)}</td>
-                      <td className="n">{w.growth === null ? '—' : formatPercent(w.growth, true)}</td>
-                      <td className="n">{w.growth === null ? '0.00' : formatPoints(w.adjust)}</td>
+                      {/* coloured by the figure as shown, so +0.0% and 0.00 stay plain */}
+                      <td className="n">{w.growth === null ? '—' : <span className={`dc-pl ${trendClass(Math.round(w.growth * 10))}`}>{formatPercent(w.growth, true)}</span>}</td>
+                      <td className="n">{w.growth === null ? '0.00' : <span className={`dc-pl ${trendClass(Math.round(w.adjust * 100))}`}>{formatPoints(w.adjust)}</span>}</td>
                       <td className="n">{formatRate(w.anchor)}</td>
                       <td>
                         <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" aria-label={`查看${monthDay(w.week_start)}的锚点参数`}

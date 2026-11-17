@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { formatAmount, formatSigned } from '@/lib/format';
+import { formatAmount, formatSigned, signClass } from '@/lib/format';
 import { useRolling } from '@/lib/motion';
 import { readAll, supabase } from '@/lib/supabase';
 import { termStart } from '@/lib/term';
@@ -57,7 +57,7 @@ export function TxnList({ items, fresh }: { items: Txn[]; fresh: ReadonlySet<str
             <div className="dc-txn-title">{t.title}</div>
             <div className="dc-txn-time">{t.time}{t.entered && ` · ${t.entered}`}</div>
           </div>
-          <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>{t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small></div>
+          <div className={`dc-txn-amount ${signClass(t.amount)}`}>{t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small></div>
         </li>
       ))}
     </ul>

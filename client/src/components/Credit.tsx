@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { CreditProfile, Curve } from '@/lib/credit';
-import { formatSigned, formatTime } from '@/lib/format';
+import { formatSigned, formatTime, signClass } from '@/lib/format';
 import { useRolling } from '@/lib/motion';
 import { call } from '@/lib/rpc';
 import { supabase } from '@/lib/supabase';
@@ -117,7 +117,7 @@ export function CreditEvents({ items, fresh }: { items: CreditEvent[]; fresh: Re
             <div className="dc-txn-title">{e.reason}</div>
             <div className="dc-txn-time">{formatTime(e.at)} · 变动后 {e.score} 分</div>
           </div>
-          <div className={`dc-txn-amount ${e.delta > 0 ? 'is-in' : ''}`}>{formatSigned(e.delta)}<small>{e.delta > 0 ? '加分' : '减分'}</small></div>
+          <div className={`dc-txn-amount ${signClass(e.delta)}`}>{formatSigned(e.delta)}<small>{e.delta > 0 ? '加分' : '减分'}</small></div>
         </li>
       ))}
     </ul>

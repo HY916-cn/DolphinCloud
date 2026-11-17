@@ -31,7 +31,7 @@ export function CashTxns({ txns }: { txns: CashTxn[] }) {
               <div className="dc-txn-title">{k.title} · {t.name ?? t.student_no}{t.status === 'reversed' && <> <span className="dc-tag">已冲正</span></>}</div>
               <div className="dc-txn-time">{formatTime(t.created_at).split(' ')[1]} · {cashNotes(t.income, t.payout, t.type)}</div>
             </div>
-            <div className={`dc-txn-amount ${t.type === 'deposit' ? 'is-in' : ''}`}>
+            <div className={`dc-txn-amount ${t.type === 'deposit' ? 'is-in' : t.type === 'withdraw' ? 'is-out' : ''}`}>
               {t.type === 'deposit' ? formatSigned(t.amount) : t.type === 'withdraw' ? formatSigned(-t.amount) : formatAmount(t.amount)}
               <small>{t.type === 'deposit' ? '存入' : t.type === 'withdraw' ? '取出' : '现金'}</small>
             </div>

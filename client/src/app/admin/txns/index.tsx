@@ -7,7 +7,7 @@ import {
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { formatAmount, formatSigned, formatTime, signClass } from '@/lib/format';
 import { useNewRows } from '@/lib/motion';
 import { ledgerPages, ledgerQuery, ledgerSheet, NO_LEDGER, saveWorkbook, type LedgerFilter } from '@/lib/reports';
 import { findScopes } from '@/lib/search';
@@ -246,7 +246,7 @@ function TxnLine({ row, page, first, isNew, open, teacher, admin, onReverse }: {
   const corrects = row.corrects && page.originals.get(row.corrects);
   const corrected = page.corrected.get(row.id);
   const items = row.txn_items?.map((i) => (i.qty > 1 ? `${i.name} × ${i.qty}` : i.name)).join('、');
-  const facts: [string, ReactNode][] = [
+  const facts: [string, ReactNode, string?][] = [
     ['交易号', row.txn_no],
     ['时间', formatTime(row.created_at)],
     ['学生', `${row.students?.name ?? ''} · 学号 ${row.student_no}`],
@@ -254,7 +254,7 @@ function TxnLine({ row, page, first, isNew, open, teacher, admin, onReverse }: {
     ['金额', `${formatAmount(row.amount)} HTB`],
     ...(items ? [['商品', items] as [string, ReactNode]] : []),
     ...(row.payment && row.type !== 'opening' ? [['支付方式', PAYMENT[row.payment]] as [string, ReactNode]] : []),
-    ['余额变动', row.balance_delta ? `${formatSigned(row.balance_delta)} HTB` : '不变'],
+    ['余额变动', row.balance_delta ? `${formatSigned(row.balance_delta)} HTB` : '不变', signClass(row.balance_delta)],
     ...(row.entered_at ? [['补录', `${formatTime(row.entered_at)} 由${row.operator?.display_name ?? ''}补录`]] as [string, ReactNode][] : []),
     ['办理后余额', row.entered_at ? <>{formatAmount(row.balance_after)} HTB<small> 录入时的余额</small></> : `${formatAmount(row.balance_after)} HTB`],
     ...(corrects ? [['更正自', txnLink(corrects)]] as [string, ReactNode][] : []),

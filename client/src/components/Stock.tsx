@@ -1,4 +1,4 @@
-import { formatSigned, formatTime } from '@/lib/format';
+import { formatSigned, formatTime, signClass } from '@/lib/format';
 import { useNewRows } from '@/lib/motion';
 import { Icon, link, type IconName } from './ui';
 
@@ -29,7 +29,7 @@ export function MoveList({ moves, label }: { moves: Move[]; label: string }) {
             </div>
             <div className="dc-txn-time">{formatTime(m.created_at)}</div>
           </div>
-          <div className={`dc-txn-amount ${m.qty_delta > 0 ? 'is-in' : ''}`}>{formatSigned(m.qty_delta)}<small>件</small></div>
+          <div className={`dc-txn-amount ${signClass(m.qty_delta)}`}>{formatSigned(m.qty_delta)}<small>件</small></div>
         </li>
       ))}
     </ul>

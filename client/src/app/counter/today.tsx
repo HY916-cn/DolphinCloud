@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CounterPage, Icon, link, ListLoading, NeedsNetwork, Notice, ReversalSheet, Summary } from '@/components';
 import { describeTxn, useMyDay, type DayTxn } from '@/lib/counter';
-import { formatAmount, formatSigned, formatTime } from '@/lib/format';
+import { formatAmount, formatSigned, formatTime, signClass } from '@/lib/format';
 import { useNewRows } from '@/lib/motion';
 import { useOnline } from '@/lib/online';
 import { useMe } from '@/lib/session';
@@ -70,7 +70,7 @@ export default function Today() {
                           {...link(`/counter?s=${t.student_no}`)}><Icon name="coin" />继续办理</a>
                       </div>
                     </div>
-                    <div className={`dc-txn-amount ${t.balance_delta > 0 ? 'is-in' : ''}`}>
+                    <div className={`dc-txn-amount ${signClass(t.balance_delta)}`}>
                       {t.balance_delta ? formatSigned(t.balance_delta) : '现金'}<small>{t.balance_delta ? 'HTB' : `${t.amount} HTB`}</small>
                     </div>
                   </li>

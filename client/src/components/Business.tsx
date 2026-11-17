@@ -7,7 +7,7 @@ import {
   type Student, type TxnResult,
 } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatCenti, formatRate, formatSigned } from '@/lib/format';
+import { formatAmount, formatCenti, formatRate, formatSigned, signClass } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { offlineQueue } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
@@ -62,6 +62,8 @@ const failure = (e: unknown) => {
 };
 
 export const servedAmount = (s: Served) => (s.amount === null ? '现金' : formatSigned(s.amount));
+// The 红涨绿跌 class of an amount as written: +50 red, −20 green, 现金 plain.
+const toneOf = (amount: string) => (amount[0] === '+' ? 'is-in' : amount[0] === '−' ? 'is-out' : undefined);
 
 // 办理单: what this visit has done (newest last, popping in, each with its 冲正), the business being entered, the
 // balance after it, and the one way to end the visit.
@@ -83,10 +85,10 @@ function Receipt({ served, current, after, onEnd, onReverse }: {
                   aria-label={`冲正${s.label}`} onClick={() => onReverse(s)}><Icon name="transfer" />冲正</button>
               )}
             </dt>
-            <dd>{servedAmount(s)}</dd>
+            <dd className={toneOf(servedAmount(s))}>{servedAmount(s)}</dd>
           </div>
         ))}
-        {current && <div><dt>{current.label}（正在办理）<small className="dc-top-sub">{current.detail}</small></dt><dd>{current.amount}</dd></div>}
+        {current && <div><dt>{current.label}（正在办理）<small className="dc-top-sub">{current.detail}</small></dt><dd className={toneOf(current.amount)}>{current.amount}</dd></div>}
         {current && after !== null && <div><dt>办理后余额</dt><dd>{typeof after === 'number' ? `${formatAmount(after)} HTB` : after}</dd></div>}
         {!served.length && !current && <div><dt>还没有办理业务</dt><dd /></div>}
       </dl>
@@ -581,7 +583,7 @@ export function WealthPanel({ student, served, onDone, onEnd, onReverse }: Props
           onConfirm={submit} onClose={() => { setConfirming(false); setError(null); }}>
           <Summary rows={[
             ['期限', `${option.weeks} 周`], ['倍率', tierLabel(tier)], ['到期日', monthDay(option.matures_on)], ['开始计收益', '明天'],
-            ['这一档今天的收益率', tier.rate === null ? '还没有收益率' : signedPct(tier.rate)],
+            ['这一档今天的收益率', tier.rate === null ? '还没有收益率' : signedPct(tier.rate), tier.rate === null ? '' : signClass(Math.round(tier.rate * 100))],
             ['每天范围', `最多赚 ${plainPct(tier.max)}，最多亏 ${plainPct(tier.min)}`],
             ['活期余额', `${formatAmount(balance)} → ${formatAmount(balance - amount)} HTB`],
           ]} />
@@ -1136,7 +1138,7 @@ export function QueryPanel({ student, served }: Props) {
                       {r.corrects_no && ` · 更正自 ${r.corrects_no}`}{r.corrected_no && ` · 已更正为 ${r.corrected_no}`}
                     </div>
                   </div>
-                  <div className={`dc-txn-amount ${t.amount > 0 ? 'is-in' : ''}`}>
+                  <div className={`dc-txn-amount ${signClass(t.amount)}`}>
                     {t.amount ? formatSigned(t.amount) : formatAmount(t.paid)}<small>{t.note}</small>
                   </div>
                 </li>

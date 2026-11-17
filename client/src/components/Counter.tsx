@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { describeCash, diffNotes, type Counts } from '@/lib/cash';
 import { classOf, deposit, lookupStudent, useRoster, type Student } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, formatSigned, signClass } from '@/lib/format';
 import { offlineQueue, type OfflineDeposit, type RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { searchRoster } from '@/lib/search';
@@ -56,13 +56,14 @@ export function CashCounter({ faces, counts, onChange, kind, sum, diff, what = '
   );
 }
 
-// SummaryList: name on the left, value on the right; the last row may be the total.
-export function Summary({ rows, total }: { rows: [string, ReactNode][]; total?: [string, number] }) {
+// SummaryList: name on the left, value on the right, a signed value with its class (signClass); the last row may be
+// the total, written with its sign and coloured when it is a `signed` change.
+export function Summary({ rows, total }: { rows: [string, ReactNode, string?][]; total?: [string, number, 'signed'?] }) {
   const totalRef = useBump<HTMLElement>(total?.[1]);
   return (
     <dl className="dc-kv">
-      {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-      {total && <div className="is-total"><dt>{total[0]}</dt><dd ref={totalRef}>{formatAmount(total[1])}<small>HTB</small></dd></div>}
+      {rows.map(([k, v, cls]) => <div key={k}><dt>{k}</dt><dd className={cls || undefined}>{v}</dd></div>)}
+      {total && <div className="is-total"><dt>{total[0]}</dt><dd ref={totalRef} className={total[2] && signClass(total[1]) || undefined}>{total[2] && total[1] ? formatSigned(total[1]) : formatAmount(total[1])}<small>HTB</small></dd></div>}
     </dl>
   );
 }

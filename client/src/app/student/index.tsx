@@ -47,7 +47,7 @@ export default function StudentHome() {
               {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
                 : !c || interest.isPending || loans.isPending || !term.data ? <CreditGaugeLoading size="md" /> : <>
                   <dl className="dc-kv">
-                    <div><dt>攒着的利息</dt><dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
+                    <div><dt>攒着的利息</dt><dd className={interest.data && interest.data.pending_centi < 0 ? 'is-out' : undefined}>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
                       <small>{pendingNote(interest.data.pending_centi)}</small></> : '—'}</dd></div>
                     <div><dt>定期合计</dt><dd>{term.data.term_total ? `${formatAmount(term.data.term_total)} HTB` : '没有'}</dd></div>
                     <div><dt>理财</dt><dd>{wealth.isError ? '—' : !wealth.data ? '…' : held

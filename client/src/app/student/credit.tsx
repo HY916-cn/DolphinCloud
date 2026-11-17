@@ -3,7 +3,7 @@ import {
   useGaugeCurve, useLatestDay, useMyLoans, useMyTerms, useMyWealth, WealthList,
 } from '@/components';
 import { monthDay } from '@/lib/term';
-import { signedPct } from '@/lib/wealth';
+import { plClass, signedPct } from '@/lib/wealth';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 
@@ -66,7 +66,7 @@ export default function StudentCredit() {
               : wealth.data.length ? <>
                 <p className="dc-caption">
                   理财的钱跟着中国股市的一个指数每天涨跌：涨了多得，跌了会少拿；倍率越高涨跌越大。周末和节假日休市，只加基础收益。
-                  {latest && `${latest.day === today() ? '今天' : `${monthDay(latest.day)} `}指数 ${signedPct(latest.change)}。`}
+                  {latest && <>{latest.day === today() ? '今天' : `${monthDay(latest.day)} `}指数 <span className={`dc-pl ${plClass(latest.change)}`}>{signedPct(latest.change)}</span>。</>}
                 </p>
                 <WealthList holdings={wealth.data} />
               </> : (

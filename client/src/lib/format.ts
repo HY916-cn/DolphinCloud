@@ -3,6 +3,10 @@ export const formatAmount = (n: number) => Math.abs(n).toLocaleString('en-US');
 export const formatSigned = (n: number) => `${n < 0 ? '−' : '+'}${formatAmount(n)}`;
 // A sum that may be negative, unsigned when it is not: −20, 1,280 (存款 in the ranking, net of loans).
 export const formatNet = (n: number) => `${n < 0 ? '−' : ''}${formatAmount(n)}`;
+// 红涨绿跌 (design system ColorRoles 正负): a signed number's class, none at 0. `is-in` / `is-out` on TxnList amounts,
+// SummaryList and passbook values; `is-up` / `is-down` (`trendClass`) on dc-pl and Stats changes.
+export const signClass = (n: number) => (n > 0 ? 'is-in' : n < 0 ? 'is-out' : '');
+export const trendClass = (n: number) => (n > 0 ? 'is-up' : n < 0 ? 'is-down' : '');
 
 // 利率 (design system data.md 利率): a weekly percentage without trailing zeros, at most 4 decimals: 2.08%, 2%, 6.2667%.
 export const formatRate = (r: number) => `${Number(r.toFixed(4))}%`;

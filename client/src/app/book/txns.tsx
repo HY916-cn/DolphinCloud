@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BookPages, NO_FILTER, Notice, PassbookPage, PassbookRows, signed, TxnListLoading, useLines, useTerm } from '@/components';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, signClass } from '@/lib/format';
 import { TXN_TABS as TABS, useLedger, useMonth, type TxnTab as Tab } from '@/lib/ledger';
 import { useMe } from '@/lib/session';
 import { toTxn } from '@/lib/txns';
@@ -49,15 +49,15 @@ export default function BookTxns() {
           {totals.error ? <Notice tone="danger" title="暂时无法读取本月收支">请检查网络后刷新页面。</Notice> : (
             <dl className="dc-pb-fields">
               <dt>{m === 1 ? 12 : m - 1}月底余额</dt><dd>{value(totals.data?.opening)}</dd>
-              <dt>本月存入</dt><dd className="is-in">{value(totals.data?.saved, signed)}</dd>
-              <dt>本月支出</dt><dd>{value(totals.data?.spent, signed)}</dd>
+              <dt>本月存入</dt><dd className={signClass(totals.data?.saved ?? 0)}>{value(totals.data?.saved, signed)}</dd>
+              <dt>本月支出</dt><dd className={signClass(totals.data?.spent ?? 0)}>{value(totals.data?.spent, signed)}</dd>
               <dt>当前余额</dt><dd className="is-total">{value(totals.data?.balance)}<small>HTB</small></dd>
             </dl>
           )}
           <h3 className="dc-pb-sub">本学期</h3>
           <dl className="dc-pb-fields">
-            <dt>存入</dt><dd className="is-in">{value(term?.saved, signed)}</dd>
-            <dt>支出</dt><dd>{value(term?.spent, signed)}</dd>
+            <dt>存入</dt><dd className={signClass(term?.saved ?? 0)}>{value(term?.saved, signed)}</dd>
+            <dt>支出</dt><dd className={signClass(term?.spent ?? 0)}>{value(term?.spent, signed)}</dd>
           </dl>
           <p className="dc-pb-hint">往后翻是每一笔交易，最新的在最前面。</p>
         </PassbookPage>,
