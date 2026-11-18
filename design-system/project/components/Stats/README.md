@@ -2,7 +2,7 @@
 
 统计数字：放一页最重要的 3～6 个数，写清它数的是什么、数值、单位和变化。
 
-- 结构：`<div class="dc-stats-box">` → `<div class="dc-stats" data-n="4" style="--n:4">`，每项是 `<div class="dc-card dc-stat">`：`<span>` 名称、`<b>` 数值（单位放 `<small>`）、可选的 `<em>` 变化（`is-up` / `is-down` 加三角，红涨绿跌：`rise` / `fall`）。数值本身是涨跌（如理财的指数涨跌“+0.42%”）时，`dc-pl is-up` / `is-down` 加在 `<b>` 上，字号不变、换成 `rise` / `fall` 色；不要套在 `<span>` 里。
+- 结构：`<div class="dc-stats-box">` → `<div class="dc-stats" data-n="4" style="--n:4">`，每项是 `<div class="dc-card dc-stat">`：`<span>` 名称、`<b>` 数值（单位放 `<small>`）、可选的 `<em>` 变化（`is-up` / `is-down` 加三角，`ink-muted` 色；利率和行情的变化再加 `dc-pl`，红涨绿跌）。数值本身是涨跌（如理财的指数涨跌“+0.42%”）时，`dc-pl is-up` / `is-down` 加在 `<b>` 上，字号不变、换成 `rise` / `fall` 色；不要套在 `<span>` 里。
 - 一行放得下时一行；窄处按容器宽度排成整齐的两行，4 项 2×2，5、6 项每行 3 个。数值不折行，放不下时随卡片缩小。
 
 使用者提供：每项的名称、数值、单位、变化（“比上期 +12%”，用减号 −）。金额用千分位。

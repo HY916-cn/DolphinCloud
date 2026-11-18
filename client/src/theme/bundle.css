@@ -73,8 +73,6 @@ body { margin: 0; font-family: var(--font-sans); font-size: 16px; line-height: 2
 .dc-txn-time { font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-txn-amount { font: 800 20px/28px var(--font-sans); text-align: right; font-variant-numeric: tabular-nums; }
 .dc-txn-amount small { display: block; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
-.dc-txn-amount.is-in { color: var(--rise); }
-.dc-txn-amount.is-out { color: var(--fall); }
 
 
 
@@ -383,8 +381,6 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-kv .is-total dt { font-weight: 700; color: var(--ink); }
 .dc-kv .is-total dd { font: 800 32px/40px var(--font-sans); }
 .dc-kv .is-total dd small { margin-left: var(--space-1); font: 600 16px/26px var(--font-sans); color: var(--ink-muted); }
-.dc-kv dd.is-in { color: var(--rise); }
-.dc-kv dd.is-out { color: var(--fall); }
 /* 本周利率 (StudentCreditPage): one sentence per rate with a 100 HTB example, the weekly rate in small text under it. */
 .dc-rate-list { margin: 0; padding: 0; list-style: none; }
 .dc-rate-list > li { padding: var(--space-3) 0; border-bottom: 2px dashed var(--line); font: 500 16px/26px var(--font-sans); color: var(--ink); }
@@ -863,8 +859,6 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-balance dd small { margin-left: var(--space-2); font: 700 16px/1 var(--font-sans); letter-spacing: 0; color: var(--ink-muted); }
 .dc-pb-seal { position: absolute; right: var(--space-3); top: 50%; width: 82px; height: 82px; margin-top: -41px; color: rgb(198 40 40); opacity: .9; transform: rotate(-12deg); mix-blend-mode: multiply; pointer-events: none; }
 .dc-pb-sums { margin-top: var(--space-3); }
-.dc-pb-sums dd.is-in { color: var(--rise); }
-.dc-pb-sums dd.is-out { color: var(--fall); }
 .dc-pb-table { width: 100%; border-collapse: collapse; table-layout: fixed; font: 500 13px/18px var(--pb-mono); font-variant-numeric: tabular-nums; }
 .dc-pb-table col.is-line { width: 22px; }
 .dc-pb-table col.is-date { width: 52px; }
@@ -874,8 +868,6 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-table th + th, .dc-pb-table td + td { border-left: 1px solid var(--pb-rule); }
 .dc-pb-table .is-line { padding: 4px 0; text-align: center; font: 600 11px/16px var(--font-sans); color: var(--dolphin-deep); opacity: .6; text-shadow: none; }
 .dc-pb-table .is-num { text-align: right; white-space: nowrap; }
-.dc-pb-table td.is-in { color: var(--rise); }
-.dc-pb-table td.is-out { color: var(--fall); }
 .dc-pb-table td.is-date { white-space: nowrap; }
 .dc-pb-table td.is-date small { white-space: nowrap; }
 .dc-pb-table td.is-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -984,8 +976,6 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-pb-fields dd small { margin-left: var(--space-2); font: 600 13px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-pb-fields dd.is-total { font-size: 20px; font-weight: 800; }
 .dc-pb-fields dd.is-danger { color: rgb(198 40 40); }
-.dc-pb-fields dd.is-in { color: var(--rise); }
-.dc-pb-fields dd.is-out { color: var(--fall); }
 .dc-pb-table col.is-rank { width: 44px; }
 .dc-pb-table td.is-rank { text-align: center; font-weight: 700; }
 .dc-pb-table tr.is-me td { background: rgba(255, 194, 51, .2); font-weight: 700; }
@@ -1200,8 +1190,6 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-stat em.is-up::before { content: "▲ "; font-size: 10px; }
 .dc-stat em.is-down::before { content: "▼ "; font-size: 10px; }
 .dc-stat em.is-danger { color: var(--danger); }
-.dc-stat em.is-up { color: var(--rise); }
-.dc-stat em.is-down { color: var(--fall); }
 
 /* Chart — 单系列图表：一种颜色、细标记、同一基线、细轴线，悬停看数值；每张图的数字都另有表格 */
 .dc-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-5); }
