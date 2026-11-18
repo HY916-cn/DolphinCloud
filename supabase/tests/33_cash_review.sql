@@ -1,5 +1,5 @@
 -- 轧账 (PHASE-2.md §7): 下班 with the teller's count compared by denomination, a reason when it differs, the
--- accountant's review, 强制下班, the next 上班 from the last count, the 轧账 page's list, and the cash of reversals made
+-- review, 强制下班, the next 上班 from the last count, the 轧账 page's list, and the cash of reversals made
 -- later or by the bank admin (§7.3).
 \ir helpers/setup.psql
 
@@ -70,9 +70,8 @@ select is(jsonb_path_query_array(:'e2'::jsonb, '$.cash_txns[*].payout'), '[{"5":
 select tests.age(:'t1', '40 seconds');
 
 -- 复核
-select is(tests.err(:'t1', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'only the accountant reviews');
-select is(tests.err(:'p1', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'not the president');
-select is(tests.err(:'teacher', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'nor the bank admin');
+select is(tests.err(:'t1', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'a teller does not review');
+select is(tests.err(:'p1', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'nor the president');
 select is(tests.call(:'acc', $$select review_cash_count(gen_random_uuid())$$) ->> 'detail', '{"field": "duty_id"}', 'an unknown duty');
 select tests.call(:'acc', format($$select review_cash_count(%L)$$, :'d1')) as r1 \gset
 select is(row(:'r1'::jsonb ->> 'status', :'r1'::jsonb -> 'review_count', :'r1'::jsonb -> 'count', :'r1'::jsonb ->> 'reviewer_name',

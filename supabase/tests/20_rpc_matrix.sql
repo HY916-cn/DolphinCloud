@@ -69,8 +69,8 @@ insert into tests.matrix values
   ('end_duty(integer,jsonb,text)', 'select end_duty(-1)', '{teller}'),
   -- 下班总结的现金表: the teller their own duty, the accountant, president and bank admin any (PHASE-2.md §4)
   ('duty_cash(uuid)', 'select duty_cash()', '{teller,accountant,president,teacher}'),
-  -- 轧账: the accountant reviews, the president and bank admin force a teller off duty, all three list (PHASE-2.md §7)
-  ('review_cash_count(uuid,jsonb,text)', 'select review_cash_count(gen_random_uuid())', '{accountant}'),
+  -- 轧账: the accountant and bank admin review, the president and bank admin force a teller off duty, all three list (PHASE-2.md §7)
+  ('review_cash_count(uuid,jsonb,text)', 'select review_cash_count(gen_random_uuid())', '{accountant,teacher}'),
   ('force_end_duty(uuid,text)', 'select force_end_duty(gen_random_uuid(), ''x'')', '{president,teacher}'),
   ('cash_reviews(uuid,date,date,text[])', 'select cash_reviews()', '{accountant,president,teacher}'),
   ('cash_review_overview()', 'select cash_review_overview()', '{accountant,president,teacher}'),
