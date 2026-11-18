@@ -357,14 +357,15 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-qty-btn:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
 .dc-qty-input { width: 100%; height: 40px; min-width: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; text-align: center; font: 800 22px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); }
 .dc-qty-input:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--dolphin-deep); }
-/* 窄卡片（如卡片里的备用金、点钞在手机上）：张数单独一行，减、加按钮排在下面 */
-.dc-qty { container: qty / inline-size; }
-@container qty (max-width: 159px) {
-  .dc-qty-ctrl { grid-template-columns: 1fr 1fr; height: auto; row-gap: var(--space-1); }
-  .dc-qty-input { grid-column: 1 / -1; grid-row: 1; }
-  .dc-qty-head { flex-wrap: wrap; row-gap: 0; }
+/* 窄处（卡片里的备用金、点钞在手机上）：同一条步进控件，卡片和按钮收紧，张数仍在中间 */
+.dc-denoms { container: denoms / inline-size; }
+@container denoms (max-width: 339px) {
+  .dc-qty { gap: var(--space-2); padding: var(--space-3) var(--space-2); }
+  .dc-qty-head { flex-wrap: wrap; row-gap: 0; padding: 0 var(--space-1); }
   .dc-qty-face, .dc-qty-sum { white-space: nowrap; }
-  .dc-qty-btn { width: 100%; }
+  .dc-qty-ctrl { grid-template-columns: 36px minmax(0, 1fr) 36px; gap: 2px; height: 48px; padding: 4px; }
+  .dc-qty-btn { width: 36px; height: 36px; }
+  .dc-qty-btn::after { inset: -4px; }
 }
 /* 轧账点钞：核对后每张面额卡的结果 */
 .dc-qty .dc-qty-sum b.is-danger, .dc-qty.is-off .dc-qty-diff { color: var(--danger); }
