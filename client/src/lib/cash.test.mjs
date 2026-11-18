@@ -13,7 +13,7 @@ assert.deepEqual(cashCell(-1500, false), { text: '−1,500', short: true });
 console.log('cash ok');
 
 // 轧账: counted − expected per face; a face short in the box (expected −1) counts against nothing.
-const { compareCash, isBalanced, diffNotes, diffAmount, diffFaces, cashNotes } = await import('./cash.ts');
+const { compareCash, isBalanced, diffNotes, diffAmount, diffFaces, cashNotes, cashHref } = await import('./cash.ts');
 const expected = { 1: 30, 2: 14, 5: 2, 10: 3 };
 assert.deepEqual(compareCash(expected, { 1: 30, 2: 14, 5: 2, 10: 3 }), { 1: 0, 2: 0, 5: 0, 10: 0 });
 assert.deepEqual(compareCash(expected, { 1: 30, 2: 15, 5: 1 }), { 1: 0, 2: 1, 5: -1, 10: -3 });
@@ -33,4 +33,6 @@ assert.equal(cashNotes(null, { 1: 1, 2: 1, 10: 1 }, 'withdraw'), '付 10 元 × 
 assert.equal(cashNotes({ 10: 2 }, { 2: 1 }, 'purchase'), '收 10 元 × 2，找 2 元 × 1');
 assert.equal(cashNotes({ 10: 2 }, {}, 'purchase'), '收 10 元 × 2');
 assert.equal(cashNotes(null, { 10: 2 }, 'reversal'), '付 10 元 × 2');
+assert.equal(cashHref({ tab: undefined, user: '', day: undefined }), '/admin/cash');
+assert.equal(cashHref({ tab: 'done', user: 'u1', day: '2026-11-13' }, 'd1'), '/admin/cash/d1?tab=done&user=u1&day=2026-11-13');
 console.log('cash diff ok');

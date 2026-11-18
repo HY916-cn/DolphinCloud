@@ -1,11 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { DatePicker, Desk, DutySheet, ForceSheet, Icon, ListLoading, Notice, ReviewSheet, ReviewTag, Toast, today } from '@/components';
-import { diffAmount } from '@/lib/cash';
+import { useEffect, useState } from 'react';
+import { DatePicker, Desk, DutySheet, ForceSheet, Icon, link, ListLoading, Notice, ReviewTag, Toast, today, useCashReviews } from '@/components';
+import { cashHref, diffAmount } from '@/lib/cash';
 import type { CashReview, CashStatus } from '@/lib/duty';
 import { dutySpan, formatAmount, reversedNote, shanghai } from '@/lib/format';
-import { call } from '@/lib/rpc';
 import { useMe } from '@/lib/session';
 
 type Tab = 'waiting' | 'open' | 'forced' | 'done' | 'all';
@@ -18,27 +17,35 @@ const dayOf = (iso: string) => { const t = shanghai(new Date(iso)); return `${t.
 
 // 轧账 (PHASE-2.md §7, design system CashCount 后台“轧账”页; accountant, president, bank admin): every duty with what its
 // cash box should hold, what the teller counted and the difference, newest first, by teller, day and status (待复核 by
-// default). The teller's name opens the duty: the accountant reviews (复核) one that waits, the president and the bank
-// admin end an open one (强制下班), anything else reads as a review. `?duty=<id>` opens that duty (from 总览).
+// default). The filters live in the address, so the 复核 page returns to them. The teller's name opens the duty's 复核
+// page; the president and the bank admin end an open one (强制下班) in a sheet. `?fresh=<id>` is the duty just reviewed:
+// it stays in the list as 已轧账, marked new, with the Toast.
 export default function Cash() {
   const me = useMe().data!;
-  const reviews = me.roles.includes('accountant');
   const forces = me.roles.includes('president') || me.roles.includes('teacher');
   const queryClient = useQueryClient();
-  const { duty } = useLocalSearchParams<{ duty?: string }>();
-  const [tab, setTab] = useState<Tab>('waiting');
-  const [user, setUser] = useState('');
-  const [day, setDay] = useState('');
-  const [opened, setOpened] = useState<string | null>(duty ?? null);
-  const [forcing, setForcing] = useState(false);
-  const [fresh, setFresh] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  // shortcut: every duty in one read, filtered on the device; fine for one school's terms, pass p_from / p_to when it grows.
-  const list = useQuery({ queryKey: ['cash-reviews'], queryFn: () => call<CashReview[]>('cash_reviews', {}) });
+  const params = useLocalSearchParams<{ tab?: Tab; user?: string; day?: string; fresh?: string }>();
+  const filters = { tab: params.tab, user: params.user, day: params.day };
+  const tab = params.tab ?? 'waiting';
+  const user = params.user ?? '';
+  const day = params.day ?? '';
+  const list = useCashReviews();
   const all = list.data ?? [];
+  const [opened, setOpened] = useState<string | null>(null);
+  const [forcing, setForcing] = useState(false);
+  const [fresh, setFresh] = useState<string | null>(params.fresh ?? null);
+  const filter = (p: Partial<typeof filters>) => {
+    setFresh(null);
+    router.setParams(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v || undefined])));
+  };
+  const [toast, setToast] = useState<string | null>(() => {
+    const r = all.find((x) => x.duty_id === params.fresh && x.status === 'done');
+    return r ? `已复核，${r.balanced ? '平账' : diffAmount(r.diff!)}` : null;
+  });
+  useEffect(() => { if (params.fresh) router.setParams({ fresh: undefined }); }, [params.fresh]);
   const tellers = [...new Map(all.map((r) => [r.user_id, r.name])).entries()];
   const found = all.filter((r) => (!user || r.user_id === user) && (!day || dayOf(r.started_at) === day));
-  const shown = found.filter((r) => TABS.find(([k]) => k === tab)![2].includes(r.status));
+  const shown = found.filter((r) => r.duty_id === fresh || TABS.find(([k]) => k === tab)![2].includes(r.status));
   const open = all.find((r) => r.duty_id === opened);
 
   function done(r: CashReview, text: string) {
@@ -51,7 +58,6 @@ export default function Cash() {
   const close = () => {
     setOpened(null);
     setForcing(false);
-    if (duty) router.setParams({ duty: undefined });
   };
 
   return (
@@ -62,19 +68,19 @@ export default function Cash() {
             <label className="dc-field">
               <span className="dc-field-label"><Icon name="teller" />柜员</span>
               <span className="dc-select">
-                <select value={user} onChange={(e) => setUser(e.target.value)}>
+                <select value={user} onChange={(e) => filter({ user: e.target.value })}>
                   <option value="">全部柜员</option>
                   {tellers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                 </select>
               </span>
             </label>
-            <DatePicker label="日期" value={day} onChange={setDay} max={today()} rule="上班的日期，不能选今天以后" placeholder="不限" />
+            <DatePicker label="日期" value={day} onChange={(d) => filter({ day: d })} max={today()} rule="上班的日期，不能选今天以后" placeholder="不限" />
           </div>
         </form>
         <div className="dc-tabs" role="tablist" aria-label="轧账状态">
           {TABS.map(([k, label, statuses]) => (
             <button key={k} id={`cash-tab-${k}`} className="dc-tabs-item" role="tab" type="button" aria-selected={tab === k} aria-controls="cash-panel"
-              onClick={() => setTab(k)}>{label}<span className="dc-count">{found.filter((r) => statuses.includes(r.status)).length}</span></button>
+              onClick={() => filter({ tab: k === 'waiting' ? undefined : k })}>{label}<span className="dc-count">{found.filter((r) => statuses.includes(r.status)).length}</span></button>
           ))}
         </div>
       </div>
@@ -101,7 +107,11 @@ export default function Cash() {
                       const reversed = reversedNote(r.reversed, r.ended_at);
                       return (
                         <tr key={r.duty_id} className={fresh === r.duty_id ? 'is-new' : undefined}>
-                          <td><a href="#" role="button" onClick={(e) => { e.preventDefault(); setOpened(r.duty_id); }}>{r.name}</a></td>
+                          <td>
+                            {forces && r.status === 'open'
+                              ? <a href="#" role="button" onClick={(e) => { e.preventDefault(); setOpened(r.duty_id); }}>{r.name}</a>
+                              : <a {...link(cashHref(filters, r.duty_id))}>{r.name}</a>}
+                          </td>
                           <td>{dutySpan(r.started_at, r.ended_at)}{reversed && <small className="dc-top-sub">{reversed}</small>}</td>
                           <td>
                             <ReviewTag r={r} />
@@ -124,14 +134,9 @@ export default function Cash() {
             </div>
           )}
       </section>
-      {open && (forcing ? (
-        <ForceSheet r={open} onClose={close} onDone={(r) => { close(); done(r, '已强制下班'); }} />
-      ) : forces && open.status === 'open' ? (
-        <DutySheet r={open} onClose={close} onForce={() => setForcing(true)} />
-      ) : (
-        <ReviewSheet key={open.duty_id} r={open} canReview={reviews} onClose={close}
-          onDone={(r) => { close(); done(r, `已复核，${r.balanced ? '平账' : diffAmount(r.diff!)}`); }} />
-      ))}
+      {open && (forcing
+        ? <ForceSheet r={open} onClose={close} onDone={(r) => { close(); done(r, '已强制下班'); }} />
+        : <DutySheet r={open} onClose={close} onForce={() => setForcing(true)} />)}
       {toast && <Toast text={toast} onDone={() => setToast(null)} />}
     </Desk>
   );

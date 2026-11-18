@@ -63,3 +63,9 @@ export function cashNotes(income: Counts | null, payout: Counts | null, type: st
   return [income && list(income) && `收 ${list(income)}`, payout && list(payout) && `${type === 'purchase' ? '找' : '付'} ${list(payout)}`]
     .filter(Boolean).join('，');
 }
+
+// The 轧账 page, or one duty's 复核 page, with the list's filters (tab, user, day) kept in the address.
+export function cashHref(params: Record<string, string | undefined>, duty?: string) {
+  const query = new URLSearchParams(Object.entries(params).filter((p): p is [string, string] => !!p[1])).toString();
+  return `/admin/cash${duty ? `/${duty}` : ''}${query ? `?${query}` : ''}`;
+}

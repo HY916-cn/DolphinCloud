@@ -27,7 +27,6 @@ export default function Admin() {
   const logins = has('teacher', 'sysadmin');
   const goods = has('storekeeper', 'teacher', 'president');
   const ops = has('sysadmin');
-  const accountant = has('accountant');
   const day = today();
 
   // A scheduled job that failed (PHASE-2.md §13); the notice goes once the job next succeeds.
@@ -121,7 +120,7 @@ export default function Admin() {
   // 待复核的轧账 (PHASE-2.md §7.2): how many wait, how many since before today, and the five waiting longest.
   const cash = useQuery({
     queryKey: ['cash-overview'],
-    enabled: accountant,
+    enabled: has('accountant', 'teacher'),
     queryFn: () => call<{ pending: number; overdue: number; oldest: CashReview[] }>('cash_review_overview', {}),
   });
 
@@ -167,7 +166,7 @@ export default function Admin() {
           <ul className="dc-list" aria-label="待复核的轧账">
             {[...cash.data.oldest].sort((a, b) => Number(b.overdue) - Number(a.overdue)).map((r) => (
               <li key={r.duty_id}>
-                <a className="dc-list-link" {...link(`/admin/cash?duty=${r.duty_id}`)}>
+                <a className="dc-list-link" {...link(`/admin/cash/${r.duty_id}`)}>
                   <span className="dc-list-icon"><Icon name="balance" /></span>
                   <span>
                     {r.name} · {dutySpan(r.started_at, null).split(' ')[0]}

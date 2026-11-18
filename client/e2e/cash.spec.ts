@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmIn, endDuty, resetData, signIn, sql } from './helpers';
+import { confirmIn, endDuty, resetData, signIn, sql, startDuty } from './helpers';
 
 // 备用金 and 轧账 (PHASE-2.md §4, §7) on the seed data, in order: teller01 ends the seeded duty, begins again from
 // the count set below with one more 10 元 note, serves 张小明 and 李思远 in cash, reverses the withdrawal, and counts a box
 // that does not balance at 下班; the next duty starts from that count and balances. The accountant then reviews both,
-// the president ends an open duty (强制下班) and the accountant counts that box.
+// the president ends an open duty (强制下班) and the accountant counts that box; the bank admin reviews the rest.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
@@ -197,38 +197,58 @@ test('财务: 待复核 on 总览 (a day late in red), 复核 as the teller coun
   await expect(page.getByRole('columnheader')).toHaveCount(7); // no column of actions: the name opens the duty
   const even = byDiff(page, '平').filter({ hasText: '97 HTB' });
 
-  // As the teller counted.
-  await even.getByRole('button', { name: '柜员小林' }).click();
-  const sheet = page.locator('.dc-sheet');
-  await expect(sheet.locator('.dc-sheet-title')).toHaveText('复核 柜员小林的上班');
-  await expect(sheet.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '差额']);
-  await expect(sheet.getByRole('radio', { name: '和柜员点的一致' })).toBeChecked();
-  await confirmIn(page, '复核通过');
+  // As the teller counted, on the duty's own page.
+  await even.getByRole('link', { name: '柜员小林' }).click();
+  await expect(page).toHaveURL(/\/admin\/cash\/[0-9a-f-]{36}$/);
+  await expect(page.locator('.dc-top-title')).toContainText('复核 柜员小林的上班');
+  const shift = page.locator('section[aria-label="这次上班"]');
+  const check = page.locator('section[aria-label="核对"]');
+  const actions = page.locator('.dc-actions');
+  await expect(shift.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '差额']);
+  await expect(check.getByRole('radio', { name: '和柜员点的一致' })).toBeChecked();
+  await expect(check.locator('.dc-caption')).toHaveText('以柜员点的 97 HTB 为准。');
+  await expect(actions.locator('.dc-actions-total b')).toHaveText('97HTB');
+  await actions.getByRole('button', { name: '复核通过' }).click();
   await expect(page.locator('.dc-toast')).toHaveText('已复核，平账');
+  await expect(page).toHaveURL(/\/admin\/cash$/);
+  // The row stays where it was, now 已轧账 and marked new.
+  await expect(page.getByRole('table', { name: '轧账' }).locator('tbody tr')).toHaveCount(3);
+  await expect(page.locator('tbody tr.is-new .dc-tag-success')).toHaveText('已轧账');
+
+  // The filters stay in the address: 返回 comes back to them.
+  await page.locator('form[aria-label="筛选轧账"] select').selectOption({ label: '柜员小林' });
   await expect(page.getByRole('table', { name: '轧账' }).locator('tbody tr')).toHaveCount(2);
+  await short.getByRole('link', { name: '柜员小林' }).click();
+  await expect(page).toHaveURL(/\/admin\/cash\/[0-9a-f-]{36}\?user=/);
+  await page.getByRole('button', { name: '返回' }).click();
+  await expect(page).toHaveURL(/\/admin\/cash\?user=/);
+  await expect(page.locator('form[aria-label="筛选轧账"] select').locator('option:checked')).toHaveText('柜员小林');
 
   // A count of the accountant's own: the difference is worked out again, and a count other than the teller's needs the reason.
-  await short.getByRole('button', { name: '柜员小林' }).click();
-  await expect(sheet.getByRole('list', { name: '本次上班的现金业务' }).locator('.dc-txn-title')).toHaveText(['存款 · 张小明', '兑换 · 李思远']);
-  await sheet.locator('.dc-seg label', { hasText: '不一致' }).click();
-  await expect(sheet.locator('.dc-qty-sum')).toHaveText(['柜员22', '柜员0', '柜员5', '柜员5']);
-  await sheet.getByLabel('减少一张 1 元').click();
-  await expect(sheet.locator('.dc-caption.is-danger')).toHaveText('按财务的数，多 1 HTB，会记一条风险提醒。');
-  await expect(sheet.getByRole('button', { name: '复核通过' })).toBeDisabled();
-  await sheet.getByLabel('原因').fill('盒底少了 1 张 1 元');
-  await confirmIn(page, '复核通过');
+  await short.getByRole('link', { name: '柜员小林' }).click();
+  await expect(page.getByRole('list', { name: '本次上班的现金业务' }).locator('.dc-txn-title')).toHaveText(['存款 · 张小明', '兑换 · 李思远']);
+  await check.locator('.dc-seg label', { hasText: '不一致' }).click();
+  await expect(check.locator('.dc-qty-sum')).toHaveText(['柜员22', '柜员0', '柜员5', '柜员5']);
+  await check.getByLabel('减少一张 1 元').click();
+  await expect(check.locator('.is-total')).toHaveText('财务实点合计96HTB');
+  await expect(check.locator('.dc-caption.is-danger')).toHaveText('按财务的数，多 1 HTB，会记一条风险提醒。');
+  await expect(actions.locator('.dc-actions-total')).toContainText('财务实点');
+  await expect(actions.getByRole('button', { name: '复核通过' })).toBeDisabled();
+  await check.getByLabel('原因').fill('盒底少了 1 张 1 元');
+  await actions.getByRole('button', { name: '复核通过' }).click();
   await expect(page.locator('.dc-toast')).toHaveText('已复核，多 1 HTB');
+  await expect(page).toHaveURL(/\/admin\/cash\?user=/);
   await page.getByRole('tab', { name: /^已轧账/ }).click();
   await expect(byDiff(page, '多 1 HTB').locator('td.is-wrap small')).toHaveText('复核：财务点为 96 HTB，盒底少了 1 张 1 元');
   expect(sql(`select c.review_count::text || ' ' || c.status from public.cash_counts c join public.duty d on d.id = c.duty_id
     where c.review_note is not null`)).toBe('{"1": 21, "2": 0, "5": 5, "10": 5} done');
 
   // A review already made is read-only.
-  await byDiff(page, '多 1 HTB').getByRole('button', { name: '柜员小林' }).click();
-  await expect(sheet.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '财务实点', '差额']);
-  await expect(sheet).toContainText('由财务小郑复核');
-  await expect(sheet.getByRole('button', { name: '复核通过' })).toHaveCount(0);
-  await confirmIn(page, '关闭');
+  await byDiff(page, '多 1 HTB').getByRole('link', { name: '柜员小林' }).click();
+  await expect(shift.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '财务实点', '差额']);
+  await expect(shift).toContainText('由财务小郑复核');
+  await expect(check).toHaveCount(0);
+  await expect(actions).toHaveCount(0);
 });
 
 test('强制下班: the counter stops at once, and the accountant counts the box', async ({ page, browser, baseURL, ignoreHTTPSErrors, locale, timezoneId }) => {
@@ -272,24 +292,69 @@ test('强制下班: the counter stops at once, and the accountant counts the box
   const forced = row(page, '强制下班');
   await expect(forced.locator('td').nth(4)).toHaveText('—');
   await expect(forced.locator('td.is-wrap small')).toHaveText('强制下班：同一学生 10 分钟内办理 6 笔');
-  await forced.getByRole('button', { name: '柜员小林' }).click();
-  const review = page.locator('.dc-sheet');
-  await expect(review).toContainText('同一学生 10 分钟内办理 6 笔');
+  await forced.getByRole('link', { name: '柜员小林' }).click();
+  const review = page.locator('section[aria-label="核对"]');
+  await expect(page.locator('section[aria-label="这次上班"]')).toContainText('同一学生 10 分钟内办理 6 笔');
   await expect(review.locator('.dc-seg')).toHaveCount(0);
   await expect(review.locator('.dc-qty-sum')).toHaveText(['应有22', '应有0', '应有5', '应有5']);
   await review.getByLabel('1 元财务实点张数').fill('22');
   await review.getByLabel('5 元财务实点张数').fill('5');
   await review.getByLabel('10 元财务实点张数').fill('4');
-  await expect(review.getByRole('button', { name: '复核通过' })).toBeDisabled();
+  const pass = page.locator('.dc-actions').getByRole('button', { name: '复核通过' });
+  await expect(pass).toBeDisabled();
   await review.getByLabel('增加一张 10 元').click();
   await expect(review.locator('.dc-caption.is-danger')).toHaveCount(0);
   // Without the count the server asks for one.
   await page.route('**/rest/v1/rpc/review_cash_count', (route) =>
     route.continue({ postData: JSON.stringify({ p_duty_id: route.request().postDataJSON().p_duty_id }) }), { times: 1 });
-  await confirmIn(page, '复核通过');
+  await pass.click();
   await expect(review.locator('.dc-notice-danger')).toContainText('这次上班没有柜员实点，请录入点出的各面额张数。');
-  await confirmIn(page, '复核通过');
+  await pass.click();
   await expect(page.locator('.dc-toast')).toHaveText('已复核，平账');
   expect(sql(`select c.status || ' ' || (c.forced_by is not null) from public.cash_counts c join public.duty d on d.id = c.duty_id
     where d.user_id = ${teller} order by d.started_at desc limit 1`)).toBe('done true');
+});
+
+test('银行管理员: 复核 as the teller counted and with a count of its own, as the reviewer', async ({ page }) => {
+  // One more duty, from the count the accountant made of the last box and with no business, so it balances.
+  await signIn(page, '工作人员', 'teller01');
+  await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
+  await startDuty(page);
+  await expect(page.locator('.dc-duty')).toContainText('已上班');
+  await endDuty(page, true);
+
+  await signIn(page, '工作人员', 'admin');
+  await expect(page).toHaveURL(/\/admin$/);
+  const waiting = page.locator('section[aria-label="待复核的轧账"]');
+  await expect(waiting.getByRole('heading')).toHaveText('待复核的轧账 · 2 次');
+  // The seeded duty, a day late, comes first; the bank admin takes the teller's count.
+  await waiting.locator('.dc-list-link').first().click();
+  await expect(page).toHaveURL(/\/admin\/cash\/[0-9a-f-]{36}$/);
+  await expect(page.locator('.dc-top-title')).toContainText('复核 柜员小林的上班');
+  const check = page.locator('section[aria-label="核对"]');
+  const pass = page.locator('.dc-actions').getByRole('button', { name: '复核通过' });
+  await expect(check.getByRole('radio', { name: '和柜员点的一致' })).toBeChecked();
+  await pass.click();
+  await expect(page.locator('.dc-toast')).toHaveText(/^已复核，/);
+  await expect(page.locator('tbody tr.is-new .dc-tag-success')).toHaveText('已轧账');
+
+  // A count of the bank admin's own, with the reason.
+  await page.getByRole('table', { name: '轧账' }).locator('tbody tr', { has: page.locator('.dc-tag-pending') })
+    .getByRole('link', { name: '柜员小林' }).click();
+  await check.locator('.dc-seg label', { hasText: '不一致' }).click();
+  await check.getByLabel('增加一张 1 元').click();
+  await expect(check.locator('.dc-caption.is-danger')).toHaveText('按财务的数，多 1 HTB，会记一条风险提醒。');
+  await expect(pass).toBeDisabled();
+  await check.getByLabel('原因').fill('盒底多找到 1 张 1 元');
+  await pass.click();
+  await expect(page.locator('.dc-toast')).toHaveText('已复核，多 1 HTB');
+  expect(sql(`select string_agg(p.display_name, ',') from public.cash_counts c join public.profiles p on p.id = c.reviewed_by
+    where c.reviewed_at > now() - interval '5 minutes' and p.login_id = 'admin'`)).toBe('银行管理员,银行管理员');
+
+  // The reviewer reads as the bank admin.
+  await page.getByRole('tab', { name: /^已轧账/ }).click();
+  await byDiff(page, '多 1 HTB').filter({ hasText: '盒底多找到' }).getByRole('link', { name: '柜员小林' }).click();
+  await expect(page.locator('section[aria-label="这次上班"]')).toContainText('由银行管理员复核');
+  await expect(page.locator('section[aria-label="这次上班"]')).toContainText('盒底多找到 1 张 1 元');
+  await expect(check).toHaveCount(0);
 });
