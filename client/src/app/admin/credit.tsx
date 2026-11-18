@@ -7,7 +7,7 @@ import {
 import { classOf } from '@/lib/counter';
 import { RULES, switchToast, type CreditProfile, type CreditSwitchResult, type Curve, type Rules } from '@/lib/credit';
 import { AppError, explain } from '@/lib/errors';
-import { formatSigned, formatTime, trendClass } from '@/lib/format';
+import { formatSigned, formatTime } from '@/lib/format';
 import { useNewRows } from '@/lib/motion';
 import { call } from '@/lib/rpc';
 import { searchRoster } from '@/lib/search';
@@ -137,7 +137,7 @@ function EventTable({ rows, fresh }: { rows: CreditEvent[]; fresh: ReadonlySet<s
           {rows.map((e) => (
             <tr key={e.id} className={fresh.has(String(e.id)) ? 'is-new' : undefined}>
               <td>{formatTime(e.at)}</td>
-              <td className="n"><span className={`dc-pl ${trendClass(e.delta)}`}>{formatSigned(e.delta)}</span></td>
+              <td className="n">{formatSigned(e.delta)}</td>
               <td className="n">{e.score}</td>
               <td style={{ whiteSpace: 'normal' }}>{e.reason}</td>
             </tr>
@@ -340,7 +340,7 @@ function CurveCards({ edit }: { edit: boolean }) {
                 {RULES.map((r) => (
                   <tr key={r.key}>
                     <td style={{ whiteSpace: 'normal' }}>{r.event}</td>
-                    <td className="n">{s.rules[r.key] ? <span className={`dc-pl ${trendClass(s.rules[r.key])}`}>{formatSigned(s.rules[r.key])}</span> : '0'}</td>
+                    <td className="n">{s.rules[r.key] ? formatSigned(s.rules[r.key]) : '0'}</td>
                     <td style={{ whiteSpace: 'normal' }}>{r.when}</td>
                   </tr>
                 ))}

@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import {
   Bars, Columns, DatePicker, Desk, Icon, KvLoading, Line, Notice, OutputSheet, ScopePicker, Stats, Summary, Table, TimeRange, today,
 } from '@/components';
-import { formatAmount, formatSigned, PERIODS, periodOf, shiftDay, signClass, trendClass } from '@/lib/format';
+import { formatAmount, formatSigned, PERIODS, periodOf, shiftDay } from '@/lib/format';
 import { CHANGES, classLabel, dailyBalance, dayLabel, reportPages, scopeArgs, type Report } from '@/lib/reports';
 import { call } from '@/lib/rpc';
 import type { Scope } from '@/lib/search';
@@ -142,7 +142,7 @@ function Business({ r, p }: { r: Report; p: Prev }) {
         ['冲正', r.reversals.count, `笔 · ${formatAmount(r.reversals.amount)} HTB`, delta(r.reversals.count, p?.reversals.count)],
         ['办理业务的学生', b.students, '人', delta(b.students, pb?.students)],
       ]} />
-      <p className="dc-top-sub">兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB；另有 {r.reversed} 笔已冲正{r.adjust.count > 0 && <>，调账 {r.adjust.count} 笔 · <span className={`dc-pl ${trendClass(r.adjust.amount)}`}>{formatSigned(r.adjust.amount)} HTB</span></>}。</p>
+      <p className="dc-top-sub">兑换含账户支付 {formatAmount(b.purchase_account.amount)} HTB、现金支付 {formatAmount(b.purchase_cash.amount)} HTB；另有 {r.reversed} 笔已冲正{r.adjust.count > 0 && `，调账 ${r.adjust.count} 笔 · ${formatSigned(r.adjust.amount)} HTB`}。</p>
       {r.days.length > 1 && (
         <Section title="每日业务">
           <div className="dc-charts">
@@ -214,7 +214,7 @@ function Finance({ r }: { r: Report }) {
     <>
       <Section title="余额核对">
         <Summary rows={[['期初账面余额', `${formatAmount(r.balance.opening)} HTB`],
-          ...CHANGES.filter(([k]) => k !== 'closing' || ch.closing).map(([k, label]): [string, string, string] => [label, signed(ch[k]), signClass(ch[k] ?? 0)])]}
+          ...CHANGES.filter(([k]) => k !== 'closing' || ch.closing).map(([k, label]): [string, string] => [label, signed(ch[k])])]}
           total={['期末账面余额', r.balance.closing]} />
         {sum === r.balance.closing
           ? <Notice tone="success" title="核对一致">期初 {formatAmount(r.balance.opening)} + 本期变动 {formatSigned(sum - r.balance.opening)} = 期末 {formatAmount(r.balance.closing)} HTB。</Notice>
@@ -227,7 +227,7 @@ function Finance({ r }: { r: Report }) {
       </Section>
       <Section title="柜面现金">
         <Summary rows={[['收入（存款、现金兑换）', `${formatAmount(r.cash.in)} HTB`], ['付出（取款、冲正退回）', `${formatAmount(r.cash.out)} HTB`]]}
-          total={['净额', r.cash.in - r.cash.out, 'signed']} />
+          total={['净额', r.cash.in - r.cash.out]} />
       </Section>
     </>
   );

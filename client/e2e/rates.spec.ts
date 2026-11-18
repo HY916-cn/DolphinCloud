@@ -90,7 +90,7 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
   await page.goto('/admin/rates');
   const anchor = page.getByRole('region', { name: '本周锚点' });
   await expect(anchor.locator('.dc-stat')).toHaveText(['本周锚点2.25%比上周 +0.25 个百分点', '存贷比40.0%', '存款余额12,480HTB']);
-  await expect(anchor.locator('.dc-stat em')).toHaveClass('is-up');
+  await expect(anchor.locator('.dc-stat em')).toHaveClass('dc-pl is-up');
   await expect(anchor.locator('p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
   const table = page.getByRole('table', { name: '按分数的周利率' });
   await expect(page.getByRole('heading', { name: '按分数的周利率 · 锚点 2.25%' })).toBeVisible();

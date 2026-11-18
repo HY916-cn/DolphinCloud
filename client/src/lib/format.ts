@@ -3,8 +3,8 @@ export const formatAmount = (n: number) => Math.abs(n).toLocaleString('en-US');
 export const formatSigned = (n: number) => `${n < 0 ? '−' : '+'}${formatAmount(n)}`;
 // A sum that may be negative, unsigned when it is not: −20, 1,280 (存款 in the ranking, net of loans).
 export const formatNet = (n: number) => `${n < 0 ? '−' : ''}${formatAmount(n)}`;
-// 红涨绿跌 (design system ColorRoles 正负): a signed number's class, none at 0. `is-in` / `is-out` on TxnList amounts,
-// SummaryList and passbook values; `is-up` / `is-down` (`trendClass`) on dc-pl and Stats changes.
+// A signed number's direction, none at 0: `is-in` / `is-out` on TxnList amounts (in ink); `is-up` / `is-down`
+// (`trendClass`) on dc-pl, red for a rise and green for a fall, only for rate and market moves (ColorRoles 正负).
 export const signClass = (n: number) => (n > 0 ? 'is-in' : n < 0 ? 'is-out' : '');
 export const trendClass = (n: number) => (n > 0 ? 'is-up' : n < 0 ? 'is-down' : '');
 

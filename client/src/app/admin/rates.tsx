@@ -67,7 +67,7 @@ export default function Rates() {
         <section className="dc-stack dc-enter" aria-label="本周锚点">
           <Stats items={[
             ['本周锚点', formatRate(o.anchor), undefined,
-              change === undefined ? undefined : change ? `比上周 ${formatPoints(change)} 个百分点` : '与上周持平'],
+              change === undefined ? undefined : change ? `比上周 ${formatPoints(change)} 个百分点` : '与上周持平', 'pl'],
             ['存贷比', o.week_start && latest ? formatPercent(latest.ratio) : '—'],
             ['存款余额', o.week_start && latest ? formatAmount(latest.deposits) : '—', 'HTB'],
           ]} />
@@ -127,8 +127,8 @@ export default function Rates() {
                       <td className="n">{formatAmount(w.deposits)}</td>
                       <td className="n">{formatAmount(w.loans)}</td>
                       <td className="n">{formatPercent(w.ratio)}</td>
-                      {/* coloured by the figure as shown, so +0.0% and 0.00 stay plain */}
-                      <td className="n">{w.growth === null ? '—' : <span className={`dc-pl ${trendClass(Math.round(w.growth * 10))}`}>{formatPercent(w.growth, true)}</span>}</td>
+                      <td className="n">{w.growth === null ? '—' : formatPercent(w.growth, true)}</td>
+                      {/* coloured by the change as shown, so 0.00 stays plain */}
                       <td className="n">{w.growth === null ? '0.00' : <span className={`dc-pl ${trendClass(Math.round(w.adjust * 100))}`}>{formatPoints(w.adjust)}</span>}</td>
                       <td className="n">{formatRate(w.anchor)}</td>
                       <td>

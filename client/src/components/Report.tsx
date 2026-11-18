@@ -75,18 +75,22 @@ export function TimeRange({ from, to, onChange }: { from: string; to: string; on
 
 // Figures: what each counts, the number and its unit, and how it compares (比上期); one row, or two even rows on a
 // narrow page.
-// `warn` marks the note under a figure as a warning (is-danger): only that line turns red. `tone` colours a value that is
-// itself a rise or a fall (dc-pl is-up / is-down: 理财's 指数涨跌).
-export function Stats({ items }: { items: [string, ReactNode, string?, string?, boolean?, string?][] }) {
+// `warn` marks the note under a figure as a warning (is-danger): only that line turns red; 'pl' colours a change of a
+// rate in 红涨绿跌 (dc-pl: 利率's 锚点). `tone` colours a value that is itself a rise or a fall (dc-pl is-up / is-down:
+// 理财's 指数涨跌).
+export function Stats({ items }: { items: [string, ReactNode, string?, string?, (boolean | 'pl')?, string?][] }) {
   return (
     <div className="dc-stats-box">
       <div className="dc-stats" data-n={items.length} style={{ '--n': items.length } as CSSProperties}>
-        {items.map(([label, value, unit, change, warn, tone]) => (
-          <div key={label} className="dc-card dc-stat">
-            <span>{label}</span><b className={tone}>{value}{unit && <small>{unit}</small>}</b>
-            {change && <em className={warn ? 'is-danger' : change.includes('+') ? 'is-up' : /[-−]/.test(change) ? 'is-down' : undefined}>{change}</em>}
-          </div>
-        ))}
+        {items.map(([label, value, unit, change, warn, tone]) => {
+          const dir = change?.includes('+') ? 'is-up' : change && /[-−]/.test(change) ? 'is-down' : '';
+          return (
+            <div key={label} className="dc-card dc-stat">
+              <span>{label}</span><b className={tone}>{value}{unit && <small>{unit}</small>}</b>
+              {change && <em className={warn === true ? 'is-danger' : warn === 'pl' && dir ? `dc-pl ${dir}` : dir || undefined}>{change}</em>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

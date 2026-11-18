@@ -1,6 +1,6 @@
 import { BookPages, DIVISIONS, Icon, link, PassbookPage, SaveLogin, signed, SignOut, useCloseBook, useTerm, ViewSwitch } from '@/components';
 import { nameChop } from '@/lib/chop';
-import { formatAmount, signClass } from '@/lib/format';
+import { formatAmount } from '@/lib/format';
 import { useMe } from '@/lib/session';
 
 const STATUS = { normal: '在读', frozen: '已冻结', graduated: '已毕业' } as const;
@@ -27,8 +27,8 @@ export default function BookMe() {
         </dl>
         <dl className="dc-pb-fields dc-pb-sums">
           <dt>当前余额</dt><dd className="is-total">{term ? formatAmount(term.balance) : '…'}<small>HTB</small></dd>
-          <dt>本学期存入</dt><dd className={term && signClass(term.saved)}>{term ? signed(term.saved) : '…'}</dd>
-          <dt>本学期支出</dt><dd className={term && signClass(term.spent)}>{term ? signed(term.spent) : '…'}</dd>
+          <dt>本学期存入</dt><dd>{term ? signed(term.saved) : '…'}</dd>
+          <dt>本学期支出</dt><dd>{term ? signed(term.spent) : '…'}</dd>
         </dl>
         <div className="dc-pb-chop-box"><span>预留印鉴</span><b className={`dc-pb-chop ${seal.size}`} aria-hidden="true">{seal.text}</b></div>
       </PassbookPage>,

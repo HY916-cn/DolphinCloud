@@ -4,7 +4,7 @@ import {
   useLines, useMyLoans, useMyTerms, useMyWealth, useRanking, useTerm, useWide,
 } from '@/components';
 import { heldValue } from '@/lib/wealth';
-import { formatAmount, formatCenti, greeting, signClass } from '@/lib/format';
+import { formatAmount, formatCenti, greeting } from '@/lib/format';
 import { useRecent } from '@/lib/ledger';
 import { homeLoanLine, openLoan } from '@/lib/loans';
 import { pendingNote } from '@/lib/rates';
@@ -59,8 +59,8 @@ export default function BookAccount() {
           </div>
           <dl className="dc-pb-fields dc-pb-sums">
             {!credit.isError && <><dt>信用分</dt><dd>{credit.data ? <CreditGauge score={credit.data.score} size="sm" {...curve} /> : '…'}</dd></>}
-            <dt>本学期存入</dt><dd className={term.data && signClass(term.data.saved)}>{term.data ? signed(term.data.saved) : '…'}</dd>
-            <dt>本学期支出</dt><dd className={term.data && signClass(term.data.spent)}>{term.data ? signed(term.data.spent) : '…'}</dd>
+            <dt>本学期存入</dt><dd>{term.data ? signed(term.data.saved) : '…'}</dd>
+            <dt>本学期支出</dt><dd>{term.data ? signed(term.data.spent) : '…'}</dd>
             {wide && r?.me && <><dt>存款排名</dt><dd>第 {r.me.rank} 名<small>{DIVISIONS[r.division]} {r.total} 人</small></dd></>}
           </dl>
         </>}
@@ -78,7 +78,7 @@ export default function BookAccount() {
       <PassbookPage key="sums" title="利息 · 定期 · 理财 · 贷款">
         <dl className="dc-pb-fields">
           <dt>攒着的利息</dt>
-          <dd className={interest.data && interest.data.pending_centi < 0 ? 'is-out' : undefined}>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB<small>{pendingNote(interest.data.pending_centi)}</small></> : interest.isError ? '—' : '…'}</dd>
+          <dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB<small>{pendingNote(interest.data.pending_centi)}</small></> : interest.isError ? '—' : '…'}</dd>
           <dt>定期合计</dt>
           <dd>{!term.data ? (term.error ? '—' : '…') : term.data.term_total ? <>{formatAmount(term.data.term_total)} HTB{due && <small>{due}</small>}</> : '无'}</dd>
           <dt>理财</dt>

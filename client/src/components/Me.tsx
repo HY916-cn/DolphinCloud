@@ -1,5 +1,5 @@
 import { savedAccounts } from '@/lib/accounts';
-import { formatAmount, signClass } from '@/lib/format';
+import { formatAmount } from '@/lib/format';
 import { PAID_ROLES, type PaidRole } from '@/lib/salary';
 import { roleOf, ROLES, type Me, type Student } from '@/lib/session';
 import { Avatar } from './Avatar';
@@ -26,8 +26,8 @@ function StudentAccount({ s }: { s: Student }) {
           <div><dt>学部</dt><dd>{DIVISIONS[s.division]}</dd></div>
           <div><dt>学届</dt><dd>{s.cohort} 届</dd></div>
           <div><dt>账户状态</dt><dd>{value(term && STATUS[term.status])}</dd></div>
-          <div><dt>本学期存入</dt><dd className={term ? signClass(term.saved) : undefined}>{value(term && signed(term.saved))}</dd></div>
-          <div><dt>本学期支出</dt><dd className={term ? signClass(term.spent) : undefined}>{value(term && signed(term.spent))}</dd></div>
+          <div><dt>本学期存入</dt><dd>{value(term && signed(term.saved))}</dd></div>
+          <div><dt>本学期支出</dt><dd>{value(term && signed(term.spent))}</dd></div>
         </dl>
       </section>
     </div>

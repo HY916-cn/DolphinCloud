@@ -147,7 +147,7 @@ export default function Stock() {
             <span className="dc-field-hint">{noteProblem ? <><Icon name="warning" />{noteProblem}</> : KIND[kind].hint}</span>
           </label>
           <dl className="dc-kv" aria-live="polite">
-            {lines.map((p) => <div key={p.id}><dt>{p.name}</dt><dd className={out ? 'is-out' : 'is-in'}>{out ? '−' : '+'}{formatAmount(qtys[p.id])} 件</dd></div>)}
+            {lines.map((p) => <div key={p.id}><dt>{p.name}</dt><dd>{out ? '−' : '+'}{formatAmount(qtys[p.id])} 件</dd></div>)}
             <div className="is-total"><dt>{KIND[kind].label}合计</dt><dd ref={totalRef}>{formatAmount(total)}<small>件</small></dd></div>
           </dl>
           {tried && !lines.length && <Notice tone="danger" title="还没有选择商品">请用加减按钮填写要{KIND[kind].label}的数量。</Notice>}

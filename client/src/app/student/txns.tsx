@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FilterBar, filtered, Icon, NO_FILTER, Notice, Page, signed, TxnList, TxnListLoading, wrongTimes, type Filter } from '@/components';
-import { formatAmount, signClass } from '@/lib/format';
+import { formatAmount } from '@/lib/format';
 import { TXN_TABS as TABS, useLedger, useMonth, type TxnTab as Tab } from '@/lib/ledger';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
@@ -81,8 +81,8 @@ export default function StudentTxns() {
               <h2 className="heading has-gap">{m}月收支</h2>
               <dl className="dc-kv">
                 <div><dt>{m === 1 ? 12 : m - 1}月底余额</dt><dd>{amount(totals.data?.opening)}</dd></div>
-                <div><dt>存入</dt><dd className={signClass(totals.data?.saved ?? 0) || undefined}>{amount(totals.data?.saved, signed)}</dd></div>
-                <div><dt>支出</dt><dd className={signClass(totals.data?.spent ?? 0) || undefined}>{amount(totals.data?.spent, signed)}</dd></div>
+                <div><dt>存入</dt><dd>{amount(totals.data?.saved, signed)}</dd></div>
+                <div><dt>支出</dt><dd>{amount(totals.data?.spent, signed)}</dd></div>
                 <div className="is-total"><dt>当前余额</dt><dd>{amount(totals.data?.balance)}<small>HTB</small></dd></div>
               </dl>
             </section>
