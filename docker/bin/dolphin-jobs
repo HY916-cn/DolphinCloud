@@ -1,9 +1,10 @@
 #!/bin/bash
-# The scheduled jobs (PHASE-2.md §13): fetch the 理财 index's daily closes and catch up once the database is ready, so
-# a restart makes up the days the server was down, then every day after 00:05 (the container's TZ, Asia/Shanghai). A job
-# that fails is tried again the next day, at a restart, or with `dolphin jobs run`. After the A-share close, from 15:30,
-# the day's close is fetched; a fetch that fails is tried again every 10 minutes six times, then every hour to the end
-# of the day, and once more at 00:05 before the jobs. A day fetched late is applied by the next run_daily.
+# The scheduled jobs (PHASE-2.md §13): fetch the 理财 index's daily closes, catch up and clean up 文件传输 once the
+# database is ready, so a restart makes up the days the server was down, then every day after 00:05 (the container's TZ,
+# Asia/Shanghai). A job that fails is tried again the next day, at a restart, or with `dolphin jobs run`. After the
+# A-share close, from 15:30, the day's close is fetched; a fetch that fails is tried again every 10 minutes six times,
+# then every hour to the end of the day, and once more at 00:05 before the jobs. A day fetched late is applied by the
+# next run_daily.
 set -uo pipefail
 until dolphin jobs >/dev/null 2>&1; do sleep 10; done
 last=
@@ -15,6 +16,7 @@ while true; do
   if [ "$today" != "$last" ] && { [ -z "$last" ] || (( 10#$(date +%H%M) >= 5 )); }; then
     dolphin jobs fetch || true
     dolphin jobs run || echo "dolphin-jobs: a job failed; see dolphin jobs" >&2
+    dolphin jobs clean >/dev/null || echo "dolphin-jobs: the 文件传输 clean-up failed" >&2
     last=$today
     tries=0
     next_fetch=0

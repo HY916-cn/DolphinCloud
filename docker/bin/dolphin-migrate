@@ -33,5 +33,6 @@ for f in /opt/dolphin/migrations/*.sql; do
   echo "dolphin-migrate: applying $name"
   q -1 -f "$f" -c "insert into public.app_migrations(name, checksum) values ('$name', '$sum')"
 done
+dolphin storage-key
 q -c "notify pgrst, 'reload schema'"
 echo "$DOLPHIN_VERSION" > "$version_file"

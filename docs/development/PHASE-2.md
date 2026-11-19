@@ -726,6 +726,7 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 | --- | --- | --- |
 | 每天 00:05 | `app_private.run_daily(d)` | 对前一天 d：活期计息；到期的定期转回活期；理财计入已知行情的日子的收益、到期的转回活期；应还日到期的贷款自动扣款或记逾期，逾期贷款自动扣款；贷款计息 |
 | 每周一 00:10 | `app_private.run_weekly(w)` | 活期结息；信用分的每周加减分与逾期满一周扣分；计算并公布本周锚点 |
+| 每天 00:05（补跑之后） | `dolphin jobs clean` | 文件传输（16.4）的清理，见下 |
 
 - 先跑完每天的再跑每周的。补跑时按日子先后交替进行：周一的每周任务排在周日的每天任务之后、周一的每天任务之前，与每天按时运行的顺序相同，所以停机后补跑的结果与没有停机时相同。
 - `app_private.run_jobs(today)` 补跑：从每天任务的 `done_to` 的下一天开始，每天的任务做到昨天，每周的任务做到今天（周一）。`dolphin-jobs` 在容器启动、数据库迁移完成后补跑一次，之后每天 00:05 以后补跑一次；`dolphin jobs run` 立即补跑。
@@ -738,6 +739,7 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 - 任务失败写日志（`job.failed`），并在运维员总览上提示：运维员和银行管理员（含行长）可直接读 `job_runs`，`last_err` 不为空即为失败。
 - `run_daily` 里依次是活期计息（M9，`accrue_interest`）、到期定期转回活期（M10、M16，`mature_term_deposits`，利息零头并入 `interest_carry`）、理财按天计收益与到期（M16，`value_wealth`、`mature_wealth`）、贷款自动扣款与逾期（M11，`collect_loans(d)`：转回的定期当晚就能用来还款）、贷款计息（M11，`accrue_loans`：按扣款后剩下的本金，应还日当天还掉的本金当天不计息）；`run_weekly` 里依次是结息（M9，`settle_interest`）、信用分每周加减分（M8，`credit_weekly(w)`）、逾期满一周扣分（M11，`overdue_weekly(w)`）、本周锚点（M9，`publish_anchor(w)`）。
 - 贷款计息、扣款按任务运行时贷款的状态和计划；停机期间柜台不办业务，所以补跑与按时运行相同。
+- 文件传输的清理不按日子补跑，只看当前时间：`app_private.clean_transfers()` 删除到期的取件（`expires_at` 已到）、创建 2 小时后仍没生成取件码的发送、不再有取件的 `transfers` 桶记录，以及一天前的输错记录，返回 `{"expired","unfinished","orphans"}` 三项个数，有删除时写日志 `transfer.cleanup`（同样三项）；之后 `dolphin jobs clean` 删除磁盘上不再有取件、3 小时内没有变动的文件夹（刚开始上传的不会被删）。重复执行什么也不删。容器启动时随补跑执行一次，也可以手动执行 `dolphin jobs clean`。
 - 补录和编辑（10.11）与 `run_daily` 都先锁住 `job_runs` 的 `daily` 一行，补录不会夹在一天的任务中间；任务已算过的日子由补录更正利息，没算到的日子由任务照常计息。
 
 ---
@@ -1032,7 +1034,43 @@ create table job_runs (                       -- 定时任务进度
   last_ok  timestamptz,
   last_err text
 );
+
+create table transfers (                      -- 文件传输的一次发送（16.4）
+  id         uuid primary key default gen_random_uuid(),
+  code       text unique check (code ~ '^[0-9]{4}$'), -- 取件码，全部传完后生成
+  ip         text,                            -- 来源 IP
+  total      bigint not null,                 -- 合计字节
+  created_at timestamptz not null default now(),
+  ready_at   timestamptz,                     -- 生成取件码的时间
+  expires_at timestamptz,                     -- ready_at + 7 天
+  check ((code is null) = (ready_at is null) and (ready_at is null) = (expires_at is null))
+);
+
+create table transfer_files (
+  transfer_id uuid not null references transfers(id) on delete cascade,
+  seq         smallint not null check (seq between 1 and 20), -- Storage 对象 transfers/<transfer_id>/<seq>
+  name        text not null check (length(name) between 1 and 255),
+  size        bigint not null check (size between 0 and 104857600),
+  primary key (transfer_id, seq)
+);
+
+create table transfer_misses (                -- 输错取件码
+  ip text,
+  at timestamptz not null default now()
+);
+-- 三张表开启 RLS，anon 与 authenticated 都没有任何权限，只经 15 节的函数存取。
+-- 匿名的行带来源 IP，随取件一起删除（16.4），所以不加行级审计；日志记银行管理员的删除（transfer.delete，含原因，不含 IP）
+-- 和每日清理的个数（transfer.cleanup）。
+
+create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于签发上传、下载地址
+  id     boolean primary key default true check (id),
+  secret text not null check (secret <> '')
+);
+-- 由 dolphin-migrate 每次启动、dolphin restore 恢复后写入；不进备份（P1 §9.4）。
 ```
+
+- `transfers.code` 唯一：取件码从当前没有任何取件占用的码中随机取，到期的取件在每日清理中删除后，它的码才重新可用。
+- 来源 IP 取自 Caddy 设置的 `X-Forwarded-For`（P1 §3.3），没有时为空，没有 IP 的请求共用一个限流额度。
 
 `txns` 新增可空字段 `loan_id uuid references loans(id)`、`term_id uuid references term_deposits(id)`、`wealth_id uuid references wealth_holdings(id)`（`wealth_buy`、`wealth_close` 和冲正它们的流水都带）：`term_open`、`term_close` 和冲正它们的流水都带 `term_id`，`loan`、`repay` 和冲正它们的流水都带 `loan_id`。结息和系统自动扣款的 `operator_id` 用一个专用的系统账号（`profiles.login_id = 'system'`，显示名「系统」，M9 建立）：已停用、已注销、Auth 中封禁，不能登录，也不在工作人员列表里；财务查流水时经办人显示「系统」。函数 `app_private.system_user()` 返回它的 id。
 
@@ -1118,6 +1156,24 @@ create table job_runs (                       -- 定时任务进度
 | `bank_report(…)` | 改动 | 期初、期末余额改为每位学生在期间开始前、结束前的流水之和（补录记在以前的时间，按 `seq` 取最后一笔的 `balance_after` 不再等于当时的余额）；新增 `adjust`：`{"count","amount"}`，期间内未冲正的调账笔数和净额；`balance.changes` 里有 `adjust`。另有（都不含已冲正的）：`loans` 放款 `{"count","amount"}`，`repays` 还款 `{"count","amount","principal","interest"}`，`interest` 活期结息 `{"count","amount"}`，`terms` 定期 `{"open":{"count","amount"},"close":{"count","amount","interest"}}`（`close` 含到期和提前支取，`interest` 为转回金额与本金之差），`operations` 业务笔数 `{"count"}`（同 `dashboard()`）；`holdings` 期末的 `{"term","wealth","loans"}`：定期本金、理财本金、贷款剩余本金（按范围内的学生，每笔流水和它的冲正各记在自己的时间）；`bank_cash` 期末的银行应有现金（全行，11.2）；`issues` 改为 `currency_moves` 的发行：`batches` 为期间内的批次 `{"batch_no","issued_on","total","purpose","approver","denominations","corrections"}`（`total` 含更正，`corrections` 为各笔更正的张数），`total` 为到期末为止的发行合计（含更正） |
 | `student_txns(…)` | 改动 | 按发生时间（`created_at`，同一时刻按 `seq`）最新在前排列和翻页，补录的流水排在原始时间；`p_before` 仍是上一页最后一笔的 `seq`；每笔加 `entered_at`（补录、编辑的录入时间，其他为空）、`corrects_no`（更正自哪一笔的交易号）、`corrected_no`（已更正为哪一笔的交易号） |
 
+| `server_time()` | anon / 任何登录 | 16.4 大屏时间：服务器当前时间，毫秒（1970 年起，UTC），如 `1795106641123` |
+| `public_rates()` | anon / 任何登录 | 16.4 利率看板：`{"week_start":"2026-11-16","anchor":2,"credit_enabled":true,"min_score":400,"scores":[{"score":400,"current":1.92,"loan":7.2},{"score":600,"current":2.08,"loan":6.2667},{"score":750,…},{"score":900,…},{"score":1000,"current":2.4,"loan":4.4}],"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"wealth":{"name":"沪深 300","base":{"2":3.923,…},"day_base":{"2":0.5512,"4":0.5623,"12":0.5153,"24":0.4539,"48":0.3649},"index":{"day":"2026-11-19","change":0.0269}}}`。`week_start` 为空表示还没有公布过锚点（用初始锚点）；`scores` 为 600、750、900、1000 和 `credit_curve.min_score` 在本周锚点下的活期与贷款周利率，按分数排列，`loan` 为空表示这个分数不能贷款；信用分暂停时 `credit_enabled` 为 `false`，`scores` 只有 600 一行（暂停期间人人按 600 分）；`term` 即 `term_rates`；`wealth.base` 为各期限的周基础收益，`day_base` 为当日基础收益，`index` 为参考指数最近一个开盘日的涨跌（百分数），没有行情时为 `null`。不含任何个人信息 |
+| `create_transfer(p_files)` | anon / 任何登录 | 16.4 发送第一步。`p_files`：`[{"name":"报告.pdf","size":1048576}]`，1～20 个，文件名 1～255 字，`size` 为字节数。返回 `{"id","upload_until":"2026-11-20T10:30:00+08:00","files":[{"seq":1,"name":"报告.pdf","size":1048576,"url":"/storage/v1/object/upload/sign/transfers/<id>/1?token=…"}]}`，`url` 相对于站点，2 小时内有效。错误：`INVALID_INPUT`（`field: files`）、`FILE_TOO_LARGE`（`{"field":"file","name","max":104857600}` 单个超过 100 MB；`{"field":"total","total","max":209715200}` 合计超过 200 MB）、`RATE_LIMITED`（`{"retry_at"}`，同一 IP 1 小时内已发送 10 次，`retry_at` 为可以再发送的时间）、`STORAGE_FULL`（未到期的取件与 2 小时内的发送合计将超过 5 GB） |
+| `finish_transfer(p_id)` | anon / 任何登录 | 16.4 发送第二步，每个文件都按声明的大小传完后调用。返回 `{"id","code":"0427","created_at","expires_at","total","files":[{"seq","name","size"}]}`，`created_at` 为生成取件码的时间，`expires_at` 为其后 7 天；再次调用返回同一结果。错误：`TRANSFER_INCOMPLETE`（`{"missing":[2]}`，没传或大小不对的文件，重传后再调用）、`TRANSFER_NOT_FOUND`（没有这次发送、已过 2 小时或已过期）、`STORAGE_FULL`（10000 个码都被占用） |
+| `open_transfer(p_code)` | anon / 任何登录 | 16.4 接收：返回同 `finish_transfer`，`files` 每项另有 `url`：`/storage/v1/object/sign/transfers/<id>/<seq>?token=…&download=<文件名>`，到取件到期前有效，下载时按原文件名保存（`Content-Disposition: attachment`）。码不存在或已过期返回 HTTP 400 与 `TRANSFER_NOT_FOUND`（格式同其他错误，这次输错会记下）；同一 IP 10 分钟内输错 10 次后，从第 10 次起 10 分钟内一律 `RATE_LIMITED`（`{"retry_at"}`），这期间的尝试不计数 |
+| `list_transfers()` | teacher（行长不可） | 16.4 后台「文件传输」：未到期的取件，按生成时间从新到旧，每项同 `finish_transfer` 的返回，不含 `code`，加 `ip`（来源 IP）；没有时 `[]` |
+| `delete_transfer(p_id, p_reason)` | teacher（行长不可） | 16.4 提前删除：取件、文件和来源 IP 一起删除，已发出的下载地址立即失效；返回删除的取件（同 `list_transfers` 的一项，不含 `ip`）；写日志 `transfer.delete`（前为这项取件，后为 `{"reason"}`）。错误：`INVALID_INPUT`（`field: reason`，为空或超过 200 字）、`TRANSFER_NOT_FOUND`（不存在或已过期） |
+
+上面前五个函数不用登录就能调用（`anon`），是项目里仅有的五个；其余身份照常。
+
+文件传输的调用流程（前端照此实现）：
+
+1. `create_transfer(p_files)`，失败按错误码提示，不上传。
+2. 对返回的每个文件 `PUT <站点地址><url>`，请求体为文件本身，`Content-Type` 为文件类型（不知道时 `application/octet-stream`），不需要 `apikey` 或登录。成功返回 200；超过 100 MB 返回 400，正文 `"code":"EntityTooLarge"`。用 `XMLHttpRequest` 的 `upload.onprogress` 显示每个文件的进度；失败的用同一个 `url` 重传（2 小时内）。
+3. 全部成功后 `finish_transfer(p_id)`：返回 `TRANSFER_INCOMPLETE` 时重传 `missing` 里的文件再调用。拿到 `code` 和 `expires_at` 显示给发送人。
+4. 接收：`open_transfer(p_code)`，列出 `files`；下载用 `<a href="<站点地址><url>">` 打开，浏览器按原文件名保存。到期或删除后地址返回 400。
+5. 中途离开不调用 `finish_transfer`，已传的文件由每日清理删除（13 节）。
+
 新增错误码（界面文字按 P1 §7.6 的写法）：
 
 | 代码 | 标题 | 说明 |
@@ -1135,6 +1191,11 @@ create table job_runs (                       -- 定时任务进度
 | `ALERT_HANDLED` | 这条提醒已处理 | {handler_name} 已于 {handled_at} 标为已查看。（已终止时：已于 {handled_at} 终止。） |
 | `ALERT_OUTDATED` | 参数之后又改过 | 这项参数在提醒之后又改过，请先终止后来的那条提醒，或到参数页直接修改。 |
 | `OCCURRED_OUT_OF_RANGE` | 时间不在补录范围内 | 只能补录 {from} 开户以后、到现在之间发生的业务。（`from` 是这位学生的开户时间，写「M月D日 HH:mm」） |
+| `TRANSFER_NOT_FOUND` | 取件码不对或已过期 | 请核对 4 位取件码。（发送时：这次发送已失效，请重新选择文件。后台：这个取件已删除或已过期。） |
+| `TRANSFER_INCOMPLETE` | 还有文件没传完 | 重传标出的文件后再生成取件码。 |
+| `FILE_TOO_LARGE` | 文件太大 | 「{name}」超过 100 MB。（`field: total`：一次合计不超过 200 MB。） |
+| `STORAGE_FULL` | 存储空间已满 | 请过几天再试。 |
+| `RATE_LIMITED` | 输错次数太多 | 请 10 分钟后再试。（发送时：发送次数太多，1 小时内至多发送 10 次，请 {retry_at} 以后再试。） |
 
 `INVALID_AMOUNT` 带 `payoff` 时（10.4）写「还清本金要连利息零头一起付，全部结清是 {payoff} HTB。」
 
@@ -1279,6 +1340,12 @@ create table job_runs (                       -- 定时任务进度
     - 全站未到期的文件合计不超过 5 GB，满了时提示「存储空间已满，请过几天再试」。
   - 下载按原文件名保存（`Content-Disposition: attachment`），不在页面里打开。
   - 后台「文件传输」页只给银行管理员：列出未到期的取件，含生成时间、到期时间、文件名、合计大小和来源 IP。可以提前删除，删除要写原因并记日志。来源 IP 随取件一起删除。
+  - 实现：文件存在 Storage 的私有桶 `transfers`，上传、下载都用数据库签发的签名地址（15 节的调用流程），不经过登录。
+    - 「每小时上传 10 次」按 `create_transfer` 的次数计：同一 IP 最近 1 小时内已有 10 次，第 11 次 `RATE_LIMITED`，等到其中最早的一次满 1 小时。
+    - 发送要在 `create_transfer` 后 2 小时内传完并调用 `finish_transfer`，否则作废。全站 5 GB 计入未到期的取件和 2 小时内的发送（按声明的大小）。
+    - 「10 分钟内输错 10 次」：最近 10 次输错的首尾相差不超过 10 分钟时，从第 10 次起锁 10 分钟。
+    - 1 MB = 1048576 字节：单个 104857600、合计 209715200、全站 5368709120 字节。大小为 0 的文件可以发送。
+    - 文件传输的文件和记录不进备份（P1 §9.4）。
 
 ---
 
@@ -1289,6 +1356,7 @@ create table job_runs (                       -- 定时任务进度
 | 类别 | 内容 |
 | --- | --- |
 | 数据库（pgTAP） | 信用分（`supabase/tests/23_credit.sql`）：8.1 表格每个分数的额度与系数、「再涨 N 分」、截断、每条每周规则、冻结毕业注销不变、假期里和学期第一个周一照常加减分、同一周重复执行不变、整学期补跑与每周按时运行相同、手动调整的身份与记录、参数校验、读取权限、一学期的稳定存款学生（600 → 738）；信用分开关（`supabase/tests/29_credit_switch.sql`）：只有银行管理员能切换且要写原因、暂停后都是 600 分且额度和利率按 600 分算、暂停期间每周规则、还款、逾期和手动调整都不记分、补跑与按时运行相同、重新开启后恢复原分、重复切换不变；锚点公式的边界与限幅、活期每天计息与结息零头（跨学期和假期每天计息、每周一结息、每周一公布锚点）、补跑与按时运行相同、利息自检（`supabase/tests/24_interest.sql`）；定期的锁定利率、到期付息与零头、提前支取按天计息、各种不能开的情况、冲正与零头收回、注销、排名、存款余额与日均余额含定期、补跑与按时运行相同、自检（`supabase/tests/25_term_deposits.sql`）；定期定值：`term_rates` 的默认值、校验与谁能改，已开的定期保持原利率，跨学期与假期里到期、假期里开定期、提前支取按每一天（含假期）计活期利息、未到期的定期不影响结转（`supabase/tests/27_fixed_term.sql`）；理财：腾讯、新浪、东方财富日线的解析（当天 15:30 以前不写、缺上一个开盘日）、休市日的判断、`wealth_params` 校验、周基础收益的反推公式、当日基础收益、三档倍率的每日收益率与截断、买入时锁定参数、按周计收益与到期（假期里到期、冻结照常）、缺一个开盘日时等待与按天手动登记后补上、补跑与按时运行相同、买入与赎回的各种情况、零头、冲正、注销、排名、读取权限、自检（`supabase/tests/28_wealth.sql`）；贷款的等额本金计划、按天计息、估算利息、提前还款、多还重排、利息零头、自动扣款、逾期、罚息、扣分、终止、有贷款不能开定期、贷款可以跨学期末和在假期里办、未结清的贷款不影响结转、放款与还款的冲正、日均余额与排名不计借来的钱、存贷比、补跑与按时运行相同、自检（`supabase/tests/26_loans.sql`）；全员考勤与工资（`supabase/tests/30_staff_attendance.sql`）：四种身份绑定本人的工资账户与密码、银行管理员和运维员不能参与、为他人绑定的权限、开启考勤、签到与作废的权限和不能签自己、工资标准的校验与日志、按记下的身份发放（身份改了也按原来的）；考勤签到与行长权限（`supabase/tests/34_attendance_sign_in.sql`）：只有柜员、财务、库管、行长参与考勤，本人签到的身份、班次判断、待审与各种拒绝、每个班次一次（含未通过的），在表里签到的权限（本人、行长对行长、银行管理员对行长），审查和发放只限银行管理员，作废的权限与待审不能作废，作废记下 `voided_at`、`voided_by` 而审查未通过不记、按审计日志回填（不回填审查未通过的、重复执行不变），行长被收回的每个写函数都 `FORBIDDEN`、读不到日志、仍能读学生和人员，`salary_rates` 只有四种身份；手动补录与更正（`supabase/tests/31_manual_entries.sql`）：只限银行管理员、原因必填、四种类型各自的写法、时间范围（不晚于现在、不早于开户，与学期无关，已结转的学期里也能补录）、幂等、现在和历史余额不为负、现金不进柜员的上班、补录之后每个已计息的日子都按更正后的活期重算（已结息和未结息的周、学期内和假期）、更正等到下一次结息并写进说明、补录早于计息与当初就记对完全相同、跨过结息日时每天至多差 0.01 HTB、编辑生成冲正与新流水并互相关联（含改学生和类型）、不能编辑的类型、冲正调账、报表的期初期末、柜台查询的关联、自检；取消假期限制（`supabase/tests/32_no_holidays.sql`）：没有学期时每天、每个周一都做全部的事，迁移前已处理的日子不重算，假期里和跨学期末放款，结转不受未结清贷款影响，不再有函数报 `NO_TERM`、`TERM_TOO_LONG`；轧账（`supabase/tests/33_cash_review.sql`）：下班不录实点时不比对、实点的校验、不平时必须写原因且不下班、平账不用写原因、返回的差额与逐笔现金业务、下次上班默认取柜员或复核的实点、柜员和行长不能复核且只复核一次、与柜员一致、财务重点与柜员不同时写原因、强制下班的身份与原因、强制下班后不能办理且不记班次、强制下班由财务录入实点复核、银行管理员的冲正不进柜员的上班、早先上班的业务之后被冲正的标注、列表的身份与筛选、金额合计、隔天未复核、财务总览、上班卡片的默认备用金；银行管理员复核轧账（`supabase/tests/35_admin_cash_review.sql`）：银行管理员复核一致的、不一致的（写原因）和强制下班的上班，`reviewed_by` 与复核人姓名为银行管理员本人，行长、柜员 `FORBIDDEN`，财务照旧能复核，谁先复核都只复核一次，总览的待复核统计；风险提醒（`supabase/tests/36_risk_alerts.sql`）：`risk_rules` 的默认值与校验，13 种提醒各自的触发与不触发的边界（80% 的取款、50 HTB 与 600 分的贷款、前一天的冲正、10 分钟以前的业务、值不变的参数、安全库存以上、平账、银行管理员的冲正），重复提交与同一事件只记一条，每种「终止」的效果（冲正取款与提前支取、提前到期、强制下班后不能办理、恢复参数与工资标准、信用分的相反变动）与失败时保持未处理（已冲正、余额不足、已作废的贷款、已下班、参数又改过、信用分暂停），只能「已查看」的种类，只由银行管理员处理（行长、运维员 `FORBIDDEN`）、每条只处理一次，行长能读列表和总览、财务读不到，列表的筛选与翻页、总览，触发失败不影响业务；库存不足（`supabase/tests/38_stock_low_listed.sql`）：新建时已不足、未上架时降到不足、不足时上架、库存降低、安全库存调高，未处理时不重复，迁移的回填与重复执行，有未处理提醒的商品与总览的库存不足清单相同；货币登记与监控、经营看板（`supabase/tests/37_currency_dashboard.sql`）：五种登记的写法与校验、期初现金只一次、幂等、不能修改、更正（引用、为负、合计为 0）、谁能登记与读取，按类型核对每种流水的现金变动、期初现金之前的流水不计、流到学生手中可为负、按面额的银行应有现金与储蓄盒实点、电子币新增的构成、兑付能力与提示线（含参数校验），`dashboard()` 的 6 个指标、最近 12 周，与同期 `bank_report` 一致，报表的放款、还款、利息、定期与发行；免密码绑定只限管理员；`import_staff` |
+| 公开页面 | `supabase/tests/39_public_pages.sql`：`server_time` 与服务器时钟相差不到 1 秒；`public_rates` 的各项与本周锚点、`term_rates`、`wealth_params` 一致，信用分暂停时只有 600 分，不含个人信息；`create_transfer` 的校验（个数、文件名、大小、100 MB、200 MB），签名地址的密钥、对象、用途与有效期；没传完或大小不对时不生成取件码，再次完成返回同一个码；取件码 4 位、随机、不与任何现存取件重复，只剩一个码时取到它、没有时 `STORAGE_FULL`；7 天到期与 2 小时内完成；下载地址按原文件名（URL 编码）；同一 IP 每小时 10 次上传与 10 分钟 10 次输错（输错返回 400 且记下，锁定期间不计数，跨过 10 分钟不锁，其他 IP 不受影响）；5 GB（到期的不计，2 小时内的发送计入）；每日清理（到期、超过 2 小时未完成、孤立文件、一天前的输错，重复执行不变，写日志）；后台列表与删除只限银行管理员（行长、柜员、学生 `FORBIDDEN`，anon 无权限），删除写原因与日志、不含 IP，删除后码失效；anon 读不到三张表。`20_rpc_matrix.sql`：五个公开函数 anon 与任何登录都能调用，anon 只能调用这五个，没有身份能直接往 `transfers` 桶写文件。冒烟测试：经 Caddy 和 Storage 真实上传三个文件（含 100 MB，超过 100 MB 被拒）、生成取件码、输错一次被记下、按原文件名下载且带沙箱 CSP，签名地址不能用于别的对象或别的用途，请求自带的 `X-Forwarded-For` 不被采用，带 PROXY 协议头时取头部的 IP；银行管理员删除后下载失效、`dolphin jobs clean` 删除磁盘上的文件；备份与恢复不含文件传输，恢复后能照常上传 |
 | 定时任务 | 用固定的「今天」跑 `run_daily`、`run_weekly`：学期内和假期的每天、每个周一都做（`done`）；重复执行结果不变；停机三天后补跑结果与每天都跑相同；失败时停在出错的那天并记录（`supabase/tests/22_terms_jobs.sql`）；冒烟测试检查 `dolphin-jobs` 在运行、`dolphin jobs` 的输出和重启后的补跑 |
 | 端到端 | 柜台办贷款（账户 / 现金）、还款、开定期、提前支取；上班登记备用金、下班实点不平写原因、财务复核、银行管理员复核；风险提醒终止贷款、总览的库存不足清单；学生「信用」页；利率页、待入账利息与「利息」流水（`client/e2e/rates.spec.ts`）；工作人员导入与通知单；后台暂停与重新开启信用分、暂停时学生「信用」页与后台的提示；银行管理员登记期初现金与发行后「货币」页的数字、总览看板的 6 个指标 |
 | 模拟 | `docker/sim-test.sh`：2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、买理财与赎回、放款与还款，部分贷款逾期、跨过学期末；理财每个开盘日用固定的模拟涨跌，10 月 1～7 日休市，不联网），检查每个周一都有锚点（19 个）且保持在 1%～4%、每天都计活期利息（含假期）、每天自检通过、单次 `run_daily` 在 30 秒内完成、到期的定期和理财全部转回活期（更长的转入下学期）、全部到期的贷款都已结清或逾期在册 |

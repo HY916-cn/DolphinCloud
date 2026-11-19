@@ -1,6 +1,8 @@
 {
 	email {$ACME_EMAIL}
 	skip_install_trust
+	# Written by the entrypoint: the PROXY protocol from DOLPHIN_PROXY_PROTOCOL's ranges when set, otherwise nothing.
+	import /data/run/proxy.caddy
 }
 
 # Port 80 always sends visitors to the public address, https://$DOLPHIN_DOMAIN, whatever port Caddy listens on for HTTPS.

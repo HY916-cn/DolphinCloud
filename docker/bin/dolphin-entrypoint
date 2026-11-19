@@ -15,6 +15,15 @@ fi
 if grep -q '^tls ' /data/run/tls.caddy || [ "$DOLPHIN_DOMAIN" = localhost ]; then
   : "${ACME_EMAIL:=admin@localhost}"
 fi
+# Client addresses (文件传输's limits per IP): a forwarder in DOLPHIN_PROXY_PROTOCOL's CIDR ranges may send a PROXY protocol
+# header with the client's address; without one, or from elsewhere, Caddy takes the connection's. Caddy sets
+# X-Forwarded-For from that, whatever the request carried.
+if [ -n "${DOLPHIN_PROXY_PROTOCOL:-}" ]; then
+  printf 'servers {\n\tlistener_wrappers {\n\t\tproxy_protocol {\n\t\t\tallow %s\n\t\t}\n\t\ttls\n\t}\n}\n' \
+    "$DOLPHIN_PROXY_PROTOCOL" > /data/run/proxy.caddy
+else
+  : > /data/run/proxy.caddy
+fi
 : "${ACME_EMAIL:?Set ACME_EMAIL to the address that receives certificate expiry notices, or mount certificates at /certs}"
 export ACME_EMAIL
 chmod 700 /data/secrets

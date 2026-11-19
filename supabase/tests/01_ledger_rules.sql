@@ -11,9 +11,11 @@ select ok(not exists (select 1 from information_schema.role_table_grants where t
 select ok(not exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
   and grantee in ('anon', 'PUBLIC')), 'anon has no table privileges');
 
-select ok(not exists (select 1 from pg_proc p where pronamespace = 'public'::regnamespace
+select is(array(select proname::text from pg_proc p where pronamespace = 'public'::regnamespace
   and has_function_privilege('anon', p.oid, 'execute')
-  and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')), 'anon cannot call any app function');
+  and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e') order by 1),
+  array['create_transfer', 'finish_transfer', 'open_transfer', 'public_rates', 'server_time'],
+  'anon calls only the public pages'' functions (PHASE-2.md §16.4)');
 
 select ok(not has_function_privilege('authenticated', 'app_private.create_login(text, text)', 'execute'),
   'authenticated cannot call create_login');

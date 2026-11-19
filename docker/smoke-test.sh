@@ -1,8 +1,8 @@
 #!/bin/bash
 # M0 smoke test: run the image with DOLPHIN_DOMAIN=localhost and check, over HTTPS (Caddy's local CA):
 # HTTP → HTTPS redirect, security headers, non-root services, migration checksums, health check, login, lockout,
-# password rule, create-admin, RPC, image upload and public read, encrypted backup → change → restore, the scheduled jobs and
-# their catch-up after a restart, container restart.
+# password rule, create-admin, RPC, image upload and public read, 公开页面 (server time, rates, 文件传输 through Storage,
+# client IPs), encrypted backup → change → restore, the scheduled jobs and their catch-up after a restart, container restart.
 # Usage: docker/smoke-test.sh [image]   (default dolphin-cloud:dev). Removes only the container and volume it created.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -35,6 +35,9 @@ migrate_exited_ok() { # migrate may finish between `supervisorctl pid` and `stat
 i = ServerProxy("http://supervisor", SupervisorTransport(None, None, "unix:///run/supervisor.sock")).supervisor.getProcessInfo("migrate")
 exit(not (i["pid"] == 0 and i["statename"] == "EXITED" and i["exitstatus"] == 0))'
 }
+rpc() { # rpc <function> <json> [curl options]: as anon (not signed in)
+  http -X POST "$BASE/rest/v1/rpc/$1" -H "apikey: $ANON" -H 'Content-Type: application/json' -d "$2" "${@:3}"
+}
 login() { # login <email> <password> → prints access token, empty on failure
   http -X POST "$BASE/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H 'Content-Type: application/json' \
     -d "{\"email\":\"$1\",\"password\":\"$2\"}" >/dev/null
@@ -43,8 +46,9 @@ login() { # login <email> <password> → prints access token, empty on failure
 
 docker run --rm --entrypoint age-keygen "$IMAGE" > "$WORK/backup-key.txt" 2>/dev/null
 RECIPIENT=$(sed -n 's/^# public key: //p' "$WORK/backup-key.txt")
+# Docker forwards the published ports from a private address: Caddy takes a PROXY protocol header from there, if any.
 docker run -d --name "$NAME" -p 127.0.0.1::443 -p 127.0.0.1::80 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com \
-  -e BACKUP_RECIPIENT="$RECIPIENT" "$IMAGE" >/dev/null
+  -e BACKUP_RECIPIENT="$RECIPIENT" -e DOLPHIN_PROXY_PROTOCOL="10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.0/8" "$IMAGE" >/dev/null
 wait_ready
 ANON=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$ANON_KEY"')
 SERVICE=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$SERVICE_ROLE_KEY"')
@@ -142,6 +146,75 @@ grep -qi "^content-security-policy: default-src 'none'; sandbox" "$WORK/headers"
   || fail "storage headers: $(cat "$WORK/headers")"
 pass "image upload (RLS blocks users without a policy) and public read, sandboxed by CSP"
 
+# 公开页面 (PHASE-2.md §16.4), not signed in.
+[ "$(rpc server_time '{}')" = 200 ] && [ $(( $(cat "$WORK/body") / 1000 - $(date +%s) )) -ge -5 ] \
+  && [ $(( $(cat "$WORK/body") / 1000 - $(date +%s) )) -le 5 ] || fail "server_time: $(cat "$WORK/body")"
+[ "$(rpc public_rates '{}')" = 200 ] && jq -e '.anchor > 0 and (.scores | length) == 5 and (.term | length) == 5' "$WORK/body" >/dev/null \
+  || fail "public_rates: $(cat "$WORK/body")"
+pass "server_time and public_rates answer anon"
+
+# 文件传输: two files and one of 100 MB through Storage's signed URLs, a code, and the downloads.
+TRANSFERS=/data/storage/files/dolphin/transfers
+printf '海豚云 smoke\n' > "$WORK/a.txt"
+head -c 104857600 /dev/zero > "$WORK/big.bin"
+head -c 104857601 /dev/zero > "$WORK/too-big.bin"
+FILES=$(jq -nc --argjson a "$(wc -c < "$WORK/a.txt")" --argjson l "$(wc -c < "$LOGO")" \
+  '[{name: "报告 v2.txt", size: $a}, {name: "logo.png", size: $l}, {name: "big.bin", size: 104857600}]')
+[ "$(rpc create_transfer "{\"p_files\":$FILES}" -H 'X-Forwarded-For: 203.0.113.99')" = 200 ] || fail "create_transfer: $(cat "$WORK/body")"
+cp "$WORK/body" "$WORK/transfer.json"
+ID=$(jq -r .id "$WORK/transfer.json")
+put() { http -X PUT "$BASE$(jq -r ".files[$1].url" "$WORK/transfer.json")" -H "Content-Type: $2" --data-binary @"$3"; }
+IP=$(sql "select ip from public.transfers where id = '$ID'")
+[ -n "$IP" ] && [ "$IP" != 203.0.113.99 ] || fail "the client IP is the one the request claimed: $IP"
+[ "$(rpc finish_transfer "{\"p_id\":\"$ID\"}")" = 400 ] && [ "$(jq -r .message "$WORK/body")" = TRANSFER_INCOMPLETE ] \
+  || fail "finished before the uploads: $(cat "$WORK/body")"
+[ "$(put 0 'text/plain; charset=utf-8' "$WORK/a.txt")" = 200 ] && [ "$(put 1 image/png "$LOGO")" = 200 ] || fail "upload: $(cat "$WORK/body")"
+[ "$(put 2 application/octet-stream "$WORK/too-big.bin")" = 400 ] && grep -q EntityTooLarge "$WORK/body" || fail "a file over 100 MB was taken: $(cat "$WORK/body")"
+[ "$(put 2 application/octet-stream "$WORK/big.bin")" = 200 ] || fail "a file of 100 MB was refused: $(cat "$WORK/body")"
+code=$(http -X PUT "$BASE$(jq -r '.files[0].url' "$WORK/transfer.json" | sed 's#/1?token#/9?token#')" --data-binary @"$WORK/a.txt")
+[ "$code" -ge 400 ] || fail "an upload URL put another object ($code)"
+[ "$(rpc finish_transfer "{\"p_id\":\"$ID\"}")" = 200 ] || fail "finish_transfer: $(cat "$WORK/body")"
+CODE=$(jq -r .code "$WORK/body")
+[ "$(rpc open_transfer '{"p_code":"x0x0"}')" = 400 ] && [ "$(jq -r .message "$WORK/body")" = TRANSFER_NOT_FOUND ] \
+  && [ "$(sql "select count(*) from public.transfer_misses where ip = '$IP'")" = 1 ] || fail "a wrong code: $(cat "$WORK/body")"
+[ "$(rpc open_transfer "{\"p_code\":\"$CODE\"}")" = 200 ] && [ "$(jq '.files | length' "$WORK/body")" = 3 ] || fail "open_transfer: $(cat "$WORK/body")"
+cp "$WORK/body" "$WORK/opened.json"
+get() { http "$BASE$(jq -r ".files[$1].url" "$WORK/opened.json")"; }
+[ "$(get 0)" = 200 ] && cmp -s "$WORK/body" "$WORK/a.txt" \
+  && grep -qi "^content-disposition: attachment; .*filename\*=UTF-8''%E6%8A%A5%E5%91%8A%20v2.txt" "$WORK/headers" \
+  && grep -qi "^content-security-policy: default-src 'none'; sandbox" "$WORK/headers" || fail "download: $(cat "$WORK/headers")"
+[ "$(get 1)" = 200 ] && cmp -s "$WORK/body" "$LOGO" && [ "$(get 2)" = 200 ] && cmp -s "$WORK/body" "$WORK/big.bin" || fail "downloads"
+code=$(http "$BASE$(jq -r '.files[0].url' "$WORK/opened.json" | sed 's#/1?token#/2?token#')")
+[ "$code" -ge 400 ] || fail "a download URL read another object ($code)"
+[ "$(http "$BASE$(jq -r '.files[0].url' "$WORK/transfer.json")")" -ge 400 ] || fail "an upload URL downloads"
+code=$(http "$BASE/storage/v1/object/transfers/$ID/1" -H "apikey: $ANON")
+[ "$code" -ge 400 ] || fail "the bucket is readable without a signed URL ($code)"
+pass "文件传输: uploads (100 MB, not more) through signed URLs, a code, downloads saved under their names; the client IP is Caddy's"
+
+[ "$(curl -sS --cacert "$WORK/root.crt" --haproxy-clientip 198.51.100.7 -o "$WORK/body" -w '%{http_code}' -X POST "$BASE/rest/v1/rpc/create_transfer" \
+  -H "apikey: $ANON" -H 'Content-Type: application/json' -d '{"p_files":[{"name":"a","size":1}]}')" = 200 ] \
+  && [ "$(sql "select ip from public.transfers where id = '$(jq -r .id "$WORK/body")'")" = 198.51.100.7 ] || fail "PROXY protocol: $(cat "$WORK/body")"
+pass "behind a forwarder in DOLPHIN_PROXY_PROTOCOL, the client IP is the PROXY protocol header's"
+
+sql "update public.profiles set must_change_password = false where login_id = 'smokeadmin'" # as after setting a new password
+ADMIN_TOKEN=$(login smokeadmin@staff.dolphin.internal "$ADMIN_PW")
+[ "$(http -X POST "$BASE/rest/v1/rpc/list_transfers" -H "apikey: $ANON" -H "Authorization: Bearer $ADMIN_TOKEN")" = 200 ] \
+  && [ "$(jq -r ".[] | select(.id == \"$ID\") | .ip" "$WORK/body")" = "$IP" ] || fail "list_transfers: $(cat "$WORK/body")"
+[ "$(http -X POST "$BASE/rest/v1/rpc/delete_transfer" -H "apikey: $ANON" -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' -d "$(jq -nc --arg id "$ID" '{p_id: $id, p_reason: "冒烟测试"}')")" = 200 ] || fail "delete_transfer: $(cat "$WORK/body")"
+[ "$(get 0)" -ge 400 ] || fail "a deleted transfer still downloads"
+docker exec "$NAME" test -d "$TRANSFERS/$ID" || fail "no files on disk at $TRANSFERS/$ID"
+docker exec "$NAME" touch -d '4 hours ago' "$TRANSFERS/$ID"
+docker exec -u dolphin "$NAME" dolphin jobs clean >/dev/null || fail "dolphin jobs clean"
+! docker exec "$NAME" test -e "$TRANSFERS/$ID" || fail "dolphin jobs clean left the deleted transfer's files"
+docker exec -u dolphin "$NAME" dolphin jobs clean >/dev/null || fail "dolphin jobs clean again"
+pass "the bank admin lists and deletes a transfer; downloads stop, and dolphin jobs clean removes its files"
+
+# A transfer at backup time is not in the backup.
+rpc create_transfer '{"p_files":[{"name":"a.txt","size":1}]}' >/dev/null && cp "$WORK/body" "$WORK/transfer.json"
+printf x > "$WORK/x.txt"
+[ "$(put 0 text/plain "$WORK/x.txt")" = 200 ] || fail "upload before the backup: $(cat "$WORK/body")"
+
 BACKUP=$(docker exec "$NAME" dolphin backup | tail -1)
 [ "$(docker exec "$NAME" stat -c %a /data/backups "$BACKUP" | tr '\n' ' ')" = '700 600 ' ] || fail "backup permissions"
 [ "$(sql "select count(*) from public.audit_log where action = 'backup.create' and after ->> 'file' = '$(basename "$BACKUP")'")" = 1 ] \
@@ -156,7 +229,10 @@ wait_ready
 [ -n "$(login admin@staff.dolphin.internal Smoke-pass-1)" ] || fail "account lost in restore"
 [ "$(sql "select count(*) from public.audit_log where action = 'backup.restore'")" = 1 ] || fail "restore not in audit_log"
 [ "$(http "$BASE/storage/v1/object/public/product-images/smoke/logo.png")" = 200 ] && cmp -s "$WORK/body" "$LOGO" || fail "image lost in restore"
-pass "encrypted backup → change → restore with the key brings back the backed-up state"
+[ "$(sql "select count(*) from public.transfers")" = 0 ] && ! docker exec "$NAME" test -e "$TRANSFERS" || fail "文件传输 came back from the backup"
+[ "$(rpc create_transfer '{"p_files":[{"name":"a.txt","size":1}]}')" = 200 ] && cp "$WORK/body" "$WORK/transfer.json" \
+  && [ "$(put 0 text/plain "$WORK/x.txt")" = 200 ] || fail "upload after the restore: $(cat "$WORK/body")"
+pass "encrypted backup → change → restore with the key brings back the backed-up state, without 文件传输"
 
 # Three days missed: dolphin-jobs catches up when the container starts again.
 sql "update public.job_runs set done_to = done_to - 3 where job = 'daily'"

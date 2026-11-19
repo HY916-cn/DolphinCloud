@@ -101,10 +101,13 @@
 | `BACKUP_TIME` | 否 | `02:00` | 每日备份时间 |
 | `BACKUP_RETENTION_DAYS` | 否 | `30` | 备份保留天数 |
 | `BACKUP_RECIPIENT` | 生产环境应设置 | — | age 公钥（`age1…`）；设置后备份加密为 `.tar.gz.age`，见 9.4 |
+| `DOLPHIN_PROXY_PROTOCOL` | 否 | — | 转发程序连到容器的来源网段（CIDR，空格分隔）；从这些地址来的连接可以带 PROXY 协议头（v1 / v2），Caddy 以头部的地址为访问者 IP |
 
 证书三种来源：挂载了 `/certs/fullchain.pem` 与 `/certs/privkey.pem` 时使用这两个文件（如 Certd 推送的证书），文件变化后 10 秒内自动重载；`DOLPHIN_DOMAIN=localhost` 时使用 Caddy 本地 CA；其余情况由 Caddy 向 Let's Encrypt 自动申请和续期。
 
-数据库密码、`JWT_SECRET`、anon key、service_role key 在首次启动时自动生成，保存在 `/data/secrets/`（权限 600）。service_role key 只在容器内部供 Storage 和运维脚本使用，不写入 `/config.js`。
+数据库密码、`JWT_SECRET`、anon key、service_role key 在首次启动时自动生成，保存在 `/data/secrets/`（权限 600）。service_role key 只在容器内部供 Storage 和运维脚本使用，不写入 `/config.js`。`dolphin-migrate` 每次启动把 `JWT_SECRET` 写入 `app_private.jwt_secret`（只有数据库所有者可读），数据库用它签发文件传输的 Storage 上传、下载地址（PHASE-2.md §15）；`dolphin restore` 恢复后同样写入，备份里没有这张表的数据。
+
+访问者 IP（文件传输的限流按它计算，PHASE-2.md §16.4）：Caddy 取连接的来源地址，无论请求带了什么，都把 `X-Forwarded-For` 设为这个地址再转给各服务，数据库从 `request.headers` 读取。容器前面另有转发程序时，Caddy 看到的是转发程序的地址，所有访问者共用一个限流额度；这时让转发程序发送 PROXY 协议头，并把它的来源网段填进 `DOLPHIN_PROXY_PROTOCOL`，两边都改好后 Caddy 就以头部的地址为准。只填转发程序所在的网段：从这些地址来的连接可以自报来源。先设置 `DOLPHIN_PROXY_PROTOCOL` 再打开转发程序的 PROXY 协议，头部是可选的，中间不会断。
 
 ---
 
@@ -530,6 +533,7 @@ create table salary_rates (                    -- 工资标准：参与考勤的
 - 桶 `product-images`，公开读，只接受 jpeg / png / webp、单个不超过 5 MB；写入策略：`storage.objects` 上仅 `storekeeper`、`teacher` 可上传与删除。
 - 前端上传前用浏览器自带的 `canvas` 缩放到最长边 800px、JPEG 质量 0.8，文件名为随机 UUID。
 - 更换或移除图片在保存商品后生效：保存成功即删除旧图；保存前又换了一张，先删掉刚传的那张。上传后没保存就离开页面的图片会留在桶里。
+- 文件传输（PHASE-2.md §16.4）用私有桶 `transfers`，单个文件不超过 100 MB（Storage 的 `FILE_SIZE_LIMIT` 为 100 MB，各桶再各自限制），不设类型限制；`storage.objects` 上没有任何身份的读写策略，只能经数据库签发的上传、下载地址存取。文件在磁盘上的位置为 `/data/storage/files/dolphin/transfers/<取件 id>/`。
 
 ---
 
@@ -894,13 +898,14 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin jobs` | 定时任务（PHASE-2.md §13）每个任务处理到哪天、最后成功时间、最近一次失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务到昨天（周任务到今天的周一）；有任务失败时停在那天，退出码为 1 |
 | `dolphin jobs fetch` | 立即取理财参考指数最近 10 个开盘日的日线写入 `wealth_days`（PHASE-2.md §10.10），依次试腾讯、新浪、东方财富；当天的行情 15:30 以后才写入；都取不到时写日志 `wealth.fetch_failed`、退出码为 1。`dolphin-jobs` 每天 00:05 补跑前和 15:30 起执行它，取不到时每 10 分钟重试 6 次、之后每小时重试到当天结束 |
+| `dolphin jobs clean` | 文件传输的清理（PHASE-2.md §13）：`app_private.clean_transfers()` 删除到期的取件、2 小时内没传完的发送、不再有取件的 Storage 记录和一天前的输错记录，再删除磁盘上不再有取件、3 小时内没有变动的文件夹；重复执行无影响。`dolphin-jobs` 每天 00:05 补跑之后执行 |
 | `dolphin status` | 各进程状态、版本、最近一次备份时间、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像的 `HEALTHCHECK`：Auth、PostgREST、Storage 各自应答且 Caddy 在运行 |
 
 ### 9.4 备份
 
 - 备份目录权限 700、备份文件 600；备份与恢复都写入 `audit_log`（`backup.create` / `backup.restore`）。
-- 每天 `BACKUP_TIME` 执行：`pg_dump -Fc` 全库 + `/data/storage` 打包为 `/data/backups/dolphin-YYYYMMDD-HHMM.tar.gz`，保留 `BACKUP_RETENTION_DAYS` 天。
+- 每天 `BACKUP_TIME` 执行：`pg_dump -Fc` 全库 + `/data/storage` 打包为 `/data/backups/dolphin-YYYYMMDD-HHMM.tar.gz`，保留 `BACKUP_RETENTION_DAYS` 天。文件传输只保留 7 天，它的文件（`storage/files/dolphin/transfers`）和 `transfers`、`transfer_files`、`transfer_misses` 的数据不进备份，`app_private.jwt_secret` 的数据也不进；恢复后没有任何取件，已发出的取件码失效。
 - 设置 `BACKUP_RECIPIENT` 后备份用 [age](https://age-encryption.org) 加密为 `.tar.gz.age`，容器里只有公钥，没有私钥的人打不开备份。生成密钥：`docker run --rm --entrypoint age-keygen dolphin-cloud > backup-key.txt`，文件里 `# public key:` 后面就是公钥；`backup-key.txt` 离线保管（密码管理器或加密 U 盘），丢失后加密备份无法恢复。未设置时备份不加密，`dolphin backup`、`dolphin check` 和容器启动日志都会提示。
 - 备份后运行 `dolphin check`；发现不一致时写入 `audit_log`，后台首页对银行管理员显示提示。
 - 建议把 `/data/backups` 单独挂载到另一块磁盘或 NAS：`-v /mnt/nas/dolphin-backups:/data/backups`。
@@ -998,7 +1003,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 
 - 只开放 80/443；Postgres、各 API 端口只监听 `127.0.0.1`。
 - Caddy 设置 HSTS、`X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options DENY`、CSP（只允许同源脚本，`frame-ancestors 'none'`）；`/storage/v1/*` 的响应另加 `default-src 'none'; sandbox`，上传的文件不能在本站执行脚本。
-- 图片桶只接受 `image/jpeg`、`image/png`、`image/webp`，单个文件不超过 5 MB。
+- 图片桶只接受 `image/jpeg`、`image/png`、`image/webp`，单个文件不超过 5 MB。文件传输的桶单个文件不超过 100 MB，只能经签名地址存取（6.7）；Caddy 不限制请求体大小。
 - 除 Postgres（自行降权）和证书监视外，各服务以低权限用户 `dolphin` 运行；Caddy 通过 `cap_net_bind_service` 监听 80/443。入口脚本每次启动把 `/data/run`、`/data/storage`、`/data/caddy`、`/data/backups` 交给 `dolphin`。
 - Auth 关闭注册与邮件发送；访问令牌有效期 1 小时，刷新令牌 7 天未使用即失效。
 - 学校出口 NAT 时所有校内设备共用一个公网 IP：Auth 的登录限速按 IP 计算，需将 `GOTRUE_RATE_LIMIT_TOKEN_REFRESH`、`GOTRUE_RATE_LIMIT_VERIFY` 等调到能容纳全校同时登录的水平，并让 Auth 信任 Caddy 传入的 `X-Forwarded-For`。

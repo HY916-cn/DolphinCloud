@@ -66,7 +66,7 @@ npm --prefix client run lint
 | 脚本 | 内容 |
 | --- | --- |
 | `docker/db-test.sh` | 在镜像上逐个运行 `supabase/tests/*.sql`（pgTAP） |
-| `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、加密备份与恢复、容器重启 |
+| `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、公开页面（大屏时间、利率看板、文件传输经 Storage 上传 100 MB 与下载、来源 IP、PROXY 协议、后台删除与清理）、加密备份与恢复、容器重启 |
 | `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；`E2E_SHARDS=3` 时分 3 份同时跑，各用一个容器；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
@@ -92,6 +92,7 @@ docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 
 | `BACKUP_TIME` | `02:00` | 每日备份时间 |
 | `BACKUP_RETENTION_DAYS` | `30` | 备份保留天数 |
 | `BACKUP_RECIPIENT` | — | age 公钥（`age1…`），设置后备份加密为 `.tar.gz.age`；生产环境应设置 |
+| `DOLPHIN_PROXY_PROTOCOL` | — | 前面的转发程序发送 PROXY 协议头时，填它连到容器的来源网段（CIDR，空格分隔），Caddy 从头部取访问者 IP；文件传输按 IP 限流，见 PHASE-1.md §3.3 |
 
 挂载了 `/certs/fullchain.pem` 与 `/certs/privkey.pem` 时使用这两个证书文件。数据库密码与各项密钥在首次启动时自动生成，保存在 `/data/secrets/`。
 
@@ -114,6 +115,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin jobs` | 定时任务处理到哪天、最后成功时间、有没有失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务；有任务失败时退出码为 1 |
 | `dolphin jobs fetch` | 立即取理财参考指数（沪深 300）最近 10 个开盘日的日线，依次试腾讯、新浪、东方财富；都取不到时写日志并退出码为 1。`dolphin-jobs` 每天 00:05 补跑前和 15:30 收盘后会自动执行，取不到时每 10 分钟重试 6 次、之后每小时重试到当天结束 |
+| `dolphin jobs clean` | 立即清理文件传输：到期的取件、2 小时内没传完的发送及其文件；`dolphin-jobs` 每天 00:05 自动执行 |
 | `dolphin status` | 各进程状态、版本、最近一次备份、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像健康检查：Auth、PostgREST、Storage 应答且 Caddy 在运行 |
 | `dolphin reset-admin` | 银行管理员忘记密码时生成新的初始密码，解除停用和登录锁定 |

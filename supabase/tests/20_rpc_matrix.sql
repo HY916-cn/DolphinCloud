@@ -45,9 +45,19 @@ begin
   return case when v_err = 'FORBIDDEN' or v_err like 'permission denied%' or v_err like '%row-level security%' then 'denied' else 'passed' end;
 end $$;
 
--- fn: the exposed signature; allowed: the identities that get through ('*' is any signed-in login, disabled ones too).
+-- fn: the exposed signature; allowed: the identities that get through ('*' is any signed-in login, disabled ones too;
+-- anon only where named).
 create table tests.matrix (fn text primary key, call text not null, allowed text[] not null);
 insert into tests.matrix values
+  -- 公开页面, signed in or not (PHASE-2.md §16.4)
+  ('server_time()', 'select server_time()', '{anon,*}'),
+  ('public_rates()', 'select public_rates()', '{anon,*}'),
+  ('create_transfer(jsonb)', 'select create_transfer(''[]'')', '{anon,*}'),
+  ('finish_transfer(uuid)', 'select finish_transfer(gen_random_uuid())', '{anon,*}'),
+  ('open_transfer(text)', 'select open_transfer(''x'')', '{anon,*}'),
+  -- 文件传输 in the back office: the bank admin alone
+  ('list_transfers()', 'select list_transfers()', '{teacher}'),
+  ('delete_transfer(uuid,text)', 'select delete_transfer(gen_random_uuid(), ''x'')', '{teacher}'),
   -- Anyone signed in: no data of their own beyond what RLS shows them.
   ('whoami()', 'select whoami()', '{*}'),
   ('closed_logins(uuid[])', 'select closed_logins(''{}'')', '{*}'),
@@ -159,12 +169,12 @@ select is(array(select fn from tests.exposed except select fn from tests.matrix 
   'every exposed function is in the matrix');
 select is(array(select fn from tests.matrix except select fn from tests.exposed order by 1), '{}',
   'every function in the matrix is exposed');
-select is(array(select fn from tests.exposed where has_function_privilege('anon', fn::regprocedure, 'execute')), '{}',
-  'anon executes no function');
+select is(array(select fn from tests.exposed where has_function_privilege('anon', fn::regprocedure, 'execute') order by 1),
+  array(select fn from tests.matrix where 'anon' = any(allowed) order by 1), 'anon executes the public pages'' functions alone');
 
 -- The matrix itself: one assertion per identity and function.
 select is(tests.verdict(w.id, m.call),
-  case when w.name = 'anon' then 'denied'
+  case when w.name = 'anon' then case when 'anon' = any(m.allowed) then 'passed' else 'denied' end
        when '*' = any(m.allowed) or w.name = any(m.allowed) then 'passed' else 'denied' end,
   format('%s: %s', w.name, m.fn))
 from tests.matrix m cross join tests.who w order by m.fn, w.name;
@@ -214,6 +224,9 @@ insert into tests.writes values
   ('term_deposits', 'update term_deposits set status = ''open'''),
   ('wealth_holdings', 'update wealth_holdings set status = ''open'''),
   ('wealth_days', 'delete from wealth_days'),
+  ('transfers', 'insert into transfers (total) values (0)'),
+  ('transfer_files', 'delete from transfer_files'),
+  ('transfer_misses', 'delete from transfer_misses'),
   ('audit_log', 'delete from audit_log');
 select is(tests.verdict(w.id, x.stmt), 'denied', format('%s: write %s', w.name, x.tbl))
 from tests.writes x cross join tests.who w where w.name in ('anon', 'student', 'teller', 'accountant', 'storekeeper', 'president', 'teacher', 'sysadmin')
@@ -222,6 +235,11 @@ order by x.tbl, w.name;
 -- Product images: the storekeeper, president and bank admin upload (§6.7).
 select is(tests.verdict(w.id, format('insert into storage.objects (bucket_id, name) values (''product-images'', %L)', w.name || '.jpg')),
   case when w.name in ('storekeeper', 'president', 'teacher') then 'passed' else 'denied' end, format('%s: upload a product image', w.name))
+from tests.who w order by w.name;
+
+-- 文件传输's bucket: files go in and out through the signed URLs of PHASE-2.md §16.4 alone.
+select is(tests.verdict(w.id, format('insert into storage.objects (bucket_id, name) values (''transfers'', %L)', w.name)), 'denied',
+  format('%s: put a file in transfers', w.name))
 from tests.who w order by w.name;
 
 select * from finish();

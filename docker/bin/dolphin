@@ -1,9 +1,10 @@
 #!/bin/bash
-# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | jobs [run|fetch] | status | health
+# Operations CLI: dolphin create-admin <login> | reset-admin | backup | backups | restore <file> | check | jobs [run|fetch|clean] | status | health
 # With BACKUP_RECIPIENT (an age public key) backups are encrypted to it (.tar.gz.age); restoring one reads the
 # matching private key from stdin: docker exec -i dolphincloud dolphin restore <file> < backup-key.txt
 set -euo pipefail
 BACKUPS=/data/backups
+TRANSFERS=/data/storage/files/dolphin/transfers # Storage's files of the bucket transfers (文件传输), one folder per transfer
 psql_() { psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 
 # audit <action> <file>: one audit_log row; skipped while the database predates app_private.log_system
@@ -22,12 +23,14 @@ backup() {
   umask 077
   name="dolphin-$(date +%Y%m%d-%H%M%S).tar.gz${BACKUP_RECIPIENT:+.age}"
   tmp=$(mktemp -d)
-  pg_dump -h /var/run/postgresql -U postgres -d postgres -Fc -f "$tmp/db.dump"
+  # 文件传输 keeps files for 7 days only: neither they nor their records are backed up, nor is Storage's JWT secret.
+  pg_dump -h /var/run/postgresql -U postgres -d postgres -Fc -f "$tmp/db.dump" \
+    --exclude-table-data='public.transfer*' --exclude-table-data=app_private.jwt_secret
   if [ -n "${BACKUP_RECIPIENT:-}" ]; then
-    tar -cz -C "$tmp" db.dump -C /data storage | age -r "$BACKUP_RECIPIENT" -o "$BACKUPS/$name.part"
+    tar -cz --exclude=storage/files/dolphin/transfers -C "$tmp" db.dump -C /data storage | age -r "$BACKUP_RECIPIENT" -o "$BACKUPS/$name.part"
   else
     echo "BACKUP_RECIPIENT is not set: $name is not encrypted" >&2
-    tar -czf "$BACKUPS/$name.part" -C "$tmp" db.dump -C /data storage
+    tar -czf "$BACKUPS/$name.part" --exclude=storage/files/dolphin/transfers -C "$tmp" db.dump -C /data storage
   fi
   mv "$BACKUPS/$name.part" "$BACKUPS/$name"
   rm -rf "$tmp"
@@ -63,9 +66,24 @@ restore() {
   cp -a "$tmp/storage/." /data/storage/
   chown -R dolphin: /data/storage
   rm -rf "$tmp"
+  storage_key
   psql_ -qc "notify pgrst, 'reload schema'"
   audit backup.restore "$(basename "$file")"
   echo "Restored $file"
+}
+
+# Storage's JWT secret into app_private.jwt_secret, with which the database signs 文件传输's Storage URLs; dolphin-migrate
+# runs this at every start and restore after replacing the database (a backup has none). Skipped before that table exists,
+# and where the secret cannot be read (dolphin-migrate run by hand as dolphin keeps the one written at the start).
+storage_key() {
+  local secret=${JWT_SECRET:-$(sed -n 's/^JWT_SECRET=//p' /data/secrets/env 2>/dev/null)}
+  [ -n "$secret" ] || { echo "dolphin: JWT_SECRET not readable here; Storage's key left as it is" >&2; return 0; }
+  psql_ -qAt -v secret="$secret" >/dev/null <<'SQL'
+select to_regclass('app_private.jwt_secret') is not null as has_key \gset
+\if :has_key
+insert into app_private.jwt_secret (secret) values (:'secret') on conflict (id) do update set secret = excluded.secret;
+\endif
+SQL
 }
 
 # On the first start dolphin-migrate takes a minute; a call made meanwhile would run against a half-built schema.
@@ -142,6 +160,19 @@ SQL
 # 理财 (PHASE-2.md §10.10): the index's latest daily closes into wealth_days, the trading days that have none yet
 # (today's after 15:30), from Tencent, else Sina, else eastmoney. When none answers with closes, says so, logs
 # wealth.fetch_failed and exits 1, for dolphin-jobs to try again; a trading day still missing is entered by hand.
+# 文件传输's daily clean-up (PHASE-2.md §13): expired and unfinished transfers, then the folders on disk of transfers that
+# no longer exist. A folder changed within 3 hours is left for the next run, so an upload just begun is never touched.
+jobs_clean() {
+  ready
+  psql_ -qAt -c "select app_private.clean_transfers()"
+  [ -d "$TRANSFERS" ] || return 0
+  local keep
+  keep=$(psql_ -qAt -c "select id from public.transfers")
+  find "$TRANSFERS" -mindepth 1 -maxdepth 1 -type d -mmin +180 -printf '%f\n' | while read -r id; do
+    grep -qxF "$id" <<<"$keep" || rm -rf "${TRANSFERS:?}/$id"
+  done
+}
+
 jobs_fetch() {
   local symbol secid src url body out errors=
   ready
@@ -191,7 +222,8 @@ case "${1:-}" in
   create-admin) create_admin "${2:-}" ;;
   reset-admin) reset_admin ;;
   check)   check ;;
-  jobs)    case "${2:-}" in run) jobs_run ;; fetch) jobs_fetch ;; *) jobs_show ;; esac ;;
+  jobs)    case "${2:-}" in run) jobs_run ;; fetch) jobs_fetch ;; clean) jobs_clean ;; *) jobs_show ;; esac ;;
+  storage-key) storage_key ;;
   backup)  backup ;;
   backups) ls -1t "$BACKUPS" | grep -E '^dolphin-.*\.tar\.gz(\.age)?$' || true ;;
   restore) restore "${2:-}" ;;
@@ -199,5 +231,5 @@ case "${1:-}" in
            if [ -n "${BACKUP_RECIPIENT:-}" ]; then echo "backups encrypted to: $BACKUP_RECIPIENT"; else echo "backups encrypted: no (set BACKUP_RECIPIENT)"; fi
            jobs_status ;;
   health)  health ;;
-  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | jobs [run|fetch] | status | health" >&2; exit 2 ;;
+  *) echo "usage: dolphin create-admin <login> | backup | backups | restore <file> | check | jobs [run|fetch|clean] | status | health" >&2; exit 2 ;;
 esac
