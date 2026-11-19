@@ -1,6 +1,7 @@
 -- 风险提醒 (PHASE-2.md §12): each kind is raised at its threshold and not below it, once per event; 终止 undoes the
--- event in the same transaction and a failed undo leaves the alert open; 已查看 and 终止 are for the president and the
--- bank admin, whoever comes first; the list and the overview; an alert that cannot be recorded never fails the business.
+-- event in the same transaction and a failed undo leaves the alert open; 已查看 and 终止 are the bank admin's, each alert
+-- handled once, while the president reads; the list and the overview; an alert that cannot be recorded never fails the
+-- business.
 \ir helpers/setup.psql
 
 select tests.staff('t1', 'teller') as t1 \gset
@@ -12,6 +13,7 @@ select tests.staff('acc', 'accountant') as acc \gset
 select tests.staff('keeper', 'storekeeper') as keeper \gset
 select tests.staff('p1', 'president') as p1 \gset
 select tests.staff('admin', 'teacher') as admin \gset
+select tests.staff('ops', 'sysadmin') as ops \gset
 select tests.student('s1', 500) as s1 \gset
 select tests.student('s2', 150) \gset
 select tests.student('s3', 0) \gset
@@ -63,7 +65,7 @@ select is((select row(staff_id, detail, status, student_no)::text from risk_aler
   row(:'admin'::uuid, (jsonb_build_object('key', 'withdraw_single_limit', 'before', '{"primary":200,"junior":200}'::jsonb,
     'after', '{"primary":100,"junior":100}'::jsonb)), 'open', null::text)::text, 'a limit change: who, before, after');
 select is(tests.n('setting_change'), 2::bigint, 'one alert for each setting changed');
-select is(tests.call(:'p1', format($$select handle_alert(%s, 'seen', ' 已核实 ')$$, :limit_alert)) #>> '{alert,note}', '已核实',
+select is(tests.call(:'admin', format($$select handle_alert(%s, 'seen', ' 已核实 ')$$, :limit_alert)) #>> '{alert,note}', '已核实',
   '已查看 with a note');
 
 -- withdraw_large: above 80% of the 单笔限额 of the student's division.
@@ -80,26 +82,32 @@ select is(tests.n('withdraw_large'), 1::bigint, 'raises no second alert');
 -- Who handles.
 select is(tests.err(w, format($$select handle_alert(%s, 'seen')$$, :w1)), 'FORBIDDEN', 'not ' || r)
 from (values (:'t1'::uuid, 'a teller'), (:'acc'::uuid, 'the accountant'), (:'keeper'::uuid, 'the storekeeper'), (:'s1'::uuid, 'a student')) v(w, r);
+select is(tests.call(:'p1', format($$select handle_alert(%s, 'seen')$$, :w1)), '{"error":"FORBIDDEN","detail":"{\"roles\": [\"teacher\", \"sysadmin\"]}"}',
+  'the president does not mark an alert 已查看');
+select is(tests.call(:'p1', format($$select handle_alert(%s, 'terminate', '家长未同意')$$, :w1)), '{"error":"FORBIDDEN","detail":"{\"roles\": [\"teacher\", \"sysadmin\"]}"}',
+  'nor terminates it');
+select is(tests.err(:'ops', format($$select handle_alert(%s, 'seen')$$, :w1)), 'FORBIDDEN', 'nor does the sysadmin');
+select is((select row(status, handled_by)::text from risk_alerts where id = :w1), row('open', null::uuid)::text, 'the alert stays open');
 select is(tests.call(:'acc', $$select to_jsonb(count(*)) from risk_alerts$$), '0', 'the accountant reads no alert');
 select is(tests.call(:'p1', $$select to_jsonb(count(*)) from risk_alerts$$), to_jsonb((select count(*) from risk_alerts)), 'the president reads them all');
-select is(tests.handle(:'p1', :w1, 'close') ->> 'detail', '{"field": "action"}', 'seen or terminate');
-select is(tests.handle(:'p1', 0, 'seen') ->> 'detail', '{"field": "id"}', 'an alert that exists');
-select is(tests.handle(:'p1', :w1, 'terminate', '  ') ->> 'detail', '{"field": "note"}', '终止 needs a reason');
-select is(tests.handle(:'p1', :w1, 'terminate', repeat('长', 201)) ->> 'detail', '{"field": "note"}', 'of 200 characters at most');
+select is(tests.handle(:'admin', :w1, 'close') ->> 'detail', '{"field": "action"}', 'seen or terminate');
+select is(tests.handle(:'admin', 0, 'seen') ->> 'detail', '{"field": "id"}', 'an alert that exists');
+select is(tests.handle(:'admin', :w1, 'terminate', '  ') ->> 'detail', '{"field": "note"}', '终止 needs a reason');
+select is(tests.handle(:'admin', :w1, 'terminate', repeat('长', 201)) ->> 'detail', '{"field": "note"}', 'of 200 characters at most');
 
--- 终止 a large withdrawal: reversed, by the president, outside any duty.
-select tests.handle(:'p1', :w1, 'terminate', '家长未同意') as w1_done \gset
+-- 终止 a large withdrawal: reversed, by the bank admin, outside any duty.
+select tests.handle(:'admin', :w1, 'terminate', '家长未同意') as w1_done \gset
 select is(row(:'w1_done'::jsonb #>> '{alert,status}', :'w1_done'::jsonb #>> '{alert,handled_by}', :'w1_done'::jsonb #>> '{alert,handler_name}',
     :'w1_done'::jsonb #>> '{alert,note}', (:'w1_done'::jsonb #>> '{alert,handled_at}')::timestamptz = now())::text,
-  row('terminated', :'p1', 'p1', '家长未同意', true)::text, '终止: handled by the president, with the reason');
+  row('terminated', :'admin', 'admin', '家长未同意', true)::text, '终止: handled by the bank admin, with the reason');
 select is((select row(r.type, r.reason, r.operator_id, o.status)::text from txns r join txns o on o.id = r.reversal_of
     where o.id = '00000000-0000-4000-8000-000000000102'),
-  row('reversal', '其他：家长未同意', :'p1'::uuid, 'reversed')::text, 'the withdrawal is reversed with the reason');
+  row('reversal', '其他：家长未同意', :'admin'::uuid, 'reversed')::text, 'the withdrawal is reversed with the reason');
 select is((select balance from accounts where student_no = 's1'), 420, 'and the 81 HTB are back');
-select is(tests.handle(:'admin', :w1, 'terminate', '再次') ->> 'error', 'ALERT_HANDLED', 'whoever comes first: 终止 again');
-select is((tests.handle(:'admin', :w1, 'seen') ->> 'detail')::jsonb - 'handled_at', '{"status":"terminated","handler_name":"p1"}',
+select is(tests.handle(:'admin', :w1, 'terminate', '再次') ->> 'error', 'ALERT_HANDLED', 'handled once: no 终止 again');
+select is((tests.handle(:'admin', :w1, 'seen') ->> 'detail')::jsonb - 'handled_at', '{"status":"terminated","handler_name":"admin"}',
   'or 已查看 after it, says who did what');
-select is(tests.handle(:'admin', :limit_alert, 'seen') ->> 'detail', format('{"status": "seen", "handled_at": "%s", "handler_name": "p1"}',
+select is(tests.handle(:'admin', :limit_alert, 'seen') ->> 'detail', format('{"status": "seen", "handled_at": "%s", "handler_name": "admin"}',
     to_jsonb(now()) #>> '{}'), 'nor 已查看 twice');
 
 -- A failed undo leaves the alert open: the teller reversed the withdrawal first.
@@ -119,11 +127,11 @@ select tests.alert('term_early', 'txns:' || :'early') as e1 \gset
 select is((select row(student_no, staff_id, detail ->> 'amount', detail ->> 'principal')::text from risk_alerts where id = :e1),
   row('s2', :'t1'::uuid, '100', '100')::text, '提前支取: the student, the teller, the amount');
 select tests.call(:'t1', $$select withdraw(gen_random_uuid(), 's2', 80)$$);
-select is(tests.handle(:'p1', :e1, 'terminate', '误操作') ->> 'error', 'REVERSAL_INSUFFICIENT_BALANCE', '终止 fails while 活期 is short');
+select is(tests.handle(:'admin', :e1, 'terminate', '误操作') ->> 'error', 'REVERSAL_INSUFFICIENT_BALANCE', '终止 fails while 活期 is short');
 select is((select row(a.status, d.status)::text from risk_alerts a, term_deposits d where a.id = :e1 and d.id = '00000000-0000-4000-8000-000000000201'),
   row('open', 'early')::text, 'the alert stays open and the deposit closed');
 select tests.call(:'t1', $$select deposit(gen_random_uuid(), 's2', '{"10":5}')$$);
-select is(tests.handle(:'p1', :e1, 'terminate', '误操作') #>> '{alert,status}', 'terminated', 'with enough 活期 it is terminated');
+select is(tests.handle(:'admin', :e1, 'terminate', '误操作') #>> '{alert,status}', 'terminated', 'with enough 活期 it is terminated');
 select is((select row(d.status, a.balance, a.term_total)::text from term_deposits d, accounts a
     where d.id = '00000000-0000-4000-8000-000000000201' and a.student_no = 's2'),
   row('open', 20, 100)::text, 'the deposit is open again');
@@ -155,7 +163,7 @@ select tests.alert('loan_overdue', 'loans:00000000-0000-4000-8000-000000000301')
 select is((select row(student_no, staff_id, detail ->> 'remaining', detail ->> 'seq')::text from risk_alerts where id = :l3),
   row('s3b', null::uuid, '50', '1')::text, 'overdue: the student, the remaining principal and the period');
 select is(tests.n('loan_overdue'), 1::bigint, 'once');
-select is(tests.handle(:'p1', :l3, 'terminate', '逾期') #>> '{result,loan,status}', 'closed', '终止: 提前到期');
+select is(tests.handle(:'admin', :l3, 'terminate', '逾期') #>> '{result,loan,status}', 'closed', '终止: 提前到期');
 
 -- reversal_many: a teller's 3rd 冲正 of a day on, each; 终止 forces the teller off duty.
 select tests.call(:'t2', format($$select deposit(%L, %L, '{"10":1}')$$, '00000000-0000-4000-8000-00000000040' || i, 'r' || i))
@@ -176,11 +184,11 @@ select tests.alert('reversal_many', 'txns:00000000-0000-4000-8000-000000000416')
 select is((select detail ->> 'count' from risk_alerts where id = :v2), '4', 'and the 4th');
 select tests.call(:'admin', $$select reverse_txn(gen_random_uuid(), '00000000-0000-4000-8000-000000000101', '金额录错')$$);
 select is(tests.n('reversal_many'), 2::bigint, 'the bank admin''s 冲正 do not count');
-select is(tests.handle(:'p1', :v1, 'terminate', '冲正过多') #>> '{result,status}', 'forced', '终止: the teller is forced off duty');
+select is(tests.handle(:'admin', :v1, 'terminate', '冲正过多') #>> '{result,status}', 'forced', '终止: the teller is forced off duty');
 select is((select row(d.ended_at is not null, c.status, c.forced_by, c.forced_reason)::text from duty d join cash_counts c on c.duty_id = d.id
-    where d.user_id = :'t2'), row(true, 'forced', :'p1'::uuid, '冲正过多')::text, '轧账 shows 强制下班 by the president');
+    where d.user_id = :'t2'), row(true, 'forced', :'admin'::uuid, '冲正过多')::text, '轧账 shows 强制下班 by the bank admin');
 select is(tests.err(:'t2', $$select deposit(gen_random_uuid(), 'r1', '{"10":1}')$$), 'OFF_DUTY', 'the teller must start a new duty');
-select is(tests.handle(:'p1', :v2, 'terminate', '冲正过多') ->> 'detail', '{"field": "duty_id", "status": "forced"}',
+select is(tests.handle(:'admin', :v2, 'terminate', '冲正过多') ->> 'detail', '{"field": "duty_id", "status": "forced"}',
   'a duty already ended is not forced again');
 select is((select status from risk_alerts where id = :v2), 'open', 'and that alert stays open');
 
@@ -202,7 +210,7 @@ select tests.call(:'admin', $$select adjust_credit('s7', 30, '表现好')$$);
 select (select id from risk_alerts where kind = 'credit_adjust' and student_no = 's7') as c1 \gset
 select is((select row(staff_id, detail ->> 'delta', detail ->> 'score', detail ->> 'reason')::text from risk_alerts where id = :c1),
   row(:'admin'::uuid, '30', '630', '银行管理员调整：表现好')::text, 'a manual change: by whom, how much');
-select tests.handle(:'p1', :c1, 'terminate', '依据不足') as c1_done \gset
+select tests.handle(:'admin', :c1, 'terminate', '依据不足') as c1_done \gset
 select is(row(:'c1_done'::jsonb #>> '{result,event,delta}', :'c1_done'::jsonb #>> '{result,event,ref}', :'c1_done'::jsonb #>> '{result,credit,score}')::text,
   row('-30', 'risk_alerts:' || :c1, '600')::text, '终止 takes it back');
 select is((select reason from credit_events where ref = 'risk_alerts:' || :c1), '风险提醒终止：依据不足', 'with the reason');
@@ -214,12 +222,12 @@ select (select max(id) from risk_alerts where kind = 'credit_switch') as sw \gse
 select is((select row(target, staff_id, detail - 'students', detail ? 'students')::text from risk_alerts where id = :sw),
   row('settings:credit_enabled', :'admin'::uuid, '{"reason": "期末维护", "enabled": false}'::jsonb, true)::text,
   '信用分 turned off: credit_switch with the reason');
-select is(tests.handle(:'p1', :c2, 'terminate', '依据不足') ->> 'error', 'CREDIT_DISABLED', 'no 终止 of a change while 信用分 is off');
+select is(tests.handle(:'admin', :c2, 'terminate', '依据不足') ->> 'error', 'CREDIT_DISABLED', 'no 终止 of a change while 信用分 is off');
 select is((select status from risk_alerts where id = :c2), 'open', 'it stays open');
-select is(tests.handle(:'p1', :sw, 'terminate', '恢复') ->> 'detail', '{"kind": "credit_switch", "field": "action"}', 'a switch is not terminated');
+select is(tests.handle(:'admin', :sw, 'terminate', '恢复') ->> 'detail', '{"kind": "credit_switch", "field": "action"}', 'a switch is not terminated');
 select tests.call(:'admin', $$select set_credit_enabled(true, null)$$);
 select is(tests.n('credit_switch'), 2::bigint, 'turning it on is another');
-select is(tests.handle(:'p1', :c2, 'terminate', '依据不足') #>> '{result,credit,score}', '600', 'on again, the change is taken back');
+select is(tests.handle(:'admin', :c2, 'terminate', '依据不足') #>> '{result,credit,score}', '600', 'on again, the change is taken back');
 
 -- setting_change: 终止 restores the value before while it is still the one recorded.
 select app_private.setting('term_rates') as rates0 \gset
@@ -227,11 +235,11 @@ select tests.call(:'admin', $$select set_setting('term_rates', '{"2":3,"4":3,"12
 select (select max(id) from risk_alerts where target = 'settings:term_rates') as r1 \gset
 select tests.call(:'admin', $$select set_setting('term_rates', '{"2":4,"4":4,"12":4,"24":4,"48":4}')$$);
 select (select max(id) from risk_alerts where target = 'settings:term_rates') as r2 \gset
-select is(tests.handle(:'p1', :r1, 'terminate', '未经讨论') ->> 'detail', '{"key": "term_rates"}', 'changed again since: ALERT_OUTDATED');
+select is(tests.handle(:'admin', :r1, 'terminate', '未经讨论') ->> 'detail', '{"key": "term_rates"}', 'changed again since: ALERT_OUTDATED');
 select is((select status from risk_alerts where id = :r1), 'open', 'and stays open');
-select is(tests.handle(:'p1', :r2, 'terminate', '未经讨论') #>> '{result,value}', '{"2": 3, "4": 3, "12": 3, "24": 3, "48": 3}', 'the latest goes back one');
+select is(tests.handle(:'admin', :r2, 'terminate', '未经讨论') #>> '{result,value}', '{"2": 3, "4": 3, "12": 3, "24": 3, "48": 3}', 'the latest goes back one');
 select is(app_private.setting('term_rates'), '{"2":3,"4":3,"12":3,"24":3,"48":3}', 'saved');
-select is(tests.handle(:'p1', :r1, 'terminate', '未经讨论') #>> '{alert,status}', 'terminated', 'then the first');
+select is(tests.handle(:'admin', :r1, 'terminate', '未经讨论') #>> '{alert,status}', 'terminated', 'then the first');
 select is(app_private.setting('term_rates'), :'rates0'::jsonb, 'back to where it was');
 select is((select count(*) from risk_alerts where target = 'settings:term_rates'), 2::bigint, 'restoring raises no alert');
 select app_private.salary_rates() as pay0 \gset
@@ -256,8 +264,8 @@ select tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's8', %L, '
 select tests.call(:'keeper', format($$select stock_in(%L, 10)$$, :'pen'));
 select tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's10', %L, 'account')$$, jsonb_build_array(jsonb_build_object('product_id', :'pen', 'qty', 10))));
 select is(tests.n('stock_low'), 1::bigint, 'falling again while it is open raises no other');
-select is(tests.handle(:'p1', :k1, 'terminate', '补货') ->> 'detail', '{"kind": "stock_low", "field": "action"}', 'stock_low: 已查看 only');
-select tests.handle(:'p1', :k1, 'seen');
+select is(tests.handle(:'admin', :k1, 'terminate', '补货') ->> 'detail', '{"kind": "stock_low", "field": "action"}', 'stock_low: 已查看 only');
+select tests.handle(:'admin', :k1, 'seen');
 select tests.call(:'keeper', format($$select stock_in(%L, 10)$$, :'pen'));
 select tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's10', %L, 'account')$$, jsonb_build_array(jsonb_build_object('product_id', :'pen', 'qty', 10))));
 select is(tests.n('stock_low'), 2::bigint, 'after 已查看 the next fall is another');
@@ -287,7 +295,7 @@ select is((select row(detail ->> 'txn_no', detail ->> 'original_no', detail ->> 
   row((select txn_no from txns where id = '00000000-0000-4000-8000-000000000602'), (select txn_no from txns where id = '00000000-0000-4000-8000-000000000601'), '12')::text,
   '更正: the new transaction and the original');
 select is(tests.n('manual_entry'), 1::bigint, 'the correction is not a 补录 too');
-select is(tests.handle(:'p1', :m2, 'terminate', 'x') ->> 'detail', '{"kind": "txn_correct", "field": "action"}', 'txn_correct: 已查看 only');
+select is(tests.handle(:'admin', :m2, 'terminate', 'x') ->> 'detail', '{"kind": "txn_correct", "field": "action"}', 'txn_correct: 已查看 only');
 
 -- Recording never fails the business: a threshold that cannot be read skips the alert.
 update settings set value = '{"withdraw_ratio":"x"}' where key = 'risk_rules';
@@ -313,11 +321,11 @@ select is(jsonb_array_length(tests.call(:'p1', format('select list_risk_alerts(p
 select is(tests.call(:'p1', $$select list_risk_alerts(array['done'])$$) ->> 'detail', '{"field": "status"}', 'statuses open, seen, terminated');
 select is(tests.call(:'p1', $$select list_risk_alerts(p_kind => array['big'])$$) ->> 'detail', '{"field": "kind"}', 'the kinds of §12.1');
 select is(tests.call(:'p1', $$select list_risk_alerts(p_limit => 201)$$) ->> 'detail', '{"field": "limit"}', 'p_limit 1–200');
-select tests.call(:'admin', 'select risk_alert_overview()') as ov \gset
+select tests.call(:'p1', 'select risk_alert_overview()') as ov \gset
 select is(row(:'ov'::jsonb -> 'open', jsonb_path_query_array(:'ov'::jsonb, '$.recent[*].id'))::text,
   row(to_jsonb((select count(*) from risk_alerts where status = 'open')),
     (select jsonb_agg(id order by id desc) from (select id from risk_alerts where status = 'open' order by id desc limit 5) a))::text,
-  'the overview: how many are open and the newest 5 of them');
+  'the overview, the president''s too: how many are open and the newest 5 of them');
 select is((select count(*) from audit_log where target = 'risk_alerts:' || :w1 and action = 'risk_alerts.update'), 1::bigint, 'each handling is logged');
 
 select * from finish();

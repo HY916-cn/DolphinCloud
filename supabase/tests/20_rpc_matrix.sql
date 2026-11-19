@@ -130,8 +130,8 @@ insert into tests.matrix values
   ('manual_entry(uuid,text,text,timestamp with time zone,text,integer,text,jsonb,jsonb)',
    'select manual_entry(gen_random_uuid(), ''nobody'', ''adjust'', now(), ''x'', 1)', '{teacher}'),
   ('correct_txn(uuid,uuid,jsonb,text)', 'select correct_txn(gen_random_uuid(), gen_random_uuid(), ''{}'', ''金额录错'')', '{teacher}'),
-  -- 风险提醒: the president and the bank admin (PHASE-2.md §3, §12)
-  ('handle_alert(bigint,text,text)', 'select handle_alert(0, ''seen'')', '{president,teacher}'),
+  -- 风险提醒: the president and the bank admin read, the bank admin alone handles (PHASE-2.md §3, §12)
+  ('handle_alert(bigint,text,text)', 'select handle_alert(0, ''seen'')', '{teacher}'),
   ('list_risk_alerts(text[],text[],date,date,bigint,integer)', 'select list_risk_alerts()', '{president,teacher}'),
   ('risk_alert_overview()', 'select risk_alert_overview()', '{president,teacher}'),
   -- 学期: the bank admin alone (PHASE-2.md §3)
