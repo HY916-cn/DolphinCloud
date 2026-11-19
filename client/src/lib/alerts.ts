@@ -64,6 +64,7 @@ const SETTINGS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限', ranking_size: '排名人数',
   ranking_anonymous: '排名匿名', promotion_date: '升年级日期', term_rates: '定期周利率', anchor_params: '锚点', wealth_params: '理财',
   credit_curve: '信用分', credit_rules: '加减分规则', risk_rules: '风险提醒', salary_rates: '工资标准',
+  payout_ratio_min: '兑付能力提示线',
 };
 export const settingName = (key: string) => SETTINGS[key] ?? key;
 
@@ -99,7 +100,7 @@ function item(key: string, path: string[]): [string, string] {
   if (key === 'wealth_params' && a === 'tiers') return [`档位 ${Number(b) + 1} ${TIER_ITEMS[c]?.[0] ?? c}`, TIER_ITEMS[c]?.[1] ?? ''];
   return ITEMS[key]?.[path.join('.')] ?? [path.join('.'), ''];
 }
-const UNITS: Record<string, string> = { ranking_size: '名', denominations: '元' };
+const UNITS: Record<string, string> = { ranking_size: '名', denominations: '元', payout_ratio_min: '%' };
 
 // A value with its unit: 100 HTB, 2.5%, ×1.8, 5 分, 开启, 9月1日, 1、2、5、10 元.
 function valueText(v: unknown, unit: string) {

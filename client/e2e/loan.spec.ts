@@ -285,7 +285,7 @@ test('逾期: the counter tags the student, says what is late with the 罚息, r
 test('后台「贷款」: the tabs with their counts, a loan’s page, 注销 refused while it is open, and 终止 by the president', async ({ page }) => {
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.locator('.dc-stat', { hasText: '贷款余额' })).toHaveText('贷款余额130HTB');
+  await expect(page.locator('.dc-stat', { hasText: '贷款余额' })).toHaveText('贷款余额130HTB1 笔未结清');
   await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '贷款', exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/loans$/);
   await expect(page.getByRole('tab')).toHaveText(['全部 3', '还款中 1', '已逾期 0', '已结清 1', '已作废 1']);

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertRow, Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Stats, Summary, today, TxnListLoading, useAlertOverview, type IconName, type Move,
+  AlertRow, Dashboard, Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Summary, today, TxnListLoading, useAlertOverview, type IconName, type Move,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { diffAmount } from '@/lib/cash';
@@ -15,8 +15,8 @@ import { toTxn } from '@/lib/txns';
 
 const BUSINESSES = [['deposit', '存款'], ['withdraw', '取款'], ['purchase', '兑换']] as const;
 
-// 总览: what each role looks after, every item a link to the page that handles it: today's business, the bank's
-// balance, the loans outstanding with those overdue, and the latest transactions (accountant, teacher); logins that need attention (teacher, sysadmin); products
+// 总览: what each role looks after, every item a link to the page that handles it: the 经营看板 over the whole page,
+// then today's business and the latest transactions (accountant, teacher, president); logins that need attention (teacher, sysadmin); products
 // running out and the latest stock movements (storekeeper, teacher). Teachers also see the last ledger check that
 // found a difference (§9.4). Each read is only made for the roles RLS lets see it.
 export default function Admin() {
@@ -58,17 +58,12 @@ export default function Admin() {
     queryFn: async () => {
       // shortcut: sums on the device (the API has no aggregates); fine for one school's day and ≤ 2000 accounts, move
       // to a database function if either grows much larger.
-      const [txns, accounts, loans] = await Promise.all([
+      const [txns, accounts] = await Promise.all([
         readAll((from, to) => supabase.from('txns').select('type,amount').eq('status', 'normal')
           .in('type', ['deposit', 'withdraw', 'purchase']).gte('created_at', `${day}T00:00:00+08:00`).order('seq').range(from, to)),
         readAll((from, to) => supabase.from('accounts').select('balance').order('student_no').range(from, to)),
-        readAll((from, to) => supabase.from('loans').select('remaining,status').in('status', ['active', 'overdue']).order('id').range(from, to)),
       ]);
-      const overdue = loans.filter((l) => l.status === 'overdue');
-      return {
-        txns, balance: accounts.reduce((s, a) => s + a.balance, 0), loans: loans.reduce((s, l) => s + l.remaining, 0),
-        overdue: { count: overdue.length, amount: overdue.reduce((s, l) => s + l.remaining, 0) },
-      };
+      return { txns, balance: accounts.reduce((s, a) => s + a.balance, 0) };
     },
   });
   const recent = useQuery({
@@ -136,27 +131,6 @@ export default function Admin() {
 
   const left = money && (
     <div className="dc-stack dc-enter" style={{ '--i': 1 } as React.CSSProperties}>
-      {totals.data && (
-        <Stats items={[
-          ['账户余额合计', formatAmount(totals.data.balance), 'HTB'],
-          ['贷款余额', formatAmount(totals.data.loans), 'HTB', totals.data.overdue.count
-            ? `逾期 ${totals.data.overdue.count} 笔 · ${formatAmount(totals.data.overdue.amount)} HTB` : undefined, true],
-        ]} />
-      )}
-      <section className="dc-card" aria-label="今日业务">
-        <div className="dc-section-head" style={{ marginBottom: 'var(--space-2)' }}>
-          <h2 className="heading">今日业务</h2>
-          <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/txns?from=${day}&to=${day}`)}>今日流水<Icon name="next" /></a>
-        </div>
-        {totals.isError ? <p className="dc-top-sub">暂时读不到今日统计，请稍后再看。</p>
-          : !totals.data ? <KvLoading rows={4} card={false} />
-          : (
-            <Summary total={['账户余额合计', totals.data.balance]} rows={BUSINESSES.map(([type, label]): [string, string] => {
-              const of = totals.data.txns.filter((t) => t.type === type);
-              return [label, `${of.length} 笔 · ${formatAmount(of.reduce((s, t) => s + t.amount, 0))} HTB`];
-            })} />
-          )}
-      </section>
       {!!alerts.data?.open && (
         <section className="dc-stack" aria-label="未处理的风险提醒">
           <div className="dc-section-head">
@@ -198,6 +172,20 @@ export default function Admin() {
           </ul>
         </section>
       )}
+      <section className="dc-card" aria-label="今日业务">
+        <div className="dc-section-head" style={{ marginBottom: 'var(--space-2)' }}>
+          <h2 className="heading">今日业务</h2>
+          <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(`/admin/txns?from=${day}&to=${day}`)}>今日流水<Icon name="next" /></a>
+        </div>
+        {totals.isError ? <p className="dc-top-sub">暂时读不到今日统计，请稍后再看。</p>
+          : !totals.data ? <KvLoading rows={4} card={false} />
+          : (
+            <Summary total={['账户余额合计', totals.data.balance]} rows={BUSINESSES.map(([type, label]): [string, string] => {
+              const of = totals.data.txns.filter((t) => t.type === type);
+              return [label, `${of.length} 笔 · ${formatAmount(of.reduce((s, t) => s + t.amount, 0))} HTB`];
+            })} />
+          )}
+      </section>
       <section className="dc-stack" aria-label="最近流水">
         <div className="dc-section-head">
           <h2 className="heading">最近流水</h2>
@@ -298,6 +286,7 @@ export default function Admin() {
           {formatTime(mismatch.data.at)} 的自检有 {mismatch.data.after.length} 处余额或库存与流水不符，请在服务器上运行 dolphin check 核对。
         </Notice>
       )}
+      {money && <div className="dc-stack dc-enter">{<Dashboard />}</div>}
       {left && right ? <div className="dc-split">{left}{right}</div> : left || right}
     </Desk>
   );

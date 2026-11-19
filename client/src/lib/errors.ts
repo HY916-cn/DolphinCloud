@@ -62,7 +62,13 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'STUDENT_INACTIVE':
       return { title: '账户不可办理', text: d.status === 'closed' ? '该账户已注销。' : '该账户已冻结或已毕业，请联系银行管理员。' };
     // `cash` (end: 下班, review: 复核, force: 强制下班) is the 轧账 pages' own: the server sends no such detail.
+    // `currency` (the kind being recorded: baseline, issue, recover, destroy, correction) is 登记货币's own.
     case 'INVALID_AMOUNT':
+      if (d.currency && d.denomination != null) return { title: `更正后 ${d.denomination} 元会少于 0 张`, text: '这笔登记加上它的全部更正，每种面额都不能少于 0 张。' };
+      if (d.currency) {
+        return { title: '张数不对', text: d.currency === 'correction' ? '每种面额 −100000～100000 张，不能全为 0。'
+          : '每种面额 0～100000 张，合计不超过 10,000,000 HTB，不能为 0。' };
+      }
       if (d.cash) return { title: '张数有误', text: '实点张数不对，请检查各面额。' };
       return { title: '金额有误', text: d.payoff != null ? `还清本金要连利息零头一起付，全部结清是 ${d.payoff} HTB。` : '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
@@ -70,6 +76,16 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'LAST_SYSADMIN': return { title: '至少保留一个运维员', text: '这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。' };
     case 'ONE_BANK_ADMIN': return { title: '银行管理员只有一个', text: '不能新增银行管理员，也不能更改银行管理员的身份。' };
     case 'INVALID_INPUT':
+      if (d.currency) {
+        switch (d.field) {
+          case 'on_date': return { title: '日期不对', text: '日期不能晚于今天。' };
+          case 'reason': return d.currency === 'issue' ? { title: '请写明用途', text: '请写明用途，最多 100 字。' } : { title: '请写明原因', text: '请写明原因，最多 100 字。' };
+          case 'batch_no': return { title: '批次号不对', text: '批次号 1～40 字。' };
+          case 'approver_name': return { title: '请写审批人', text: '请写审批人，最多 40 字。' };
+          case 'corrects': return { title: '不能更正这笔登记', text: '只能对应一笔不是更正的登记，请重新选择。' };
+          default: return { title: '没有登记', text: '请返回货币页后重新打开。' };
+        }
+      }
       if (d.cash && d.field === 'note') return { title: '原因太长', text: '原因最多 200 字。' };
       if (d.cash && d.field === 'reason') return { title: '请写明原因', text: '请写明强制下班的原因，最多 200 字。' };
       if (d.cash && d.field === 'count') return { title: '请录入实点', text: '这次上班没有柜员实点，请录入点出的各面额张数。' };
@@ -91,6 +107,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       if (d.field === 'loan_id' && d.status) return { title: '这笔贷款不能还款', text: d.status === 'closed' ? '这笔贷款已经结清。' : '这笔贷款已经作废。' };
       return { title: '填写有误', text: `请检查${d.row ? `第 ${d.row} 行的` : ''}${FIELDS[String(d.field)] ?? '填写的内容'}。` };
     case 'ALREADY_EXISTS':
+      if (d.currency && d.field === 'kind') return { title: '期初现金已经登记过', text: '期初现金只登记一次，登错了请登一笔更正。' };
+      if (d.currency && d.field === 'batch_no') return { title: '批次号已经用过', text: `批次号 ${d.batch_no} 已经用过。` };
       if (d.field === 'attendance') return { title: '不能签到', text: '这个班次已经有记录。' };
       if (d.wealth && d.field === 'day') return { title: '已经有行情', text: '这一天已经有行情，不能再登记。' };
       return { title: '已存在', text: `${FIELDS[String(d.field)] ?? '这项内容'}已被使用。` };

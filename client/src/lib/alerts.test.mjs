@@ -57,6 +57,8 @@ assert.equal(alertText(ranking), '从 10 名 改为 20 名');
 assert.deepEqual(alertRows(ranking), [['修改前', '10 名'], ['修改后', '20 名'], ['修改人', '柜员小林']]);
 assert.equal(alertText(alert('setting_change', { key: 'denominations', before: [1, 2, 5, 10], after: [1, 2, 5] })), '从 1、2、5、10 元 改为 1、2、5 元');
 assert.equal(alertText(alert('setting_change', { key: 'ranking_anonymous', before: true, after: false })), '从 开启 改为 关闭');
+assert.equal(alertText(alert('setting_change', { key: 'payout_ratio_min', before: 30, after: 25 })), '从 30% 改为 25%');
+assert.equal(alertObject(alert('setting_change', { key: 'payout_ratio_min', before: 30, after: 25 })), '兑付能力提示线');
 const anchor = alert('setting_change', { key: 'anchor_params', before: { initial: 2, min: 1, max: 4, weight: 0.25 }, after: { initial: 2.5, min: 1, max: 4.5, weight: 0.25 } });
 assert.equal(alertText(anchor), '改了 2 项');
 assert.deepEqual(alertRows(anchor).slice(0, 2), [['初始锚点', '2% → 2.5%'], ['锚点上限', '4% → 4.5%']]);

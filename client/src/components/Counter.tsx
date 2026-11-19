@@ -13,20 +13,24 @@ import { ConfirmSheet } from './Sheet';
 import { Page } from './Shell';
 import { ListLoading } from './Skeleton';
 import { Avatar } from './Avatar';
+import type { Range } from './Stepper';
 import { Icon, link, Notice } from './ui';
 
 // QtyStepper's 小计, whose number bumps when it changes.
 export function QtySum({ amount }: { amount: number }) {
   const ref = useBump<HTMLElement>(amount);
-  return <span className="dc-qty-sum">小计<b ref={ref}>{formatAmount(amount)}</b></span>;
+  return <span className="dc-qty-sum">小计<b ref={ref}>{formatNet(amount)}</b></span>;
 }
 
 // QtyStepper: one card per face value, two columns, counts entered with − / + or typed. `sum` replaces the 小计 (轧账
 // writes 应有 there), `diff` adds each face's 核对 result under its control, and `what` names the count for screen readers.
-export function CashCounter({ faces, counts, onChange, kind, sum, diff, what = '张数' }: {
+// `range` bounds each count (0–999 at the counter); below 0 (登记货币's 更正) a count may be typed with its minus.
+export function CashCounter({ faces, counts, onChange, kind, sum, diff, what = '张数', range = { min: 0, max: 999 } }: {
   faces: number[]; counts: Counts; onChange: (c: Counts) => void; kind: string; sum?: (face: number) => ReactNode; diff?: Counts | null; what?: string;
+  range?: Range;
 }) {
-  const set = (face: number, n: number) => onChange({ ...counts, [face]: Math.max(0, Math.min(999, n || 0)) });
+  const set = (face: number, n: number) => onChange({ ...counts, [face]: Math.max(range.min, Math.min(range.max, n || 0)) });
+  const typed = (v: string) => (range.min < 0 && /^[-−]/.test(v) ? -1 : 1) * Number(v.replace(/\D/g, ''));
   return (
     <div className={`dc-denoms ${kind}`}>
       {[...faces].sort((a, b) => a - b).map((face) => {
@@ -39,11 +43,11 @@ export function CashCounter({ faces, counts, onChange, kind, sum, diff, what = '
               {sum ? sum(face) : <QtySum amount={face * n} />}
             </div>
             <div className="dc-qty-ctrl">
-              <button className="dc-qty-btn" type="button" aria-label={`减少一张 ${face} 元`} disabled={!n} onClick={() => set(face, n - 1)}>
+              <button className="dc-qty-btn" type="button" aria-label={`减少一张 ${face} 元`} disabled={n <= range.min} onClick={() => set(face, n - 1)}>
                 <Icon name="minus" />
               </button>
-              <input className="dc-qty-input" inputMode="numeric" aria-label={`${face} 元${what}`} value={n}
-                onFocus={(e) => e.target.select()} onChange={(e) => set(face, Number(e.target.value.replace(/\D/g, '')))} />
+              <input className="dc-qty-input" inputMode="numeric" aria-label={`${face} 元${what}`} value={formatNet(n).replace(/,/g, '')}
+                onFocus={(e) => e.target.select()} onChange={(e) => set(face, typed(e.target.value))} />
               <button className="dc-qty-btn" type="button" aria-label={`增加一张 ${face} 元`} onClick={() => set(face, n + 1)}>
                 <Icon name="plus" />
               </button>

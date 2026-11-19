@@ -150,3 +150,19 @@ export function ShellLoading() {
     </div>
   );
 }
+
+// Stats while their figures load: the same cards, a name and a number each.
+export function StatsLoading({ count, label }: { count: number; label: string }) {
+  if (useSlow()) return <SlowNotice />;
+  return (
+    <div className="dc-stats-box" aria-busy="true" aria-label={label}>
+      <div className="dc-stats" data-n={count} style={{ '--n': count } as CSSProperties}>
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} className="dc-card dc-stat" aria-hidden="true">
+            <Bone style={{ width: 72, height: 18 }} /><Bone style={{ width: '60%', height: 32 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

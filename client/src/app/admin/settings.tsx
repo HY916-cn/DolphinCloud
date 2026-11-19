@@ -32,6 +32,7 @@ const allowed = ({ min, max }: Range) => `请输入 ${min} 到 ${max} 的整数`
 const MIN_SCORE: Range = { min: 0, max: 999 };
 const CREDIT_LIMIT: Range = { min: 1, max: 10_000 };
 const RULE: Range = { min: 0, max: 100 };
+const PAYOUT: Range = { min: 1, max: 100 };
 // A value as jsonb keeps it: an object's keys in any order compare equal, nested ones too (理财's tiers).
 const stable = (v: unknown) => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
 
@@ -369,6 +370,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const [rates, setRates] = useState(() => rateDraft(saved.anchor_params as AnchorParams));
   const [term, setTerm] = useState(() => termDraft(saved.term_rates as TermRates));
   const [wealth, setWealth] = useState(() => wealthDraft(saved.wealth_params as WealthParams));
+  const [payout, setPayout] = useState(String(saved.payout_ratio_min));
   const [risk, setRisk] = useState(() => Object.fromEntries(RISK.map(([k]) => [k, String((saved.risk_rules as RiskRules)[k])])) as Record<keyof RiskRules, string>);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
@@ -389,6 +391,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
     term_rates: termValues(term),
     wealth_params: wealthValues(wealth),
     risk_rules: Object.fromEntries(RISK.map(([k]) => [k, Number(risk[k])])),
+    payout_ratio_min: Number(payout),
   };
   const curveWrong = curveProblems(curve);
   const ratesWrong = rateProblems(rates);
@@ -402,12 +405,14 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING]] as const)
     .some(([value, range]) => outside(value, range)) || Object.keys(curveWrong).length > 0 || Object.values(rules).some((v) => ruleProblem(v))
     || Object.keys(ratesWrong).length > 0 || Object.keys(termWrong).length > 0 || Object.keys(wealthWrong).length > 0 || !nextRates
-    || RISK.some(([k, , , range]) => outside(risk[k], range));
+    || RISK.some(([k, , , range]) => outside(risk[k], range)) || outside(payout, PAYOUT);
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
     queryClient.invalidateQueries({ queryKey: ['counter-settings'] }),
     queryClient.invalidateQueries({ queryKey: ['salary_rates'] }),
+    queryClient.invalidateQueries({ queryKey: ['currency'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
   ]);
 
   async function save(e: FormEvent) {
@@ -459,6 +464,21 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
           </Field>
           <LimitPair label="单笔取款上限" primary={[singlePrimary, setSinglePrimary]} junior={[singleJunior, setSingleJunior]} />
           <LimitPair label="单日取款上限" hint="当天累计" primary={[dailyPrimary, setDailyPrimary]} junior={[dailyJunior, setDailyJunior]} />
+        </div>
+      </section>
+      <section className="dc-stack">
+        <h2 className="heading is-section">货币</h2>
+        <p className="dc-caption">银行应有现金低于账户余额合计的这个比例时，总览和货币页醒目提示。</p>
+        <div className="dc-card">
+          <div className="dc-denoms">
+            <div className={`dc-field ${outside(payout, PAYOUT) ? 'is-error' : ''}`}>
+              <div className="dc-qty is-product">
+                <div className="dc-qty-head"><span className="dc-qty-name">兑付能力提示线（%）</span></div>
+                <Stepper label="兑付能力提示线" value={payout} onChange={(v) => setPayout(v.slice(0, 3))} step={5} range={PAYOUT} />
+              </div>
+              {outside(payout, PAYOUT) && <span className="dc-field-hint"><Icon name="warning" />1～100 的整数</span>}
+            </div>
+          </div>
         </div>
       </section>
       <section className="dc-stack">

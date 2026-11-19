@@ -128,7 +128,7 @@ test('参数 → 信用分: a wrong value or order is marked and never sent; a r
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/settings');
   await expect(page.getByRole('heading', { name: '信用分' })).toBeVisible();
-  await expect(page.locator('.heading.is-section')).toHaveText(['柜台', '排名', '考勤与工资', '学年', '利率', '理财', '信用分', '风险提醒']);
+  await expect(page.locator('.heading.is-section')).toHaveText(['柜台', '货币', '排名', '考勤与工资', '学年', '利率', '理财', '信用分', '风险提醒']);
   const sent: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/rpc/set_setting')) sent.push(r.url()); });
   const save = page.getByRole('button', { name: '保存参数' });

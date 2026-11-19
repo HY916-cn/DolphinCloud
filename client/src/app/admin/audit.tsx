@@ -29,7 +29,7 @@ const ACTIONS: Record<string, string> = {
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
-  attendance: '考勤', staff_payroll: '考勤设置', duty: '上下班', salary_rates: '工资标准',
+  attendance: '考勤', staff_payroll: '考勤设置', duty: '上下班', salary_rates: '工资标准', currency_moves: '货币登记',
 };
 const OPS: Record<string, string> = { insert: '新增', update: '修改', delete: '删除' };
 // The type chips: each a group of actions, by prefix.
@@ -50,7 +50,7 @@ const SETTINGS: Record<string, string> = {
   ranking_anonymous: '排名匿名', ranking_size: '排名人数', promotion_date: '升年级日期', salary_per_shift: '班次工资',
   credit_curve: '信用分计算参数', credit_rules: '加减分规则',
   anchor_params: '锚点参数', term_rates: '定期周利率', term_multipliers: '定期倍数', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数',
-  wealth_params: '理财参数',
+  wealth_params: '理财参数', payout_ratio_min: '兑付能力提示线',
 };
 const COLUMNS: Record<string, string> = {
   name: '名称', display_name: '姓名', login_id: '账号', disabled: '停用', must_change_password: '需要修改密码', role: '身份',

@@ -99,3 +99,19 @@ assert.equal(alertRefusal('INVALID_INPUT', { field: 'action', kind: 'stock_low' 
 assert.equal(alertRefusal('INVALID_INPUT', { field: 'id' }, 'stock_low').text, '找不到这条提醒，请刷新后再试。');
 assert.equal(alertRefusal('ALERT_OUTDATED', { key: 'x' }, 'setting_change').title, '参数之后又改过');
 console.log('errors ok');
+
+// 登记货币 (design system Currency): `currency` is the kind being recorded.
+assert.deepEqual(explain('INVALID_AMOUNT', { currency: 'correction', denomination: 5 }),
+  { title: '更正后 5 元会少于 0 张', text: '这笔登记加上它的全部更正，每种面额都不能少于 0 张。' });
+assert.equal(explain('INVALID_AMOUNT', { currency: 'issue' }).text, '每种面额 0～100000 张，合计不超过 10,000,000 HTB，不能为 0。');
+assert.equal(explain('INVALID_AMOUNT', { currency: 'correction' }).text, '每种面额 −100000～100000 张，不能全为 0。');
+assert.equal(explain('INVALID_INPUT', { currency: 'issue', field: 'on_date' }).text, '日期不能晚于今天。');
+assert.equal(explain('INVALID_INPUT', { currency: 'issue', field: 'reason' }).text, '请写明用途，最多 100 字。');
+assert.equal(explain('INVALID_INPUT', { currency: 'recover', field: 'reason' }).text, '请写明原因，最多 100 字。');
+assert.equal(explain('INVALID_INPUT', { currency: 'issue', field: 'batch_no' }).text, '批次号 1～40 字。');
+assert.equal(explain('INVALID_INPUT', { currency: 'issue', field: 'approver_name' }).text, '请写审批人，最多 40 字。');
+assert.deepEqual(explain('INVALID_INPUT', { currency: 'correction', field: 'corrects' }), { title: '不能更正这笔登记', text: '只能对应一笔不是更正的登记，请重新选择。' });
+assert.deepEqual(explain('INVALID_INPUT', { currency: 'issue', field: 'kind' }), { title: '没有登记', text: '请返回货币页后重新打开。' });
+assert.deepEqual(explain('ALREADY_EXISTS', { currency: 'baseline', field: 'kind' }), { title: '期初现金已经登记过', text: '期初现金只登记一次，登错了请登一笔更正。' });
+assert.equal(explain('ALREADY_EXISTS', { currency: 'issue', field: 'batch_no', batch_no: 'FX-1' }).text, '批次号 FX-1 已经用过。');
+console.log('errors (currency) ok');

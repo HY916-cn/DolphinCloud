@@ -4,7 +4,7 @@ import { findScopes, type Scope } from '@/lib/search';
 import { useStudents } from '@/lib/students';
 import { ListLoading } from './Skeleton';
 import { TimePicker } from './TimePicker';
-import { Icon, type IconName } from './ui';
+import { Icon, link, type IconName } from './ui';
 
 export const SCOPE_ICON: Record<Scope['kind'], IconName> = { division: 'home', class: 'teacher', student: 'me' };
 
@@ -77,19 +77,22 @@ export function TimeRange({ from, to, onChange }: { from: string; to: string; on
 // narrow page.
 // `warn` marks the note under a figure as a warning (is-danger): only that line turns red; 'pl' colours a change of a
 // rate in 红涨绿跌 (dc-pl: 利率's 锚点). `tone` colours a value that is itself a rise or a fall (dc-pl is-up / is-down:
-// 理财's 指数涨跌).
-export function Stats({ items }: { items: [string, ReactNode, string?, string?, (boolean | 'pl')?, string?][] }) {
+// 理财's 指数涨跌). `href` makes the whole figure a link (经营看板's 银行应有现金), and a warning then marks the whole card too.
+export function Stats({ items }: { items: [string, ReactNode, string?, string?, (boolean | 'pl')?, string?, string?][] }) {
   return (
     <div className="dc-stats-box">
       <div className="dc-stats" data-n={items.length} style={{ '--n': items.length } as CSSProperties}>
-        {items.map(([label, value, unit, change, warn, tone]) => {
+        {items.map(([label, value, unit, change, warn, tone, href]) => {
           const dir = change?.includes('+') ? 'is-up' : change && /[-−]/.test(change) ? 'is-down' : '';
-          return (
-            <div key={label} className="dc-card dc-stat">
+          const body = (
+            <>
               <span>{label}</span><b className={tone}>{value}{unit && <small>{unit}</small>}</b>
               {change && <em className={warn === true ? 'is-danger' : warn === 'pl' && dir ? `dc-pl ${dir}` : dir || undefined}>{change}</em>}
-            </div>
+            </>
           );
+          return href
+            ? <a key={label} className={`dc-card dc-stat${warn === true ? ' is-danger' : ''}`} {...link(href)}>{body}</a>
+            : <div key={label} className="dc-card dc-stat">{body}</div>;
         })}
       </div>
     </div>
@@ -108,21 +111,25 @@ function Grid({ top }: { top: number }) {
 type Point = { label: string; value: number; tip: string };
 const v = (value: number, max: number) => ({ '--v': max ? value / max : 0 }) as CSSProperties;
 
-// Columns over time or another order (days, hours, balance bands): one series, the title names it.
-export function Columns({ title, data, kind = '', unit }: { title: string; data: Point[]; kind?: string; unit: string }) {
-  const top = niceMax(Math.max(0, ...data.map((d) => d.value)));
+// Columns over time or another order (days, hours, balance bands): one series, the title names it. `note` replaces the
+// total under the title, `top` the scale's top, and `fromEnd` labels the axis back from the last column (this week).
+export function Columns({ title, data, kind = '', unit, note, top: fixed, fromEnd }: {
+  title: string; data: Point[]; kind?: string; unit: string; note?: string; top?: number; fromEnd?: boolean;
+}) {
+  const top = fixed ?? niceMax(Math.max(0, ...data.map((d) => d.value)));
   const total = data.reduce((n, d) => n + d.value, 0);
   const every = Math.ceil(data.length / 7); // at most seven axis labels
+  const labelled = (i: number) => !((fromEnd ? data.length - 1 - i : i) % every);
   return (
     <figure className={`dc-chart ${kind}`}>
-      <figcaption>{title}<small>合计 {formatAmount(total)} {unit}</small></figcaption>
+      <figcaption>{title}<small>{note ?? `合计 ${formatAmount(total)} ${unit}`}</small></figcaption>
       <div className="dc-chart-plot">
         <Grid top={top} />
         <div className="dc-chart-cols" role="img" aria-label={`${title}：${data.map((d) => d.tip).join('；')}`}>
           {data.map((d) => <span key={d.label} className="dc-chart-col" data-tip={d.tip} style={v(d.value, top)}><i /></span>)}
         </div>
       </div>
-      <div className="dc-chart-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{i % every ? '' : d.label}</span>)}</div>
+      <div className="dc-chart-axis" aria-hidden="true">{data.map((d, i) => <span key={d.label}>{labelled(i) ? d.label : ''}</span>)}</div>
     </figure>
   );
 }
