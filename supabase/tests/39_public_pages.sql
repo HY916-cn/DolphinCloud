@@ -64,28 +64,58 @@ select ok(abs((tests.anon('select to_jsonb(server_time())'))::text::bigint - ext
 
 -- 利率看板 ---------------------------------------------------------------------------------------------------------
 
-insert into wealth_days (day, change, source, note, params)
-values (current_date + 400, -1.25, 'manual', '测试', app_private.setting('wealth_params'));
+-- The 理财 card for 12 weeks under wealth_params: day, change, closed and each tier at that change (null: no rates).
+create function tests.wealth(p_day date, p_change numeric, p_closed boolean) returns jsonb language sql as $$
+  select jsonb_build_object('name', p ->> 'name', 'weeks', 12, 'day', p_day, 'change', p_change, 'closed', p_closed,
+    'tiers', (select jsonb_agg(jsonb_build_object('key', t ->> 'key', 'name', t ->> 'name', 'multiplier', (t ->> 'multiplier')::numeric,
+        'rate', case when p_change is not null then app_private.tier_rate(p, 12, t, p_change) end) order by i)
+      from jsonb_array_elements(p -> 'tiers') with ordinality x(t, i)))
+  from (select app_private.setting('wealth_params') as p) w
+$$;
+create function tests.trading_day(p_day date, p_change numeric) returns void language sql as $$
+  insert into wealth_days (day, change, source, note, params) values (p_day, p_change, 'manual', '测试', app_private.setting('wealth_params'))
+$$;
+-- wealth_days is append-only; the cases below start from none.
+create function tests.no_trading_days() returns void language sql as $$
+  set local session_replication_role = replica;
+  delete from wealth_days;
+  set local session_replication_role = origin;
+$$;
+select app_private.cn_date(now()) as today, extract(isodow from app_private.cn_date(now())) >= 6 as weekend \gset
+
+select tests.no_trading_days();
 select tests.anon('select public_rates()') as rates \gset
-select is((select array_agg(k order by k) from jsonb_object_keys(:'rates'::jsonb) k),
-  array['anchor', 'credit_enabled', 'min_score', 'scores', 'term', 'wealth', 'week_start'], 'public_rates for anon: its keys');
-select is((:'rates'::jsonb ->> 'anchor')::numeric, app_private.anchor_on(app_private.cn_date(now())), 'this week''s anchor');
+select is((select array_agg(k order by k) from jsonb_object_keys(:'rates'::jsonb) k), array['credit_enabled', 'scores', 'term', 'wealth'],
+  'public_rates for anon: no anchor');
 select is(:'rates'::jsonb -> 'scores', (select jsonb_agg(jsonb_build_object('score', s,
-    'current', app_private.saving_rate(app_private.anchor_on(app_private.cn_date(now())), s),
-    'loan', app_private.loan_rate(app_private.anchor_on(app_private.cn_date(now())), s)) order by s)
-  from unnest(array[400, 600, 750, 900, 1000]) s), '活期 and loan rates at 600, 750, 900, 1000 and the curve''s min_score');
-select is((:'rates'::jsonb -> 'scores' -> 0 ->> 'loan')::numeric, app_private.loan_rate(app_private.anchor_on(app_private.cn_date(now())), 400),
-  'the min_score can borrow');
+    'current', app_private.saving_rate(app_private.anchor_on(:'today'), s), 'loan', app_private.loan_rate(app_private.anchor_on(:'today'), s)) order by s)
+  from unnest(array[600, 750, 900, 1000]) s), '活期 and loan rates at 600, 750, 900 and 1000 under this week''s anchor');
 select is(:'rates'::jsonb -> 'term', app_private.setting('term_rates'), 'the five fixed 定期 rates');
-select is(:'rates'::jsonb -> 'wealth' -> 'day_base', (select jsonb_object_agg(k, app_private.day_base((app_private.setting('wealth_params') -> 'base' ->> k)::numeric))
-  from jsonb_object_keys(app_private.setting('wealth_params') -> 'base') k), '理财: each length''s daily base');
-select is(:'rates'::jsonb -> 'wealth' -> 'index', jsonb_build_object('day', current_date + 400, 'change', -1.25),
-  'and the index''s last trading day');
-select ok(:'rates' not like '%张小明%' and :'rates' not like '%"s1"%', 'nothing about anyone');
+select is(:'rates'::jsonb -> 'wealth', case when :'weekend' then tests.wealth(:'today', 0, true) else tests.wealth(null, null, false) end,
+  '理财 with no trading day yet: no rates (on a weekend, closed: the bases)');
+select ok(:'rates'::jsonb -> 'credit_enabled' = 'true' and :'rates' not like '%张小明%' and :'rates' not like '%"s1"%', 'nothing about anyone');
+
+select tests.trading_day(:'today'::date - 10, 1.5);
+select is(tests.anon('select public_rates()') -> 'wealth',
+  case when :'weekend' then tests.wealth(:'today', 0, true) else tests.wealth(:'today'::date - 10, 1.5, false) end,
+  '理财: each tier for 12 weeks on the latest trading day (on a weekend, closed: the bases)');
+select tests.trading_day(:'today', -3);
+select tests.anon('select public_rates()') -> 'wealth' as wealth \gset
+select is(:'wealth'::jsonb, tests.wealth(:'today', -3, false), 'today''s close in: each tier on it');
+select is(:'wealth'::jsonb -> 'tiers', (select jsonb_agg(jsonb_build_object('key', t ->> 'key', 'name', t ->> 'name',
+    'multiplier', (t ->> 'multiplier')::numeric, 'rate', (t ->> 'min')::numeric) order by i)
+  from jsonb_array_elements(app_private.setting('wealth_params') -> 'tiers') with ordinality x(t, i)), 'a −3% day takes each tier to its floor');
+select tests.no_trading_days();
+select tests.trading_day(:'today'::date + 3, 0.8);
+select is(tests.anon('select public_rates()') -> 'wealth', tests.wealth(:'today', 0, true),
+  'today closed (a later day traded, no close today): today, the bases');
+select is((select jsonb_agg(t -> 'rate') from jsonb_array_elements(tests.anon('select public_rates()') -> 'wealth' -> 'tiers') t),
+  (select jsonb_agg(to_jsonb(app_private.day_base((app_private.setting('wealth_params') -> 'base' ->> '12')::numeric))) from generate_series(1, 3)),
+  'which are the 12-week daily base');
+
 select tests.call(:'teacher', 'select set_credit_enabled(false, ''期中检查'')');
 select is(tests.anon('select public_rates()') -> 'scores', jsonb_build_array(jsonb_build_object('score', 600,
-    'current', app_private.saving_rate(app_private.anchor_on(app_private.cn_date(now())), 600),
-    'loan', app_private.loan_rate(app_private.anchor_on(app_private.cn_date(now())), 600))),
+    'current', app_private.saving_rate(app_private.anchor_on(:'today'), 600), 'loan', app_private.loan_rate(app_private.anchor_on(:'today'), 600))),
   '信用分 paused: 600 alone, as every student is at 600');
 select is(tests.anon('select public_rates()') -> 'credit_enabled', 'false', 'and says so');
 select tests.call(:'teacher', 'select set_credit_enabled(true, null)');
