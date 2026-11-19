@@ -149,7 +149,7 @@ pass "image upload (RLS blocks users without a policy) and public read, sandboxe
 # 公开页面 (PHASE-2.md §16.4), not signed in.
 [ "$(rpc server_time '{}')" = 200 ] && [ $(( $(cat "$WORK/body") / 1000 - $(date +%s) )) -ge -5 ] \
   && [ $(( $(cat "$WORK/body") / 1000 - $(date +%s) )) -le 5 ] || fail "server_time: $(cat "$WORK/body")"
-[ "$(rpc public_rates '{}')" = 200 ] && jq -e '(.scores | length) == 4 and (.term | length) == 5 and (.wealth.tiers | length) == 3 and (has("anchor") | not)' "$WORK/body" >/dev/null \
+[ "$(rpc public_rates '{}')" = 200 ] && jq -e '.current > 0 and (.scores | length) == 4 and (.term | length) == 5 and (.wealth.tiers | length) == 3 and (has("anchor") | not)' "$WORK/body" >/dev/null \
   || fail "public_rates: $(cat "$WORK/body")"
 pass "server_time and public_rates answer anon"
 
