@@ -13,7 +13,7 @@ select app_private.cn_date(now()) as today \gset
 -- The last day the jobs can be run to with an accrual left unpaid: the day before today's Monday is paid on it.
 select app_private.cn_date(now()) - case when extract(isodow from now() at time zone 'Asia/Shanghai') = 1 then 1 else 0 end as x \gset
 
--- One rate all along, 2% × 600 分 = 2.08%/周: the anchor stays at 2% and no rule moves a score, so the two ways of
+-- One rate all along, 2%/周: the anchor stays at 2% and no rule moves a score, so the two ways of
 -- recording below meet the same rates.
 update settings set value = value || '{"initial":2,"min":2,"max":2}' where key = 'anchor_params';
 update settings set value = (select jsonb_object_agg(key, 0) from jsonb_each(value)) where key = 'credit_rules';
@@ -197,9 +197,9 @@ select is(tests.entry('g', 'deposit', tests.noon(:'x'::date - 1), p_den => '{"10
 select is(count(*)::int, 0, 'every day accrued since an entry has its interest on 活期 at its end now')
 from interest_accruals i where floor(app_private.balance_on(i.student_no, i.day) * i.rate / 7)
   <> i.centi + coalesce((select sum(centi) from interest_adjustments j where j.student_no = i.student_no and j.day = i.day), 0);
-select is((select concat_ws(' ', j.balance - i.balance, j.centi = floor(j.balance * 2.08 / 7) - floor(i.balance * 2.08 / 7))
+select is((select concat_ws(' ', j.balance - i.balance, j.centi = floor(j.balance * 2 / 7) - floor(i.balance * 2 / 7))
   from interest_adjustments j join interest_accruals i using (student_no, day) where j.student_no = 'a' order by day limit 1), '50 t',
-  'a''s first day: ⌊(B + 50) × 2.08 ÷ 7⌋ − ⌊B × 2.08 ÷ 7⌋, about 0.15 HTB');
+  'a''s first day: ⌊(B + 50) × 2 ÷ 7⌋ − ⌊B × 2 ÷ 7⌋, about 0.14 HTB');
 select ok(exists (select 1 from interest_adjustments j join interest_accruals i using (student_no, day) where j.student_no = 'a' and i.settled_txn is not null)
   and exists (select 1 from interest_adjustments j join interest_accruals i using (student_no, day) where j.student_no = 'a' and i.settled_txn is null),
   'weeks paid and a week not yet paid both corrected');

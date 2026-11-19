@@ -165,17 +165,17 @@ select is(tests.call(:'teller', 'select term_quote(''s1'')') - 'deposits' - 'stu
 select is(jsonb_array_length(tests.call(:'teller', 'select term_quote(''s1'')') -> 'options'), 5, 'and still offers every length');
 rollback to savepoint term_end;
 
--- 提前支取 (§9.5): s2 opened 100 for 4 weeks 5 days ago and dropped to 500 分 2 days ago: 3 days at 600 分 (100 × 2.08% ÷ 7
--- = 0.29) and 2 at 500 分 (2.00% → 0.28).
+-- 提前支取 (§9.5): s2 opened 100 for 4 weeks 5 days ago and dropped to 500 分 2 days ago: 5 days at the anchor whatever
+-- the score (100 × 2% ÷ 7 = 0.28).
 select app_private.start_term_deposit('00000000-0000-4000-8000-0000000000b1', 's2', 100, 4, :'teller', (:'today'::date - 5 + time '12:00') at time zone 'Asia/Shanghai');
 select app_private.credit_change('s2', -100, 'manual', '测试', null, null, (:'today'::date - 2 + time '10:00') at time zone 'Asia/Shanghai') is not null;
 select tests.call(:'teller', $$select withdraw_term_early('00000000-0000-4000-8000-0000000000b1')$$) as early \gset
 select is(:'early'::jsonb - 'id' - 'txn_no' - 'created_at' - 'term',
   '{"type":"term_close","amount":101,"balance_after":121,"denominations":null,"change_given":null}',
-  '3 × 0.29 + 2 × 0.28 = 1.43: the principal and 1 HTB back to 活期');
-select is(array[:'early'::jsonb #>> '{term,status}', :'early'::jsonb #>> '{term,interest_centi}'], array['early', '143'], '已提前支取, 1.43 HTB paid');
-select is((select reason from txns where id = (:'early'::jsonb ->> 'id')::uuid), '提前支取，利息 1.43 HTB', 'the term_close says 提前支取 and the interest');
-select is((select concat_ws(' ', balance, term_total, interest_carry) from accounts where student_no = 's2'), '121 0 43', 'the 0.43 waits as 待入账利息');
+  '5 × 0.28 = 1.40: the principal and 1 HTB back to 活期');
+select is(array[:'early'::jsonb #>> '{term,status}', :'early'::jsonb #>> '{term,interest_centi}'], array['early', '140'], '已提前支取, 1.40 HTB paid');
+select is((select reason from txns where id = (:'early'::jsonb ->> 'id')::uuid), '提前支取，利息 1.40 HTB', 'the term_close says 提前支取 and the interest');
+select is((select concat_ws(' ', balance, term_total, interest_carry) from accounts where student_no = 's2'), '121 0 40', 'the 0.40 waits as 待入账利息');
 select is(tests.call(:'teller', $$select withdraw_term_early('00000000-0000-4000-8000-0000000000b1')$$) ->> 'id', :'early'::jsonb ->> 'id',
   'sent again, the same result');
 select is(tests.err(:'teller', $$select withdraw_term_early(gen_random_uuid())$$), 'INVALID_INPUT', 'a 定期 that exists');

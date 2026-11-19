@@ -12,10 +12,10 @@ select tests.student('s1', 0) as s1 \gset
 select tests.student('s2', 0) as s2 \gset
 
 -- §8.1: every score of the table, and the points to the next 5 HTB.
-select is(array[app_private.credit_limit(s)::text, app_private.loan_factor(s)::text, app_private.saving_factor(s)::text],
-  array[l, f, g], format('score %s: limit, loan factor, saving factor', s))
-from (values (0, null, null, '0.8000'), (399, null, null, '0.9596'), (400, '50', '1.8000', '0.9600'), (600, '130', '1.5667', '1.0400'),
-  (750, '195', '1.3917', '1.1000'), (900, '255', '1.2167', '1.1600'), (1000, '300', '1.1000', '1.2000')) t(s, l, f, g);
+select is(array[app_private.credit_limit(s)::text, app_private.loan_factor(s)::text],
+  array[l, f], format('score %s: limit, loan factor', s))
+from (values (0, null, null), (399, null, null), (400, '50', '1.8000'), (600, '130', '1.5667'),
+  (750, '195', '1.3917'), (900, '255', '1.2167'), (1000, '300', '1.1000')) t(s, l, f);
 select is(array(select app_private.credit_next(s) from unnest(array[0, 399, 400, 600, 604, 999, 1000]) s), array[null, null, 12, 4, 12, 1, null],
   'points to the next 5 HTB: none below 400 or at the top limit');
 select ok(app_private.credit_limit(600 + app_private.credit_next(600)) = 135 and app_private.credit_limit(600 + app_private.credit_next(600) - 1) = 130,
@@ -25,7 +25,7 @@ select ok(app_private.credit_limit(600 + app_private.credit_next(600)) = 135 and
 select is((select count(*) from students s left join credit_scores c using (student_no) where c.score is distinct from 600), 0::bigint,
   'every student starts at 600');
 select is(tests.call(:'s1', 'select credit_profile()'),
-  '{"student_no":"s1","score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667,"saving_factor":1.04}', 'a student reads their own');
+  '{"student_no":"s1","score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667}', 'a student reads their own');
 
 -- credit_change: 0–1000, the change applied, a rule's own points, once per ref.
 update credit_scores set score = 990 where student_no = 's2';
@@ -190,7 +190,7 @@ select is(tests.err(:'teacher', 'select adjust_credit(''closed'', 10, ''表现�
 select tests.call(:'teacher', 'select adjust_credit(''s1'', -30, '' 损坏公物 '')') as adj \gset
 select is((:'adj'::jsonb -> 'event') - 'id' - 'at', jsonb_build_object('student_no', 's1', 'delta', -30, 'score', 570, 'rule', 'manual',
   'reason', '银行管理员调整：损坏公物', 'ref', null, 'actor_id', :'teacher'), 'recorded as manual, by the bank admin, the reason marked');
-select is(:'adj'::jsonb -> 'credit', '{"student_no":"s1","score":570,"loan_limit":120,"points_to_next":10,"loan_factor":1.6017,"saving_factor":1.028}',
+select is(:'adj'::jsonb -> 'credit', '{"student_no":"s1","score":570,"loan_limit":120,"points_to_next":10,"loan_factor":1.6017}',
   'returning the new score');
 select is(count(*)::int, 1, 'and logged as credit.adjust') from audit_log
   where action = 'credit.adjust' and target = 'students:s1' and actor_id = :'teacher' and after ->> 'delta' = '-30';
@@ -202,7 +202,7 @@ select tests.call(:'teacher', 'select adjust_credit(''s1'', -400, ''恢复'')') 
 select is(tests.err(:'president', $$select set_setting('credit_curve', '{}')$$), 'FORBIDDEN', 'not the president');
 select is(tests.call(:'teacher', $$select set_setting('credit_curve', '{"min_score":300,"limit_min":40,"limit_max":400,"limit_step":10,"loan_max":2,"loan_min":1,"saving_min":0.5,"saving_max":1.5}')$$) ->> 'key',
   'credit_curve', 'the bank admin changes the curve');
-select is(array[app_private.credit_limit(600), app_private.loan_factor(600), app_private.saving_factor(600)], array[190, 1.5714, 1.1],
+select is(array[app_private.credit_limit(600), app_private.loan_factor(600)], array[190, 1.5714],
   'and the scores follow it at once');
 select is(tests.call(:'teacher', format('select set_setting(''credit_curve'', %L)', c)) ->> 'detail', '{"field": "credit_curve"}', why)
 from (values ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8}', 'every key'),
@@ -246,7 +246,7 @@ select is(tests.call(w, 'select count(*) from credit_scores')::text || tests.cal
 from unnest(array[:'teller', :'keeper', :'ops']::uuid[]) w;
 select is(tests.err(w, 'select credit_profile(''s2'')'), 'FORBIDDEN', 'nor a profile') from unnest(array[:'teller', :'keeper', :'ops']::uuid[]) w;
 select is(tests.call(:'teller', 'select lookup_student(''s2'')') -> 'credit',
-  '{"score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667,"saving_factor":1.04}', 'the teller sees it on the student''s card');
+  '{"score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667}', 'the teller sees it on the student''s card');
 
 select * from finish();
 rollback;

@@ -38,20 +38,19 @@ create function tests.at(p text) returns timestamptz language sql as $$ select (
 
 -- §9.2: every rate of the table at an anchor of 2%.
 select is(app_private.rates(2, s), r::jsonb, format('score %s: 活期, 定期 (fixed), 贷款', s))
-from (values (0, '{"current":1.6,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":null}'),
-  (400, '{"current":1.92,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":7.2}'),
-  (600, '{"current":2.08,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667}'),
-  (750, '{"current":2.2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":5.5667}'),
-  (900, '{"current":2.32,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":4.8667}'),
-  (1000, '{"current":2.4,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":4.4}')) t(s, r);
+from (values (0, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":null}'),
+  (400, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":7.2}'),
+  (600, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667}'),
+  (750, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":5.5667}'),
+  (900, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":4.8667}'),
+  (1000, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":4.4}')) t(s, r);
 select is(array[app_private.term_rate(12), app_private.term_rate(3), app_private.loan_rate(2, 399)], array[3, null, null]::numeric[],
   'no 定期 rate for a length without one, no loan rate below 400');
 select is(app_private.penalty_rate(app_private.loan_rate(2, 1000)), 6.6, '罚息 = the loan rate × 1.5');
 select is(app_private.penalty_rate(6.2667), 9.4001, 'to 4 decimals');
 select is(count(*)::int, 0, 'at every score from 400, the loan rate is above 活期 and every 定期 at the initial anchor')
 from generate_series(400, 1000) s where app_private.loan_rate(2, s) <= greatest(app_private.saving_rate(2, s), app_private.term_rate(48));
-select is(array[app_private.saving_factor(600), app_private.loan_factor(600), app_private.loan_factor(399)], array[1.04, 1.5667, null],
-  'the factors shown keep their 4 decimals');
+select is(array[app_private.loan_factor(600), app_private.loan_factor(399)], array[1.5667, null], 'the factor shown keeps its 4 decimals');
 
 -- §9.1: the adjustment, by the two examples and within ±0.5.
 select is(app_private.anchor_adjust(r, g, app_private.setting('anchor_params')), a, why)
@@ -116,15 +115,15 @@ create function tests.day(p date) returns text[] language sql as $$
   select coalesce(array_agg(concat_ws(' ', student_no, balance, rate, centi) order by student_no), '{}') from interest_accruals where day = p
 $$;
 select is(app_private.accrue_interest('2025-03-03'), 7, 'one row for each 在读 account opened by the day');
-select is(tests.day('2025-03-03'), array['a 100 2.0800 29', 'b 1000 2.4000 342', 'c 100 2.0800 29', 'd 100 2.0800 29', 'gone 100 2.0800 29',
-  'tiny 10 2.0800 2', 'zero 0 2.0800 0'],
-  'balance × 活期 rate ÷ 7 to 0.01 HTB, less dropped: 100 × 2.08% ÷ 7 = 0.2971 → 0.29; 1000 at 1000 分 → 3.42; none for 冻结、毕业、注销 or one opened later');
+select is(tests.day('2025-03-03'), array['a 100 2.0000 28', 'b 1000 2.0000 285', 'c 100 2.0000 28', 'd 100 2.0000 28', 'gone 100 2.0000 28',
+  'tiny 10 2.0000 2', 'zero 0 2.0000 0'],
+  'balance × 活期 rate ÷ 7 to 0.01 HTB, less dropped: 100 × 2% ÷ 7 = 0.2857 → 0.28; 1000 at 1000 分 at the same rate → 2.85; none for 冻结、毕业、注销 or one opened later');
 select is(app_private.accrue_interest('2025-03-03'), 0, 'a day accrued again adds nothing');
 update students set status = 'normal' where student_no = 'frz';
 select app_private.accrue_interest('2025-03-04');
-select is(tests.day('2025-03-04'), array['a 100 2.0800 29', 'b 1000 2.4000 342', 'c 100 2.0000 28', 'd 150 2.0800 44', 'frz 100 2.0800 29',
-  'gone 100 2.0800 29', 'late 100 2.0800 29', 'tiny 10 2.0800 2', 'zero 0 2.0800 0'],
-  'each day at its closing balance and score: c dropped to 500 分 that day, d deposited 50, frz unfrozen accrues again, late opened');
+select is(tests.day('2025-03-04'), array['a 100 2.0000 28', 'b 1000 2.0000 285', 'c 100 2.0000 28', 'd 150 2.0000 42', 'frz 100 2.0000 28',
+  'gone 100 2.0000 28', 'late 100 2.0000 28', 'tiny 10 2.0000 2', 'zero 0 2.0000 0'],
+  'each day at its closing balance, whatever the score: c dropped to 500 分 that day, d deposited 50, frz unfrozen accrues again, late opened');
 select is((select array_agg(day order by day) from interest_accruals where student_no = 'frz'), array['2025-03-04'::date],
   'the frozen days stay without interest');
 select app_private.accrue_interest(d::date) from generate_series('2025-03-05'::date, '2025-03-09', interval '1 day') d;
@@ -134,23 +133,23 @@ update students set status = 'frozen' where student_no = 'd';
 update students set status = 'closed' where student_no = 'gone';
 select is(app_private.settle_interest(tests.at('2025-03-10')), 6, 'six accounts have 1 HTB or more');
 select is(to_jsonb(t) - 'id' - 'seq' - 'txn_no' - 'device_id' - 'client_created_at' - 'operator_id' - 'created_at' - 'term_id' - 'loan_id' - 'wealth_id' - 'corrects',
-  '{"type":"interest","student_no":"a","amount":2,"balance_delta":2,"balance_after":102,"cash_delta":0,"payment":null,"denominations":null,
+  '{"type":"interest","student_no":"a","amount":1,"balance_delta":1,"balance_after":101,"cash_delta":0,"payment":null,"denominations":null,
     "change_given":null,"status":"normal","reversal_of":null,"reason":"3月3日至3月9日活期利息","offline":false,"entered_at":null}',
-  'the whole HTB of the week, 7 × 0.29 = 2.03, paid as one interest transaction')
+  'the whole HTB of the week, 7 × 0.28 = 1.96, paid as one interest transaction')
 from txns t where student_no = 'a' and type = 'interest';
 select is((select array[operator_id::text, created_at::text, left(txn_no, 8)] from txns where student_no = 'a' and type = 'interest'),
   array[app_private.system_user()::text, tests.at('2025-03-10')::text, 'HT250310'], 'by the system login, dated the Monday''s midnight');
 select is(array(select concat_ws(' ', student_no, (select amount from txns t where t.student_no = a.student_no and type = 'interest'), interest_carry)
     from accounts a where student_no in ('a', 'b', 'c', 'd', 'frz', 'late', 'tiny', 'gone') order by student_no),
-  array['a 2 3', 'b 23 94', 'c 1 97', 'd 2 93', 'frz 1 74', 'gone 0', 'late 1 74', 'tiny 0'],
-  'the rest stays as the carry: b 7 × 3.42 = 23.94, d 0.29 + 6 × 0.44 = 2.93');
+  array['a 1 96', 'b 19 95', 'c 1 96', 'd 2 80', 'frz 1 68', 'gone 0', 'late 1 68', 'tiny 0'],
+  'the rest stays as the carry: b 7 × 2.85 = 19.95, d 0.28 + 6 × 0.42 = 2.80');
 select is((select count(*)::int from interest_accruals where settled_txn is null and centi > 0), 14,
   'tiny''s 0.14 and gone''s accruals wait');
-select is(array[app_private.pending_interest('a'), app_private.pending_interest('tiny'), app_private.pending_interest('gone')], array[3, 14, 203],
+select is(array[app_private.pending_interest('a'), app_private.pending_interest('tiny'), app_private.pending_interest('gone')], array[96, 14, 196],
   '待入账利息: the carry and what is not yet paid');
 select is(app_private.settle_interest(tests.at('2025-03-10')), 0, 'settling again pays nothing more');
 select app_private.accrue_interest('2025-03-10');
-select is(app_private.pending_interest('a'), 33, 'the next day accrues on the balance with the interest: 102 → 0.30');
+select is(app_private.pending_interest('a'), 124, 'the next day accrues on the balance with the interest: 101 → 0.28');
 select is(tests.call(:'teacher', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')',
   (select id from txns where student_no = 'a' and type = 'interest'))) ->> 'error', 'REVERSAL_NOT_ALLOWED', '结息 is never reversed');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
@@ -158,11 +157,11 @@ select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_bala
 -- Who reads what (§3, §16).
 select user_id as a_login from students where student_no = 'a' \gset
 select is(tests.call(:'a_login', 'select interest_profile()'),
-  '{"student_no":"a","score":600,"week_start":null,"anchor":2,"rates":{"current":2.08,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667},"pending_centi":33}',
-  'a student reads this week''s rates and 待入账利息 0.33 HTB');
-select is(tests.call(:'a_login', 'select interest_profile(''a'')') ->> 'pending_centi', '33', 'also by their own number');
+  '{"student_no":"a","score":600,"week_start":null,"anchor":2,"rates":{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667},"pending_centi":124}',
+  'a student reads this week''s rates and 待入账利息 1.24 HTB');
+select is(tests.call(:'a_login', 'select interest_profile(''a'')') ->> 'pending_centi', '124', 'also by their own number');
 select is(tests.err(:'a_login', 'select interest_profile(''b'')'), 'FORBIDDEN', 'but no one else''s');
-select is(tests.call(w, 'select interest_profile(''b'')') #> '{rates,current}', '2.4', 'the accountant, president and bank admin read anyone''s')
+select is(tests.call(w, 'select interest_profile(''b'')') #> '{rates,current}', '2', 'the accountant, president and bank admin read anyone''s')
 from unnest(array[:'accountant', :'president', :'teacher']::uuid[]) w;
 select is(tests.err(:'teacher', 'select interest_profile(''nobody'')'), 'STUDENT_NOT_FOUND', 'of a student that exists');
 select is(tests.err(:'teacher', 'select interest_profile()'), 'FORBIDDEN', 'staff name the student');
@@ -176,7 +175,7 @@ select is(tests.call(w, 'select count(*) from interest_accruals'), '0', 'the oth
 update interest_accruals set centi = centi + 1 where student_no = 'b' and day = '2025-03-05';
 update accounts set interest_carry = 50 where student_no = 'c';
 select is(array(select concat_ws(' ', kind, key, recorded, expected) from app_private.check_balances() order by key),
-  array['interest b 2394 2395', 'interest c 150 197'], 'check_balances: 100 × interest paid + carry against the settled accruals');
+  array['interest b 1995 1996', 'interest c 150 196'], 'check_balances: 100 × interest paid + carry against the settled accruals');
 rollback to savepoint accruals;
 
 -- run_jobs (§13) through two terms and the holidays around them, every day alike: 春季 from Wednesday 5 March to Friday
@@ -235,7 +234,7 @@ select is(array(select concat_ws(' ', created_at, reason) from txns where studen
 select is((select array_agg(day) from interest_accruals where student_no = 'saver' and settled_txn is null), array['2025-05-05'::date],
   'only yesterday waits for next Monday');
 select is((select array_agg(rate order by day) from interest_accruals where student_no = 'mixed' and day in ('2025-03-11', '2025-03-12')),
-  array[1.5624, 1.5024], 'mixed at the anchor of 1.50: 600 分 at the end of 11 March, 500 分 at the end of 12 March, though the score now is neither');
+  array[1.5, 1.5], 'mixed at the anchor of 1.50 on 11 March at 600 分 and on 12 March at 500 分 alike');
 select is(count(*)::int, 0, 'every accrual works out again from the balance, anchor and score of its day') from interest_accruals
 where balance <> app_private.balance_on(student_no, day)
    or rate <> app_private.saving_rate(app_private.anchor_on(day), app_private.score_on(student_no, day))
@@ -254,7 +253,7 @@ select ok((select banned_until > now() from auth.users where id = app_private.sy
 
 -- 后台「利率」 (§16.2): the accountant, president and bank admin.
 select is(tests.call(:'accountant', 'select rate_overview()') - 'table', '{"week_start":"2025-05-05","anchor":1.00}', 'this week''s anchor');
-select is(tests.call(:'president', 'select rate_overview()') -> 'table' -> 2, '{"score":600,"current":1.04,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":3.1333}',
+select is(tests.call(:'president', 'select rate_overview()') -> 'table' -> 2, '{"score":600,"current":1,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":3.1333}',
   'and the rates by score under it');
 select is(jsonb_path_query_array(tests.call(:'teacher', 'select rate_overview()') -> 'table', '$[*].score'), '[0,400,600,750,900,1000]',
   'the scores of §9.2');

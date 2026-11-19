@@ -83,7 +83,7 @@ select is((select after from audit_log where action = 'credit.switch' and target
   '{"enabled":false,"reason":"期中检查","students":3}', 'logged as credit.switch with the reason');
 select is(tests.call(:'s1', 'select value from settings where key = ''credit_enabled'''), 'false', 'a student reads it too');
 select is(tests.call(:'teacher', 'select credit_profile(''c'')'),
-  '{"student_no":"c","score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667,"saving_factor":1.04}',
+  '{"student_no":"c","score":600,"loan_limit":130,"points_to_next":4,"loan_factor":1.5667}',
   'the limit and the factors are those of 600');
 select is(tests.call(:'teacher', 'select interest_profile(''a'') -> ''rates'''), tests.call(:'teacher', 'select interest_profile(''d'') -> ''rates'''),
   'and so are the rates, for every student');

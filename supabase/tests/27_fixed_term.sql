@@ -18,7 +18,7 @@ select is(array[app_private.rates(1, 0) -> 'term', app_private.rates(4, 1000) ->
   array[app_private.setting('term_rates'), app_private.setting('term_rates')], 'the anchor and the score do not move them');
 select is(tests.call(:'s1', 'select interest_profile()') #> '{rates,term}', app_private.setting('term_rates'), 'the student reads them');
 select ok(app_private.term_rate(2) > app_private.saving_rate(2, 1000) and app_private.term_rate(48) < app_private.loan_rate(2, 1000),
-  'at the initial anchor, above the best 活期 rate and below the lowest loan rate');
+  'at the initial anchor, above the 活期 rate and below the lowest loan rate');
 
 -- Who sets them, and what they take.
 select is(tests.call(:'teacher', $$select set_setting('term_rates', '{"2":2.6,"4":2.8,"12":3.1,"24":3.3,"48":3.6}')$$) -> 'value',
@@ -62,10 +62,10 @@ select app_private.start_term_deposit('00000000-0000-4000-8000-0000000000b8', 'h
 select app_private.start_term_deposit('00000000-0000-4000-8000-0000000000e1', 'h', 100, 4, :'teller', tests.at('2025-03-24 12:00')) is not null;
 
 -- 提前支取 on 16 April: 活期 interest for each of the 23 days before the day, those in the holidays too: 23 ×
--- ⌊100 × 2.08% ÷ 7⌋ (the initial anchor, 600 分) = 23 × 0.29.
-select is(app_private.early_interest(d, '2025-04-16'), 23 * 29, '提前支取 pays 活期 interest for every day it was open')
+-- ⌊100 × 2% ÷ 7⌋ (the initial anchor) = 23 × 0.28.
+select is(app_private.early_interest(d, '2025-04-16'), 23 * 28, '提前支取 pays 活期 interest for every day it was open')
 from term_deposits d where id = '00000000-0000-4000-8000-0000000000e1';
-select is(app_private.early_interest(d, '2025-04-10'), 17 * 29, 'in the holidays as in term')
+select is(app_private.early_interest(d, '2025-04-10'), 17 * 28, 'in the holidays as in term')
 from term_deposits d where id = '00000000-0000-4000-8000-0000000000e1';
 
 select is(app_private.run_jobs('2025-04-23') -> 'failed', 'null', 'the jobs run through the term, the holidays and into 夏季');

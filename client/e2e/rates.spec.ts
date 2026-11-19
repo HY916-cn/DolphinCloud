@@ -26,13 +26,13 @@ test('学生「信用」: the week’s rates at my score, with no term and no an
   await expect(page.locator('.dc-list-title', { hasText: '本周利率' })).toHaveText('本周利率 · 按 600 分');
   // Each rate as an example on 100 HTB, the weekly rate in small type below it.
   await expect(rates(page).locator('.dc-rate-list > li')).toHaveText([
-    '活期存 100 HTB，一周多得约 2.08 HTB2.08%/周', '定期 2 周存 100 HTB，到期拿回 105.00 HTB2.5%/周',
+    '活期存 100 HTB，一周多得约 2.00 HTB2%/周', '定期 2 周存 100 HTB，到期拿回 105.00 HTB2.5%/周',
     '定期 4 周存 100 HTB，到期拿回 111.00 HTB2.75%/周', '定期 12 周存 100 HTB，到期拿回 136.00 HTB3%/周',
     '定期 24 周存 100 HTB，到期拿回 178.00 HTB3.25%/周', '定期 48 周存 100 HTB，到期拿回 268.00 HTB3.5%/周',
     '借 100 HTB，一周利息约 6.27 HTB6.2667%/周',
   ]);
-  await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.08 HTB', ...TERM_BACK, '6.27 HTB']);
-  await expect(rates(page).locator('.dc-rate-list > li').locator('small')).toHaveText(['2.08%/周', '2.5%/周', '2.75%/周', '3%/周', '3.25%/周', '3.5%/周', '6.2667%/周']);
+  await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.00 HTB', ...TERM_BACK, '6.27 HTB']);
+  await expect(rates(page).locator('.dc-rate-list > li').locator('small')).toHaveText(['2%/周', '2.5%/周', '2.75%/周', '3%/周', '3.25%/周', '3.5%/周', '6.2667%/周']);
   await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
 
   // Below the lowest score to borrow, no loan rate.
@@ -52,7 +52,7 @@ test('in a term with no anchor published: the initial rates, and 利率 says so;
   sql(`insert into public.terms (name, starts_on, ends_on) values ('本学期', ${DAY} - 60, ${DAY} + 60)`);
   await studentCredit(page);
   await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
-  await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.08 HTB2.08%/周');
+  await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.00 HTB2%/周');
 
   const accountant = await browser.newPage();
   await signIn(accountant, '工作人员', 'accountant01');
@@ -83,7 +83,7 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
          (${MONDAY}, 2, 12480, 4992, 40, 2, 0.25, 2.25, ${params})`);
   await studentCredit(page);
   await expect(caption(page)).toHaveText(`信用分越高，活期多得，借钱少付；定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
-  await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.34 HTB', ...TERM_BACK, '7.05 HTB']);
+  await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.25 HTB', ...TERM_BACK, '7.05 HTB']);
 
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
@@ -95,8 +95,8 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
   const table = page.getByRole('table', { name: '按分数的周利率' });
   await expect(page.getByRole('heading', { name: '按分数的周利率 · 锚点 2.25%' })).toBeVisible();
   await expect(table.locator('thead th')).toHaveText(['分数', '活期', '贷款', '逾期罚息']);
-  await expect(table.locator('tbody tr').first()).toHaveText('0 分1.8%不能贷款不能贷款');
-  await expect(table.locator('tbody tr', { hasText: '600 分' })).toHaveText('600 分2.34%7.05%10.575%');
+  await expect(table.locator('tbody tr').first()).toHaveText('0 分2.25%不能贷款不能贷款');
+  await expect(table.locator('tbody tr', { hasText: '600 分' })).toHaveText('600 分2.25%7.05%10.575%');
   // 定期周利率: the fixed rates, below the table; the bank admin, not the president, changes them on 参数.
   const term = page.getByRole('region', { name: '定期周利率' });
   await expect(term.locator('.dc-kv > div')).toHaveText(['2 周2.5%', '4 周2.75%', '12 周3%', '24 周3.25%', '48 周3.5%']);
@@ -158,7 +158,7 @@ test('in the holidays interest goes on, and both pages say when the anchor was p
   sql(`update public.terms set starts_on = ${DAY} - 120, ends_on = ${DAY} - 1`);
   await studentCredit(page);
   await expect(caption(page)).toHaveText(`信用分越高，活期多得，借钱少付；定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
-  await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.34 HTB2.34%/周');
+  await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.25 HTB2.25%/周');
   await page.goto('/student');
   await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有理财没有贷款没有');
 
