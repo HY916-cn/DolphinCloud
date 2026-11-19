@@ -6,15 +6,17 @@ import { alertLink, alertObject, alertRows, alertsHref, clock, handledBy, KINDS,
 import { classOf } from '@/lib/counter';
 import { AppError, alertRefusal, explain } from '@/lib/errors';
 import { call } from '@/lib/rpc';
+import { useMe } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
 type Problem = { title: string; text: string } | null;
 
-// One alert (design system RiskAlerts 提醒页): 这条提醒, and while it is open 处理: a note, 已查看, and for the kinds that
-// can be undone 终止 with its reason and a second look. Its title is the kind and its subtitle the object. The list's
+// One alert (design system RiskAlerts 提醒页): 这条提醒, and while it is open the bank admin's 处理: a note, 已查看, and
+// for the kinds that can be undone 终止 with its reason and a second look; the president only reads it. Its title is the kind and its subtitle the object. The list's
 // filters ride along in the address, so 返回 and a handled alert land on the list as it was; from 总览 (`via=overview`)
 // 返回 goes back there. There is no read of one alert: list_risk_alerts below id + 1, one row, is it or there is none.
 export default function AlertPage() {
+  const handles = useMe().data!.roles.includes('teacher');
   const { id, tab, from, to, kinds, via } = useLocalSearchParams<{ id: string; tab?: string; from?: string; to?: string; kinds?: string; via?: string }>();
   const filters = { tab, from, to, kinds };
   const alert = useQuery({
@@ -31,12 +33,12 @@ export default function AlertPage() {
       {alert.isError ? <Notice tone="danger" title="暂时无法读取这条提醒">请检查网络后刷新页面。</Notice>
         : alert.isPending ? <KvLoading rows={6} />
         : !a ? <Notice tone="danger" title="找不到这条提醒">请返回风险提醒页刷新后再试。</Notice>
-        : <Handle key={a.id} a={a} onDone={() => router.navigate(alertsHref({ ...filters, fresh: String(a.id) }) as Href)} />}
+        : <Handle key={a.id} a={a} handles={handles} onDone={() => router.navigate(alertsHref({ ...filters, fresh: String(a.id) }) as Href)} />}
     </Page>
   );
 }
 
-function Handle({ a, onDone }: { a: Alert; onDone: () => void }) {
+function Handle({ a, handles, onDone }: { a: Alert; handles: boolean; onDone: () => void }) {
   const queryClient = useQueryClient();
   const wide = useWide();
   const [note, setNote] = useState('');
@@ -100,9 +102,10 @@ function Handle({ a, onDone }: { a: Alert; onDone: () => void }) {
       <h2 className="heading">这条提醒</h2>
       <Summary rows={rows} />
       {go && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link(go.href)}>{go.label}<Icon name="next" /></a>}
+      {a.status === 'open' && !handles && <p className="dc-caption">由银行管理员处理。</p>}
     </section>
   );
-  if (a.status !== 'open') return <div className="dc-stack dc-enter">{refusal}{shown}</div>;
+  if (a.status !== 'open' || !handles) return <div className="dc-stack dc-enter">{refusal}{shown}</div>;
 
   const work = (
     <section className="dc-card dc-stack" aria-label="处理">

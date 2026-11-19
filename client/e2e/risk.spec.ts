@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 风险提醒 (PHASE-2.md §12, design system RiskAlerts) on the seed data (supabase/seed.sql): teller01 lends 张小明
-// (20260001, 600 points, limit 130 HTB) 60 HTB, over the 50 HTB line, and the president terminates the loan from the
-// 风险提醒 page; the president and the bank admin both mark one 库存不足 alert, the second one is refused; the accountant
-// sees none of it. The tests run in order.
+// (20260001, 600 points, limit 130 HTB) 60 HTB, over the 50 HTB line, and the bank admin terminates the loan from the
+// 风险提醒 page; two pages of the bank admin (the seed has one) both mark one 库存不足 alert, the second one is refused;
+// the president reads an open alert and handles nothing; the accountant sees none of it. The tests run in order.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 
@@ -12,7 +12,7 @@ const sheet = (page: Page) => page.locator('.dc-sheet');
 const bar = (page: Page) => page.locator('.dc-actions');
 const card = (page: Page, name: string) => page.locator(`section[aria-label="${name}"]`);
 
-test('大额贷款: the teller lends 60 HTB, the president terminates it from 总览 and the 风险提醒 page', async ({ page }) => {
+test('大额贷款: the teller lends 60 HTB, the bank admin terminates it from 总览 and the 风险提醒 page', async ({ page }) => {
   await signIn(page, '工作人员', 'teller01');
   await expect(page).toHaveURL(/\/counter$/);
   await page.getByRole('searchbox', { name: '搜索学生' }).fill('zxm');
@@ -24,7 +24,7 @@ test('大额贷款: the teller lends 60 HTB, the president terminates it from �
   await confirmIn(page, '确认放款');
   await expect(page.locator('aside[aria-label="办理单"]')).toContainText('贷款分 4 期');
 
-  await signIn(page, '工作人员', 'president01');
+  await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   const open = Number(sql(`select count(*) from public.risk_alerts where status = 'open'`));
   const overview = card(page, '未处理的风险提醒');
@@ -62,7 +62,7 @@ test('大额贷款: the teller lends 60 HTB, the president terminates it from �
   await expect(page.locator('.dc-toast')).toHaveText('已终止');
   await expect(rows.first()).toHaveClass(/is-new/);
   await expect(rows.first()).toContainText('已终止');
-  await expect(rows.first()).toContainText('王行长');
+  await expect(rows.first()).toContainText('银行管理员');
   await expect(rows.first()).toContainText('终止：金额太大，先收回');
   expect(sql(`select terminated_at is not null and terminate_reason = '金额太大，先收回' from public.loans
     where student_no = '20260001' and status <> 'reversed' order by loan_no desc limit 1`)).toBe('t');
@@ -73,12 +73,12 @@ test('大额贷款: the teller lends 60 HTB, the president terminates it from �
   await expect(rows).toHaveCount(1);
 });
 
-test('库存不足 is only marked 已查看; when the president and the bank admin both do, the second is refused', async ({ page, browser }) => {
+test('库存不足 is only marked 已查看; when two pages of the bank admin both do, the second is refused', async ({ page, browser }) => {
   sql(`update public.products set safety_stock = stock + 5 where name = '海豚书签'`);
   const id = sql(`select id from public.risk_alerts where kind = 'stock_low' and status = 'open' and detail ->> 'name' = '海豚书签'`);
   expect(id).toMatch(/^\d+$/);
 
-  await signIn(page, '工作人员', 'president01');
+  await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto(`/admin/alerts/${id}`);
   await expect(page.locator('.dc-top-title')).toContainText('库存不足');
@@ -104,6 +104,27 @@ test('库存不足 is only marked 已查看; when the president and the bank adm
   await expect(card(page, '这条提醒').locator('.dc-tag')).toHaveText('已查看');
   await expect(card(page, '这条提醒').locator('.dc-kv')).toContainText('处理说明已安排进货');
   expect(sql(`select p.login_id from public.risk_alerts a join public.profiles p on p.id = a.handled_by where a.id = ${id}`)).toBe('admin');
+});
+
+test('the president reads an open alert but leaves it to the bank admin', async ({ page }) => {
+  sql(`update public.products set safety_stock = stock + 5 where name = '海浪中性笔'`);
+  const id = sql(`select id from public.risk_alerts where kind = 'stock_low' and status = 'open' and detail ->> 'name' = '海浪中性笔'`);
+  expect(id).toMatch(/^\d+$/);
+  await signIn(page, '工作人员', 'president01');
+  await expect(page).toHaveURL(/\/admin$/);
+  const overview = card(page, '未处理的风险提醒');
+  await expect(overview.getByRole('link', { name: '查看' })).toHaveAttribute('href', '/admin/alerts');
+  await expect(overview.getByRole('link', { name: '去处理' })).toHaveCount(0);
+  await overview.locator('.dc-list-link', { hasText: '库存不足 · 海浪中性笔' }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/alerts/${id}\\?via=overview$`));
+  await expect(card(page, '这条提醒').locator('.dc-caption')).toHaveText('由银行管理员处理。');
+  await expect(card(page, '这条提醒').locator('.dc-tag')).toHaveText('未处理');
+  await expect(card(page, '处理')).toHaveCount(0);
+  await expect(bar(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '已查看' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '终止' })).toHaveCount(0);
+  await page.getByRole('button', { name: '返回' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
 });
 
 test('the accountant has no 风险 page and no alerts on 总览', async ({ page }) => {

@@ -161,7 +161,7 @@ export default function Admin() {
         <section className="dc-stack" aria-label="未处理的风险提醒">
           <div className="dc-section-head">
             <h2 className="heading">未处理的风险提醒 · {alerts.data.open} 条</h2>
-            <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/alerts')}>去处理<Icon name="next" /></a>
+            <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/alerts')}>{teacher ? '去处理' : '查看'}<Icon name="next" /></a>
           </div>
           <ul className="dc-list" aria-label="未处理的风险提醒">
             {alerts.data.recent.map((a) => <AlertRow key={a.id} a={a} href={`/admin/alerts/${a.id}?via=overview`} />)}
