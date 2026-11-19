@@ -64,12 +64,13 @@ test.describe(() => {
     await expect(page.locator('.dc-notice-danger')).toContainText('暂时无法读取工资标准', { timeout: 10_000 });
     const paying = page.getByRole('button', { name: '发放工资' });
     await expect(paying).toBeDisabled();
-    await expect(page.locator('.dc-stat', { hasText: '本周工资' })).toContainText('—');
+    const total = page.getByRole('table', { name: '本周考勤' }).locator('tfoot td').last();
+    await expect(total).toHaveText('—');
     await expect(page.locator('.dc-sheet')).toHaveCount(0);
 
     await page.unroute(salary);
     await page.getByRole('button', { name: '重试' }).click();
-    await expect(page.locator('.dc-stat', { hasText: '本周工资' })).toContainText(pay);
+    await expect(total).toHaveText(pay);
     await paying.click();
     await expect(page.locator('.dc-sheet')).toContainText(`${pay} HTB`);
     await confirmIn(page, `发放 ${pay} HTB`);

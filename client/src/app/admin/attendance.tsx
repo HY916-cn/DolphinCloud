@@ -1,14 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  ConfirmSheet, DayShifts, Desk, Icon, link, ListLoading, Notice, ShiftLegend, ShiftMark, shiftWords, Stats, today, Toast, WeekBar,
+  ConfirmSheet, DayShifts, Desk, Icon, link, ListLoading, Notice, ShiftLegend, ShiftMark, shiftWords, today, Toast, WeekBar,
 } from '@/components';
 import { SHIFTS, usePayroll, useSalaryRates, useShifts, weekOf, type Shift, type ShiftRow } from '@/lib/attendance';
 import { AppError, explain } from '@/lib/errors';
 import { formatAmount, shiftAt, shiftDay } from '@/lib/format';
 import { call } from '@/lib/rpc';
 import { earned, maySign, PAID_ROLES, tally, type PaidRole } from '@/lib/salary';
-import { ROLES, useMe, type Role } from '@/lib/session';
+import { ROLES, useMe } from '@/lib/session';
 import { useStaff, type StaffLogin } from '@/lib/staff';
 import { supabase } from '@/lib/supabase';
 
@@ -27,13 +27,13 @@ const shiftCount = (t: { am: number; pm: number }) =>
 // A shift that has not begun yet: any day after today, and today's 下午班 before 13:30.
 const later = (day: string, shift: Shift) => day > today() || (day === today() && shift === 'pm' && shiftAt(new Date()) === 'am');
 
-// 考勤 (president, bank admin; PHASE-2.md §16.2, design system Attendance 全员考勤): a week of every counted person's
-// shifts, grouped by identity, any week by its arrows or a day from the calendar. An empty cell of a shift begun is
+// 考勤 (president, bank admin; PHASE-2.md §16.2, design system Attendance 全员考勤): one table of every counted person's
+// week of shifts, grouped by identity and totalled, any week by its arrows or a day from the calendar. An empty cell of a shift begun is
 // signed in from here (签到, confirmed at once) and a confirmed one not yet paid voided (作废) with a reason, by whoever
 // may: nobody in their own row, a president's only by the bank admin. A waiting shift (上班, or 签到 on 我的) is the bank
 // admin's to review, once and confirmed again; so are 「全部确认」, which confirms the week's waiting shifts at once, and
 // 「发放工资」, which pays every confirmed, unpaid shift up to the week's Sunday at the 工资标准 of the identity it was
-// signed under, once none up to then is waiting. Below, the bank admin's 参与考勤 switches. Stopped logins are left out.
+// signed under, once none up to then is waiting. 参与考勤 is switched on the person's page. Stopped logins are left out.
 export default function AttendanceDesk() {
   const queryClient = useQueryClient();
   const me = useMe().data!;
@@ -107,14 +107,15 @@ export default function AttendanceDesk() {
   // by whoever may sign that row; a waiting one is the bank admin's to review; the rest is only shown.
   const mark = (t: Person, d: string, s: Shift) => {
     const row = rows.find((r) => r.user_id === t.id && r.day === d && r.shift === s);
-    const label = `${t.display_name} ${md(d)} ${shiftWords(s, row)}${row?.note ? ` · ${row.note}` : ''}`;
     const signs = maySign(mine, t.role, t.id === me.profile.id);
     const editable = !row ? signs && !!counted(t.id)?.account && !later(d, s)
       : row.status === 'pending' ? admin : signs && row.status === 'confirmed' && !row.salary_txn;
+    const open = editable && !row;
+    const label = `${t.display_name} ${md(d)} ${open ? `${SHIFTS[s]}，可签到` : shiftWords(s, row)}${row?.note ? ` · ${row.note}` : ''}`;
     return editable ? (
       <button key={s} className="dc-week-btn" type="button" aria-label={label}
         onClick={() => { setResult(null); setCell({ user: t.id, name: t.display_name, day: d, shift: s, row }); }}>
-        <ShiftMark shift={s} row={row} />
+        <ShiftMark shift={s} row={row} open={open} />
       </button>
     ) : (
       <span key={s} className="dc-week-btn" role="img" aria-label={label}><ShiftMark shift={s} row={row} /></span>
@@ -132,50 +133,49 @@ export default function AttendanceDesk() {
       )}
       <div className="dc-stack dc-enter">
         <WeekBar monday={monday} onMonday={setMonday} />
-        {admin && waiting > 0 && toPay.length > 0 && <p className="dc-top-sub">截至 {md(sunday)} 还有 {waiting} 个待审班次，全部审查后才能发放工资。</p>}
-        <Stats items={[
-          ['本周有效', rows.filter((r) => r.status === 'confirmed').length, '个班次'],
-          ['待审', pending.length, '个班次'],
-          ['本周工资', rates ? formatAmount(earned(rows, rates)) : '—', 'HTB'],
-          ['参与考勤', people.filter((p) => counted(p.id)?.attendance).length, '人'],
-        ]} />
+        {admin && waiting > 0 && toPay.length > 0 && <p className="dc-caption">截至 {md(sunday)} 还有 {waiting} 个待审班次，全部审查后才能发放工资。</p>}
         {shifts.error || staff.error ? <Notice tone="danger" title="暂时无法读取考勤">请检查网络后刷新页面。</Notice>
           : shifts.isPending || staff.isPending ? <ListLoading rows={3} label="正在加载考勤" />
-          : !listed.length ? <Notice title="还没有参与考勤的人员">{admin ? '在下面「参与考勤」里打开开关。' : '由银行管理员在「参与考勤」里打开开关。'}</Notice>
-          : PAID_ROLES.filter((role) => listed.some((t) => t.role === role)).map((role) => (
-            <section key={role} aria-label={ROLES[role]}>
-              <p className="dc-list-title">{ROLES[role]}</p>
-              <div className="dc-card">
-                <div className="dc-table-scroll">
-                  <table className="dc-table dc-week" aria-label={`本周考勤 · ${ROLES[role]}`}>
-                    <thead>
-                      <tr>
-                        <th scope="col">姓名</th>
-                        {days.map((d, i) => <th key={d} scope="col" className={d === now ? 'is-today' : undefined}>周{WEEK[i]}<small>{md(d)}</small></th>)}
-                        <th scope="col" className="n">有效</th><th scope="col" className="n">工资</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {listed.filter((t) => t.role === role).map((t) => {
+          : !listed.length ? <Notice title="还没有参与考勤的人员">{admin ? '在「人员」里打开「参与考勤」。' : '由银行管理员在「人员」里打开。'}</Notice>
+          : (
+            <div className="dc-card">
+              <div className="dc-table-scroll">
+                <table className="dc-table dc-week" aria-label="本周考勤">
+                  <thead>
+                    <tr>
+                      <th scope="col">姓名</th>
+                      {days.map((d, i) => <th key={d} scope="col" className={d === now ? 'is-today' : undefined}>周{WEEK[i]}<small>{md(d)}</small></th>)}
+                      <th scope="col" className="n">有效</th><th scope="col" className="n">工资</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {PAID_ROLES.filter((role) => listed.some((t) => t.role === role)).flatMap((role) => [
+                      <tr key={role} className="is-group"><th scope="rowgroup" colSpan={10}>{ROLES[role]}</th></tr>,
+                      ...listed.filter((t) => t.role === role).map((t) => {
                         const theirs = rows.filter((r) => r.user_id === t.id);
-                        const account = counted(t.id)?.account;
                         return (
                           <tr key={t.id}>
-                            <td>{admin ? <a {...link(`/admin/staff/${t.id}`)}>{t.display_name}</a> : t.display_name}<small>{account ? `学号 ${account}` : '未绑定工资账户'}</small></td>
+                            <td>{admin ? <a {...link(`/admin/staff/${t.id}`)}>{t.display_name}</a> : t.display_name}{!counted(t.id)?.account && <small>未绑定工资账户</small>}</td>
                             {days.map((d) => <td key={d}><span className="dc-week-marks">{ORDER.map((s) => mark(t, d, s))}</span></td>)}
                             <td className="n">{theirs.filter((r) => r.status === 'confirmed').length}</td>
                             <td className="n">{rates ? formatAmount(earned(theirs, rates)) : '—'}</td>
                           </tr>
                         );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                      }),
+                    ])}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>合计</td><td colSpan={7} />
+                      <td className="n">{rows.filter((r) => r.status === 'confirmed').length}</td>
+                      <td className="n">{rates ? formatAmount(earned(rows, rates)) : '—'}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-            </section>
-          ))}
-        {listed.length > 0 && <ShiftLegend />}
-        {admin && <Counted people={people} counted={counted} onError={setResult} onDone={refresh} />}
+              <ShiftLegend open />
+            </div>
+          )}
       </div>
       {admin && (
         <div className="dc-actions is-row">
@@ -325,47 +325,5 @@ function ShiftSheet({ cell, names, busy, onClose, run }: {
         </label>
       </div>
     </ConfirmSheet>
-  );
-}
-
-// 参与考勤 (the bank admin's): a switch per counted login in use; one with no bound 工资账户 binds it first, on their page.
-function Counted({ people, counted, onError, onDone }: {
-  people: { id: string; display_name: string; login_id: string; role: Role | null }[];
-  counted: (id: string) => { attendance: boolean; account: string | null } | undefined;
-  onError: (r: Result) => void; onDone: () => Promise<unknown>;
-}) {
-  const [busy, setBusy] = useState<string | null>(null);
-  async function set(id: string, on: boolean) {
-    setBusy(id);
-    try {
-      await call('set_attendance', { p_user_id: id, p_on: on });
-    } catch (err) {
-      onError({ tone: 'danger', ...failure(err) });
-    } finally {
-      await onDone();
-      setBusy(null);
-    }
-  }
-  return (
-    <section aria-label="参与考勤">
-      <p className="dc-list-title">参与考勤</p>
-      <ul className="dc-list">
-        {people.map((t) => {
-          const p = counted(t.id);
-          return (
-            <li key={t.id}>
-              <label className="dc-switch">
-                <span className="dc-switch-text"><b>{t.display_name}</b>
-                  <small>{t.role && ROLES[t.role]} · 账号 {t.login_id} · {p?.account ? `工资账户 学号 ${p.account}` : <>还没有绑定工资账户，<a {...link(`/admin/staff/${t.id}`)}>去绑定</a></>}</small></span>
-                <input type="checkbox" role="switch" checked={!!p?.attendance} disabled={busy === t.id || (!p?.account && !p?.attendance)}
-                  onChange={(e) => set(t.id, e.target.checked)} />
-                <span className="dc-switch-track" />
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-      {!people.length && <p className="dc-top-sub">还没有工作人员账号，在「人员」里新增。</p>}
-    </section>
   );
 }

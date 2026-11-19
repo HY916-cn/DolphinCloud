@@ -48,10 +48,15 @@ test('the sysadmin\'s and the bank admin\'s 我的 have no 工资账户, 签到 
 test('the bank admin counts the accountant', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/staff');
+  await page.locator('.dc-list-link', { hasText: '财务小郑' }).click();
+  await page.locator('.dc-switch', { hasText: '参与考勤' }).click();
+  await expect(page.locator('.dc-notice-success')).toContainText('已参与考勤');
+  await expect(page.getByRole('switch', { name: /参与考勤/ })).toBeChecked();
   await page.goto('/admin/attendance');
-  await page.locator('.dc-switch', { hasText: '财务小郑' }).click();
-  await expect(page.getByRole('switch', { name: /财务小郑/ })).toBeChecked();
-  await expect(page.getByRole('table', { name: '本周考勤 · 财务' })).toContainText('学号 20260001');
+  const week = page.getByRole('table', { name: '本周考勤' });
+  await expect(week.locator('tr.is-group th')).toHaveText(['财务']);
+  await expect(week.locator('tbody td').first()).toHaveText('财务小郑');
 });
 
 test('财务 signs in on 我的; the president sees it waiting, read only; the bank admin reviews it', async ({ page }) => {
@@ -71,11 +76,10 @@ test('财务 signs in on 我的; the president sees it waiting, read only; the b
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/attendance');
-  const week = page.getByRole('table', { name: '本周考勤 · 财务' });
+  const week = page.getByRole('table', { name: '本周考勤' });
   await expect(week.getByRole('img', { name: /^财务小郑 .*待审$/ })).toHaveCount(1);
   await expect(week.getByRole('button', { name: /待审$/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /全部确认|发放工资/ })).toHaveCount(0);
-  await expect(page.locator('section[aria-label="参与考勤"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '登记班次' })).toHaveCount(0);
 
   await signIn(page, '工作人员', 'admin');
@@ -94,7 +98,7 @@ test('the shift signed on 我的 and confirmed, once voided, reads 已作废 and
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/attendance');
-  const week = page.getByRole('table', { name: '本周考勤 · 财务' });
+  const week = page.getByRole('table', { name: '本周考勤' });
   await week.getByRole('button', { name: /^财务小郑 .*有效$/ }).click();
   await page.locator('.dc-sheet').getByLabel('作废原因').fill('当天不在岗');
   await confirmIn(page, '作废');
@@ -120,10 +124,10 @@ test('the president signs in two of last week\'s shifts from the table and voids
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/attendance');
   await page.getByRole('button', { name: '上一周' }).click();
-  const week = page.getByRole('table', { name: '本周考勤 · 财务' });
+  const week = page.getByRole('table', { name: '本周考勤' });
   const sheet = page.locator('.dc-sheet');
   for (const shift of ['中午班', '下午班']) {
-    await week.getByRole('button', { name: new RegExp(`^财务小郑 .* ${shift}未上班$`) }).first().click();
+    await week.getByRole('button', { name: new RegExp(`^财务小郑 .* ${shift}，可签到$`) }).first().click();
     await expect(sheet.locator('.dc-sheet-title')).toHaveText('给财务小郑签到？');
     await expect(sheet).toContainText(`${shift}，签上即有效，计入工资。`);
     await expect(sheet.getByRole('button', { name: '签到' })).toBeDisabled(); // the note comes first
@@ -151,9 +155,9 @@ test('the president signs in a teller\'s shift from the table and voids it', asy
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/attendance');
   await page.getByRole('button', { name: '上一周' }).click();
-  const week = page.getByRole('table', { name: '本周考勤 · 柜员' });
+  const week = page.getByRole('table', { name: '本周考勤' });
   const sheet = page.locator('.dc-sheet');
-  await week.getByRole('button', { name: /^柜员小林 .* 中午班未上班$/ }).first().click();
+  await week.getByRole('button', { name: /^柜员小林 .* 中午班，可签到$/ }).first().click();
   await expect(sheet.locator('.dc-sheet-title')).toHaveText('给柜员小林签到？');
   await sheet.getByLabel('说明').fill('补记柜台班次');
   await confirmIn(page, '签到');
@@ -194,16 +198,16 @@ test('a president signs in neither their own shifts nor another president\'s; th
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/attendance');
   await page.getByRole('button', { name: '上一周' }).click();
-  const presidents = page.getByRole('table', { name: '本周考勤 · 行长' });
-  await expect(presidents.getByRole('img', { name: /^王行长 / })).toHaveCount(14);
-  await expect(presidents.getByRole('img', { name: /^李行长 / })).toHaveCount(14);
-  await expect(presidents.getByRole('button')).toHaveCount(0);
+  const week = page.getByRole('table', { name: '本周考勤' });
+  await expect(week.getByRole('img', { name: /^王行长 / })).toHaveCount(14);
+  await expect(week.getByRole('img', { name: /^李行长 / })).toHaveCount(14);
+  await expect(week.getByRole('button', { name: /^(王|李)行长 / })).toHaveCount(0);
 
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/attendance');
   await page.getByRole('button', { name: '上一周' }).click();
-  await expect(page.getByRole('table', { name: '本周考勤 · 行长' }).getByRole('button')).toHaveCount(28);
+  await expect(week.getByRole('button', { name: /^(王|李)行长 / })).toHaveCount(28);
 });
 
 test('the bank admin sets the accountant\'s pay and pays it at the accountant\'s rate', async ({ page }) => {

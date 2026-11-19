@@ -22,16 +22,18 @@ const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, { ...e.
 export const statusWord = (row: ShiftRow) => { const s = shiftState(row); return s === 'void' ? '已作废' : SHIFT_STATUS[s]; };
 export const shiftWords = (shift: Shift, row?: ShiftRow) => `${SHIFTS[shift]}${row ? statusWord(row) : '未上班'}`;
 
-// A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it.
-export function ShiftMark({ shift, row }: { shift: Shift; row?: ShiftRow }) {
-  return <i className={`dc-shift is-${row ? shiftState(row) : 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
+// A shift's state as a small mark: 中 / 下, coloured by its status, with the words for screen readers beside it;
+// `open` marks an empty shift that can be signed in now (可签到).
+export function ShiftMark({ shift, row, open = false }: { shift: Shift; row?: ShiftRow; open?: boolean }) {
+  return <i className={`dc-shift is-${row ? shiftState(row) : open ? 'open' : 'none'}`}>{shift === 'am' ? '中' : '下'}</i>;
 }
 
 const LEGEND = [['confirmed', SHIFT_STATUS.confirmed], ['pending', SHIFT_STATUS.pending], ['rejected', SHIFT_STATUS.rejected], ['void', '已作废'], ['none', '未上班']];
-export function ShiftLegend() {
+// `open` adds 可签到, on a page where empty shifts can be signed in.
+export function ShiftLegend({ open = false }: { open?: boolean }) {
   return (
     <p className="dc-shift-legend" aria-hidden="true">
-      {LEGEND.map(([s, word]) => <span key={s}><i className={`dc-shift is-${s}`}>中</i>{word}</span>)}
+      {(open ? [...LEGEND, ['open', '可签到']] : LEGEND).map(([s, word]) => <span key={s}><i className={`dc-shift is-${s}`}>中</i>{word}</span>)}
     </p>
   );
 }

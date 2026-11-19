@@ -27,10 +27,18 @@ test('工资账户 first: the teller binds a student account with its password',
 test('参与考勤: the bank admin counts the bound teller and sets the pay', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  await expect(page.getByText('还没有参与考勤的人员')).toBeVisible();
-  await page.locator('.dc-switch', { hasText: '柜员小林' }).click();
-  await expect(page.getByRole('switch', { name: /柜员小林/ })).toBeChecked();
-  await expect(page.getByRole('table', { name: '本周考勤 · 柜员' })).toContainText('学号 20260002');
+  await expect(page.locator('.dc-notice', { hasText: '还没有参与考勤的人员' })).toContainText('在「人员」里打开「参与考勤」。');
+  await page.locator('.dc-nav-item', { hasText: '人员' }).click();
+  await page.locator('.dc-list-link', { hasText: '柜员小林' }).click();
+  await page.locator('.dc-switch', { hasText: '参与考勤' }).click();
+  await expect(page.getByRole('switch', { name: /参与考勤/ })).toBeChecked();
+  await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
+  const week = page.getByRole('table', { name: '本周考勤' });
+  await expect(week.locator('tr.is-group th')).toHaveText(['柜员']);
+  await expect(week.locator('tbody td').first()).toHaveText('柜员小林'); // bound: only the name
+  await expect(week.locator('tfoot td')).toHaveText(['合计', '', '0', '0']);
+  await expect(page.locator('.dc-stat')).toHaveCount(0);
+  await expect(page.locator('.dc-shift-legend > span')).toHaveText(['中有效', '中待审', '中未通过', '中已作废', '中未上班', '中可签到']);
 
   await page.locator('.dc-nav-item', { hasText: '参数' }).click();
   await page.getByLabel('柜员中午班工资', { exact: true }).fill('12');
@@ -56,8 +64,9 @@ test('下班 and 上班 record the shift of now once, and the counter waits for 
 test('审查 once, 签到 from the table, then 发放工资 by the week once nothing waits', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
-  const week = page.getByRole('table', { name: '本周考勤 · 柜员' });
+  const week = page.getByRole('table', { name: '本周考勤' });
   await expect(page.getByRole('button', { name: '发放工资' })).toBeDisabled(); // a shift still waits
+  await expect(page.locator('.dc-caption')).toHaveCount(0); // nothing confirmed to pay yet, so no note on what waits
   await week.getByRole('button', { name: /^柜员小林 .*待审$/ }).click();
   await page.locator('.dc-sheet .dc-chip', { hasText: '有效' }).click();
   await confirmIn(page, '下一步');
@@ -67,7 +76,8 @@ test('审查 once, 签到 from the table, then 发放工资 by the week once not
   await expect(page.getByRole('button', { name: '全部确认 0' })).toBeDisabled();
 
   await page.getByRole('button', { name: '上一周' }).click();
-  await week.getByRole('button', { name: /^柜员小林 .* 中午班未上班$/ }).first().click();
+  await expect(week.getByRole('button', { name: /^柜员小林 .* 中午班，可签到$/ }).first().locator('.dc-shift')).toHaveClass(/is-open/);
+  await week.getByRole('button', { name: /^柜员小林 .* 中午班，可签到$/ }).first().click();
   await expect(page.locator('.dc-sheet-title')).toHaveText('给柜员小林签到？');
   await page.locator('.dc-sheet').getByLabel('说明').fill('忘记上班，已核实到岗');
   await confirmIn(page, '签到');
@@ -84,6 +94,7 @@ test('审查 once, 签到 from the table, then 发放工资 by the week once not
   await expect(page.getByText(`柜员小林 1 个班次 ${nowPay} HTB → 学号 20260002`)).toBeVisible();
   await expect(page.getByRole('button', { name: '发放工资' })).toBeDisabled();
   await expect(week.getByRole('img', { name: /^柜员小林 .*有效$/ })).toHaveCount(1); // paid: no longer voided
+  await expect(week.locator('tfoot td')).toHaveText(['合计', '', '1', `${nowPay}`]);
 });
 
 test('the teller sees what each shift paid', async ({ page: teller }) => {
