@@ -1405,7 +1405,7 @@ span.dc-week-btn { cursor: default; }
 .dc-pb-fields .dc-gauge.is-sm { vertical-align: top; }
 
 /* 公开页面：利率看板（/board）。整屏是一个尺寸容器，16:9 的舞台随它等比缩放；字号以 --u（舞台宽度的 1%）计。
-   四张一样的卡片：活期、贷款、定期、理财，每张一个标题和一列“名称 · 大数字”；1920 宽时数字 69px、名称 42px */
+   便当盒式拼块：活期（大数字）、贷款（2×2）、定期（5 行）、理财今天（指数）、理财三档，宽高各不相同 */
 .dc-board { box-sizing: border-box; display: grid; place-items: center; height: 100vh; height: 100dvh; overflow-y: auto; background: var(--surface); color: var(--ink); container: board / size; }
 .dc-board-stage { container-type: inline-size; box-sizing: border-box; width: min(100cqw, calc(100cqh * 16 / 9)); aspect-ratio: 16 / 9; --u: 1cqw; }
 .dc-board-body { box-sizing: border-box; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: calc(2 * var(--u)); height: 100%; padding: calc(2.4 * var(--u)) calc(2.8 * var(--u)); }
@@ -1415,21 +1415,32 @@ span.dc-week-btn { cursor: default; }
 .dc-board-status { font: 600 max(14px, calc(1.5 * var(--u)))/1.3 var(--font-sans); color: var(--ink-muted); }
 .dc-board-status.is-danger { color: var(--danger); }
 .dc-board-status .dc-icon, .dc-clock-foot .dc-icon { display: inline-block; width: 1.3em; height: 1.3em; margin-right: 0.3em; vertical-align: -0.25em; color: inherit; }
-.dc-board-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.15fr); align-self: center; gap: calc(1.6 * var(--u)); min-height: 0; }
-.dc-board-panel { box-sizing: border-box; display: flex; flex-direction: column; gap: calc(1.6 * var(--u)); min-width: 0; margin: 0; padding: calc(2 * var(--u)) calc(1.8 * var(--u)); background: var(--surface-raised); border: 2px solid var(--line); border-radius: calc(1.6 * var(--u)); box-shadow: var(--shadow-card); }
+.dc-board-grid { display: grid; grid-template-columns: 5fr 3fr 4fr; grid-template-rows: repeat(3, minmax(0, 1fr)); grid-template-areas: "current term index" "loan term tiers" "loan term tiers"; gap: calc(1.6 * var(--u)); min-height: 0; }
+.dc-board-panel { box-sizing: border-box; display: flex; flex-direction: column; gap: calc(1.2 * var(--u)); min-width: 0; min-height: 0; margin: 0; padding: calc(2 * var(--u)) calc(2.2 * var(--u)); background: var(--surface-raised); border: 2px solid var(--line); border-radius: calc(1.8 * var(--u)); box-shadow: var(--shadow-card); }
+.dc-board-panel.is-current { grid-area: current; background: var(--cloud-100); }
+.dc-board-panel.is-loan { grid-area: loan; }
+.dc-board-panel.is-term { grid-area: term; }
+.dc-board-panel.is-index { grid-area: index; }
+.dc-board-panel.is-tiers { grid-area: tiers; }
 .dc-board-panel h2 { margin: 0; font: 800 calc(2.6 * var(--u))/1.2 var(--font-sans); letter-spacing: 0.02em; }
-.dc-board-panel h2 small { display: block; margin-top: calc(0.3 * var(--u)); font: 600 calc(1.5 * var(--u))/1.3 var(--font-sans); letter-spacing: 0; color: var(--ink-muted); }
-.dc-board-list { display: flex; flex-direction: column; gap: calc(1 * var(--u)); margin: 0; font-variant-numeric: tabular-nums; }
+.dc-board-panel h2 small { margin-left: calc(0.8 * var(--u)); font: 600 calc(1.5 * var(--u))/1.3 var(--font-sans); letter-spacing: 0; color: var(--ink-muted); }
+.dc-board-hero { margin: auto 0 0; white-space: nowrap; font: 800 calc(6.4 * var(--u))/1 var(--font-sans); font-variant-numeric: tabular-nums; }
+.dc-board-hero small { margin-left: 0.06em; font-size: 0.45em; color: var(--ink-muted); }
+.dc-board-list { display: flex; flex: 1; flex-direction: column; justify-content: space-around; gap: calc(0.8 * var(--u)); margin: 0; font-variant-numeric: tabular-nums; }
 .dc-board-list div { display: flex; align-items: baseline; justify-content: space-between; gap: calc(1 * var(--u)); }
-.dc-board-list dt { white-space: nowrap; font: 700 calc(2.2 * var(--u))/1.15 var(--font-sans); color: var(--ink-muted); }
+.dc-board-list dt { white-space: nowrap; font: 700 calc(2.4 * var(--u))/1.15 var(--font-sans); color: var(--ink-muted); }
 .dc-board-list dt small { margin-left: 0.15em; font-size: 0.7em; }
-.dc-board-list dd { margin: 0; white-space: nowrap; font: 800 calc(3.6 * var(--u))/1.15 var(--font-sans); }
+.dc-board-list dd { margin: 0; white-space: nowrap; font: 800 calc(4.6 * var(--u))/1.1 var(--font-sans); }
 .dc-board-list dd small { margin-left: 0.08em; font-size: 0.5em; color: var(--ink-muted); }
-.dc-board-wait { display: grid; place-items: center; grid-column: 1 / -1; align-self: center; margin: 0; font: 700 calc(3 * var(--u))/1.3 var(--font-sans); color: var(--ink-muted); }
-/* 竖屏或很窄的窗口：四张卡片上下排，字号按窄屏放大，可以上下滚动 */
+/* 贷款四个分数排成 2×2，名称在上、数字在下 */
+.dc-board-list.is-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: space-around; }
+.dc-board-list.is-grid div { flex-direction: column; align-items: flex-start; gap: calc(0.2 * var(--u)); }
+.dc-board-wait { display: grid; place-items: center; grid-column: 1 / -1; grid-row: 1 / -1; margin: 0; font: 700 calc(3 * var(--u))/1.3 var(--font-sans); color: var(--ink-muted); }
+/* 竖屏或很窄的窗口：拼块排成一列，字号按窄屏放大，可以上下滚动 */
 @container board (max-aspect-ratio: 1 / 1) {
   .dc-board-stage { align-self: start; width: 100cqw; aspect-ratio: auto; --u: 3cqw; }
-  .dc-board-grid { grid-template-columns: minmax(0, 1fr); }
+  .dc-board-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: none; }
+  .dc-board-panel[class*="is-"] { grid-area: auto; }
   .dc-board-head img { display: none; }
   .dc-board-title { flex-basis: 100%; font-size: calc(2.4 * var(--u)); }
 }
