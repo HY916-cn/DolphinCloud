@@ -5,6 +5,7 @@
 - 结构：`.dc-app` → `dc-login`：`dc-login-hero`（`dc-login-mark` 标志与三圈波纹、`<h1>海豚云</h1>`、一句说明、电脑上显示的三条要点 `dc-login-points`、`dc-waves is-drifting is-shore`）和 `<form class="dc-login-panel">`。
 - 头图底色是 `sea-soft` → `cloud-100` 的斜向渐变（海水到天空）；电脑上的三条要点是介绍，不是业务入口，图标块全部用 `cloud-200` 浅蓝底、海豚蓝图标，不加类别色（头图下半是 `cloud-100`，再浅就看不出来）。
 - 登录区：标题“欢迎登录”、身份切换（`Segmented`：学生 / 工作人员，带图标）、学号和密码输入框（`dc-login-field`，图标在框内，名称用 `dc-login-label` 留给读屏）、一行“在此设备保存登录”（`dc-check dc-login-save`，22px 方框，点击区 44px）、整行登录按钮、首次登录和忘记密码说明；学生身份下最后是 `dc-btn-ghost dc-btn-sm dc-btn-block` 的“打开存折版”。标题是 `dc-login-title`，说明是 `dc-login-help`；账号列表下的“退出全部账号”加 `dc-login-all` 居中。
+- 登录区最下面一行 `dc-login-links`（`<ul>`，每项一个链接，`aria-label`“不用登录的功能”）：“利率看板”（图标 `rate`）、“大屏时间”（`clock`）、“文件传输”（`upload`），分别打开 `/board`、`/clock`、`/transfer`。14px 的 `dolphin-deep` 文字，点击区 44px，学生和工作人员两种身份下都有；375×667 下仍要一屏放下。
 - 这台设备保存过账号时，登录区先显示“切换账号”：每个账号一行（`ListGroup`，头像为身份图标），最后一行“添加账号”进入上面的表单。
 - 手机：上部标志区随屏幕高度伸缩，下部登录区固定；屏幕矮于 700px 时标志、标题、海浪和区块间距一起收紧，375×667 下全部内容仍一屏放下。平板：同手机，表单居中、最宽 440px。电脑：左侧标志区加三条要点，右侧 480px 登录面板。
 - 动效：标志漂浮、海浪平移（开启“减少动态效果”时静止）。登录中按钮加 `is-loading` 并改为“正在登录”；账号或密码不对时在按钮上方放 `Notice`，并让密码框 `dc-nudge`。

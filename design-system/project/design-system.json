@@ -77,7 +77,12 @@
         "accountant.svg",
         "storekeeper.svg",
         "president.svg",
-        "sysadmin.svg"
+        "sysadmin.svg",
+        "upload.svg",
+        "download.svg",
+        "file.svg",
+        "fullscreen.svg",
+        "retry.svg"
       ],
       "files": {
         "home.svg": {
@@ -349,6 +354,36 @@
           "blob": "b9fb15516ccd0bf35cd3dc9ce7df90c4",
           "size": 527,
           "type": "image/svg+xml"
+        },
+        "upload.svg": {
+          "name": "upload.svg",
+          "blob": "b93b8670684eaeee9483333cb232628d",
+          "size": 332,
+          "type": "image/svg+xml"
+        },
+        "download.svg": {
+          "name": "download.svg",
+          "blob": "0e9437ce50ec831a14d56f26e81063d2",
+          "size": 334,
+          "type": "image/svg+xml"
+        },
+        "file.svg": {
+          "name": "file.svg",
+          "blob": "9accc22820df9863eccbdc7e85500399",
+          "size": 389,
+          "type": "image/svg+xml"
+        },
+        "fullscreen.svg": {
+          "name": "fullscreen.svg",
+          "blob": "8336c8fdae1af8dcb1742c65f45dad27",
+          "size": 378,
+          "type": "image/svg+xml"
+        },
+        "retry.svg": {
+          "name": "retry.svg",
+          "blob": "12dca9bc7a8a76a84039aeeeccddc33a",
+          "size": 320,
+          "type": "image/svg+xml"
         }
       }
     }
@@ -364,8 +399,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-19T15:23:37Z",
+    "at": "2026-11-19T16:38:42Z",
     "via": "Claude Code",
-    "note": "货币页、货币登记和总览的经营看板"
+    "note": "公开页面：利率看板、大屏时间、文件传输，登录页入口和后台文件传输页"
   }
 }

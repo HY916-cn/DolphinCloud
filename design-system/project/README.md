@@ -74,7 +74,7 @@
 
 ## 图标
 
-- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 45 个图标（25 个业务图标、13 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱、全部功能，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
+- 图标使用 Lucide（ISC 许可）：24 网格、2px 圆头圆角描边，线条干净、圆润而不幼稚。Icons 组收录 50 个图标（28 个业务图标、15 个界面图标：加、减、返回、前往、展开、关闭、对勾、时钟、排名、设置、退出、收件箱、全部功能、全屏、重试，以及 7 个头像图标：人像和六种身份角标），文件里描边为 `dolphin`；`success` 用 `success` 色，`warning` 用 `danger` 色。
 - 在组件里把图标写成内联 `<svg class="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`，颜色跟随文字：普通位置是 `dolphin`，主按钮上自动变成 `on-dolphin`，选中导航为 `dolphin-deep`。在不能内联的地方用 Icons 组的文件（`<img>`）。
 - 图标状态切换：导航的选中底块滑动、展开箭头旋转、完成打勾用 `dc-pop`，都用 CSS 完成。同一个位置的图标因为状态改变换成另一个时（状态标签、随搜索变化的空状态图标），用 morphicons（MIT）把旧图标的线条变形成新图标，规则见“动效”。
 - 图标总是和文字一起出现（头像和纯装饰除外）。常用尺寸：标签 20px、按钮 26px、底部导航 30px、侧边导航 26～28px、提示条和余额卡 36px、宫格 52px。
@@ -90,6 +90,7 @@
 - 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`QtyStepper`。
 - 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`Avatar`（账号头像，图标表示身份）、`PersonCard`、`SummaryList`、`Progress`、`CreditGauge`（海豚信用分仪表盘，用法见 `StudentCreditPage` 和“数据与后台”）、`ListGroup`。
 - 数据：`Stats`（统计数字）、`Chart`（单系列图表）、`DataTable`（数字表格）、`Attendance`（考勤）、`CashCount`（轧账）、`RiskAlerts`（风险提醒）、`Currency`（货币与经营看板）、`BatchBar`（批量管理）。用法见“数据与后台”。
+- 公开页面（不用登录）：`RateBoard`（利率看板，大屏版式）、`BigClock`（大屏时间）、`FileTransfer`（文件传输）。
 - 引导与反馈：`Tag`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
 
 选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；学生在普通版和存折版之间选用 `ViewSwitch`。

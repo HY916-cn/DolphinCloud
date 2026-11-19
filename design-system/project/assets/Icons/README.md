@@ -49,6 +49,11 @@
 | `storekeeper` | 库管 | `package` |
 | `president` | 行长 | `landmark` |
 | `sysadmin` | 运维员 | `wrench` |
+| `upload` | 上传、文件传输 | `upload` |
+| `download` | 下载 | `download` |
+| `file` | 文件 | `file` |
+| `fullscreen` | 全屏 | `maximize` |
+| `retry` | 重试 | `rotate-cw` |
 
 - 同一位置换图标时的变形过渡用 morphicons（MIT），图标路径仍取这里的文件，见“动效”的“图标变形”。
 - 组件里内联同一份路径，描边写 `stroke="currentColor"`，让图标跟随文字颜色；作为 `<img>` 使用时放在 `surface`、`surface-raised`、`cloud-100` 上。
