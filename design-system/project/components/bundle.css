@@ -1405,7 +1405,7 @@ span.dc-week-btn { cursor: default; }
 .dc-pb-fields .dc-gauge.is-sm { vertical-align: top; }
 
 /* 公开页面：利率看板（/board）。整屏是一个尺寸容器，16:9 的舞台随它等比缩放；字号以 --u（舞台宽度的 1%）计。
-   便当盒式拼块：活期（大数字）、贷款（2×2）、定期（5 行）、指数、理财，宽高各不相同；每块只有一个两字标题 */
+   便当盒式拼块：活期（大数字）、贷款（2×2）、定期（5 行）、指数、理财，宽高各不相同；每块一个两字标题，后面一个时间标签 */
 .dc-board { box-sizing: border-box; display: grid; place-items: center; height: 100vh; height: 100dvh; overflow-y: auto; background: var(--surface); color: var(--ink); container: board / size; }
 .dc-board-stage { container-type: inline-size; box-sizing: border-box; width: min(100cqw, calc(100cqh * 16 / 9)); aspect-ratio: 16 / 9; --u: 1cqw; }
 .dc-board-body { box-sizing: border-box; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: calc(2 * var(--u)); height: 100%; padding: calc(2.4 * var(--u)) calc(2.8 * var(--u)); }
@@ -1422,7 +1422,10 @@ span.dc-week-btn { cursor: default; }
 .dc-board-panel.is-term { grid-area: term; }
 .dc-board-panel.is-index { grid-area: index; }
 .dc-board-panel.is-tiers { grid-area: tiers; }
-.dc-board-panel h2 { margin: 0; font: 800 calc(2.6 * var(--u))/1.2 var(--font-sans); letter-spacing: 0.02em; }
+.dc-board-panel h2 { display: flex; align-items: center; gap: calc(1 * var(--u)); margin: 0; font: 800 calc(2.6 * var(--u))/1.2 var(--font-sans); letter-spacing: 0.02em; }
+/* 每块标题后的时间标签：本周 / 今天 / 11月14日，五块同一个样子 */
+.dc-board-when { padding: calc(0.2 * var(--u)) calc(0.9 * var(--u)); border-radius: var(--radius-pill); background: var(--cloud-100); font: 700 calc(1.6 * var(--u))/1.3 var(--font-sans); letter-spacing: 0; color: var(--dolphin-deep); }
+.dc-board-panel.is-current .dc-board-when { background: var(--surface-raised); }
 .dc-board-hero { margin: auto 0 0; white-space: nowrap; font: 800 calc(6.4 * var(--u))/1 var(--font-sans); font-variant-numeric: tabular-nums; }
 .dc-board-hero small { margin-left: 0.06em; font-size: 0.45em; color: var(--ink-muted); }
 .dc-board-list { display: flex; flex: 1; flex-direction: column; justify-content: space-around; gap: calc(0.8 * var(--u)); margin: 0; font-variant-numeric: tabular-nums; }
