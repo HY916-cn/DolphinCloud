@@ -358,6 +358,8 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-qty-btn:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
 .dc-qty-input { width: 100%; height: 40px; min-width: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; text-align: center; font: 800 22px/1 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); }
 .dc-qty-input:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--dolphin-deep); }
+/* 张数可能上千（货币登记）：手机上每行一张面额卡，输入框放得下“−100000” */
+@container app (max-width: 599px) { .dc-denoms.is-large { grid-template-columns: minmax(0, 1fr); } }
 /* 窄处（卡片里的备用金、点钞在手机上）：同一条步进控件，卡片和按钮收紧，张数仍在中间 */
 .dc-denoms { container: denoms / inline-size; }
 @container denoms (max-width: 339px) {
@@ -747,7 +749,7 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-stagger > :nth-child(4) { animation-delay: 120ms; }
 .dc-stagger > :nth-child(5) { animation-delay: 160ms; }
 .dc-stagger > :nth-child(n+6) { animation-delay: 200ms; }
-.dc-txn.is-new { animation: dc-highlight 1200ms ease-out; border-radius: var(--radius-md); }
+.dc-txn.is-new, .dc-list-item.is-new { animation: dc-highlight 1200ms ease-out; border-radius: var(--radius-md); }
 .dc-notice { animation: dc-rise var(--motion-enter) var(--ease-out) both; }
 .dc-choice:has(:checked) .dc-choice-icon { animation: dc-bounce var(--motion-page) var(--ease-bounce); }
 .dc-chip[aria-pressed="true"] .dc-icon { animation: dc-bounce var(--motion-page) var(--ease-bounce); }
@@ -1190,10 +1192,10 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-stat span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
 .dc-stat b { white-space: nowrap; font: 800 min(28px, 15cqi)/36px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); }
 .dc-stat b small { margin-left: var(--space-1); font: 600 14px/20px var(--font-sans); color: var(--ink-muted); }
-.dc-stat em { font: 500 14px/20px var(--font-sans); font-style: normal; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-stat em { font: 500 14px/20px var(--font-sans); font-style: normal; color: var(--ink-muted); overflow-wrap: anywhere; }
 .dc-stat em.is-up::before { content: "▲ "; font-size: 10px; }
 .dc-stat em.is-down::before { content: "▼ "; font-size: 10px; }
-.dc-stat em.is-danger { color: var(--danger); white-space: normal; }
+.dc-stat em.is-danger { color: var(--danger); }
 /* Stats：整格是链接（经营看板的银行应有现金），低于提示线时描边变红 */
 a.dc-stat { color: inherit; text-decoration: none; transition: border-color 160ms var(--ease-out); }
 a.dc-stat:hover { border-color: var(--dolphin); }
