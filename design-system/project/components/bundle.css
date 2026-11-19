@@ -1271,6 +1271,9 @@ a.dc-stat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .dc-weekbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .dc-week th small, .dc-week td small { display: block; font: 500 12px/16px var(--font-sans); color: var(--ink-muted); }
 .dc-week th.is-today { color: var(--dolphin-deep); }
+/* 后台全员周表：按身份分组的小标题行 */
+.dc-week tr.is-group th { padding: var(--space-4) 0 var(--space-1); border-bottom: 0; text-align: left; font: 600 14px/20px var(--font-sans); color: var(--ink-muted); }
+.dc-week tbody tr.is-group:first-child th { padding-top: var(--space-2); }
 .dc-week td > a { font-weight: 700; color: var(--ink); text-decoration: none; }
 .dc-week td > a:hover { color: var(--dolphin-deep); text-decoration: underline; }
 .dc-week td.is-today { color: var(--dolphin-deep); font-weight: 700; }
