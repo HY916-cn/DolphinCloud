@@ -3,8 +3,9 @@ import { confirmIn, resetData, signIn, sql } from './helpers';
 
 // 风险提醒 (PHASE-2.md §12, design system RiskAlerts) on the seed data (supabase/seed.sql): teller01 lends 张小明
 // (20260001, 600 points, limit 130 HTB) 60 HTB, over the 50 HTB line, and the bank admin terminates the loan from the
-// 风险提醒 page; two pages of the bank admin (the seed has one) both mark one 库存不足 alert, the second one is refused;
-// the president reads an open alert and handles nothing; the accountant sees none of it. The tests run in order.
+// 风险提醒 page; the seed lists 海豚书签 and 海浪中性笔 with none in stock, so each has an open 库存不足 alert: two pages of
+// the bank admin (the seed has one) both mark one, the second one is refused; the president reads the other and handles
+// nothing, and 总览 lists 海浪中性笔 once it is at its 安全库存; the accountant sees none of it. The tests run in order.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 
@@ -74,7 +75,6 @@ test('大额贷款: the teller lends 60 HTB, the bank admin terminates it from �
 });
 
 test('库存不足 is only marked 已查看; when two pages of the bank admin both do, the second is refused', async ({ page, browser }) => {
-  sql(`update public.products set safety_stock = stock + 5 where name = '海豚书签'`);
   const id = sql(`select id from public.risk_alerts where kind = 'stock_low' and status = 'open' and detail ->> 'name' = '海豚书签'`);
   expect(id).toMatch(/^\d+$/);
 
@@ -112,6 +112,8 @@ test('the president reads an open alert but leaves it to the bank admin', async 
   expect(id).toMatch(/^\d+$/);
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
+  await expect(card(page, '库存不足').locator('.dc-list-link')).toHaveCount(1);
+  await expect(card(page, '库存不足').locator('.dc-list-link')).toContainText('海浪中性笔');
   const overview = card(page, '未处理的风险提醒');
   await expect(overview.getByRole('link', { name: '查看' })).toHaveAttribute('href', '/admin/alerts');
   await expect(overview.getByRole('link', { name: '去处理' })).toHaveCount(0);

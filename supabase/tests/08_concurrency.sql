@@ -58,6 +58,8 @@ select dblink_exec('setup', $$
   delete from txns where student_no in ('race-1', 'race-2');
   delete from accounts where student_no in ('race-1', 'race-2');
   delete from students where student_no in ('race-1', 'race-2');
+  delete from audit_log where target in (select 'risk_alerts:' || id from risk_alerts where target = 'products:00000000-0000-4000-8000-0000000000f1');
+  delete from risk_alerts where target = 'products:00000000-0000-4000-8000-0000000000f1';  -- 库存不足, listed with none in stock
   delete from products where id = '00000000-0000-4000-8000-0000000000f1';
   delete from audit_log where target in ('students:race-1', 'students:race-2', 'products:00000000-0000-4000-8000-0000000000f1')
      or target in (select t || id from profiles, unnest(array['profiles:', 'user_roles:']) t where login_id = 'race-teller')

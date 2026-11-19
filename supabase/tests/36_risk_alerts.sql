@@ -252,9 +252,10 @@ select is((select count(*) from risk_alerts where target = 'salary_rates'), 1::b
 select tests.handle(:'admin', :pay, 'terminate', '暂不调整');
 select is(app_private.salary_rates(), :'pay0'::jsonb, '终止 restores it');
 
--- stock_low: falling to the 安全库存; once while open.
-select tests.call(:'keeper', $$select upsert_product(null, '海豚书签', 7, p_listed => true)$$) ->> 'id' as pen \gset
+-- stock_low: a listed product falling to the 安全库存 (stocked in before it is listed); once while open.
+select tests.call(:'keeper', $$select upsert_product(null, '海豚书签', 7, p_listed => false)$$) ->> 'id' as pen \gset
 select tests.call(:'keeper', format($$select stock_in(%L, 11)$$, :'pen'));
+select tests.call(:'keeper', format($$select upsert_product(%L, '海豚书签', 7, p_listed => true)$$, :'pen'));
 select tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's8', %L, 'account')$$, jsonb_build_array(jsonb_build_object('product_id', :'pen', 'qty', 5))));
 select is(tests.n('stock_low'), 0::bigint, 'above the 安全库存 raises nothing');
 select tests.call(:'t1', format($$select purchase(gen_random_uuid(), 's8', %L, 'account')$$, jsonb_build_array(jsonb_build_object('product_id', :'pen', 'qty', 1))));
