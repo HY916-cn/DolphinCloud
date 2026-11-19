@@ -89,7 +89,7 @@
 - 操作与导航：`Button`、`ServiceTile`、`TabBar`、`Tabs`、`Segmented`、`FilterChips`。
 - 表单与选择：`Field`、`Select`、`DatePicker`、`TimePicker`、`SearchField`、`FilterBar`、`ViewSwitch`、`Switch`、`Checkbox`、`Radio`、`ChoiceCard`、`QtyStepper`。
 - 账户：`Passbook`（学生的储蓄存折，存折版的全部部件）、`BalanceCard`、`TxnList`、`Avatar`（账号头像，图标表示身份）、`PersonCard`、`SummaryList`、`Progress`、`CreditGauge`（海豚信用分仪表盘，用法见 `StudentCreditPage` 和“数据与后台”）、`ListGroup`。
-- 数据：`Stats`（统计数字）、`Chart`（单系列图表）、`DataTable`（数字表格）、`Attendance`（考勤）、`CashCount`（轧账）、`RiskAlerts`（风险提醒）、`BatchBar`（批量管理）。用法见“数据与后台”。
+- 数据：`Stats`（统计数字）、`Chart`（单系列图表）、`DataTable`（数字表格）、`Attendance`（考勤）、`CashCount`（轧账）、`RiskAlerts`（风险提醒）、`Currency`（货币与经营看板）、`BatchBar`（批量管理）。用法见“数据与后台”。
 - 引导与反馈：`Tag`、`Notice`、`Toast`、`Sheet`、`Result`、`EmptyState`、`Skeleton`。
 
 选择控件怎么选：立即生效的设置用 `Switch`；勾选任意多项用 `Checkbox`；带说明的单选用 `Radio`，带图标的 2～4 项用 `ChoiceCard`；切换视图用 `Segmented`；按类别分页用 `Tabs`；多条件筛选用 `FilterChips`，列表页顶部的搜索、日期、类型合在一张 `FilterBar` 里；选项超过 6 个用 `Select`；选具体某一天用 `DatePicker`，选几点几分用 `TimePicker`；学生在普通版和存折版之间选用 `ViewSwitch`。
