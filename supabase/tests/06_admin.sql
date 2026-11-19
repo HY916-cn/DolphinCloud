@@ -183,11 +183,11 @@ select is(tests.err(:'t1', format($$select stock_move('stock_in', '[{"product_id
 select is(tests.err(:'keeper', format($$select stock_move('sale', '[{"product_id":"%s","qty":1}]')$$, :'prod')), 'INVALID_INPUT', 'only stock in and stock out');
 select is(tests.err(:'keeper', $$select stock_move('stock_in', '[]')$$), 'INVALID_INPUT', 'at least one product');
 
-select is(tests.call(:'teacher', $$select register_issue('2026-01', '2026-09-01', '{"1":500,"10":100}', '开学发行', '王老师')$$) ->> 'total', '1500',
+select is(tests.call(:'teacher', $$select record_currency(gen_random_uuid(), 'issue', '{"1":500,"10":100}', '2026-09-01', '开学发行', '2026-01', '王老师')$$) ->> 'total', '1500',
   'issue total is computed from the denominations');
-select is(tests.err(:'teacher', $$select register_issue('2026-01', '2026-09-01', '{"1":1}', '重复', '王老师')$$), 'ALREADY_EXISTS', 'duplicate batch');
-select is(tests.err(:'teacher', $$select register_issue('2026-02', '2026-09-01', '{"3":1}', '面额错误', '王老师')$$), 'INVALID_AMOUNT', 'unknown denomination');
-select is(tests.err(:'keeper', $$select register_issue('2026-03', '2026-09-01', '{"1":1}', 'x', 'x')$$), 'FORBIDDEN', 'only a teacher registers issues');
+select is(tests.err(:'teacher', $$select record_currency(gen_random_uuid(), 'issue', '{"1":1}', '2026-09-01', '重复', '2026-01', '王老师')$$), 'ALREADY_EXISTS', 'duplicate batch');
+select is(tests.err(:'teacher', $$select record_currency(gen_random_uuid(), 'issue', '{"3":1}', '2026-09-01', '面额错误', '2026-02', '王老师')$$), 'INVALID_AMOUNT', 'unknown denomination');
+select is(tests.err(:'keeper', $$select record_currency(gen_random_uuid(), 'issue', '{"1":1}', '2026-09-01', 'x', '2026-03', 'x')$$), 'FORBIDDEN', 'only a teacher registers issues');
 
 -- Settings
 select is(tests.call(:'teacher', $$select set_setting('denominations', '[10,5,1,2]')$$) -> 'value', '[1,2,5,10]', 'denominations are sorted');

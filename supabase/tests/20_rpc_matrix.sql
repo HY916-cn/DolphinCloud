@@ -100,8 +100,10 @@ insert into tests.matrix values
   -- 参数: the bank admin
   ('set_setting(text,jsonb)', 'select set_setting(''nonsense'', ''1'')', '{teacher}'),
   ('set_settings(jsonb)', 'select set_settings(''{"nonsense":1}'')', '{teacher}'),
-  -- 登记发行: the bank admin alone (PHASE-2.md §3)
-  ('register_issue(text,date,jsonb,text,text)', 'select register_issue('''', current_date, ''{}'', '''', '''')', '{teacher}'),
+  -- 货币登记: the bank admin alone; 货币监控 and 经营看板: the accountant, president and bank admin (PHASE-2.md §3)
+  ('record_currency(uuid,text,jsonb,date,text,text,text,uuid)', 'select record_currency(gen_random_uuid(), ''issue'', ''{}'')', '{teacher}'),
+  ('currency_overview()', 'select currency_overview()', '{accountant,president,teacher}'),
+  ('dashboard()', 'select dashboard()', '{accountant,president,teacher}'),
   -- 信用分: the student their own, the accountant, president and bank admin anyone's; 手动调整 the bank admin alone (PHASE-2.md §3)
   ('credit_profile(text)', 'select credit_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
   ('adjust_credit(text,integer,text)', 'select adjust_credit(''nobody'', 1, ''x'')', '{teacher}'),
@@ -204,6 +206,7 @@ insert into tests.writes values
   ('staff_payroll', 'update staff_payroll set attendance = true'),
   ('salary_rates', 'update salary_rates set amount = 10000'),
   ('currency_issues', 'delete from currency_issues'),
+  ('currency_moves', 'delete from currency_moves'),
   ('terms', 'update terms set closed_at = now()'),
   ('credit_scores', 'update credit_scores set score = 1000'),
   ('credit_events', 'insert into credit_events (student_no, delta, score, rule, reason) values (''s1'', 400, 1000, ''manual'', ''x'')'),

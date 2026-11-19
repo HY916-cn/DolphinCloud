@@ -28,8 +28,8 @@ select tests.call(:'t1', format($$select purchase('00000000-0000-4000-8000-00000
   jsonb_build_array(jsonb_build_object('product_id', :'a', 'qty', 2))));
 select tests.call(:'t2', format($$select purchase('00000000-0000-4000-8000-000000000047', 's2', %L, 'cash', '{"10":1}')$$,
   jsonb_build_array(jsonb_build_object('product_id', :'a', 'qty', 1))));
-insert into currency_issues (batch_no, issued_on, denominations, total, purpose, approver_name, created_by)
-values ('FX-01', :'d', '{"10":20}', 200, '开学发行', '王老师', :'teacher');
+insert into currency_moves (id, kind, batch_no, on_date, denominations, total, reason, approver_name, created_by)
+values (gen_random_uuid(), 'issue', 'FX-01', :'d', '{"10":20}', 200, '开学发行', '王老师', :'teacher');
 
 -- 查询 at the counter
 select is(tests.err(:'acct', $$select student_txns('s1')$$), 'FORBIDDEN', 'only a teller uses the counter''s 查询');

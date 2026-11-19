@@ -15,7 +15,7 @@ select tests.call(:'t1', $$select deposit('00000000-0000-4000-8000-000000000041'
 select tests.call(:'t2', $$select deposit(gen_random_uuid(), 's2', '{"5":1}')$$);
 select tests.call(:'keeper', $$select upsert_product(null, '上架', 10, p_listed => true)$$);
 select tests.call(:'keeper', $$select upsert_product(null, '未上架', 10, 4, p_listed => false)$$);
-select tests.call(:'teacher', $$select register_issue('B1', current_date, '{"10":10}', '开学发行', '王老师')$$);
+select tests.call(:'teacher', $$select record_currency(gen_random_uuid(), 'issue', '{"10":10}', current_date, '开学发行', 'B1', '王老师')$$);
 set local session_replication_role = replica;
 update txns set created_at = created_at - interval '1 day' where id = '00000000-0000-4000-8000-000000000041';
 set local session_replication_role = origin;
@@ -23,7 +23,7 @@ set local session_replication_role = origin;
 create function tests.counts(p_user uuid) returns text language sql as $$
   select tests.call(p_user, format($q$select jsonb_build_array(
     (select count(*) from profiles), (select count(*) from students), (select count(*) from accounts),
-    (select count(*) from txns), (select count(*) from products), (select count(*) from currency_issues),
+    (select count(*) from txns), (select count(*) from products), (select count(*) from currency_moves),
     (select count(*) from audit_log) > 0, (select count(*) from settings) = %s)$q$, (select count(*) from settings)))::text
 $$;
 -- [profiles, students, accounts, txns, products, issues, audit visible, every setting visible]
