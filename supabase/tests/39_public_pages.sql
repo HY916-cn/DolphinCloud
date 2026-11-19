@@ -95,10 +95,12 @@ select tests.call(:'teacher', 'select set_credit_enabled(true, null)');
 select is(tests.anon(format('select create_transfer(%L)', f)) ->> 'detail', '{"field": "files"}', 'INVALID_INPUT: ' || why)
 from (values ('[]', 'no files'), ('{}', 'not a list'), ('[{"name":"","size":1}]', 'an empty name'),
   ('[{"name":"a","size":-1}]', 'a negative size'), ('[{"name":"a","size":1.5}]', 'a fractional size'),
-  ('[{"size":1}]', 'no name'), (format('[{"name":"%s","size":1}]', repeat('名', 256)), 'a name over 255 characters'),
-  ((select jsonb_agg(jsonb_build_object('name', 'f' || i, 'size', 1))::text from generate_series(1, 21) i), '21 files')) x(f, why);
-select is(tests.anon('select create_transfer(''[{"name":"a","size":1},{"name":"大.mp4","size":104857601}]'')'),
-  '{"error": "FILE_TOO_LARGE", "detail": "{\"max\": 104857600, \"name\": \"大.mp4\", \"field\": \"file\"}"}', 'a file over 100 MB');
+  ('[{"size":1}]', 'no name'), (format('[{"name":"%s","size":1}]', repeat('名', 256)), 'a name over 255 characters')) x(f, why);
+select is(tests.anon(format('select create_transfer(%L)', (select jsonb_agg(jsonb_build_object('name', 'f' || i, 'size', 1)) from generate_series(1, 23) i))),
+  '{"error": "FILE_TOO_LARGE", "detail": "{\"max\": 20, \"count\": 23, \"field\": \"count\"}"}', 'more than 20 files: the limit and the count');
+select is(tests.anon('select create_transfer(''[{"name":"视频.mp4","size":272629760},{"name":"a","size":1},{"name":"大.mp4","size":104857601}]'')') ->> 'detail',
+  '{"max": 104857600, "field": "file", "files": [{"name": "视频.mp4", "size": 272629760}, {"name": "大.mp4", "size": 104857601}]}',
+  'files over 100 MB: each with its name and size');
 select is(tests.anon('select create_transfer(''[{"name":"a","size":70000000},{"name":"b","size":70000000},{"name":"c","size":70000000}]'')'),
   '{"error": "FILE_TOO_LARGE", "detail": "{\"max\": 209715200, \"field\": \"total\", \"total\": 210000000}"}', 'over 200 MB in all');
 
@@ -247,8 +249,9 @@ select is((select count(*) from audit_log where action = 'transfer.cleanup'), :'
 
 -- 后台: the bank admin lists and deletes ----------------------------------------------------------------------------
 
-select is(tests.call(:'teacher', 'select list_transfers()'), jsonb_build_array((:'live'::jsonb - 'code') || jsonb_build_object('ip',
-  (select ip from transfers where id = (:'live'::jsonb ->> 'id')::uuid))), 'the bank admin lists the transfers not expired, with their IP');
+select is(tests.call(:'teacher', 'select list_transfers()'), jsonb_build_object('count', 1, 'total', 5, 'limit', 5368709120,
+  'transfers', jsonb_build_array((:'live'::jsonb - 'code') || jsonb_build_object('ip', (select ip from transfers where id = (:'live'::jsonb ->> 'id')::uuid)))),
+  'the bank admin lists the transfers not expired with their IP, no code; their count, size and the 5 GB limit');
 select is(tests.err(w, 'select list_transfers()'), 'FORBIDDEN', format('%s: no list', n))
 from (values (:'president'::uuid, 'the president'), (:'teller'::uuid, 'a teller'), (:'s1'::uuid, 'a student')) x(w, n);
 select is(tests.anon('select list_transfers()') ->> 'error', 'permission denied for function list_transfers', 'nor anon');

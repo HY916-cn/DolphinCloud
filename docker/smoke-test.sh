@@ -199,7 +199,7 @@ pass "behind a forwarder in DOLPHIN_PROXY_PROTOCOL, the client IP is the PROXY p
 sql "update public.profiles set must_change_password = false where login_id = 'smokeadmin'" # as after setting a new password
 ADMIN_TOKEN=$(login smokeadmin@staff.dolphin.internal "$ADMIN_PW")
 [ "$(http -X POST "$BASE/rest/v1/rpc/list_transfers" -H "apikey: $ANON" -H "Authorization: Bearer $ADMIN_TOKEN")" = 200 ] \
-  && [ "$(jq -r ".[] | select(.id == \"$ID\") | .ip" "$WORK/body")" = "$IP" ] || fail "list_transfers: $(cat "$WORK/body")"
+  && [ "$(jq -r ".transfers[] | select(.id == \"$ID\") | .ip" "$WORK/body")" = "$IP" ] || fail "list_transfers: $(cat "$WORK/body")"
 [ "$(http -X POST "$BASE/rest/v1/rpc/delete_transfer" -H "apikey: $ANON" -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'Content-Type: application/json' -d "$(jq -nc --arg id "$ID" '{p_id: $id, p_reason: "冒烟测试"}')")" = 200 ] || fail "delete_transfer: $(cat "$WORK/body")"
 [ "$(get 0)" -ge 400 ] || fail "a deleted transfer still downloads"
