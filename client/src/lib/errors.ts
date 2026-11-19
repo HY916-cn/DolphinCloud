@@ -131,9 +131,28 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'TERM_OVERLAP': return { title: '学期日期重叠', text: `和「${d.term}」的日期重叠，请调整开始日或结束日。` };
     case 'TERM_NOT_ENDED': return { title: '学期还没结束', text: `${monthDay(String(d.ends_on))} 之后才能结转。` };
     case 'TERM_CLOSED': return { title: '学期已结转', text: '结转后的学期不能再修改。' };
+    case 'ALERT_HANDLED':
+      return { title: '这条提醒已处理', text: `${d.handler_name ?? ''} 已于 ${shanghaiTime(String(d.handled_at))} ${d.status === 'terminated' ? '终止' : '标为已查看'}。` };
+    case 'ALERT_OUTDATED': return { title: '参数之后又改过', text: '这项参数在提醒之后又改过，请先终止后来的那条提醒，或到参数页直接修改。' };
     case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }
+}
+
+// A refusal of handle_alert (design system RiskAlerts 没有处理成功) for an alert of `kind`. The undo's own refusals keep
+// their text, under 没有终止, and say the alert can still be marked 已查看.
+export function alertRefusal(code: string, d: Detail, kind: string) {
+  if (code === 'INVALID_INPUT' && d.field === 'note') return { title: '请写明原因', text: '请写明终止的原因，最多 200 字。' };
+  if (code === 'INVALID_INPUT' && d.field === 'action') return { title: '不能终止', text: '这种提醒只能标为已查看。' };
+  if (code === 'INVALID_INPUT' && d.field === 'id') return { title: '找不到这条提醒', text: '找不到这条提醒，请刷新后再试。' };
+  const undo = code === 'REVERSAL_NOT_ALLOWED' || code === 'REVERSAL_INSUFFICIENT_BALANCE' || code === 'CREDIT_DISABLED'
+    || (code === 'INVALID_INPUT' && (d.field === 'loan_id' || d.field === 'duty_id'));
+  if (!undo) return explain(code, d);
+  // The bank admin may reverse any 取款, so a refused one was reversed or edited already.
+  const text = code === 'REVERSAL_NOT_ALLOWED' && kind === 'withdraw_large' ? '这笔取款已经冲正或编辑过。'
+    : explain(code, d.field === 'duty_id' ? { ...d, cash: 'force', status: d.status ?? 'ended' } // the alert's duty exists: it has ended
+      : { ...d, type: kind === 'term_early' ? 'term_close' : undefined }).text;
+  return { title: '没有终止', text: `${text}可以改为已查看。` };
 }
 
 // Auth error codes of a sign-in → what the person can do about it. The lockout (5 wrong passwords in 15 minutes) comes

@@ -55,8 +55,7 @@ test('银行管理员 adjusts a score in two steps, and the student sees it', as
   await sheet(page).getByPlaceholder('写清楚调整的原因').fill('损坏公物');
   await confirmIn(page, '下一步');
   await expect(sheet(page).locator('.dc-sheet-title')).toHaveText('给张小明减 50 分？');
-  await expect(sheet(page).locator('.dc-sheet-text')).toHaveText('600 分 → 550 分。原因：损坏公物。');
-  await expect(sheet(page)).not.toContainText('风险提醒');
+  await expect(sheet(page).locator('.dc-sheet-text')).toHaveText('600 分 → 550 分。原因：损坏公物。调整会生成一条风险提醒，行长和银行管理员都能看到。');
   await confirmIn(page, '确认调整');
   await expect(page.locator('.dc-toast')).toHaveText('已调整为 550 分');
   await expect(page.locator('.dc-gauge.is-lg').getByRole('meter')).toHaveAttribute('aria-valuenow', '550');
@@ -129,7 +128,7 @@ test('参数 → 信用分: a wrong value or order is marked and never sent; a r
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/settings');
   await expect(page.getByRole('heading', { name: '信用分' })).toBeVisible();
-  await expect(page.locator('.heading.is-section')).toHaveText(['柜台', '排名', '考勤与工资', '学年', '利率', '理财', '信用分']);
+  await expect(page.locator('.heading.is-section')).toHaveText(['柜台', '排名', '考勤与工资', '学年', '利率', '理财', '信用分', '风险提醒']);
   const sent: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/rpc/set_setting')) sent.push(r.url()); });
   const save = page.getByRole('button', { name: '保存参数' });

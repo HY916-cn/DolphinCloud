@@ -180,7 +180,7 @@ function AdjustSheets({ student, score, onClose, onDone }: {
 
   if (confirming) {
     return (
-      <ConfirmSheet title={`给${student.name}${gain ? '加' : '减'} ${n} 分？`} text={`${score} 分 → ${to} 分。原因：${reason.trim()}。`}
+      <ConfirmSheet title={`给${student.name}${gain ? '加' : '减'} ${n} 分？`} text={`${score} 分 → ${to} 分。原因：${reason.trim()}。调整会生成一条风险提醒，行长和银行管理员都能看到。`}
         confirm="确认调整" busy={busy} onConfirm={adjust} onClose={() => { setConfirming(false); setRefusal(null); }}>
         {refusal && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={refusal} /></div>}
       </ConfirmSheet>

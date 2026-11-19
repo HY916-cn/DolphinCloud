@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Stats, Summary, today, TxnListLoading, type IconName, type Move,
+  AlertRow, Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Stats, Summary, today, TxnListLoading, useAlertOverview, type IconName, type Move,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { diffAmount } from '@/lib/cash';
@@ -124,6 +124,9 @@ export default function Admin() {
     queryFn: () => call<{ pending: number; overdue: number; oldest: CashReview[] }>('cash_review_overview', {}),
   });
 
+  // 未处理的风险提醒 (PHASE-2.md §12.2): how many, and the five newest; the president and the bank admin only.
+  const alerts = useAlertOverview(has('teacher', 'president'));
+
   const fresh = useNewRows(recent.data?.map((r) => r.id));
 
   const todos: { href: string; icon: IconName; text: string }[] = todo.data ? [
@@ -154,6 +157,17 @@ export default function Admin() {
             })} />
           )}
       </section>
+      {!!alerts.data?.open && (
+        <section className="dc-stack" aria-label="未处理的风险提醒">
+          <div className="dc-section-head">
+            <h2 className="heading">未处理的风险提醒 · {alerts.data.open} 条</h2>
+            <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/alerts')}>去处理<Icon name="next" /></a>
+          </div>
+          <ul className="dc-list" aria-label="未处理的风险提醒">
+            {alerts.data.recent.map((a) => <AlertRow key={a.id} a={a} href={`/admin/alerts/${a.id}?via=overview`} />)}
+          </ul>
+        </section>
+      )}
       {!!cash.data?.pending && (
         <section className="dc-stack" aria-label="待复核的轧账">
           <div>

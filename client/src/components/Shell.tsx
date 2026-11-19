@@ -12,6 +12,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/txns', icon: 'passbook', label: '流水', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/reports', icon: 'ranking', label: '报表', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/cash', icon: 'balance', label: '轧账', roles: ['accountant', 'teacher', 'president'] },
+  { href: '/admin/alerts', icon: 'warning', label: '风险', roles: ['teacher', 'president'] },
   { href: '/admin/products', icon: 'exchange', label: '商品', roles: ['storekeeper', 'accountant', 'teacher', 'president'], kind: 'dc-kind-exchange' },
   { href: '/admin/stock', icon: 'inbox', label: '出入库', roles: ['storekeeper', 'teacher', 'president'] },
   { href: '/admin/staff', icon: 'teacher', label: '人员', roles: ['teacher', 'sysadmin'] },

@@ -78,4 +78,24 @@ assert.equal(explain('INVALID_INPUT', { field: 'duty_id', cash: 'force' }).text,
 assert.equal(explain('INVALID_AMOUNT', { cash: 'end' }).text, '实点张数不对，请检查各面额。');
 assert.equal(explain('OFF_DUTY').text, '请先在「考勤」点「上班」，再办理业务。');
 
+
+// 风险提醒 (design system RiskAlerts 没有处理成功).
+const { alertRefusal } = await import('./errors.ts');
+assert.deepEqual(explain('ALERT_HANDLED', { status: 'seen', handler_name: '王老师', handled_at: '2026-12-04T03:05:00Z' }),
+  { title: '这条提醒已处理', text: '王老师 已于 12月4日 11:05 标为已查看。' });
+assert.equal(explain('ALERT_HANDLED', { status: 'terminated', handler_name: '行长陈思', handled_at: '2026-12-04T03:05:00Z' }).text, '行长陈思 已于 12月4日 11:05 终止。');
+assert.equal(explain('ALERT_OUTDATED', { key: 'ranking_size' }).title, '参数之后又改过');
+assert.deepEqual(alertRefusal('INVALID_INPUT', { field: 'duty_id', status: 'pending' }, 'reversal_many'),
+  { title: '没有终止', text: '这位柜员已经下班了。可以改为已查看。' });
+assert.equal(alertRefusal('INVALID_INPUT', { field: 'duty_id' }, 'ops_frequent').text, '这位柜员已经下班了。可以改为已查看。');
+assert.equal(alertRefusal('INVALID_INPUT', { field: 'loan_id', status: 'closed' }, 'loan_large').text, '这笔贷款已经结清。可以改为已查看。');
+assert.equal(alertRefusal('INVALID_INPUT', { field: 'loan_id', status: 'void' }, 'loan_overdue').text, '这笔贷款已经作废。可以改为已查看。');
+assert.equal(alertRefusal('REVERSAL_INSUFFICIENT_BALANCE', { balance: 3 }, 'term_early').text, '当前余额 3 HTB，少于原存款金额，请联系银行管理员。可以改为已查看。');
+assert.equal(alertRefusal('REVERSAL_NOT_ALLOWED', {}, 'term_early').text, '已过到期日，不能再冲正这笔提前支取。可以改为已查看。');
+assert.equal(alertRefusal('REVERSAL_NOT_ALLOWED', {}, 'withdraw_large').text, '这笔取款已经冲正或编辑过。可以改为已查看。');
+assert.equal(alertRefusal('CREDIT_DISABLED', {}, 'credit_adjust').title, '没有终止');
+assert.equal(alertRefusal('INVALID_INPUT', { field: 'note' }, 'withdraw_large').text, '请写明终止的原因，最多 200 字。');
+assert.equal(alertRefusal('INVALID_INPUT', { field: 'action', kind: 'stock_low' }, 'stock_low').text, '这种提醒只能标为已查看。');
+assert.equal(alertRefusal('INVALID_INPUT', { field: 'id' }, 'stock_low').text, '找不到这条提醒，请刷新后再试。');
+assert.equal(alertRefusal('ALERT_OUTDATED', { key: 'x' }, 'setting_change').title, '参数之后又改过');
 console.log('errors ok');

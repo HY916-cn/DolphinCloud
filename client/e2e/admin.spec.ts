@@ -284,7 +284,7 @@ test('行长 has the bank pages but not 学生, 人员, 参数 or 日志, whose 
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);
   const nav = page.getByRole('navigation', { name: '主导航' });
-  await expect(nav.getByRole('link')).toHaveText(['总览', '流水', '报表', '轧账', '商品', '出入库', '考勤', '学期', '信用分', '贷款', '利率', '理财', '我的']);
+  await expect(nav.getByRole('link')).toHaveText(['总览', '流水', '报表', '轧账', '风险', '商品', '出入库', '考勤', '学期', '信用分', '贷款', '利率', '理财', '我的']);
   await expect(page.getByRole('region', { name: '待办' })).toHaveCount(0);
   for (const path of ['/admin/students', '/admin/students/20260001', '/admin/staff', '/admin/staff/new', '/admin/settings', '/admin/audit']) {
     await page.goto(path);
@@ -302,5 +302,5 @@ test('行长 has the bank pages but not 学生, 人员, 参数 or 日志, whose 
   await page.goto('/admin');
   await page.getByRole('button', { name: '全部功能' }).click();
   await expect(page.getByRole('dialog', { name: '全部功能' }).getByRole('link'))
-    .toHaveText(['总览', '流水', '报表', '轧账', '商品', '出入库', '考勤', '学期', '信用分', '贷款', '利率', '理财', '我的']);
+    .toHaveText(['总览', '流水', '报表', '轧账', '风险', '商品', '出入库', '考勤', '学期', '信用分', '贷款', '利率', '理财', '我的']);
 });

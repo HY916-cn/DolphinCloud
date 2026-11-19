@@ -6,7 +6,8 @@ import { Icon, type IconName } from './ui';
 // The one filter bar of 流水, the counter's 查询 and the student's 明细 (PHASE-1.md §7.9): a search box, the days, the
 // types, and a 时段 of each day only when asked for. A search with suggestions (`suggest`) turns what is picked into
 // chips; without, the words themselves filter, a moment after typing stops. `times={false}` leaves out 按时段.
-// `actions` (打印 / 导出) always sit at the bar's bottom right, after 清除条件.
+// `actions` (打印 / 导出) always sit at the bar's bottom right, after 清除条件. `search={false}` leaves out the search box
+// (风险提醒: days and kinds only).
 export type Filter = { text: string; from: string; to: string; timeFrom: string; timeTo: string; kinds: string[] };
 export const NO_FILTER: Filter = { text: '', from: '', to: '', timeFrom: '', timeTo: '', kinds: [] };
 export const wrongTimes = (f: Pick<Filter, 'timeFrom' | 'timeTo'>) => !!f.timeFrom && !!f.timeTo && f.timeFrom >= f.timeTo;
@@ -14,8 +15,8 @@ export const filtered = (f: Filter) => !!(f.text.trim() || f.from || f.to || f.t
 export type Suggestion = { key: string; icon: IconName; label: string; note?: string; pick: () => void };
 export type Chip = { key: string; label: string; clear: () => void };
 
-export function FilterBar({ label, placeholder, value, onChange, kinds, suggest, chips = [], times = true, actions }: {
-  label: string; placeholder: string; value: Filter; onChange: (f: Filter) => void; kinds?: readonly (readonly [string, string])[];
+export function FilterBar({ label, placeholder = '', value, onChange, kinds, suggest, chips = [], times = true, search = true, actions }: {
+  label: string; placeholder?: string; search?: boolean; value: Filter; onChange: (f: Filter) => void; kinds?: readonly (readonly [string, string])[];
   suggest?: (text: string) => Suggestion[]; chips?: Chip[]; times?: boolean; actions?: ReactNode;
 }) {
   const [text, setText] = useState(value.text);
@@ -38,12 +39,12 @@ export function FilterBar({ label, placeholder, value, onChange, kinds, suggest,
       if (found.length) pick(found[0]);
       else if (!suggest) set({ text });
     }}>
-      <label className="dc-search">
+      {search && <label className="dc-search">
         <Icon name="query" />
         <input type="search" aria-label={placeholder} placeholder={placeholder} autoComplete="off" enterKeyHint="search"
           value={text} onChange={(e) => setText(e.target.value)} />
         {text && <button className="dc-search-clear" type="button" aria-label="清除" onClick={() => { setText(''); if (!suggest) set({ text: '' }); }}><Icon name="close" /></button>}
-      </label>
+      </label>}
       {found.length > 0 && (
         <ul className="dc-list dc-filter-found" aria-label="搜索建议">
           {found.map((s) => (

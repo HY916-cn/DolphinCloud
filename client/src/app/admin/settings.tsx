@@ -276,6 +276,41 @@ function WealthGroup({ draft, problems, onChange }: { draft: WealthDraft; proble
   );
 }
 
+// 风险提醒 (design system data.md 参数页分组): the thresholds of §12.1 (risk_rules), saved together.
+type RiskRules = Record<'loan_amount' | 'loan_score' | 'withdraw_ratio' | 'reversals' | 'ops_count' | 'ops_minutes', number>;
+const RISK: [keyof RiskRules, string, string, Range, number][] = [
+  ['loan_amount', '大额贷款：金额超过', 'HTB', { min: 1, max: 100_000 }, 10],
+  ['loan_score', '大额贷款：信用分低于', '分', { min: 0, max: 1000 }, 10],
+  ['withdraw_ratio', '大额取款：超过单笔限额的', '%', { min: 1, max: 100 }, 5],
+  ['reversals', '冲正过多：柜员每天冲正达到', '笔', { min: 1, max: 100 }, 1],
+  ['ops_count', '频繁操作：同一学生办理达到', '笔', { min: 2, max: 100 }, 1],
+  ['ops_minutes', '频繁操作：在多少分钟内', '分钟', { min: 1, max: 1440 }, 1],
+];
+function RiskGroup({ draft, onChange }: { draft: Record<keyof RiskRules, string>; onChange: (k: keyof RiskRules, v: string) => void }) {
+  return (
+    <section className="dc-stack">
+      <h2 className="heading is-section">风险提醒</h2>
+      <p className="dc-caption">之后发生的业务按新的阈值判断。改这里也会记一条风险提醒。</p>
+      <div className="dc-card">
+        <div className="dc-denoms">
+          {RISK.map(([key, name, unit, range, step]) => {
+            const wrong = outside(draft[key], range);
+            return (
+              <div key={key} className={`dc-field ${wrong ? 'is-error' : ''}`}>
+                <div className="dc-qty is-product">
+                  <div className="dc-qty-head"><span className="dc-qty-name">{name}（{unit}）</span></div>
+                  <Stepper label={name} value={draft[key]} onChange={(v) => onChange(key, v.slice(0, 6))} step={step} range={range} />
+                </div>
+                {wrong && <span className="dc-field-hint"><Icon name="warning" />{range.min}～{range.max} 的整数</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // One limit for both divisions: a QtyStepper card each, in the two-column grid the counter uses for notes.
 function LimitPair({ label, hint, primary, junior }: {
   label: string; hint?: string; primary: [string, (v: string) => void]; junior: [string, (v: string) => void];
@@ -334,6 +369,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const [rates, setRates] = useState(() => rateDraft(saved.anchor_params as AnchorParams));
   const [term, setTerm] = useState(() => termDraft(saved.term_rates as TermRates));
   const [wealth, setWealth] = useState(() => wealthDraft(saved.wealth_params as WealthParams));
+  const [risk, setRisk] = useState(() => Object.fromEntries(RISK.map(([k]) => [k, String((saved.risk_rules as RiskRules)[k])])) as Record<keyof RiskRules, string>);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -352,6 +388,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
     anchor_params: rateValues(rates, saved.anchor_params as AnchorParams),
     term_rates: termValues(term),
     wealth_params: wealthValues(wealth),
+    risk_rules: Object.fromEntries(RISK.map(([k]) => [k, Number(risk[k])])),
   };
   const curveWrong = curveProblems(curve);
   const ratesWrong = rateProblems(rates);
@@ -364,7 +401,8 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
   const ratesChanged = !!nextRates && JSON.stringify(nextRates) !== JSON.stringify(ratesValue(ratesDraft(savedRates)));
   const invalid = ([[singlePrimary, LIMIT], [singleJunior, LIMIT], [dailyPrimary, LIMIT], [dailyJunior, LIMIT], [rankingSize, RANKING]] as const)
     .some(([value, range]) => outside(value, range)) || Object.keys(curveWrong).length > 0 || Object.values(rules).some((v) => ruleProblem(v))
-    || Object.keys(ratesWrong).length > 0 || Object.keys(termWrong).length > 0 || Object.keys(wealthWrong).length > 0 || !nextRates;
+    || Object.keys(ratesWrong).length > 0 || Object.keys(termWrong).length > 0 || Object.keys(wealthWrong).length > 0 || !nextRates
+    || RISK.some(([k, , , range]) => outside(risk[k], range));
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['settings'] }),
@@ -456,6 +494,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
       <WealthGroup draft={wealth} problems={wealthWrong} onChange={setWealth} />
       <CreditGroup curve={curve} problems={curveWrong} onCurve={(k, v) => setCurve({ ...curve, [k]: v })}
         rules={rules} onRule={(k, v) => setRules({ ...rules, [k]: v })} />
+      <RiskGroup draft={risk} onChange={(k, v) => setRisk({ ...risk, [k]: v })} />
       <div className="dc-actions">
         <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="submit" disabled={busy || invalid || !(changed.length || ratesChanged)}>
           {busy ? '正在保存' : '保存参数'}
