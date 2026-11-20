@@ -1,7 +1,7 @@
-// Builds docs/manual/海豚云使用手册.pdf from manual.html.
+// Builds the two manuals in docs/manual: family.html → 海豚云学生与家长手册.pdf, staff.html → 海豚云工作人员手册.pdf.
 // Screens come from the design system's page previews; icons from design-system/project/assets/Icons.
 // Run: node docs/manual/build.mjs   (needs `npm --prefix client install` and Playwright's Chromium)
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '../../client/node_modules/playwright/index.mjs';
 
@@ -56,32 +56,54 @@ for (const f of readdirSync(`${ds}/assets/Icons`).filter((f) => f.endsWith('.svg
     .replace(/stroke="#[0-9a-f]+"/gi, 'stroke="currentColor"')
     .replace('<svg ', '<svg class="dc-icon" aria-hidden="true" ');
 
-const page = await browser.newPage();
-await page.goto(`file://${here}manual.html`);
-const problems = await page.evaluate(({ img, icons }) => {
-  document.querySelectorAll('img[data-shot]').forEach((el) => { el.src = img[el.dataset.shot]; });
-  document.querySelectorAll('i[data-icon]').forEach((el) => { el.outerHTML = icons[el.dataset.icon]; });
-  const pages = [...document.querySelectorAll('.page')];
-  pages.forEach((p, i) => p.querySelectorAll('.pno').forEach((n) => { n.textContent = i + 1; }));
-  document.querySelectorAll('[data-ref]').forEach((a) => {
-    const t = document.getElementById(a.dataset.ref);
-    a.textContent = t ? pages.indexOf(t.closest('.page')) + 1 : '?';
-  });
-  return [
-    ...pages.flatMap((p, i) => (p.querySelector('.body')?.scrollHeight > p.querySelector('.body')?.clientHeight + 1 ? [`page ${i + 1} overflows`] : [])),
-    ...[...document.querySelectorAll('[data-ref]')].filter((a) => a.textContent === '?').map((a) => `missing #${a.dataset.ref}`),
-    ...[...document.querySelectorAll('i[data-icon]')].map((i) => `missing icon ${i.dataset.icon}`),
-  ];
-}, { img, icons });
-await page.evaluate(() => document.fonts.ready);
-await page.waitForTimeout(800);
-if (problems.length) { console.error(problems.join('\n')); }
-// PREVIEW_DIR=<dir> also saves each page as a PNG for checking the layout
-if (process.env.PREVIEW_DIR) {
-  const pages = await page.locator('.page').all();
-  for (const [i, p] of pages.entries()) await p.screenshot({ path: `${process.env.PREVIEW_DIR}/p${String(i + 1).padStart(2, '0')}.png` });
+const books = { 'family.html': '海豚云学生与家长手册.pdf', 'staff.html': '海豚云工作人员手册.pdf' };
+let failed = false;
+for (const [html, pdf] of Object.entries(books)) {
+  const page = await browser.newPage();
+  await page.goto(`file://${here}${html}`);
+  const problems = await page.evaluate(({ img, icons }) => {
+    document.querySelectorAll('img[data-shot]').forEach((el) => { el.src = img[el.dataset.shot]; });
+    document.querySelectorAll('i[data-icon]').forEach((el) => { el.outerHTML = icons[el.dataset.icon]; });
+    const pages = [...document.querySelectorAll('.page')];
+    // chapters are numbered in page order; each footer names the chapter it sits in
+    let chap = document.title;
+    let n = 0;
+    pages.forEach((p, i) => {
+      const opener = p.querySelector('.opener');
+      if (opener) {
+        n += 1;
+        const no = String(n).padStart(2, '0');
+        opener.querySelector('.no').textContent = `CHAPTER ${no}`;
+        opener.dataset.no = no;
+        chap = `${no} ${opener.querySelector('h1').textContent}`;
+      }
+      p.querySelectorAll('.chap').forEach((c) => { c.textContent = chap; });
+      p.querySelectorAll('.pno').forEach((c) => { c.textContent = i + 1; });
+    });
+    document.querySelectorAll('.toc a[data-ref]').forEach((a) => {
+      const t = document.getElementById(a.dataset.ref);
+      if (!t) return;
+      a.querySelector('.n').textContent = t.dataset.no;
+      a.querySelector('.p').textContent = pages.indexOf(t.closest('.page')) + 1;
+    });
+    return [
+      ...pages.flatMap((p, i) => (p.querySelector('.body')?.scrollHeight > p.querySelector('.body')?.clientHeight + 1 ? [`page ${i + 1} overflows`] : [])),
+      ...[...document.querySelectorAll('.toc a[data-ref]')].filter((a) => !a.querySelector('.p').textContent).map((a) => `missing #${a.dataset.ref}`),
+      ...[...document.querySelectorAll('i[data-icon]')].map((i) => `missing icon ${i.dataset.icon}`),
+    ];
+  }, { img, icons });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(800);
+  if (problems.length) { failed = true; console.error(`${html}:\n${problems.join('\n')}`); }
+  // PREVIEW_DIR=<dir> also saves each page as a PNG for checking the layout
+  if (process.env.PREVIEW_DIR) {
+    const dir = `${process.env.PREVIEW_DIR}/${html.replace('.html', '')}`;
+    mkdirSync(dir, { recursive: true });
+    for (const [i, p] of (await page.locator('.page').all()).entries()) await p.screenshot({ path: `${dir}/p${String(i + 1).padStart(2, '0')}.png` });
+  }
+  await page.pdf({ path: `${here}${pdf}`, preferCSSPageSize: true, printBackground: true, outline: true, tagged: true });
+  console.log(`${pdf}: ${await page.locator('.page').count()} pages`);
+  await page.close();
 }
-await page.pdf({ path: `${here}海豚云使用手册.pdf`, preferCSSPageSize: true, printBackground: true, outline: true, tagged: true });
-console.log(`pages: ${await page.locator('.page').count()}`);
 await browser.close();
-if (problems.length) process.exit(1);
+if (failed) process.exit(1);
