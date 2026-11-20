@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+.env
+
+# Downloaded music and sound effects
+audio/
+# Renders and review frames
+out
+qc/stills*
+qc/*.png
