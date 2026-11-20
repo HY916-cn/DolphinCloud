@@ -2,6 +2,16 @@
 
 对照 [PHASE-1.md](PHASE-1.md) §12.2 的验收标准，逐条写明证据。PHASE-1.md 里只勾选完全验证过的条目。
 
+## 2026-11-21 · 正式服务器给足停止宽限
+
+正式服务器的 `docker-compose.yml` 加 `stop_grace_period: 2m`（PHASE-1.md §9.2），按 `docker stop -t 120 dolphincloud`、`docker compose up -d` 换容器。
+
+| 检查 | 结果 |
+| --- | --- |
+| 换容器前 | 备份 `dolphin-20261121-030259.tar.gz.age`；账户 64 个、余额合计 2005 HTB、流水 31 笔、账号 88 个、库存 94 件、考勤 8 条、迁移 86 个 |
+| 停止 | 5 秒停完；启动日志为 `database system was shut down`，没有恢复 |
+| 换容器后 | `StopTimeout` 为 120；`dolphin health`、`dolphin check` 通过；上述数字不变；`/`、`/board`、`/clock`、`/transfer` 返回 200 |
+
 ## 2026-11-21 · 停止容器时 Postgres 正常关闭
 
 ### 本次运行
