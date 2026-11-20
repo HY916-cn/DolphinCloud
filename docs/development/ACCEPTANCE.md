@@ -35,9 +35,9 @@
 | 部署说明给足停止宽限 | PHASE-1.md §9.2：`docker run` 加 `--stop-timeout 120`，docker compose 写 `stop_grace_period: 2m`，并说明停止顺序；README 的部署命令同步 |
 | 测试按同样的宽限创建容器，没正常关闭即失败 | `smoke-test.sh` 的 `docker restart`、`rehearsal-test.sh` 的停机补跑、`upgrade-test.sh` 与 `rollback-test.sh` 换镜像前的 `docker stop`（与 `docker compose up -d` 换容器相同），之后的启动日志出现 `not properly shut down` 即判失败 |
 
-### 上线前仍需完成
+### 正式服务器
 
-- 正式服务器的 `docker-compose.yml` 在 `dolphincloud` 服务下加 `stop_grace_period: 2m`。这次换容器时旧容器还没有宽限，先 `docker stop -t 120 dolphincloud`，再 `docker compose up -d`；之后 `docker inspect -f '{{.Config.StopTimeout}}' dolphincloud` 应为 `120`。
+`docker-compose.yml` 已加 `stop_grace_period: 2m`，见上一节「正式服务器给足停止宽限」。
 
 ## 2026-11-21 · 正式服务器升级到 0bd0690
 
