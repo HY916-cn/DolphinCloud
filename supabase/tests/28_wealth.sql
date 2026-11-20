@@ -218,9 +218,8 @@ select is(tests.call(:'teacher', format('select record_wealth_day(%L, %s, %L)', 
 from (values ('2025-04-12', '1', 'x', '{"field": "day"}', 'a weekday'), (:'today', '1', 'x', '{"field": "day"}', 'a day over'),
   ('2025-03-03', '50.5', 'x', '{"field": "change"}', '−50 to 50'), ('2025-03-03', '1.00001', 'x', '{"field": "change"}', 'up to 4 decimals'),
   ('2025-03-03', '1', ' ', '{"field": "note"}', 'where it came from')) t(w, r, n, d, why);
-select is(tests.err(w, $$select record_wealth_day('2025-03-03', 1, 'x')$$), 'FORBIDDEN', 'the bank admin and the president alone')
-from unnest(array[:'accountant', :'teller', :'ops']::uuid[]) w;
-select is(tests.call(:'president', $$select record_wealth_day('2025-02-28', 1, 'x')$$) ->> 'source', 'manual', 'the president too');
+select is(tests.err(w, $$select record_wealth_day('2025-03-03', 1, 'x')$$), 'FORBIDDEN', 'the bank admin alone')
+from unnest(array[:'president', :'accountant', :'teller', :'ops']::uuid[]) w;
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 rollback to savepoint jobs;
 

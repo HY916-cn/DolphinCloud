@@ -155,7 +155,6 @@ select is((tests.call(:'ops', $$select count(*) from audit_log$$))::int > 0, tru
 select is((tests.call(:'p1', $$select count(*) from students$$))::int, 7, 'a president still reads the students');
 select is((tests.call(:'p1', $$select count(*) from profiles where login_kind = 'staff'$$))::int,
   (select count(*)::int from profiles where login_kind = 'staff'), 'and the staff');
-select is(tests.err(:'p1', $$select record_wealth_day(current_date, 0, '')$$) is distinct from 'FORBIDDEN', true, 'and keeps 手动登记指数');
 select is(tests.err(:'p1', $$select force_end_duty(gen_random_uuid(), '下班了')$$) is distinct from 'FORBIDDEN', true, 'and 强制下班');
 
 select * from finish();

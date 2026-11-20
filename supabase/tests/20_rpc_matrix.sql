@@ -125,13 +125,13 @@ insert into tests.matrix values
   ('term_quote(text)', 'select term_quote(''nobody'')', '{teller}'),
   ('open_term_deposit(uuid,text,integer,integer)', 'select open_term_deposit(gen_random_uuid(), ''nobody'', 1, 2)', '{teller}'),
   ('withdraw_term_early(uuid)', 'select withdraw_term_early(gen_random_uuid())', '{teller}'),
-  -- 理财: the counter's; the 理财 page the accountant's, president's and bank admin's, 手动登记 the president's and bank
-  -- admin's (PHASE-2.md §10.10); students and the back office read the wealth tables
+  -- 理财: the counter's; the 理财 page the accountant's, president's and bank admin's, 手动登记 the bank admin's alone
+  -- (PHASE-2.md §10.10); students and the back office read the wealth tables
   ('wealth_quote(text)', 'select wealth_quote(''nobody'')', '{teller}'),
   ('buy_wealth(uuid,text,integer,integer,text)', 'select buy_wealth(gen_random_uuid(), ''nobody'', 1, 2, ''steady'')', '{teller}'),
   ('redeem_wealth(uuid)', 'select redeem_wealth(gen_random_uuid())', '{teller}'),
   ('wealth_overview(date,integer)', 'select wealth_overview()', '{accountant,president,teacher}'),
-  ('record_wealth_day(date,numeric,text)', 'select record_wealth_day(current_date, 0, '''')', '{president,teacher}'),
+  ('record_wealth_day(date,numeric,text)', 'select record_wealth_day(current_date, 0, '''')', '{teacher}'),
   -- 贷款: the counter's; 终止 the president's and bank admin's (PHASE-2.md §10.3–10.8); the back office reads the loans tables
   ('loan_quote(text)', 'select loan_quote(''nobody'')', '{teller}'),
   ('loan_preview(text,integer,text,integer)', 'select loan_preview(''nobody'', 1, ''bullet'', 1)', '{teller}'),
