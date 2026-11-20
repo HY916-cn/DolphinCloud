@@ -21,6 +21,8 @@
 | 复现（`docker run` 不设宽限） | 循环 45 次：启动 → 写入一行 → `docker stop` → 再启动；9 次（20%）下次启动日志为 `database system was not properly shut down`，停止日志断在 supervisord 还在停前面的服务（多数刚停完 PostgREST）或 Postgres 刚开始写关闭检查点的地方。记录了 Docker 事件的 25 次里，8 次在 `kill 2`（SIGINT）后 3 秒收到 `kill 9`、退出码 137，其中 5 次 Postgres 还没写完关闭检查点 |
 | 修复后（`--stop-timeout 120`） | 同样的循环 30 次全部正常关闭，退出码 0，停止用时 3～4 秒 |
 | 本地 | `db-test.sh`、`smoke-test.sh`、`upgrade-test.sh 0bd0690`、`rollback-test.sh 0bd0690`、`rehearsal-test.sh` 通过 |
+| CI 44794979932（推送，`0907f88`） | check、image（pgTAP、冒烟含 `docker restart` 后正常关闭）、端到端 4 份全部通过，镜像已发布 |
+| CI 44795070026（手动触发，`0907f88`） | 性能、模拟、演练、从一周前的 `main` 升级、回滚、端到端 4 份全部通过 |
 
 ### 原因
 
