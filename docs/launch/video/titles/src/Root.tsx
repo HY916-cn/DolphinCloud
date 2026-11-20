@@ -6,6 +6,7 @@ const video = { fps: 30, width: 1920, height: 1080 };
 
 export const RemotionRoot: React.FC = () => (
   <Folder name="P2">
-    <Composition id="P2-Title" component={Title} durationInFrames={450} {...video} />
+    <Composition id="P2-Title-Dark" component={Title} durationInFrames={450} defaultProps={{ theme: "dark" as const }} {...video} />
+    <Composition id="P2-Title-Light" component={Title} durationInFrames={450} defaultProps={{ theme: "light" as const }} {...video} />
   </Folder>
 );

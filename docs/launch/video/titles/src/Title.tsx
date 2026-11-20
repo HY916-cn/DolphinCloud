@@ -1,131 +1,154 @@
-// P2 · 标题（脚本 1.5，1:20–1:35）：海水到天空，三层海浪升起，主题，标志。
-import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
+// P2 · 标题（脚本 1.5，1:20–1:35）。苹果发布会式的快节奏：
+// 一笔笔进账随鼓点闪过并越来越快 → 合计 → “It all adds up.” 逐词落下 → 中文主题 → 标志与海浪。
+import { AbsoluteFill, Img, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { easeOut, font, loadFonts } from "./brand";
 import { Waves } from "./Waves";
 
-export const TITLE = { en: "It all adds up.", zh: "每一笔，都算数。", tag: "海豚云 · 2026 发布会" };
-loadFonts(Object.values(TITLE).join(""));
+export type Theme = "light" | "dark";
 
-// Beats in frames from 1:20 (30 fps).
-const T = { waves: 0, theme: 150, zh: 158, logo: 270 };
+const THEMES = {
+  light: { bg: "var(--surface-raised)", text: "var(--ink)", muted: "var(--ink-muted)", tile: "var(--surface-raised)" },
+  dark: { bg: "#000", text: "var(--on-dolphin)", muted: "var(--cloud-200)", tile: "var(--surface-raised)" },
+};
 
-const enter = (frame: number, from: number, rise: number) => ({
-  opacity: interpolate(frame, [from, from + 30], [0, 1], {
+// Small deposits in real denominations (1 / 2 / 5 / 10), each held for `hold` frames;
+// the holds shrink so the cuts speed up into the total.
+const ENTRIES: [string, number, number][] = [
+  ["存款", 10, 16], ["奖励", 5, 14], ["存款", 2, 12], ["利息", 1, 10], ["存款", 10, 9], ["存款", 5, 8],
+  ["奖励", 2, 7], ["存款", 10, 6], ["利息", 1, 5], ["存款", 5, 5], ["存款", 10, 4], ["奖励", 5, 4],
+  ["存款", 2, 4], ["存款", 10, 3], ["利息", 1, 3], ["存款", 5, 3], ["存款", 10, 3], ["奖励", 2, 3],
+];
+const TOTAL = ENTRIES.reduce((sum, [, amount]) => sum + amount, 0);
+const WORDS = ["It", "all", "adds", "up."];
+const ZH = "每一笔，都算数。";
+
+// Beats in frames from 1:20 (30 fps); 1:25 = 150, 1:29 = 270.
+const T = { total: 119, theme: 150, wordGap: 5, zh: 192, logo: 270, end: 450 };
+
+loadFonts(ENTRIES.map(([k]) => k).join("") + `累计${TOTAL}HTB${WORDS.join(" ")}${ZH}海豚云2026发布会+0123456789`);
+
+const fade = (frame: number, from: number, length: number) =>
+  interpolate(frame, [from, from + length], [0, 1], {
     extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  }),
-  translate: `0 ${interpolate(frame, [from, from + 36], [rise, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  })}px`,
-});
-
-// Faint static grain so the pale gradient does not band after compression.
-const Grain = () => (
-  <svg width="100%" height="100%" style={{ position: "absolute", opacity: 0.05 }}>
-    <filter id="grain">
-      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" />
-    </filter>
-    <rect width="100%" height="100%" filter="url(#grain)" />
-  </svg>
-);
-
-export const Title: React.FC = () => {
-  const frame = useCurrentFrame();
-  // Sky (cloud-100) spreads up over the sea (sea-soft) while the waves rise;
-  // it settles on the LoginPage hero gradient.
-  const sky = interpolate(frame, [0, 90], [150, 60], {
     extrapolateRight: "clamp",
     easing: easeOut,
   });
 
+const Center: React.FC<{ children: React.ReactNode; gap?: number }> = ({ children, gap = 24 }) => (
+  <AbsoluteFill style={{ flexDirection: "column", alignItems: "center", justifyContent: "center", gap }}>
+    {children}
+  </AbsoluteFill>
+);
+
+const Amount: React.FC<{ label: string; value: string; c: (typeof THEMES)[Theme] }> = ({ label, value, c }) => (
+  <Center gap={8}>
+    <div style={{ font: `700 56px/1.2 ${font}`, letterSpacing: "0.08em", color: c.muted }}>{label}</div>
+    <div style={{ font: `800 240px/1.1 ${font}`, fontVariantNumeric: "tabular-nums", color: c.text }}>
+      {value}
+      <span style={{ fontSize: 88, marginLeft: 24, color: c.muted }}>HTB</span>
+    </div>
+  </Center>
+);
+
+const Total: React.FC<{ c: (typeof THEMES)[Theme] }> = ({ c }) => {
+  const frame = useCurrentFrame();
+  // Count up like the balance does (data-count, 600 ms, --ease-out).
+  const n = Math.round(interpolate(frame, [0, 18], [0, TOTAL], { extrapolateRight: "clamp", easing: easeOut }));
+  return <Amount label="累计" value={String(n)} c={c} />;
+};
+
+const Theme: React.FC<{ c: (typeof THEMES)[Theme] }> = ({ c }) => {
+  const frame = useCurrentFrame();
   return (
-    <AbsoluteFill
-      style={{
-        background: `linear-gradient(160deg, var(--sea-soft) 0%, var(--cloud-100) ${sky}%)`,
-        fontFamily: font,
-      }}
-    >
-      <Grain />
-      {/* Camera rises from below the sea: the far layer surfaces first, the near one travels
-          furthest; then a slow dolly keeps the parallax alive. */}
-      <Waves
-        scale={5}
-        camY={interpolate(frame, [T.waves, T.waves + 84], [640, 0], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-          easing: easeOut,
-        })}
-        dolly={interpolate(frame, [0, 450], [0, 0.08], { easing: Easing.inOut(Easing.sin) })}
-        focusBlur={6}
-      />
-      <AbsoluteFill
-        style={{
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          paddingBottom: 220,
-          gap: 20,
-        }}
-      >
-        <div
-          style={{
-            font: `800 152px/1.2 ${font}`,
-            letterSpacing: "0.02em",
-            color: "var(--ink)",
-            ...enter(frame, T.theme, 24),
-          }}
-        >
-          {TITLE.en}
-        </div>
-        <div
-          style={{
-            font: `700 56px/1.4 ${font}`,
-            letterSpacing: "0.08em",
-            color: "var(--ink-muted)",
-            ...enter(frame, T.zh, 24),
-          }}
-        >
-          {TITLE.zh}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 36,
-            marginTop: 72,
-            ...enter(frame, T.logo, 16),
-          }}
-        >
-          {/* LoginPage's mark: logo on a white disc inside three sonar rings, floating 6px every 4 s. */}
-          <div
+    <Center gap={40}>
+      <div style={{ display: "flex", gap: "0.28em", font: `800 200px/1.15 ${font}`, letterSpacing: "0.01em", color: c.text }}>
+        {WORDS.map((w, i) => (
+          <span
+            key={w}
             style={{
-              display: "grid",
-              placeItems: "center",
-              width: 120,
-              height: 120,
-              borderRadius: "var(--radius-pill)",
-              background: "var(--surface-raised)",
-              boxShadow:
-                "0 0 0 16px rgba(255,255,255,.6), 0 0 0 40px rgba(255,255,255,.32), 0 0 0 72px rgba(255,255,255,.16)",
+              opacity: fade(frame, i * T.wordGap, 4),
+              translate: `0 ${interpolate(fade(frame, i * T.wordGap, 10), [0, 1], [36, 0])}px`,
             }}
           >
-            <Img
-              src={staticFile("logo.png")}
-              style={{
-                width: 114,
-                height: 114,
-                translate: `0 ${-6 * Math.sin(((frame - T.logo) / 120) * Math.PI) ** 2}px`,
-              }}
-            />
-          </div>
-          <div style={{ font: `700 44px/1.3 ${font}`, letterSpacing: "0.08em", color: "var(--ink)" }}>
-            {TITLE.tag}
-          </div>
+            {w}
+          </span>
+        ))}
+      </div>
+      <div
+        style={{
+          font: `700 72px/1.3 ${font}`,
+          letterSpacing: "0.12em",
+          color: c.muted,
+          opacity: fade(frame, T.zh - T.theme, 18),
+          translate: `0 ${interpolate(fade(frame, T.zh - T.theme, 24), [0, 1], [20, 0])}px`,
+        }}
+      >
+        {ZH}
+      </div>
+    </Center>
+  );
+};
+
+const Brand: React.FC<{ c: (typeof THEMES)[Theme]; theme: Theme }> = ({ c, theme }) => {
+  const frame = useCurrentFrame();
+  const pop = fade(frame, 0, 14);
+  return (
+    <AbsoluteFill>
+      {/* The waves rise with depth: the far layer surfaces first, the near one travels furthest. */}
+      <Waves scale={3} camY={interpolate(fade(frame, 4, 60), [0, 1], [420, 0])} focusBlur={4} />
+      <Center gap={36}>
+        {/* The logo as its app icon: on surface-raised, as the logo guidelines require. */}
+        <div
+          style={{
+            display: "grid",
+            placeItems: "center",
+            width: 260,
+            height: 260,
+            marginBottom: 24,
+            borderRadius: 64,
+            background: c.tile,
+            boxShadow: theme === "light" ? "0 12px 0 var(--line), inset 0 0 0 4px var(--line)" : undefined,
+            opacity: pop,
+            scale: interpolate(pop, [0, 1], [0.88, 1]),
+          }}
+        >
+          <Img src={staticFile("logo.png")} style={{ width: 220, height: 220 }} />
         </div>
-      </AbsoluteFill>
+        <div style={{ font: `800 120px/1.1 ${font}`, letterSpacing: "0.08em", color: c.text, opacity: fade(frame, 6, 14) }}>
+          海豚云
+        </div>
+        <div style={{ font: `700 52px/1.3 ${font}`, letterSpacing: "0.12em", color: c.muted, opacity: fade(frame, 14, 16) }}>
+          2026 发布会
+        </div>
+      </Center>
+    </AbsoluteFill>
+  );
+};
+
+export const Title: React.FC<{ theme: Theme }> = ({ theme }) => {
+  const c = THEMES[theme];
+  let at = 0;
+  return (
+    <AbsoluteFill style={{ background: c.bg, fontFamily: font }}>
+      {/* Hard cuts on the beat: each entry replaces the last. */}
+      {ENTRIES.map(([label, amount, hold], i) => {
+        const from = at;
+        at += hold;
+        return (
+          <Sequence key={i} from={from} durationInFrames={hold}>
+            <Amount label={label} value={`+${amount}`} c={c} />
+          </Sequence>
+        );
+      })}
+      <Sequence from={T.total} durationInFrames={T.theme - T.total}>
+        <Total c={c} />
+      </Sequence>
+      <Sequence from={T.theme} durationInFrames={T.logo - T.theme}>
+        <Theme c={c} />
+      </Sequence>
+      <Sequence from={T.logo}>
+        <Brand c={c} theme={theme} />
+      </Sequence>
     </AbsoluteFill>
   );
 };
