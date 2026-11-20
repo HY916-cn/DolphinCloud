@@ -200,25 +200,24 @@ select tests.call(:'teacher', 'select adjust_credit(''s1'', -400, ''恢复'')') 
 
 -- The settings (§14.3): the bank admin, checked for shape, range and the order of each pair.
 select is(tests.err(:'president', $$select set_setting('credit_curve', '{}')$$), 'FORBIDDEN', 'not the president');
-select is(tests.call(:'teacher', $$select set_setting('credit_curve', '{"min_score":300,"limit_min":40,"limit_max":400,"limit_step":10,"loan_max":2,"loan_min":1,"saving_min":0.5,"saving_max":1.5}')$$) ->> 'key',
+select is(tests.call(:'teacher', $$select set_setting('credit_curve', '{"min_score":300,"limit_min":40,"limit_max":400,"limit_step":10,"loan_max":2,"loan_min":1}')$$) ->> 'key',
   'credit_curve', 'the bank admin changes the curve');
 select is(array[app_private.credit_limit(600), app_private.loan_factor(600)], array[190, 1.5714],
   'and the scores follow it at once');
 select is(tests.call(:'teacher', format('select set_setting(''credit_curve'', %L)', c)) ->> 'detail', '{"field": "credit_curve"}', why)
-from (values ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8}', 'every key'),
-  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2,"x":1}', 'no other'),
-  ('{"min_score":1000,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}', 'a score below 1000'),
-  ('{"min_score":400.5,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}', 'a whole score'),
-  ('{"min_score":400,"limit_min":"50","limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}', 'numbers'),
-  ('{"min_score":400,"limit_min":4,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}', 'the step within the lowest limit'),
-  ('{"min_score":400,"limit_min":350,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}', 'the limits in order'),
-  ('{"min_score":400,"limit_min":50,"limit_max":10001,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}', 'limits up to 10000'),
-  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.1,"loan_min":1.8,"saving_min":0.8,"saving_max":1.2}', 'the loan factors in order'),
-  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":1.3,"saving_max":1.2}', 'the saving factors in order'),
-  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":0,"saving_min":0.8,"saving_max":1.2}', 'factors from 0.1'),
-  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.80001,"saving_max":1.2}', 'with 4 decimals'),
+from (values ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8}', 'every key'),
+  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"x":1}', 'no other'),
+  ('{"min_score":1000,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1}', 'a score below 1000'),
+  ('{"min_score":400.5,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1}', 'a whole score'),
+  ('{"min_score":400,"limit_min":"50","limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1}', 'numbers'),
+  ('{"min_score":400,"limit_min":4,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1}', 'the step within the lowest limit'),
+  ('{"min_score":400,"limit_min":350,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1}', 'the limits in order'),
+  ('{"min_score":400,"limit_min":50,"limit_max":10001,"limit_step":5,"loan_max":1.8,"loan_min":1.1}', 'limits up to 10000'),
+  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.1,"loan_min":1.8}', 'the loan factors in order'),
+  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":0}', 'factors from 0.1'),
+  ('{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.10001}', 'with 4 decimals'),
   ('[]', 'an object')) t(c, why);
-select is(tests.call(:'teacher', $$select set_settings('{"credit_curve":{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2},"credit_rules":{"repay_on_time":5,"repay_early":10,"overdue":-50,"overdue_week":-30,"deposit_week":4,"deposit_streak":10,"withdraw_half":-5,"account_age":2,"balance_100":2,"balance_300":2}}')$$) #>> '{credit_rules,deposit_week}',
+select is(tests.call(:'teacher', $$select set_settings('{"credit_curve":{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1},"credit_rules":{"repay_on_time":5,"repay_early":10,"overdue":-50,"overdue_week":-30,"deposit_week":4,"deposit_streak":10,"withdraw_half":-5,"account_age":2,"balance_100":2,"balance_300":2}}')$$) #>> '{credit_rules,deposit_week}',
   '4', 'the bank admin changes both at once');
 select is(app_private.credit_change('s1', null, 'deposit_week', '上周有存款') ->> 'delta', '4', 'the rules follow at once');
 select is(tests.call(:'teacher', format('select set_setting(''credit_rules'', %L)', c)) ->> 'detail', '{"field": "credit_rules"}', why)

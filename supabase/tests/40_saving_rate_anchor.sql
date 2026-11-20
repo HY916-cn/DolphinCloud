@@ -1,5 +1,5 @@
--- 活期只随锚点 (PHASE-2.md §8.1, §9.2–9.3, §10.11, §17): 活期 at every score and anchor is the anchor; the loan rates
--- stay on the score; the days accrued before 20261209000000_saving_rate_anchor.sql keep their rate and interest through
+-- 活期只随锚点 (PHASE-2.md §8.1, §9.2–9.3, §10.11, §14.3, §17): 活期 at every score and anchor is the anchor; the loan
+-- rates stay on the score; credit_curve holds the loan side alone; the days accrued before 20261209000000_saving_rate_anchor.sql keep their rate and interest through
 -- 补录 dated before them and after them; a catch-up gives what every day on time gives. The days are counted back from
 -- today, since run_jobs and 补录 may not be dated after now.
 \ir helpers/setup.psql
@@ -20,6 +20,18 @@ from (values (0, '{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.
 select is(app_private.loan_rate(1.5, 600), 4.7, 'the loan rate still moves with the anchor: 1.5 × 2 × 1.5666… = 4.7');
 select hasnt_function('app_private', 'saving_factor', array['integer'], 'no 储蓄系数');
 select hasnt_function('app_private', 'saving_factor_raw', array['integer'], 'nor its unrounded form');
+
+-- §14.3: credit_curve has the six keys of the loan side (20261211000000_credit_curve_no_saving.sql).
+select is((select array_agg(k order by k) from jsonb_object_keys(app_private.setting('credit_curve')) k),
+  array['limit_max', 'limit_min', 'limit_step', 'loan_max', 'loan_min', 'min_score'], 'the saved curve has no 储蓄系数');
+select is(tests.call(:'teacher', $$select set_setting('credit_curve', '{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.1,"saving_min":0.8,"saving_max":1.2}')$$),
+  '{"error":"INVALID_INPUT","detail":"{\"field\": \"credit_curve\"}"}', 'a curve with the 储蓄系数 is refused');
+savepoint curve;
+select is(tests.call(:'teacher', $$select set_setting('credit_curve', '{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.2}')$$),
+  '{"key":"credit_curve","value":{"min_score":400,"limit_min":50,"limit_max":300,"limit_step":5,"loan_max":1.8,"loan_min":1.2}}',
+  'the six keys are saved');
+select is(app_private.loan_factor(1000), 1.2, 'and the loan rates follow them');
+rollback to savepoint curve;
 
 -- One anchor all along (2%) and no rule moves a score, so a before the migration (600 分) and b (1000 分) differ only
 -- by the rule their days were accrued under.
