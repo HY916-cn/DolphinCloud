@@ -8,6 +8,8 @@
 
 | 检查 | 结果 |
 | --- | --- |
+| CI 44786081523（`abc4d83`） | check、image（pgTAP、冒烟）、端到端 4 份全部通过，镜像已发布；第 3 份第一次卡在安装 Playwright 近 30 分钟，取消后重跑通过 |
+| CI 44786160144（手动触发，`abc4d83`） | 性能、模拟、演练（51 秒）、从一周前的 `main` 升级、回滚通过；端到端同样卡在安装 Playwright，与上一行重复，已取消 |
 | `docker/rehearsal-test.sh` | 通过，约 45 秒（含两个容器启动）；今天 11 月 21 日，窗口 11 月 5～20 日，学期一 11 月 13 日结束，B 从 15 日晚停到今天（5 天） |
 | 本地 | `db-test.sh`（含 `44_closed_term_reversal.sql` 12 项）、`smoke-test.sh`、`upgrade-test.sh 58e9435`、`rollback-test.sh 58e9435`、`E2E_SHARDS=3 e2e-test.sh`（205 条）通过 |
 
