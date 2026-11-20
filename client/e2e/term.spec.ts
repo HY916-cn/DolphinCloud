@@ -171,7 +171,7 @@ test('后台流水: the two 定期 types as filters, and 冲正 only while the �
   await expect(rows.locator('.dc-txn-amount small')).toHaveText('转回');
   const centi = Number(sql(`select interest_centi from public.term_deposits where status = 'early'`));
   await expect(rows.locator('.dc-txn-title')).toHaveText(`定期转回 · 提前支取，利息 ${(centi / 100).toFixed(2)} HTB`);
-  // 提前支取 before the day it was to mature: only the bank admin and the president reverse it, here.
+  // 提前支取 before the day it was to mature: only the bank admin reverses it, here.
   await rows.first().locator('summary').click();
   await expect(rows.first().getByRole('button', { name: '冲正' })).toBeVisible();
 });

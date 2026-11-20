@@ -289,10 +289,11 @@ select is(tests.fix(:'before_opened', '{"denominations":{"5":2}}') ->> 'error', 
 select is(tests.fix((select id from txns where student_no = 'e' and type = 'withdraw' and entered_at is null), '{"amount":110}') #>> '{detail,at}',
   to_jsonb(tests.noon(:'today'::date - 5)) #>> '{}', 'and 活期 since then never below 0: e''s 取款 of 80 five days ago was not 110');
 
--- 冲正 of a 调账 (§10.9): the president and bank admin, dated now.
+-- 冲正 of a 调账 (§10.9): the bank admin alone, dated now.
 select tests.entry('d', 'adjust', tests.noon(:'today'::date - 3), 7) ->> 'id' as adj \gset
 select is(tests.call(:'teller', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'adj')) ->> 'error', 'REVERSAL_NOT_ALLOWED', 'not the teller');
-select is(tests.call(:'president', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'adj')) ->> 'amount', '7', 'the president');
+select is(tests.call(:'president', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'adj')) ->> 'error', 'FORBIDDEN', 'nor the president');
+select is(tests.call(:'teacher', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'adj')) ->> 'amount', '7', 'the bank admin');
 
 -- 报表 (§10.11): 期初、期末 by the transactions dated before them, wherever an entry falls in the order written.
 select is((tests.call(:'accountant', format('select bank_report(%L, %L, p_student_no => ''a'')', :'today'::date - 15, :'today'::date - 15)) -> 'balance') - 'changes',
