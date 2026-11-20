@@ -2,6 +2,41 @@
 
 对照 [PHASE-1.md](PHASE-1.md) §12.2 的验收标准，逐条写明证据。PHASE-1.md 里只勾选完全验证过的条目。
 
+## 2026-11-20 · 二期 M22 公开页面、活期利率即锚点、指数登记只限银行管理员
+
+### 本次运行
+
+| 检查 | 结果 |
+| --- | --- |
+| CI 44714396091（`522c11a`） | check、image（pgTAP、冒烟）、端到端 4 份全部通过，镜像已发布；包含前端 `b540a20`、`de85e4b`、`514c209` 与后端 `3a8726e`、`522c11a` |
+| CI 44585031711（`2b5be10`） | 全部通过：看板接口与活期即锚点（`dc3375b`） |
+| CI 44575923595（`6a9dddf`） | 全部通过：M22 后端与文件传输细节 |
+| 本地（`dolphin-cloud:be27`、`be28`、`be29`） | pgTAP 全部通过（`39_public_pages.sql`、`40_saving_rate_anchor.sql` 61 个、`41_wealth_record_admin.sql` 9 个）；冒烟（含一次真实上传与下载）；`upgrade-test.sh 545b8e9`、`rollback-test.sh 545b8e9`；端到端 204 个；`sim-test.sh` 一学期模拟 |
+
+### 完成的事项
+
+| 事项 | 内容 | 证据 |
+| --- | --- | --- |
+| 利率看板 | `/board` 不用登录，便当盒式五块：活期、贷款（600～1000 分）、定期、指数、理财三档，标题带「实时」，每 60 秒更新 | `public_rates()`；迁移 `20261208000000_public_pages.sql`、`20261208000200_public_rates_board.sql`、`20261210000000_public_rates_current.sql`；设计系统 `RateBoard`；`public-pages.spec.ts`（`b540a20`、`514c209`） |
+| 大屏时间 | `/clock` 按 `server_time()` 校准，整秒刷新，校准失败标「未校准」 | `server_time()`；设计系统 `BigClock` |
+| 文件传输 | `/transfer` 不用登录，一次至多 20 个文件，4 位取件码 7 天内反复下载，到期由每日任务删除；按 IP 限制上传次数和输错次数，全站 5 GB；银行管理员在后台「文件」页提前删除并写原因 | 迁移 `20261208000000_public_pages.sql`、`20261208000100_transfer_details.sql`；`39_public_pages.sql`；PHASE-2.md 第 19 节勾选一条 |
+| 活期利率 | 活期周利率等于本周锚点，与信用分无关；信用分只决定贷款额度和利率；储蓄系数参数删除 | 迁移 `20261209000000_saving_rate_anchor.sql`、`20261211000000_credit_curve_no_saving.sql`；`40_saving_rate_anchor.sql`；前端 `de85e4b` |
+| 指数登记 | `record_wealth_day` 只限银行管理员，行长 `FORBIDDEN` | 迁移 `20261212000000_wealth_record_admin.sql`；`41_wealth_record_admin.sql` |
+
+### 已确认的取舍
+
+| 事项 | 规则 |
+| --- | --- |
+| 已计的活期利息 | 每天的利率随计息记录保存，迁移前的日子保持原利率，补录也按记下的利率更正 |
+| 文件传输与备份 | 文件传输的文件和记录不进备份 |
+
+### 上线前仍需完成
+
+- 正式服务器的访问者 IP：frpc 为 TLS 透传，容器只看到网关地址，文件传输的限流由全站共用。上线时在 compose 加 `DOLPHIN_PROXY_PROTOCOL`、在 frpc 的 `[dolphincloud]` 加 `proxy_protocol_version = v2`，再用一次文件传输核对记下的 IP。
+- 在真实大屏上核对看板 3 米外可读、时间与服务器相差不超过 1 秒，之后勾选第 19 节对应两条。
+- 行长理财页去掉「登记」按钮（前端）。
+- 其余同 11-11 一节；M13、M14、M22 尚未部署到正式服务器（线上 `545b8e9`）。
+
 ## 2026-11-20 · 二期 M14 货币登记与监控、经营看板、库存预警
 
 ### 本次运行
