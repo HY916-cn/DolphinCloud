@@ -66,12 +66,12 @@ npm --prefix client run lint
 | 脚本 | 内容 |
 | --- | --- |
 | `docker/db-test.sh` | 在镜像上逐个运行 `supabase/tests/*.sql`（pgTAP） |
-| `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、公开页面（大屏时间、利率看板、文件传输经 Storage 上传 100 MB 与下载、来源 IP、PROXY 协议、后台删除与清理）、加密备份与恢复、容器重启 |
+| `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、公开页面（大屏时间、利率看板、文件传输经 Storage 上传 100 MB 与下载、来源 IP、PROXY 协议、后台删除与清理）、加密备份与恢复、容器重启（Postgres 正常关闭） |
 | `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；`E2E_SHARDS=3` 时分 3 份同时跑，各用一个容器；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
-| `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：迁移、升级前备份、余额与库存不变、自检 |
+| `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：旧容器正常关闭、迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
 | `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、买理财与赎回、放款与还款）与每天的定时任务：每个周一都有锚点且始终在 1%～4%，每天都计活期利息（含假期），每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期和理财全部转回活期（更长的转入下学期），全部到期的贷款都已结清或逾期在册 |
-| `docker/rehearsal-test.sh` | 上线前演练（约 1～2 分钟）：两个容器用同一份数据按天跑过今天之前的 16 天。学期结转后余额、信用分和未结的定期、理财、贷款原样转入下学期，上学期按学期可查、只有补录和编辑能改；一个容器 `docker stop` 几天再 `docker start`，`dolphin-jobs` 自己补跑，结果与每天运行的容器逐行相同 |
+| `docker/rehearsal-test.sh` | 上线前演练（约 1～2 分钟）：两个容器用同一份数据按天跑过今天之前的 16 天。学期结转后余额、信用分和未结的定期、理财、贷款原样转入下学期，上学期按学期可查、只有补录和编辑能改；一个容器 `docker stop` 几天再 `docker start`，Postgres 正常关闭，`dolphin-jobs` 自己补跑，结果与每天运行的容器逐行相同 |
 
 ```bash
 docker/upgrade-test.sh <生产环境当前的提交>
@@ -82,8 +82,10 @@ CI（`.github/workflows/ci.yml`）在每次推送和 PR 上同时运行依赖审
 ## 部署
 
 ```bash
-docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 -v dolphin-data:/data -e DOLPHIN_DOMAIN=bank.example.edu.cn -e ACME_EMAIL=it@example.edu.cn ghcr.io/hy916-cn/dolphin-cloud:1.0.0
+docker run -d --name dolphin-cloud --restart unless-stopped --stop-timeout 120 -p 80:80 -p 443:443 -v dolphin-data:/data -e DOLPHIN_DOMAIN=bank.example.edu.cn -e ACME_EMAIL=it@example.edu.cn ghcr.io/hy916-cn/dolphin-cloud:1.0.0
 ```
+
+`--stop-timeout 120` 让 Postgres 在 Docker 强制结束前写完关闭检查点；用 docker compose 时写 `stop_grace_period: 2m`（见 PHASE-1.md §9.2）。
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |

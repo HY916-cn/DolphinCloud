@@ -13,16 +13,18 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK=$(mktemp -d)
 
 remove() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+# Before another image takes the volume, stop as docker compose does; start() checks Postgres shut down cleanly.
+stop() { docker stop "$NAME" >/dev/null; remove; }
 trap 'remove; docker volume rm "$NAME-data" >/dev/null 2>&1 || true; docker rmi "$OLD_IMAGE" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
 fail() { echo "FAIL: $*" >&2; docker logs --tail 40 "$NAME" >&2 || true; exit 1; }
 pass() { echo "PASS: $*"; }
 sql() { docker exec "$NAME" psql -U postgres -d postgres -qAt -v ON_ERROR_STOP=1 -c "$1"; }
 start() { # start <image> <number of migrations it must apply>
-  docker run -d --name "$NAME" -p 127.0.0.1::443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$1" >/dev/null
+  docker run -d --name "$NAME" --stop-timeout 120 -p 127.0.0.1::443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost "$1" >/dev/null
   PORT=$(docker port "$NAME" 443/tcp | head -1 | sed 's/.*://') # Docker picks a free host port
   for _ in $(seq 1 90); do
     [ "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost:$PORT/auth/v1/health")" = 200 ] \
-      && [ "$(sql "select count(*) from public.app_migrations" 2>/dev/null)" = "$2" ] && return 0
+      && [ "$(sql "select count(*) from public.app_migrations" 2>/dev/null)" = "$2" ] && { ! docker logs "$NAME" 2>&1 | grep -q 'not properly shut down' || fail "Postgres was killed at docker stop"; return 0; }
     sleep 2
   done
   fail "$1 did not finish its $2 migrations"
@@ -37,7 +39,7 @@ docker exec "$NAME" dolphin check >/dev/null || fail "old image: dolphin check"
 ledger > "$WORK/before"
 pass "$OLD_REF: migrated, seeded, ledger checked"
 
-remove
+stop
 start "$IMAGE" "$(ls "$ROOT"/supabase/migrations/*.sql | wc -l | tr -d ' ')"
 [ -n "$(docker exec "$NAME" dolphin backups)" ] || fail "no backup before the upgrade migrated"
 docker exec "$NAME" dolphin check || fail "new image: dolphin check"

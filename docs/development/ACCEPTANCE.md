@@ -2,6 +2,31 @@
 
 对照 [PHASE-1.md](PHASE-1.md) §12.2 的验收标准，逐条写明证据。PHASE-1.md 里只勾选完全验证过的条目。
 
+## 2026-11-21 · 停止容器时 Postgres 正常关闭
+
+### 本次运行
+
+| 检查 | 结果 |
+| --- | --- |
+| 复现（`docker run` 不设宽限） | 循环 45 次：启动 → 写入一行 → `docker stop` → 再启动；9 次（20%）下次启动日志为 `database system was not properly shut down`，停止日志断在 supervisord 还在停前面的服务（多数刚停完 PostgREST）或 Postgres 刚开始写关闭检查点的地方。记录了 Docker 事件的 25 次里，8 次在 `kill 2`（SIGINT）后 3 秒收到 `kill 9`、退出码 137，其中 5 次 Postgres 还没写完关闭检查点 |
+| 修复后（`--stop-timeout 120`） | 同样的循环 30 次全部正常关闭，退出码 0，停止用时 3～4 秒 |
+| 本地 | `db-test.sh`、`smoke-test.sh`、`upgrade-test.sh 0bd0690`、`rollback-test.sh 0bd0690`、`rehearsal-test.sh` 通过 |
+
+### 原因
+
+镜像内的关闭流程本身正确：supervisord 是 PID 1，收到 `docker stop` 的 SIGINT（基础镜像 `postgres` 的 `STOPSIGNAL`）后按优先级从高到低逐个停止服务，最后给 Postgres 发 SIGINT（fast shutdown），`stopwaitsecs=60`。前面的服务停完要 2～3 秒（supervisord 每停一组最多等 1 秒的轮询）。本机 Docker Desktop 29.9.3 对没设宽限的容器只等 3 秒就 SIGKILL，Postgres 有时刚开始写关闭检查点就被杀掉。正式服务器的 compose 没有 `stop_grace_period`，今天 02:24 升级到 `0bd0690` 后的启动日志里也有这一行；当时 `dolphin check` 一致，数据完整。
+
+### 完成的事项
+
+| 事项 | 证据 |
+| --- | --- |
+| 部署说明给足停止宽限 | PHASE-1.md §9.2：`docker run` 加 `--stop-timeout 120`，docker compose 写 `stop_grace_period: 2m`，并说明停止顺序；README 的部署命令同步 |
+| 测试按同样的宽限创建容器，没正常关闭即失败 | `smoke-test.sh` 的 `docker restart`、`rehearsal-test.sh` 的停机补跑、`upgrade-test.sh` 与 `rollback-test.sh` 换镜像前的 `docker stop`（与 `docker compose up -d` 换容器相同），之后的启动日志出现 `not properly shut down` 即判失败 |
+
+### 上线前仍需完成
+
+- 正式服务器的 `docker-compose.yml` 在 `dolphincloud` 服务下加 `stop_grace_period: 2m`。这次换容器时旧容器还没有宽限，先 `docker stop -t 120 dolphincloud`，再 `docker compose up -d`；之后 `docker inspect -f '{{.Config.StopTimeout}}' dolphincloud` 应为 `120`。
+
 ## 2026-11-21 · 正式服务器升级到 0bd0690
 
 带上 `bank_report` 提速（`e59459d`）、已结转学期的流水不能再冲正（`abc4d83`）和上线前演练脚本，步骤同 PHASE-1.md §9.5。

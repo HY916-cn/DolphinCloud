@@ -15,18 +15,20 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK=$(mktemp -d)
 
 remove() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+# Before another image takes the volume, stop as docker compose does; start() checks Postgres shut down cleanly.
+stop() { docker stop "$NAME" >/dev/null; remove; }
 trap 'remove; docker volume rm "$NAME-data" >/dev/null 2>&1 || true; docker rmi "$OLD_IMAGE" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
 fail() { echo "FAIL: $*" >&2; docker logs --tail 40 "$NAME" >&2 || true; exit 1; }
 pass() { echo "PASS: $*"; }
 sql() { docker exec "$NAME" psql -U postgres -d postgres -qAt -v ON_ERROR_STOP=1 -c "$1"; }
 healthy() { [ "$(curl -sk -o /dev/null -w '%{http_code}' "https://localhost:$PORT/auth/v1/health")" = 200 ]; }
 start() { # start <image>: returns once its dolphin-migrate has finished and Auth answers over HTTPS
-  docker run -d --name "$NAME" -p 127.0.0.1::443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost \
+  docker run -d --name "$NAME" --stop-timeout 120 -p 127.0.0.1::443 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost \
     -e BACKUP_RECIPIENT="$RECIPIENT" "$1" >/dev/null
   PORT=$(docker port "$NAME" 443/tcp | head -1 | sed 's/.*://') # Docker picks a free host port
   local version; version=$(docker exec "$NAME" printenv DOLPHIN_VERSION)
   for _ in $(seq 1 90); do
-    [ "$(docker exec "$NAME" cat /data/run/image-version 2>/dev/null)" = "$version" ] && healthy && return 0
+    [ "$(docker exec "$NAME" cat /data/run/image-version 2>/dev/null)" = "$version" ] && healthy && { ! docker logs "$NAME" 2>&1 | grep -q 'not properly shut down' || fail "Postgres was killed at docker stop"; return 0; }
     sleep 2
   done
   fail "$1 did not finish migrating"
@@ -57,7 +59,7 @@ schema > "$WORK/schema-before"
 BACKUP=$(basename "$(docker exec "$NAME" dolphin backup | tail -1)")
 pass "$OLD_REF: seeded, business taken, ledger checked, backed up to $BACKUP"
 
-remove
+stop
 start "$IMAGE"
 [ "$(sql "select count(*) from public.app_migrations")" = "$(ls "$ROOT"/supabase/migrations/*.sql | wc -l | tr -d ' ')" ] || fail "upgrade did not migrate"
 # 下班 and 上班 again, so the new version's rows refer to the old version's (a cash count refers to its duty).
@@ -72,7 +74,7 @@ pass "$IMAGE: migrated, business taken after 下班 and 上班, ledger checked"
 
 # Roll back as PHASE-1.md §9.5 says: the new image's dolphin restores the backup in the old image.
 docker run --rm --entrypoint cat "$IMAGE" /usr/local/bin/dolphin > "$WORK/dolphin-restore"
-remove
+stop
 start "$OLD_IMAGE"
 docker cp -q "$WORK/dolphin-restore" "$NAME:/tmp/dolphin-restore"
 docker exec -i "$NAME" bash /tmp/dolphin-restore restore "$BACKUP" < "$WORK/backup-key.txt" >/dev/null || fail "restore"

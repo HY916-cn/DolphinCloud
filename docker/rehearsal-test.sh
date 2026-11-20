@@ -60,7 +60,7 @@ chmod 755 "$WORK/bin/curl"
 IMAGE_PATH=$(docker image inspect "$IMAGE" -f '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^PATH=//p')
 
 for c in "$A" "$B"; do
-  docker run -d --name "$c" -v "$c-data:/data" -v "$WORK/bin:/opt/rehearsal:ro" -e PATH="/opt/rehearsal:$IMAGE_PATH" \
+  docker run -d --name "$c" --stop-timeout 120 -v "$c-data:/data" -v "$WORK/bin:/opt/rehearsal:ro" -e PATH="/opt/rehearsal:$IMAGE_PATH" \
     -e DOLPHIN_DOMAIN=localhost "$IMAGE" >/dev/null
 done
 for c in "$A" "$B"; do
@@ -224,7 +224,7 @@ done
 docker exec "$B" dolphin jobs | tee "$WORK/b.jobs"
 grep -q "^daily  done to $YESTERDAY" "$WORK/b.jobs" || fail "B did not catch up: $(cat "$WORK/b.jobs")"
 docker logs --since "$since" "$B" 2>&1 | grep -E '^wealth: ' | sed 's/^/B at the restart: /'
-docker logs --since "$since" "$B" 2>&1 | grep -q 'not properly shut down' && echo "B at the restart: Postgres had not finished shutting down and recovered from its log"
+! docker logs --since "$since" "$B" 2>&1 | grep -q 'not properly shut down' || fail "B: Postgres was killed at docker stop before it shut down cleanly"
 ran=$(docker logs --since "$since" "$B" 2>&1 | grep -E '^(daily|weekly) [0-9-]+ done$' | tr '\n' ' ' | sed 's/ $//')
 expect=$(sq "$A" -c "select string_agg(j || ' ' || d::date || ' done', ' ' order by d, o)
   from generate_series(date '$DOWN' - 1, date '$T', interval '1 day') d, unnest(array['weekly', 'daily']) with ordinality u(j, o)

@@ -872,7 +872,7 @@ docker/rollback-test.sh <生产环境当前的提交>
 ### 9.2 启动
 
 ```bash
-docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 -v dolphin-data:/data -e DOLPHIN_DOMAIN=bank.example.edu.cn -e ACME_EMAIL=it@example.edu.cn ghcr.io/hy916-cn/dolphin-cloud:1.0.0
+docker run -d --name dolphin-cloud --restart unless-stopped --stop-timeout 120 -p 80:80 -p 443:443 -v dolphin-data:/data -e DOLPHIN_DOMAIN=bank.example.edu.cn -e ACME_EMAIL=it@example.edu.cn ghcr.io/hy916-cn/dolphin-cloud:1.0.0
 ```
 
 入口脚本顺序：
@@ -880,6 +880,16 @@ docker run -d --name dolphin-cloud --restart unless-stopped -p 80:80 -p 443:443 
 1. 首次启动：初始化数据库，执行 `init/`（创建 `anon`、`authenticated`、`service_role`、`authenticator`、`supabase_auth_admin`、`supabase_storage_admin` 等角色与 `auth`、`storage` schema），生成密钥。
 2. 每次启动：若数据库已有数据且镜像版本变化，先做一次升级前备份；Postgres 就绪后依次启动 Auth、Storage（各自执行内置迁移），执行 `supabase/migrations/` 中未应用的迁移（记录在 `app_migrations` 表，含每个文件的 sha256；已应用的文件内容变了就停止迁移并报错，`dolphin health` 随之失败；同一时间只有一个迁移进程），再启动 PostgREST 与 Caddy。
 3. 生成 `/config.js`，内容为站点地址与 anon key。
+
+停止（`docker stop`、`docker restart`、`docker compose up -d` 换新容器）时，supervisord 按启动的相反顺序逐个停止服务，最后给 Postgres 发 SIGINT（fast shutdown），等它写完关闭检查点，最多 60 秒（`supervisord.conf` 的 `stopwaitsecs`）。Docker 在宽限时间到后直接 SIGKILL，Postgres 若还没写完，下次启动会从 WAL 恢复（日志 `database system was not properly shut down`），交易号等序列随之跳号。前面的服务停下来就要 2～3 秒，Docker Desktop 的默认宽限只有 3 秒，所以创建容器时必须给足宽限：`docker run` 加 `--stop-timeout 120`（之后的 `docker stop`、`docker restart` 都按它），docker compose 写 `stop_grace_period: 2m`：
+
+```yaml
+services:
+  dolphincloud:
+    stop_grace_period: 2m
+```
+
+冒烟、升级、回滚和演练脚本都按这个宽限创建容器，重启后日志里出现 `not properly shut down` 即判失败。
 
 首次启动后创建第一个银行管理员账号（命令打印初始密码，登录后设置新密码）：
 
@@ -1023,7 +1033,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；新设备读到上班状态前断网仍能离线登记；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按搜索（学生、柜员、交易号）、时段、类型筛选与冲正、流水导出；报表数字、标签页、时段与 PDF 导出；柜台查询全部交易记录与筛选；柜员上班才能办理、下班打印总结；柜员绑定工资账户 → 银行管理员开启考勤 → 上下班记下班次 → 审查、全部确认、补签、发放工资 → 柜员看到已发工资、学生明细里有工资；批量管理学生与工作人员、注销账号；我的页与在此设备保存登录（未保存的账号重新打开后须登录）；行长看到全部业务页面、学生与工作人员只读；总览待办、页面间跳转、参数开关、日志；学生明细（按类型、搜索）与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 | 模拟 | `docker/sim-test.sh`：新容器里 2000 名学生、一个 18 周的学期和之后一周假期，每个上学日随机存取款、开定期与提前支取、买理财与赎回（每个开盘日固定的模拟涨跌）、放款与还款、信用分变动，学期中冻结一批账户，按天运行 `run_weekly`、`run_daily`（假期与学期内相同） | 每个周一都有锚点（19 个）且始终在 1%～4%，每天都计活期利息，每天 `check_balances` 无差异，单次 `run_daily` < 30 秒，到期的定期和理财全部转回活期（更长的转入下学期），全部到期的贷款都已结清或逾期在册 |
-| 演练 | `docker/rehearsal-test.sh`：两个新容器按天跑过今天之前的 16 天（同一份数据与业务，跨两个周一和一个学期末），银行管理员的操作经 HTTPS 调用，指数日线由 `dolphin jobs fetch` 从替身行情源取（不联网）；约 1～2 分钟 | 学期结转（PHASE-2 §6.3）：余额、信用分和未结的定期、理财、贷款原样转入下学期，`dolphin check` 一致，上学期按学期可查，只有补录、编辑能改；停机补跑（PHASE-2 §13）：一个容器 `docker stop` 3～6 天后 `docker start`，`dolphin-jobs` 自己补跑，与每天运行的容器逐行相同 |
+| 演练 | `docker/rehearsal-test.sh`：两个新容器按天跑过今天之前的 16 天（同一份数据与业务，跨两个周一和一个学期末），银行管理员的操作经 HTTPS 调用，指数日线由 `dolphin jobs fetch` 从替身行情源取（不联网）；约 1～2 分钟 | 学期结转（PHASE-2 §6.3）：余额、信用分和未结的定期、理财、贷款原样转入下学期，`dolphin check` 一致，上学期按学期可查，只有补录、编辑能改；停机补跑（PHASE-2 §13）：一个容器 `docker stop` 3～6 天后 `docker start`，Postgres 正常关闭，`dolphin-jobs` 自己补跑，与每天运行的容器逐行相同 |
 
 CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 同时运行三项：依赖审计、类型检查、代码检查与单元测试；构建镜像并运行 `docker/db-test.sh` 与 `docker/smoke-test.sh`；端到端测试分 4 份在 4 台机器上同时运行（各自从 Actions 缓存构建镜像），失败时上传各份的 Playwright 结果。只改 Markdown 或 `docs/` 的推送不运行 CI。推送到 `main` 时，镜像测试通过后先以 `ci-<7 位提交号>` 推送到 GHCR，全部通过后再给同一镜像加上 `main` 与 `sha-<7 位提交号>` 标签（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/rehearsal-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
 

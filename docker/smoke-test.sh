@@ -47,7 +47,8 @@ login() { # login <email> <password> → prints access token, empty on failure
 docker run --rm --entrypoint age-keygen "$IMAGE" > "$WORK/backup-key.txt" 2>/dev/null
 RECIPIENT=$(sed -n 's/^# public key: //p' "$WORK/backup-key.txt")
 # Docker forwards the published ports from a private address: Caddy takes a PROXY protocol header from there, if any.
-docker run -d --name "$NAME" -p 127.0.0.1::443 -p 127.0.0.1::80 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com \
+# --stop-timeout as in PHASE-1.md §9.2: Postgres, stopped last, must finish its shutdown checkpoint before Docker kills it.
+docker run -d --name "$NAME" --stop-timeout 120 -p 127.0.0.1::443 -p 127.0.0.1::80 -v "$NAME-data:/data" -e DOLPHIN_DOMAIN=localhost -e ACME_EMAIL=it@example.com \
   -e BACKUP_RECIPIENT="$RECIPIENT" -e DOLPHIN_PROXY_PROTOCOL="10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.0/8" "$IMAGE" >/dev/null
 wait_ready
 ANON=$(docker exec "$NAME" sh -c '. /data/secrets/env && echo "$ANON_KEY"')
@@ -236,8 +237,11 @@ pass "encrypted backup → change → restore with the key brings back the backe
 
 # Three days missed: dolphin-jobs catches up when the container starts again.
 sql "update public.job_runs set done_to = done_to - 3 where job = 'daily'"
+since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 docker restart "$NAME" >/dev/null
 wait_ready
+! docker logs --since "$since" "$NAME" 2>&1 | grep -q 'not properly shut down' || fail "Postgres was killed before it shut down cleanly"
+pass "docker restart: Postgres shut down cleanly"
 for _ in $(seq 1 30); do
   [ "$(sql "select done_to from public.job_runs where job = 'daily'")" = "$YESTERDAY" ] && break
   sleep 2
