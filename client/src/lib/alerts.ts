@@ -75,7 +75,7 @@ const ITEMS: Record<string, Record<string, [string, string]>> = {
   anchor_params: { initial: ['初始锚点', '%'], min: ['锚点下限', '%'], max: ['锚点上限', '%'] },
   credit_curve: {
     min_score: ['能贷款的最低分', '分'], limit_min: ['最低分时的额度', 'HTB'], limit_max: ['1000 分时的额度', 'HTB'], limit_step: ['取整单位', 'HTB'],
-    loan_max: ['最低分时的贷款系数', '×'], loan_min: ['1000 分时的贷款系数', '×'], saving_min: ['0 分时的储蓄系数', '×'], saving_max: ['1000 分时的储蓄系数', '×'],
+    loan_max: ['最低分时的贷款系数', '×'], loan_min: ['1000 分时的贷款系数', '×'],
   },
   credit_rules: {
     repay_on_time: ['按时还清一期', '分'], repay_early: ['提前还清一笔贷款', '分'], overdue: ['逾期', '分'], overdue_week: ['逾期后每满一周', '分'],

@@ -132,8 +132,9 @@ test('参数 → 信用分: a wrong value or order is marked and never sent; a r
   const sent: string[] = [];
   page.on('request', (r) => { if (r.url().includes('/rpc/set_setting')) sent.push(r.url()); });
   const save = page.getByRole('button', { name: '保存参数' });
+  const kept = sql(`select concat_ws(',', value ->> 'saving_min', value ->> 'saving_max') from public.settings where key = 'credit_curve'`);
   const preview = page.getByRole('table', { name: '按当前填写预览' });
-  await expect(preview.locator('tr', { hasText: '600 分' })).toHaveText(/600 分130 HTB×1\.5667×1\.04/);
+  await expect(preview.locator('tr', { hasText: '600 分' })).toHaveText('600 分130 HTB×1.5667');
   await expect(preview.locator('tr', { hasText: '1000 分' })).toContainText('300 HTB');
 
   // Out of range.
@@ -171,6 +172,8 @@ test('参数 → 信用分: a wrong value or order is marked and never sent; a r
   await expect(page.locator('.dc-toast')).toHaveText('参数已保存');
   expect(sql(`select value ->> 'overdue' from public.settings where key = 'credit_rules'`)).toBe('-60');
   expect(sql(`select value ->> 'limit_max' from public.settings where key = 'credit_curve'`)).toBe('310');
+  // Keys the page no longer shows go back as they came, until the backend drops them.
+  expect(sql(`select concat_ws(',', value ->> 'saving_min', value ->> 'saving_max') from public.settings where key = 'credit_curve'`)).toBe(kept);
   await expect(save).toBeDisabled();
 });
 

@@ -35,7 +35,7 @@ export function RateCard({ min }: { min: number }) {
               <li>{p.rates.loan === null ? `${min} 分以上才能贷款` : <>借 100 HTB，一周利息约 {htb(weekCenti(p.rates.loan))}{week(p.rates.loan)}</>}</li>
             </ul>
             <p className="dc-caption">
-              信用分越高，活期多得，借钱少付；定期利率是固定的。{!p.week_start ? '本周利率还没有公布，先按初始利率显示。每周一公布。'
+              信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。{!p.week_start ? '本周利率还没有公布，先按初始利率显示。每周一公布。'
                 : `${monthDay(p.week_start)}公布，每周一更新。`}
             </p>
           </section>

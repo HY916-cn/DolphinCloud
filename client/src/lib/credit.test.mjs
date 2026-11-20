@@ -1,18 +1,18 @@
 // node src/lib/credit.test.mjs — the curve's sums against PHASE-2.md §8.1, and the checks on an edited curve.
 import assert from 'node:assert/strict';
-const { creditLimit, creditNext, curveDraft, curveProblems, LIMIT_ORDER, LOAN_ORDER, loanFactor, preview, rulesDraft, rulesValue, savingFactor, switchToast } = await import('./credit.ts');
+const { creditLimit, creditNext, curveDraft, curveProblems, LIMIT_ORDER, LOAN_ORDER, loanFactor, preview, rulesDraft, rulesValue, switchToast } = await import('./credit.ts');
 
-const curve = { min_score: 400, limit_min: 50, limit_max: 300, limit_step: 5, loan_max: 1.8, loan_min: 1.1, saving_min: 0.8, saving_max: 1.2 };
-const at = (s) => [creditLimit(curve, s), loanFactor(curve, s), savingFactor(curve, s), creditNext(curve, s)];
+const curve = { min_score: 400, limit_min: 50, limit_max: 300, limit_step: 5, loan_max: 1.8, loan_min: 1.1 };
+const at = (s) => [creditLimit(curve, s), loanFactor(curve, s), creditNext(curve, s)];
 
 // The table of §8.1.
-assert.deepEqual(at(0), [null, null, 0.8, null]);
-assert.deepEqual(at(399), [null, null, 0.9596, null]);
-assert.deepEqual(at(400), [50, 1.8, 0.96, 12]);
-assert.deepEqual(at(600), [130, 1.5667, 1.04, 4]);
-assert.deepEqual(at(750), [195, 1.3917, 1.1, 10]); // 200 HTB from 760
-assert.deepEqual(at(900), [255, 1.2167, 1.16, 4]); // 260 HTB from 904
-assert.deepEqual(at(1000), [300, 1.1, 1.2, null]);
+assert.deepEqual(at(0), [null, null, null]);
+assert.deepEqual(at(399), [null, null, null]);
+assert.deepEqual(at(400), [50, 1.8, 12]);
+assert.deepEqual(at(600), [130, 1.5667, 4]);
+assert.deepEqual(at(750), [195, 1.3917, 10]); // 200 HTB from 760
+assert.deepEqual(at(900), [255, 1.2167, 4]); // 260 HTB from 904
+assert.deepEqual(at(1000), [300, 1.1, null]);
 assert.equal(creditLimit(curve, 604), 135);
 assert.equal(creditLimit(curve, 603), 130);
 
@@ -34,13 +34,13 @@ for (let s = 400; s < 1000; s++) {
 }
 
 assert.deepEqual(preview(curve), [
-  { score: 400, limit: 50, loan: 1.8, saving: 0.96 },
-  { score: 600, limit: 130, loan: 1.5667, saving: 1.04 },
-  { score: 800, limit: 215, loan: 1.3333, saving: 1.12 },
-  { score: 1000, limit: 300, loan: 1.1, saving: 1.2 },
+  { score: 400, limit: 50, loan: 1.8 },
+  { score: 600, limit: 130, loan: 1.5667 },
+  { score: 800, limit: 215, loan: 1.3333 },
+  { score: 1000, limit: 300, loan: 1.1 },
 ]);
 // Below a raised minimum: no loan.
-assert.deepEqual(preview({ ...curve, min_score: 500 })[0], { score: 400, limit: null, loan: null, saving: 0.96 });
+assert.deepEqual(preview({ ...curve, min_score: 500 })[0], { score: 400, limit: null, loan: null });
 
 // Checks.
 assert.deepEqual(curveProblems(curveDraft(curve)), {});
@@ -49,8 +49,10 @@ assert.deepEqual(Object.keys(curveProblems({ ...curveDraft(curve), limit_max: ''
 assert.deepEqual(curveProblems({ ...curveDraft(curve), limit_step: '60' }), { limit_step: LIMIT_ORDER, limit_min: LIMIT_ORDER });
 assert.deepEqual(curveProblems({ ...curveDraft(curve), limit_max: '40' }), { limit_min: LIMIT_ORDER, limit_max: LIMIT_ORDER });
 assert.deepEqual(curveProblems({ ...curveDraft(curve), loan_min: '2' }), { loan_max: LOAN_ORDER, loan_min: LOAN_ORDER });
-assert.deepEqual(Object.keys(curveProblems({ ...curveDraft(curve), saving_max: '1.23456' })), ['saving_max']);
-assert.deepEqual(Object.keys(curveProblems({ ...curveDraft(curve), saving_min: '0.05' })), ['saving_min']);
+assert.deepEqual(Object.keys(curveProblems({ ...curveDraft(curve), loan_min: '1.23456' })), ['loan_min']);
+assert.deepEqual(Object.keys(curveProblems({ ...curveDraft(curve), loan_max: '0.05' })), ['loan_max']);
+// A key the page no longer shows goes back as it came.
+assert.deepEqual(curveDraft({ ...curve, saving_min: 0.8, saving_max: 1.2 }).saving_min, '0.8');
 assert.deepEqual(curveProblems({ ...curveDraft(curve), loan_max: '10', loan_min: '0.1' }), {});
 
 // Rules: shown unsigned, saved with losses negative.

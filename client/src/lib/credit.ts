@@ -1,14 +1,14 @@
 // 海豚信用分 (PHASE-2.md §8): the curve's sums as the database makes them (app_private.credit_limit, credit_next,
-// loan_factor, saving_factor), for the 参数 page's preview of a curve being edited, and the checks set_setting makes on
+// loan_factor), for the 参数 page's preview of a curve being edited, and the checks set_setting makes on
 // credit_curve and credit_rules (§14.3), so a wrong value is marked before anything is sent.
 
 export type Curve = {
   min_score: number; limit_min: number; limit_max: number; limit_step: number;
-  loan_max: number; loan_min: number; saving_min: number; saving_max: number;
+  loan_max: number; loan_min: number;
 };
 export type CreditProfile = {
   student_no?: string; score: number; loan_limit: number | null; points_to_next: number | null;
-  loan_factor: number | null; saving_factor: number;
+  loan_factor: number | null;
 };
 
 // Integer division, rounding toward zero as SQL's integer `/` does.
@@ -41,16 +41,13 @@ export function loanFactor(c: Curve, score: number) {
   return round4(e4(c.loan_max) * d - (score - c.min_score) * (e4(c.loan_max) - e4(c.loan_min)), d);
 }
 
-// 储蓄系数 from saving_min at 0 to saving_max at 1000.
-export const savingFactor = (c: Curve, score: number) =>
-  round4(e4(c.saving_min) * 1000 + score * (e4(c.saving_max) - e4(c.saving_min)), 1000);
-
 // The 参数 page's preview: what 400, 600, 800 and 1000 points give under the curve being edited.
 export const PREVIEW_SCORES = [400, 600, 800, 1000];
 export const preview = (c: Curve) =>
-  PREVIEW_SCORES.map((score) => ({ score, limit: creditLimit(c, score), loan: loanFactor(c, score), saving: savingFactor(c, score) }));
+  PREVIEW_SCORES.map((score) => ({ score, limit: creditLimit(c, score), loan: loanFactor(c, score) }));
 
-// The curve as the page edits it: each value as typed.
+// The curve as the page edits it: each value as typed. Every key read is kept, so one the page no longer shows (until
+// the backend drops it) goes back to set_setting as it came.
 export type CurveDraft = Record<keyof Curve, string>;
 export const curveDraft = (c: Curve) => Object.fromEntries(Object.entries(c).map(([k, v]) => [k, String(v)])) as CurveDraft;
 
@@ -58,7 +55,6 @@ const whole = (v: string, min: number, max: number) => /^\d+$/.test(v) && Number
 const factor = (v: string) => /^\d+(\.\d{1,4})?$/.test(v) && Number(v) >= 0.1 && Number(v) <= 10;
 export const LIMIT_ORDER = '要满足：取整单位 ≤ 最低分时的额度 ≤ 1000 分时的额度';
 export const LOAN_ORDER = '1000 分时的贷款系数不能大于最低分时的';
-export const SAVING_ORDER = '0 分时的储蓄系数不能大于 1000 分时的';
 
 // What is wrong with each value of a curve being edited (set_setting's checks): its range first, then how it stands
 // against the others. An empty result means the curve can be saved.
@@ -66,13 +62,12 @@ export function curveProblems(d: CurveDraft) {
   const p: Partial<Record<keyof Curve, string>> = {};
   if (!whole(d.min_score, 0, 999)) p.min_score = '请输入 0 到 999 的整数';
   for (const k of ['limit_min', 'limit_max', 'limit_step'] as const) if (!whole(d[k], 1, 10_000)) p[k] = '请输入 1 到 10000 的整数';
-  for (const k of ['loan_max', 'loan_min', 'saving_min', 'saving_max'] as const) if (!factor(d[k])) p[k] = '请输入 0.1 到 10 的数，最多 4 位小数';
+  for (const k of ['loan_max', 'loan_min'] as const) if (!factor(d[k])) p[k] = '请输入 0.1 到 10 的数，最多 4 位小数';
   const n = (k: keyof Curve) => (p[k] ? NaN : Number(d[k]));
   const mark = (keys: (keyof Curve)[], text: string) => keys.forEach((k) => { p[k] ??= text; });
   if (n('limit_step') > n('limit_min')) mark(['limit_step', 'limit_min'], LIMIT_ORDER);
   if (n('limit_min') > n('limit_max')) mark(['limit_min', 'limit_max'], LIMIT_ORDER);
   if (n('loan_min') > n('loan_max')) mark(['loan_max', 'loan_min'], LOAN_ORDER);
-  if (n('saving_min') > n('saving_max')) mark(['saving_min', 'saving_max'], SAVING_ORDER);
   return p;
 }
 

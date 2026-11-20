@@ -77,16 +77,16 @@ export default function Rates() {
           </p>
           <section className="dc-card dc-stack" aria-label="按分数的利率">
             <h2 className="heading">按分数的周利率 · 锚点 {formatRate(o.anchor)}</h2>
+            <p className="dc-caption">活期周利率即本周锚点。</p>
             <div className="dc-table-scroll">
               <table className="dc-table" aria-label="按分数的周利率">
                 <thead><tr>
-                  <th scope="col">分数</th><th scope="col" className="n">活期</th>
-                  <th scope="col" className="n">贷款</th><th scope="col" className="n">逾期罚息</th>
+                  <th scope="col">分数</th><th scope="col" className="n">贷款</th><th scope="col" className="n">逾期罚息</th>
                 </tr></thead>
                 <tbody>
                   {o.table.map((r) => (
                     <tr key={r.score}>
-                      <td>{r.score} 分</td><td className="n">{formatRate(r.current)}</td>
+                      <td>{r.score} 分</td>
                       <td className="n">{r.loan === null ? '不能贷款' : formatRate(r.loan)}</td><td className="n">{penalty(r.loan)}</td>
                     </tr>
                   ))}

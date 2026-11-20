@@ -93,20 +93,17 @@ function CreditGroup({ curve, problems, onCurve, rules, onRule }: {
         <div className="dc-denoms">
           {factor('loan_max', '最低分时的贷款系数')}
           {factor('loan_min', '1000 分时的贷款系数')}
-          {factor('saving_min', '0 分时的储蓄系数')}
-          {factor('saving_max', '1000 分时的储蓄系数')}
         </div>
         <p className="dc-list-title">按当前填写预览</p>
         <div className="dc-table-scroll">
           <table className="dc-table" aria-label="按当前填写预览">
-            <thead><tr><th scope="col">分数</th><th scope="col" className="n">额度</th><th scope="col" className="n">贷款系数</th><th scope="col" className="n">储蓄系数</th></tr></thead>
+            <thead><tr><th scope="col">分数</th><th scope="col" className="n">额度</th><th scope="col" className="n">贷款系数</th></tr></thead>
             <tbody>
-              {(rows ?? [400, 600, 800, 1000].map((score) => ({ score, limit: undefined, loan: undefined, saving: undefined }))).map((r) => (
+              {(rows ?? [400, 600, 800, 1000].map((score) => ({ score, limit: undefined, loan: undefined }))).map((r) => (
                 <tr key={r.score}>
                   <td>{r.score} 分</td>
                   <td className="n">{r.limit === undefined ? '—' : r.limit === null ? '不能贷款' : `${r.limit} HTB`}</td>
                   <td className="n">{r.loan == null ? '—' : `×${r.loan}`}</td>
-                  <td className="n">{r.saving === undefined ? '—' : `×${r.saving}`}</td>
                 </tr>
               ))}
             </tbody>

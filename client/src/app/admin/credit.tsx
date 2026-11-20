@@ -326,7 +326,6 @@ function CurveCards({ edit }: { edit: boolean }) {
             <div><dt>1000 分时的额度</dt><dd>{s.curve.limit_max} HTB</dd></div>
             <div><dt>取整</dt><dd>{s.curve.limit_step} HTB</dd></div>
             <div><dt>贷款系数</dt><dd>×{s.curve.loan_max} → ×{s.curve.loan_min}</dd></div>
-            <div><dt>储蓄系数</dt><dd>×{s.curve.saving_min} → ×{s.curve.saving_max}</dd></div>
           </dl>
         )}
       </section>

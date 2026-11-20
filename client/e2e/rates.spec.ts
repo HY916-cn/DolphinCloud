@@ -33,7 +33,7 @@ test('学生「信用」: the week’s rates at my score, with no term and no an
   ]);
   await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.00 HTB', ...TERM_BACK, '6.27 HTB']);
   await expect(rates(page).locator('.dc-rate-list > li').locator('small')).toHaveText(['2%/周', '2.5%/周', '2.75%/周', '3%/周', '3.25%/周', '3.5%/周', '6.2667%/周']);
-  await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
+  await expect(caption(page)).toHaveText('信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
 
   // Below the lowest score to borrow, no loan rate.
   sql(`update public.credit_scores set score = 350 where student_no = '20260001'`);
@@ -51,7 +51,7 @@ test('学生「信用」: the week’s rates at my score, with no term and no an
 test('in a term with no anchor published: the initial rates, and 利率 says so; the storekeeper has no 利率', async ({ page, browser }) => {
   sql(`insert into public.terms (name, starts_on, ends_on) values ('本学期', ${DAY} - 60, ${DAY} + 60)`);
   await studentCredit(page);
-  await expect(caption(page)).toHaveText('信用分越高，活期多得，借钱少付；定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
+  await expect(caption(page)).toHaveText('信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。本周利率还没有公布，先按初始利率显示。每周一公布。');
   await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.00 HTB2%/周');
 
   const accountant = await browser.newPage();
@@ -61,7 +61,7 @@ test('in a term with no anchor published: the initial rates, and 利率 says so;
   await expect(accountant).toHaveURL(/\/admin\/rates$/);
   const anchor = accountant.getByRole('region', { name: '本周锚点' });
   await expect(anchor.locator('.dc-stat')).toHaveText(['本周锚点2%', '存贷比—', '存款余额—HTB']);
-  await expect(anchor.locator('p.dc-caption')).toHaveText('还没有公布锚点，现在按初始锚点 2% 计算。每周一公布。');
+  await expect(anchor.locator('> p.dc-caption')).toHaveText('还没有公布锚点，现在按初始锚点 2% 计算。每周一公布。');
   await expect(accountant.getByRole('region', { name: '每周历史' })).toContainText('还没有记录。每周一公布一次锚点。');
   await expect(accountant.getByRole('region', { name: '计算参数' })).toContainText('罚息倍数×1.5');
   await expect(accountant.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
@@ -82,7 +82,7 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
          (${MONDAY} - 7, 2, 12000, 0, 0, null, 0, 2, ${params}),
          (${MONDAY}, 2, 12480, 4992, 40, 2, 0.25, 2.25, ${params})`);
   await studentCredit(page);
-  await expect(caption(page)).toHaveText(`信用分越高，活期多得，借钱少付；定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
+  await expect(caption(page)).toHaveText(`信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
   await expect(rates(page).locator('.dc-rate-list > li').locator('b')).toHaveText(['2.25 HTB', ...TERM_BACK, '7.05 HTB']);
 
   await signIn(page, '工作人员', 'president01');
@@ -91,12 +91,13 @@ test('this Monday’s anchor: the student’s rates follow it, and 利率 lists 
   const anchor = page.getByRole('region', { name: '本周锚点' });
   await expect(anchor.locator('.dc-stat')).toHaveText(['本周锚点2.25%比上周 +0.25 个百分点', '存贷比40.0%', '存款余额12,480HTB']);
   await expect(anchor.locator('.dc-stat em')).toHaveClass('dc-pl is-up');
-  await expect(anchor.locator('p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
+  await expect(anchor.locator('> p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
   const table = page.getByRole('table', { name: '按分数的周利率' });
   await expect(page.getByRole('heading', { name: '按分数的周利率 · 锚点 2.25%' })).toBeVisible();
-  await expect(table.locator('thead th')).toHaveText(['分数', '活期', '贷款', '逾期罚息']);
-  await expect(table.locator('tbody tr').first()).toHaveText('0 分2.25%不能贷款不能贷款');
-  await expect(table.locator('tbody tr', { hasText: '600 分' })).toHaveText('600 分2.25%7.05%10.575%');
+  await expect(page.getByRole('region', { name: '按分数的利率' }).locator('p.dc-caption')).toHaveText('活期周利率即本周锚点。');
+  await expect(table.locator('thead th')).toHaveText(['分数', '贷款', '逾期罚息']);
+  await expect(table.locator('tbody tr').first()).toHaveText('0 分不能贷款不能贷款');
+  await expect(table.locator('tbody tr', { hasText: '600 分' })).toHaveText('600 分7.05%10.575%');
   // 定期周利率: the fixed rates, below the table; the bank admin, not the president, changes them on 参数.
   const term = page.getByRole('region', { name: '定期周利率' });
   await expect(term.locator('.dc-kv > div')).toHaveText(['2 周2.5%', '4 周2.75%', '12 周3%', '24 周3.25%', '48 周3.5%']);
@@ -157,7 +158,7 @@ test('a week’s 活期 interest: 攒着的利息 on 首页, the 利息 entry un
 test('in the holidays interest goes on, and both pages say when the anchor was published as in term', async ({ page }) => {
   sql(`update public.terms set starts_on = ${DAY} - 120, ends_on = ${DAY} - 1`);
   await studentCredit(page);
-  await expect(caption(page)).toHaveText(`信用分越高，活期多得，借钱少付；定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
+  await expect(caption(page)).toHaveText(`信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。${md(MONDAY)}公布，每周一更新。`);
   await expect(rates(page).locator('.dc-rate-list > li').first()).toHaveText('活期存 100 HTB，一周多得约 2.25 HTB2.25%/周');
   await page.goto('/student');
   await expect(page.locator('.dc-credit-summary .dc-kv')).toHaveText('攒着的利息0.87 HTB满 1 HTB 再存进余额定期合计没有理财没有贷款没有');
@@ -170,7 +171,7 @@ test('in the holidays interest goes on, and both pages say when the anchor was p
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/rates');
-  await expect(page.getByRole('region', { name: '本周锚点' }).locator('p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
+  await expect(page.getByRole('region', { name: '本周锚点' }).locator('> p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
 });
 
 test('参数「利率」: 定期周利率 and the anchor’s start and bounds, checked as the server checks them, the rest kept as read', async ({ page }) => {
