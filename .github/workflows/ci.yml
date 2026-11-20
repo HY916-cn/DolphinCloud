@@ -3,8 +3,8 @@
 # its own build of the image (from the GitHub Actions cache) and its own container. These jobs run in parallel. On a
 # push to main the image job pushes the image it tested as ci-<sha>, and once every job passes, publish tags that same
 # image main and sha-<sha> in GitHub Container Registry. Pushes that change only Markdown or
-# docs/ skip CI. The performance, simulation, upgrade and rollback tests (docker/perf-test.sh, sim-test.sh,
-# upgrade-test.sh, rollback-test.sh) run weekly and on manual dispatch.
+# docs/ skip CI. The performance, simulation, rehearsal, upgrade and rollback tests (docker/perf-test.sh, sim-test.sh,
+# rehearsal-test.sh, upgrade-test.sh, rollback-test.sh) run weekly and on manual dispatch.
 name: CI
 
 on:
@@ -145,6 +145,8 @@ jobs:
         run: docker/perf-test.sh dolphin-cloud:dev
       - name: Simulation (2000 students, one 18-week term)
         run: docker/sim-test.sh dolphin-cloud:dev
+      - name: Rehearsal (学期结转, catch-up after a stop)
+        run: docker/rehearsal-test.sh dolphin-cloud:dev
 
   upgrade:
     needs: image

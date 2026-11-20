@@ -795,6 +795,7 @@ docker/
   db-test.sh            在镜像上运行 supabase/tests 的 pgTAP 测试（M1）
   perf-test.sh          全校规模（2000 名学生、10 万笔流水）的性能与越权修改检查
   sim-test.sh           2000 名学生跑满一学期的定时任务模拟：锚点范围、每天自检、run_daily 用时、定期、理财与贷款收尾（PHASE-2.md §17）
+  rehearsal-test.sh     上线前演练：学期结转与停机补跑，两个容器逐行比对（PHASE-2.md §17）
   Caddyfile
   supervisord.conf
   init/                 首次初始化：Supabase 所需角色与 schema
@@ -1022,8 +1023,9 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | 端到端 | Playwright（`docker/e2e-test.sh`），对构建好的生产镜像运行 | 柜员存款、取款、账户兑换、现金兑换，办理单与今日业务里冲正 → 学生看到余额与明细；离线存款后恢复网络上传；新设备读到上班状态前断网仍能离线登记；断网重新打开柜台；银行管理员导入名册（含逐行报错）→ 新学生首次登录设置新密码 → 银行管理员重置密码；新增工作账号、改身份、停用，运维员不能管理银行管理员；商品新增、出入库、上下架；流水按搜索（学生、柜员、交易号）、时段、类型筛选与冲正、流水导出；报表数字、标签页、时段与 PDF 导出；柜台查询全部交易记录与筛选；柜员上班才能办理、下班打印总结；柜员绑定工资账户 → 银行管理员开启考勤 → 上下班记下班次 → 审查、全部确认、补签、发放工资 → 柜员看到已发工资、学生明细里有工资；批量管理学生与工作人员、注销账号；我的页与在此设备保存登录（未保存的账号重新打开后须登录）；行长看到全部业务页面、学生与工作人员只读；总览待办、页面间跳转、参数开关、日志；学生明细（按类型、搜索）与排名。备份恢复由 `smoke-test.sh` 覆盖 |
 | 性能 | `docker/perf-test.sh`：新容器经 `import_roster` 导入 2000 名学生、写入 10 万笔流水后计时，并以各身份直接请求修改余额、库存和流水 | 2000 名学生、10 万笔流水下：账务函数 < 1 秒，学生首页 < 2 秒，全校一年的报表 < 5 秒，流水导出每页 1000 行 < 2 秒；直接修改全部被拒，`dolphin check` 一致 |
 | 模拟 | `docker/sim-test.sh`：新容器里 2000 名学生、一个 18 周的学期和之后一周假期，每个上学日随机存取款、开定期与提前支取、买理财与赎回（每个开盘日固定的模拟涨跌）、放款与还款、信用分变动，学期中冻结一批账户，按天运行 `run_weekly`、`run_daily`（假期与学期内相同） | 每个周一都有锚点（19 个）且始终在 1%～4%，每天都计活期利息，每天 `check_balances` 无差异，单次 `run_daily` < 30 秒，到期的定期和理财全部转回活期（更长的转入下学期），全部到期的贷款都已结清或逾期在册 |
+| 演练 | `docker/rehearsal-test.sh`：两个新容器按天跑过今天之前的 16 天（同一份数据与业务，跨两个周一和一个学期末），银行管理员的操作经 HTTPS 调用，指数日线由 `dolphin jobs fetch` 从替身行情源取（不联网）；约 1～2 分钟 | 学期结转（PHASE-2 §6.3）：余额、信用分和未结的定期、理财、贷款原样转入下学期，`dolphin check` 一致，上学期按学期可查，只有补录、编辑能改；停机补跑（PHASE-2 §13）：一个容器 `docker stop` 3～6 天后 `docker start`，`dolphin-jobs` 自己补跑，与每天运行的容器逐行相同 |
 
-CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 同时运行三项：依赖审计、类型检查、代码检查与单元测试；构建镜像并运行 `docker/db-test.sh` 与 `docker/smoke-test.sh`；端到端测试分 4 份在 4 台机器上同时运行（各自从 Actions 缓存构建镜像），失败时上传各份的 Playwright 结果。只改 Markdown 或 `docs/` 的推送不运行 CI。推送到 `main` 时，镜像测试通过后先以 `ci-<7 位提交号>` 推送到 GHCR，全部通过后再给同一镜像加上 `main` 与 `sha-<7 位提交号>` 标签（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
+CI（GitHub Actions，`.github/workflows/ci.yml`）：每次推送和每个 PR 同时运行三项：依赖审计、类型检查、代码检查与单元测试；构建镜像并运行 `docker/db-test.sh` 与 `docker/smoke-test.sh`；端到端测试分 4 份在 4 台机器上同时运行（各自从 Actions 缓存构建镜像），失败时上传各份的 Playwright 结果。只改 Markdown 或 `docs/` 的推送不运行 CI。推送到 `main` 时，镜像测试通过后先以 `ci-<7 位提交号>` 推送到 GHCR，全部通过后再给同一镜像加上 `main` 与 `sha-<7 位提交号>` 标签（见 9.1）。每周一次（也可手动触发）另跑 `docker/perf-test.sh`、`docker/sim-test.sh`、`docker/rehearsal-test.sh`、`docker/upgrade-test.sh` 和 `docker/rollback-test.sh`，后两者从一周前的 `main` 升级到当前镜像，`rollback-test.sh` 再按 9.5 回滚到一周前的 `main`。
 
 依赖审计：`npm audit --omit=dev --json` 的结果交给 `.github/npm-audit.mjs` 判定，有 high 或 critical 级别、且不在脚本 `ALLOWED` 放行名单里的公告即失败；只因依赖了放行公告所在的包而被标记的上游包随之放行。放行名单目前只有 `GHSA-fc5q-39xc-vjpf`（picomatch ReDoS）：没有修复版本，只有 expo/metro 构建工具用到 picomatch，导出的静态站点不包含它；有修复版本后删去这一条。
 
