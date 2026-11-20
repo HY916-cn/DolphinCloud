@@ -1394,7 +1394,7 @@ span.dc-week-btn { cursor: default; }
   .dc-list-item { flex-wrap: wrap; }
   .dc-list-item > span:first-child { flex-basis: 100%; }
   .dc-list-item > .dc-list-icon:first-child { flex-basis: auto; }
-  .dc-list-item > .dc-list-icon + span { flex-basis: calc(100% - 44px - var(--space-3)); }
+  .dc-list-item > .dc-list-icon + span { flex-basis: 0; }
 }
 /* PersonCard：姓名后的状态标签 */
 .dc-person-name .dc-tag { margin-left: var(--space-2); vertical-align: 2px; }
@@ -1432,7 +1432,7 @@ span.dc-week-btn { cursor: default; }
 .dc-board-list div { display: flex; align-items: baseline; justify-content: space-between; gap: calc(1 * var(--u)); }
 .dc-board-list dt { white-space: nowrap; font: 700 calc(2.4 * var(--u))/1.15 var(--font-sans); color: var(--ink-muted); }
 .dc-board-list dt small { margin-left: 0.15em; font-size: 0.7em; }
-.dc-board-list dd { margin: 0; white-space: nowrap; font: 800 calc(4.6 * var(--u))/1.1 var(--font-sans); }
+.dc-board-list dd { margin: 0; white-space: nowrap; font: 800 calc(4.6 * var(--u))/1.1 var(--font-sans); font-variant-numeric: tabular-nums; }
 .dc-board-list dd small { margin-left: 0.08em; font-size: 0.5em; color: var(--ink-muted); }
 /* 贷款四个分数排成 2×2，名称在上、数字在下 */
 .dc-board-list.is-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: space-around; }
@@ -1443,6 +1443,8 @@ span.dc-week-btn { cursor: default; }
   .dc-board-stage { align-self: start; width: 100cqw; aspect-ratio: auto; --u: 3cqw; }
   .dc-board-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: none; }
   .dc-board-panel[class*="is-"] { grid-area: auto; }
+  .dc-board-list.is-grid { grid-template-columns: minmax(0, 1fr); }
+  .dc-board-list.is-grid div { flex-direction: row; align-items: baseline; justify-content: space-between; }
   .dc-board-head img { display: none; }
   .dc-board-title { flex-basis: 100%; font-size: calc(2.4 * var(--u)); }
 }
