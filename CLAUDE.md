@@ -61,7 +61,7 @@
 | 前端代码（每次） | `npm --prefix client run typecheck`、`npm --prefix client run lint`、`npm --prefix client test` |
 | 后端（每次） | `docker build -f docker/Dockerfile -t dolphin-cloud:beN .`，再跑 `docker/db-test.sh dolphin-cloud:beN`、`docker/smoke-test.sh dolphin-cloud:beN` |
 | 迁移、种子数据、客户端可见的行为、功能性前端改动、里程碑收尾 | 加跑 `E2E_SHARDS=3 docker/e2e-test.sh <镜像>`（分 3 份、各用一个容器同时跑，约 5 分钟）；小返工只跑相关 spec |
-| 有迁移的里程碑、备份与恢复 | 加跑 `docker/upgrade-test.sh <线上版本>` 和 `docker/rollback-test.sh <线上版本>`（当前线上版本 `545b8e9`） |
+| 有迁移的里程碑、备份与恢复 | 加跑 `docker/upgrade-test.sh <线上版本>` 和 `docker/rollback-test.sh <线上版本>`（当前线上版本 `58e9435`） |
 | 视觉变化 | 截图核对 |
 | 依赖变化 | `npm --prefix client run build`，对比体积 |
 
