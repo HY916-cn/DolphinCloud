@@ -32,14 +32,24 @@ test('利率看板: five tiles, 活期 at the bank admin’s 本周锚点, no si
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/rates');
   const anchor = (await page.getByRole('region', { name: '本周锚点' }).locator('.dc-stat').first().textContent())!.replace('本周锚点', '');
+  // Whether today has no trading, as the board reads it.
+  const closed = sql(`select public_rates() -> 'wealth' ->> 'closed'`) === 'true';
   await page.goto('/board');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('海豚银行 · 利率实时');
   await expect(page.locator('.dc-board-panel h2')).toHaveText(['活期本周', '贷款本周', '定期本周', '指数今天', '理财今天']);
   await expect(page.getByRole('region', { name: '活期周利率' }).locator('.dc-board-hero')).toHaveText(anchor);
   await expect(page.getByRole('region', { name: '贷款周利率' }).locator('dt')).toHaveText(['600 分', '750 分', '900 分', '1000 分']);
-  // The test data has no quote yet: — for the index and each tier.
-  await expect(page.getByRole('region', { name: '参考指数涨跌' }).locator('dd')).toHaveText('—');
-  await expect(page.getByRole('region', { name: '理财各倍率的收益' }).locator('div')).toHaveText(['稳健×1—', '平衡×2—', '进取×4—']);
+  // The test data has no quote: on a closed day (a weekend) the index reads 休市 and the tiers their daily bases, on any
+  // other — for both.
+  const index = page.getByRole('region', { name: '参考指数涨跌' }).locator('dd');
+  const tiers = page.getByRole('region', { name: '理财各倍率的收益' }).locator('div');
+  if (closed) {
+    await expect(index).toHaveText('休市');
+    await expect(tiers).toHaveText([/^稳健×1\+\d/, /^平衡×2\+\d/, /^进取×4\+\d/]);
+  } else {
+    await expect(index).toHaveText('—');
+    await expect(tiers).toHaveText(['稳健×1—', '平衡×2—', '进取×4—']);
+  }
   await expect(page.getByRole('status')).toHaveText(/^更新于 \d\d:\d\d:\d\d$/);
 });
 

@@ -8,14 +8,17 @@ import { confirmIn, resetData, signIn, sql } from './helpers';
 // order: teller01 buys, reverses and redeems 理财; 张小明 reads them; the bank admin enters W1 and edits the parameters.
 test.describe.configure({ mode: 'serial' });
 const DAY = 'app_private.cn_date(now())';
-// The weekdays before today on the school's clock (Asia/Shanghai is UTC+8 all year), latest first.
-const TODAY = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
-const back = (n: number) => new Date(Date.parse(`${TODAY}T00:00:00Z`) - n * 86_400_000);
-const [W1, W2, W3] = Array.from({ length: 10 }, (_, i) => back(i + 1)).filter((d) => d.getUTCDay() % 6).slice(0, 3).map((d) => d.toISOString().slice(0, 10));
-// A weekend between W3 and today: listed as 休市.
-const closedDay = Array.from({ length: 10 }, (_, i) => back(i + 1)).some((d) => !(d.getUTCDay() % 6) && d.toISOString().slice(0, 10) > W3);
+// Today on the database's clock (Asia/Shanghai), taken once after resetData, which waits past a midnight that would fall
+// inside the spec: W1, W2 and W3 are the weekdays before it, latest first; `closedDay`, a weekend between W3 and today
+// (listed as 休市); `weekend`, whether today is one (the counter then says 今天休市).
+let W1 = '', W2 = '', W3 = '', closedDay = false, weekend = false;
 test.beforeAll(() => {
   resetData();
+  const today = sql(`select ${DAY}`);
+  const days = Array.from({ length: 10 }, (_, i) => new Date(Date.parse(`${today}T00:00:00Z`) - (i + 1) * 86_400_000));
+  [W1, W2, W3] = days.filter((d) => d.getUTCDay() % 6).slice(0, 3).map((d) => d.toISOString().slice(0, 10));
+  closedDay = days.some((d) => !(d.getUTCDay() % 6) && d.toISOString().slice(0, 10) > W3);
+  weekend = !(new Date(`${today}T00:00:00Z`).getUTCDay() % 6);
   sql(`insert into public.wealth_days (day, change, source, params) values ('${W3}', -0.5, 'tencent', '{}'), ('${W2}', 1.25, 'tencent', '{}')`);
 });
 
@@ -26,7 +29,6 @@ const lengths = (page: Page) => page.getByRole('radiogroup', { name: '期限' })
 const length = (page: Page, weeks: number) => lengths(page).filter({ hasText: new RegExp(`^${weeks} 周`) });
 const tiers = (page: Page) => page.getByRole('radiogroup', { name: '倍率' }).locator('.dc-choice');
 const balance = () => sql(`select balance from public.accounts where student_no = '20260001'`);
-const weekend = () => !(new Date(`${TODAY}T00:00:00Z`).getUTCDay() % 6);
 
 async function serve(page: Page) {
   await signIn(page, '工作人员', 'teller01');
@@ -60,7 +62,7 @@ test('柜台「理财」: the index, lengths and tiers, 买理财 with its 冲�
   await expect(card.locator('.dc-kv')).toHaveText(`${md(`'${W2}'`)} 指数涨跌+1.25%`);
   await expect(card.locator('.dc-kv .dc-pl')).toHaveClass(/is-up/);
   await expect(card).toContainText(`参考 沪深 300 指数 · ${md(`'${W2}'`)} 收盘 · 腾讯行情`);
-  await expect(card.getByText('今天休市，只算基础收益。')).toHaveCount(weekend() ? 1 : 0);
+  await expect(card.getByText('今天休市，只算基础收益。')).toHaveCount(weekend ? 1 : 0);
   await expect(card.getByRole('table', { name: '最近 10 个交易日' }).locator('tbody tr')).toHaveText([`${md(`'${W2}'`)}+1.25%`, `${md(`'${W3}'`)}−0.50%`]);
   await expect(page.locator('.dc-notice', { hasText: '理财可能亏损' })).toContainText('到期或赎回时拿回的钱可能少于本金。可以随时按当时的价值赎回。');
   await expect(lengths(page)).toHaveText([2, 4, 12, 24, 48].map((w) => `${w} 周${md(`${DAY} + ${7 * w}`)} 到期`));

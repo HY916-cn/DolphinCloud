@@ -4,9 +4,15 @@ import { confirmIn, resetData, signIn, sql } from './helpers';
 // 学期 (PHASE-2.md §6): the bank admin registers, changes and closes terms; the president and the accountant only read them. And the
 // sysadmin's overview while a scheduled job has failed (§13). The tests build on each other's terms.
 test.describe.configure({ mode: 'serial' });
-test.beforeAll(resetData);
+// The moment the spec starts from, taken once after resetData (which waits past a midnight inside the spec): `day()` is
+// today on the school's clock and `day(n)` n days from it, the same in every assertion.
+let start = 0;
+test.beforeAll(() => {
+  resetData();
+  start = Date.now();
+});
 
-const day = (offset = 0) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date(Date.now() + offset * 86_400_000));
+const day = (offset = 0) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date(start + offset * 86_400_000));
 const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8, 10))}日`;
 const fullDate = (d: string) => `${d.slice(0, 4)}年${monthDay(d)}`;
 const FIRST = '2026 学年第一学期';
