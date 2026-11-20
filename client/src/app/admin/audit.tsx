@@ -26,6 +26,7 @@ const ACTIONS: Record<string, string> = {
   'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
   'user.close': '注销账号', 'salary.bind': '绑定工资账户', 'staff.import': '工作人员导入', 'credit.adjust': '调整信用分',
   'wealth.record': '登记理财指数涨跌', 'wealth.fetch_failed': '理财取数失败', 'txn.manual': '补录流水', 'txn.correct': '编辑流水',
+  'transfer.delete': '提前删除文件传输', 'transfer.cleanup': '清理文件传输',
 };
 const TABLES: Record<string, string> = {
   students: '学生', profiles: '账号', user_roles: '身份', products: '商品', currency_issues: '发行', settings: '参数',
@@ -41,6 +42,7 @@ const GROUPS: Record<string, [string, string[]]> = {
   settings: ['参数', ['settings.']],
   attendance: ['考勤与工资', ['attendance.', 'staff_payroll.', 'duty.', 'salary.', 'salary_rates.', 'payroll.']],
   system: ['备份与自检', ['backup.', 'check.']],
+  transfer: ['文件传输', ['transfer.']],
 };
 const KINDS = Object.entries(GROUPS).map(([k, [name]]) => [k, name] as const);
 // What the search picked: whose entries (an actor, or a student: their own and about them) and which action.
@@ -63,6 +65,7 @@ const COLUMNS: Record<string, string> = {
   attendance: '参与考勤', account: '工资账户', day: '日期', shift: '班次', note: '说明', signed_at: '记录时间',
   started_at: '上班时间', ended_at: '下班时间', txns: '业务笔数', closed_at: '注销时间',
   from: '起', to: '止', rates: '工资标准', paid: '发放', change_given: '找零', payment: '支付方式',
+  expired: '到期的取件', unfinished: '没传完的发送', orphans: '多余的文件', files: '文件', expires_at: '到期时间',
 };
 // Columns that change on every write and say nothing to the reader.
 const NOISE = new Set(['id', 'seq', 'created_at', 'updated_at', 'updated_by', 'created_by', 'opened_at', 'user_id', 'operator_id', 'device_id',
@@ -104,6 +107,7 @@ function subject(e: Entry, names: Map<string, string>) {
   if (e.action === 'user.reissue_passwords') return `${Array.isArray(r.student_nos) ? r.student_nos.length : 0} 名学生`;
   if (e.action.startsWith('backup.')) return String(r.file ?? '');
   if (e.action.startsWith('settings.')) return SETTINGS[String(r.key)] ?? String(r.key ?? '');
+  if (e.action === 'transfer.delete') return `${Array.isArray(r.files) ? r.files.length : 0} 个文件`;
   if (e.action === 'check.mismatch') return `${Array.isArray(e.after) ? e.after.length : 0} 处不一致`;
   if (e.action === 'salary.pay') return `${r.from} 至 ${r.to}`;
   if (e.action === 'salary.bind') return [names.get(profileOf(e) ?? ''), r.name, r.student_no].filter(Boolean).join(' · ');

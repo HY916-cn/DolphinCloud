@@ -115,3 +115,25 @@ assert.deepEqual(explain('INVALID_INPUT', { currency: 'issue', field: 'kind' }),
 assert.deepEqual(explain('ALREADY_EXISTS', { currency: 'baseline', field: 'kind' }), { title: '期初现金已经登记过', text: '期初现金只登记一次，登错了请登一笔更正。' });
 assert.equal(explain('ALREADY_EXISTS', { currency: 'issue', field: 'batch_no', batch_no: 'FX-1' }).text, '批次号 FX-1 已经用过。');
 console.log('errors (currency) ok');
+
+// 文件传输 (design system FileTransfer): each side's own wording.
+assert.deepEqual(explain('TRANSFER_NOT_FOUND', { transfer: 'receive' }),
+  { title: '取件码不对或已过期', text: '请核对 4 位取件码。取件码在生成后 7 天内有效。' });
+assert.equal(explain('TRANSFER_NOT_FOUND', { transfer: 'admin' }).title, '这次取件已经不在了');
+assert.equal(explain('TRANSFER_NOT_FOUND', { transfer: 'send' }).text, '这次发送已失效，请重新选择文件。');
+assert.deepEqual(explain('TRANSFER_INCOMPLETE', { missing: [2] }), { title: '没有传完', text: '请检查网络后点重试。' });
+assert.deepEqual(explain('FILE_TOO_LARGE', { field: 'count', max: 20, count: 23 }),
+  { title: '文件太多', text: '这次选了 23 个，一次至多 20 个，请分几次发送。' });
+assert.deepEqual(explain('FILE_TOO_LARGE', { field: 'file', max: 104857600, files: [{ name: '视频.mp4', size: 272629760 }] }),
+  { title: '文件太大', text: '视频.mp4 有 260 MB，每个文件不能超过 100 MB。' });
+assert.equal(explain('FILE_TOO_LARGE', { field: 'file', max: 104857600, files: [{ name: 'a.mov', size: 272629760 }, { name: 'b.mp4', size: 110100480 }] }).text,
+  'a.mov 有 260 MB、b.mp4 有 105 MB，每个文件不能超过 100 MB。');
+assert.deepEqual(explain('FILE_TOO_LARGE', { field: 'total', max: 209715200, total: 272629760 }),
+  { title: '合计太大', text: '这次选了 260 MB，合计不能超过 200 MB，请分几次发送。' });
+assert.deepEqual(explain('STORAGE_FULL'), { title: '存储空间已满', text: '存储空间已满，请过几天再试。' });
+assert.deepEqual(explain('RATE_LIMITED', { transfer: 'send', retry_at: '2026-11-20T10:30:00+08:00' }),
+  { title: '上传次数太多', text: '同一网络每小时至多上传 10 次，请稍后再试。' });
+assert.deepEqual(explain('RATE_LIMITED', { transfer: 'receive' }), { title: '输错次数太多', text: '请 10 分钟后再试。' });
+assert.equal(explain('NETWORK', { transfer: 'send' }).title, '没有传完');
+assert.equal(explain('NETWORK').title, '网络已断开');
+assert.equal(explain('INVALID_INPUT', { field: 'reason', transfer: 'admin' }).text, '请写明删除的原因，最多 200 字。');

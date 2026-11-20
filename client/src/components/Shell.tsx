@@ -25,6 +25,7 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
   { href: '/admin/wealth', icon: 'invest', label: '理财', roles: ['accountant', 'teacher', 'president'] },
   { href: '/admin/settings', icon: 'settings', label: '参数', roles: ['teacher'] },
   { href: '/admin/audit', icon: 'bell', label: '日志', roles: ['teacher', 'sysadmin'] },
+  { href: '/admin/transfers', icon: 'upload', label: '文件', roles: ['teacher'] },
 ];
 export const sectionsFor = (me: Me) => SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)));
 

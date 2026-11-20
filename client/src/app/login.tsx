@@ -105,6 +105,11 @@ export default function Login() {
         <p className="dc-login-help">首次登录请使用初始密码，登录后设置新密码<br />忘记密码请联系银行管理员</p>
       )}
       {kind === 'student' && <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/book')}>打开存折版</a>}
+      <ul className="dc-login-links" aria-label="不用登录的功能">
+        <li><a {...link('/board')}><Icon name="rate" />利率看板</a></li>
+        <li><a {...link('/clock')}><Icon name="clock" />大屏时间</a></li>
+        <li><a {...link('/transfer')}><Icon name="upload" />文件传输</a></li>
+      </ul>
     </Welcome>
   );
 }

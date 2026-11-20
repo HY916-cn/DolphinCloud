@@ -183,7 +183,7 @@ test('全部功能: every page from the phone header, 利率 from it, Esc back t
   const sheet = page.getByRole('dialog', { name: '全部功能' });
   const tiles = sheet.getByRole('navigation', { name: '全部功能' }).getByRole('link');
   await apps.click();
-  await expect(tiles).toHaveText(['总览', '学生', '流水', '报表', '轧账', '货币', '风险', '商品', '出入库', '人员', '考勤', '学期', '信用分', '贷款', '利率', '理财', '参数', '日志', '我的']);
+  await expect(tiles).toHaveText(['总览', '学生', '流水', '报表', '轧账', '货币', '风险', '商品', '出入库', '人员', '考勤', '学期', '信用分', '贷款', '利率', '理财', '参数', '日志', '文件', '我的']);
   await expect(sheet.locator('[aria-current="page"]')).toHaveText('总览');
   await expect(tiles.first()).toBeFocused();
   await tiles.filter({ hasText: '利率' }).click();

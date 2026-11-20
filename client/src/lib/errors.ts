@@ -8,6 +8,17 @@ function shanghaiTime(iso: string) {
 }
 // 2027-01-20 → 1月20日.
 const monthDay = (d: string) => `${Number(d.slice(5, 7))}月${Number(d.slice(8, 10))}日`;
+// 260 MB, 820 KB: lib/public.ts's formatSize, written here for the same reason.
+function size(bytes: number) {
+  let n = bytes / 1024;
+  if (n < 1) return '1 KB';
+  for (const unit of ['KB', 'MB', 'GB']) {
+    const shown = Math.round(n * 10) / 10;
+    if (shown < 1024 || unit === 'GB') return `${shown} ${unit}`;
+    n /= 1024;
+  }
+  return '';
+}
 
 // Error codes from the database functions (app_private.fail) as the counter shows them (PHASE-1.md §7.6).
 export type Detail = Record<string, unknown>;
@@ -95,6 +106,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
           : d.status === 'open' ? { title: '还在上班', text: '柜员还在上班，下班后才能复核。' }
           : { title: '已经复核过', text: '这次上班已经复核过了。' };
       }
+      if (d.transfer && d.field === 'reason') return { title: '请写明原因', text: '请写明删除的原因，最多 200 字。' };
+      if (d.transfer && d.field === 'files') return { title: '文件不对', text: '文件名要在 255 字以内，请改名后重新选择。' };
       if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
       if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '银行管理员和运维员不参与考勤。' };
       if (d.field === 'id' && d.payroll) return { title: '不能作废', text: '待审的班次请审查。' };
@@ -152,7 +165,24 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ALERT_HANDLED':
       return { title: '这条提醒已处理', text: `${d.handler_name ?? ''} 已于 ${shanghaiTime(String(d.handled_at))} ${d.status === 'terminated' ? '终止' : '标为已查看'}。` };
     case 'ALERT_OUTDATED': return { title: '参数之后又改过', text: '这项参数在提醒之后又改过，请先终止后来的那条提醒，或到参数页直接修改。' };
-    case 'NETWORK': return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
+    // 文件传输 (design system FileTransfer): `transfer` (send, receive, admin) is the pages' own: the server sends no such detail.
+    case 'TRANSFER_NOT_FOUND':
+      return d.transfer === 'admin' ? { title: '这次取件已经不在了', text: '' }
+        : d.transfer === 'send' ? { title: '这次发送已失效', text: '这次发送已失效，请重新选择文件。' }
+        : { title: '取件码不对或已过期', text: '请核对 4 位取件码。取件码在生成后 7 天内有效。' };
+    case 'TRANSFER_INCOMPLETE': return { title: '没有传完', text: '请检查网络后点重试。' };
+    case 'FILE_TOO_LARGE':
+      if (d.field === 'count') return { title: '文件太多', text: `这次选了 ${d.count} 个，一次至多 ${d.max} 个，请分几次发送。` };
+      if (d.field === 'total') return { title: '合计太大', text: `这次选了 ${size(Number(d.total))}，合计不能超过 ${size(Number(d.max))}，请分几次发送。` };
+      return { title: '文件太大', text: `${((d.files ?? []) as { name: string; size: number }[]).map((f) => `${f.name} 有 ${size(f.size)}`).join('、')}，每个文件不能超过 ${size(Number(d.max))}。` };
+    case 'STORAGE_FULL': return { title: '存储空间已满', text: '存储空间已满，请过几天再试。' };
+    case 'RATE_LIMITED':
+      return d.transfer === 'send' ? { title: '上传次数太多', text: '同一网络每小时至多上传 10 次，请稍后再试。' }
+        : { title: '输错次数太多', text: '请 10 分钟后再试。' };
+    case 'NETWORK':
+      if (d.transfer === 'send') return { title: '没有传完', text: '请检查网络后点重试。' };
+      if (d.transfer) return { title: '暂时连不上', text: '请检查网络后再试。' };
+      return { title: '网络已断开', text: '联网后再办理这项业务；存款可以继续离线登记。' };
     default: return { title: '暂时无法办理', text: '请稍后重试；多次出现时请联系银行管理员。' };
   }
 }

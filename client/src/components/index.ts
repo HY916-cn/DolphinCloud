@@ -39,3 +39,4 @@ export { outside, Stepper, type Range } from './Stepper';
 export { Toast } from './Toast';
 export { AlertRow, AlertTag, useAlertOverview } from './Alerts';
 export { Dashboard, useCurrency, useCurrencyMoves } from './Currency';
+export { Fullscreen } from './Public';
