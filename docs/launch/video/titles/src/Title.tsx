@@ -1,5 +1,5 @@
 // P2 · 标题（脚本 1.5，1:20–1:35）：海水到天空，三层海浪升起，主题，标志。
-import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { easeOut, font, loadFonts } from "./brand";
 import { Waves } from "./Waves";
 
@@ -49,7 +49,18 @@ export const Title: React.FC = () => {
       }}
     >
       <Grain />
-      <Waves scale={5} riseFrom={T.waves} />
+      {/* Camera rises from below the sea: the far layer surfaces first, the near one travels
+          furthest; then a slow dolly keeps the parallax alive. */}
+      <Waves
+        scale={5}
+        camY={interpolate(frame, [T.waves, T.waves + 84], [640, 0], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: easeOut,
+        })}
+        dolly={interpolate(frame, [0, 450], [0, 0.08], { easing: Easing.inOut(Easing.sin) })}
+        focusBlur={6}
+      />
       <AbsoluteFill
         style={{
           flexDirection: "column",
