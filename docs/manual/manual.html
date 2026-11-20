@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>海豚云使用手册</title>
+<link rel="stylesheet" href="../../client/node_modules/@fontsource-variable/nunito-sans/index.css">
+<link rel="stylesheet" href="../../client/node_modules/@fontsource-variable/noto-sans-sc/index.css">
+<link rel="stylesheet" href="../../client/src/theme/tokens.css">
+<link rel="stylesheet" href="../../client/src/theme/bundle.css">
+<style>
+  /* 打印版式：颜色、圆角、间距、字体全部取自设计系统 token */
+  @page { size: A4; margin: 0; }
+  html, body { margin: 0; background: var(--surface); }
+  .page { width: 210mm; height: 297mm; box-sizing: border-box; padding: 52px 56px 0; display: flex; flex-direction: column; background: var(--surface-raised); break-after: page; overflow: hidden; position: relative; }
+  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: var(--space-4); }
+  .foot { flex: none; height: 56px; display: flex; align-items: center; justify-content: space-between; border-top: 2px solid var(--line); margin-top: var(--space-3); font: 500 12px/16px var(--font-sans); color: var(--ink-muted); }
+  .foot b { font-weight: 800; color: var(--dolphin-deep); font-variant-numeric: tabular-nums; }
+
+  p { margin: 0; }
+  .lead { font: 600 18px/28px var(--font-sans); color: var(--ink); }
+  .dc-text, li { font: 400 15px/25px var(--font-sans); color: var(--ink); }
+  .muted { color: var(--ink-muted); }
+  .dc-caption { color: var(--ink-muted); }
+  h2.heading { display: flex; align-items: center; gap: var(--space-3); color: var(--ink); }
+  h3 { margin: 0; font: 700 16px/24px var(--font-sans); color: var(--ink); }
+  b, strong { font-weight: 700; }
+  ul.dots { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  ul.dots li { position: relative; padding-left: 18px; }
+  ul.dots li::before { content: ""; position: absolute; left: 2px; top: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--dolphin); }
+  code { font: 600 13px/20px ui-monospace, "SF Mono", Menlo, monospace; color: var(--dolphin-deep); background: var(--cloud-100); border-radius: var(--radius-xs); padding: 1px 6px; }
+
+  /* 图标底块：默认海豚蓝，加 dc-kind-* 换成业务类别色 */
+  .ib { flex: none; width: 40px; height: 40px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--hue-soft, var(--cloud-100)); }
+  .ib .dc-icon { width: 24px; height: 24px; color: var(--hue-ink, var(--dolphin)); }
+  .ib.lg { width: 52px; height: 52px; border-radius: var(--radius-md); }
+  .ib.lg .dc-icon { width: 30px; height: 30px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+  .dc-card { margin: 0; box-shadow: var(--shadow-card); padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
+  .dc-card.tight { padding: var(--space-3) var(--space-4); }
+  .card-head { display: flex; align-items: center; gap: var(--space-3); }
+  .dc-notice { align-items: flex-start; padding: var(--space-3) var(--space-4); }
+  .dc-notice .dc-icon { width: 28px; height: 28px; color: var(--dolphin); }
+  .dc-notice-text, .dc-notice-title { font-size: 15px; line-height: 24px; }
+
+  .dc-table { font-size: 14px; line-height: 20px; }
+  .dc-table td { white-space: normal; vertical-align: top; padding: 7px var(--space-3); }
+  .dc-table th { padding: 6px var(--space-3); font-size: 13px; }
+  .dc-table td:first-child { font-weight: 700; white-space: nowrap; }
+  .dc-table .ok { color: var(--dolphin); font-weight: 800; text-align: center; }
+  .dc-table.center td:not(:first-child), .dc-table.center th:not(:first-child) { text-align: center; }
+  .tbl { border: 2px solid var(--line); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--surface-raised); }
+
+  figure { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+  figure img { display: block; width: 100%; border: 2px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+  figcaption { font: 500 13px/18px var(--font-sans); color: var(--ink-muted); }
+
+  .steps { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  .steps > li { counter-increment: s; position: relative; padding-left: 44px; min-height: 32px; }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--dolphin); color: var(--on-dolphin); font: 800 15px/30px var(--font-sans); text-align: center; box-shadow: 0 3px 0 var(--dolphin-deep); }
+  .steps > li b:first-child { display: block; }
+
+  .flow { display: flex; align-items: stretch; gap: var(--space-2); }
+  .flow > div { flex: 1; border: 2px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); background: var(--surface-raised); box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 6px; }
+  .flow > i { align-self: center; color: var(--line-strong); font-style: normal; font: 800 18px/1 var(--font-sans); }
+  .flow h3 { font-size: 15px; }
+  .flow p { font: 400 13px/20px var(--font-sans); color: var(--ink-muted); }
+
+  /* 章首 */
+  .opener { position: relative; border-radius: var(--radius-lg); background: var(--cloud-100); padding: var(--space-5) var(--space-6) 76px; overflow: hidden; display: flex; flex-direction: column; gap: var(--space-2); flex: none; }
+  .opener .no { font: 800 15px/20px var(--font-sans); letter-spacing: .12em; color: var(--dolphin-deep); }
+  .opener h1 { margin: 0; font: 800 34px/44px var(--font-sans); letter-spacing: .02em; color: var(--ink); }
+  .opener p { font: 500 15px/24px var(--font-sans); color: var(--ink-muted); max-width: 560px; }
+  .opener .ib { position: absolute; right: var(--space-6); top: var(--space-5); background: var(--surface-raised); }
+  .waves { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 680 56' preserveAspectRatio='none'%3E%3Cpath d='M0 18 C 90 6 180 6 270 18 S 450 30 540 18 S 650 8 680 14 V56 H0Z' fill='%23c9d6f8'/%3E%3Cpath d='M0 30 C 80 20 170 22 250 32 S 420 42 520 30 S 640 22 680 28 V56 H0Z' fill='%23a9bdf0'/%3E%3Cpath d='M0 42 C 100 34 190 36 290 44 S 470 50 560 42 S 650 36 680 40 V56 H0Z' fill='%2388a3e5'/%3E%3C/svg%3E") bottom / 100% 100% no-repeat; }
+
+  /* 封面 */
+  .cover { padding: 0; }
+  .cover .art { position: absolute; left: 0; right: 0; bottom: 0; height: 600px; }
+  .cover .art svg { display: block; width: 100%; height: 100%; }
+  .cover .words { padding: 112px 64px 0; display: flex; flex-direction: column; gap: var(--space-4); }
+  .cover .brand { display: flex; align-items: center; gap: var(--space-3); font: 800 20px/28px var(--font-sans); color: var(--dolphin-deep); }
+  .cover .brand img { width: 64px; height: auto; }
+  .cover h1 { margin: 0; font: 800 96px/1 var(--font-sans); letter-spacing: .02em; color: var(--ink); }
+  .cover .sub { font: 700 30px/40px var(--font-sans); color: var(--ink); }
+  .cover .meta { font: 600 15px/24px var(--font-sans); color: var(--ink-muted); }
+  .cover .who { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
+  .cover .who .dc-tag { font-size: 14px; }
+
+  .toc { display: flex; flex-direction: column; }
+  .toc a { display: grid; grid-template-columns: 48px 1fr auto; align-items: baseline; gap: var(--space-3); padding: 11px 0; border-bottom: 1px dashed var(--line); color: var(--ink); text-decoration: none; }
+  .toc a .n { font: 800 18px/24px var(--font-sans); color: var(--dolphin); }
+  .toc a .t { font: 700 17px/24px var(--font-sans); }
+  .toc a .t small { display: block; font: 500 13px/20px var(--font-sans); color: var(--ink-muted); margin-top: 2px; }
+  .toc a .p { font: 800 17px/24px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--dolphin-deep); }
+
+  .formula { font: 700 15px/24px var(--font-sans); color: var(--ink); background: var(--cloud-100); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-4); }
+  .back { justify-content: flex-end; padding-bottom: 72px; }
+</style>
+</head>
+<body>
+
+<!-- 封面 -->
+<section class="page cover">
+  <div class="words">
+    <div class="brand"><img src="../../design-system/project/assets/Logos/dolphin-cloud-logo.png" alt="">明德学校 · 海豚银行</div>
+    <h1>海豚云</h1>
+    <p class="sub">使用手册</p>
+    <p class="meta">校园银行业务平台 · 学生、柜员、后台与运维的使用说明<br>2026年11月</p>
+    <div class="who">
+      <span class="dc-tag"><i data-icon="student"></i>学生</span>
+      <span class="dc-tag"><i data-icon="teller"></i>柜员</span>
+      <span class="dc-tag"><i data-icon="accountant"></i>财务</span>
+      <span class="dc-tag"><i data-icon="storekeeper"></i>库管</span>
+      <span class="dc-tag"><i data-icon="president"></i>行长</span>
+      <span class="dc-tag"><i data-icon="teacher"></i>银行管理员</span>
+      <span class="dc-tag"><i data-icon="sysadmin"></i>运维员</span>
+    </div>
+  </div>
+  <div class="art" aria-hidden="true">
+    <svg viewBox="0 0 794 520" preserveAspectRatio="xMidYMax slice">
+      <rect x="380" y="40" width="210" height="300" rx="28" fill="#1f5ff5"/>
+      <rect x="620" y="110" width="200" height="320" rx="28" fill="#a9bdf0"/>
+      <rect x="150" y="230" width="200" height="160" rx="28" fill="#2abfd4"/>
+      <circle cx="270" cy="140" r="58" fill="#ffc233"/>
+      <path d="M0 360 C 130 330 260 330 397 360 S 660 390 794 356 V520 H0Z" fill="#c9d6f8"/>
+      <path d="M0 410 C 120 386 250 392 380 414 S 640 438 794 408 V520 H0Z" fill="#a9bdf0"/>
+      <path d="M0 458 C 140 440 270 444 400 462 S 660 480 794 456 V520 H0Z" fill="#1f5ff5"/>
+    </svg>
+  </div>
+</section>
+
+<!-- 目录 -->
+<section class="page">
+  <div class="body">
+    <h2 class="title">目录</h2>
+    <nav class="toc">
+      <a><span class="n">01</span><span class="t">认识海豚云<small>平台做什么、四条原则、海豚币与金额写法、使用设备</small></span><span class="p" data-ref="ch1"></span></a>
+      <a><span class="n">02</span><span class="t">账号与登录<small>七种身份、登录与密码、一台设备上的多个账号</small></span><span class="p" data-ref="ch2"></span></a>
+      <a><span class="n">03</span><span class="t">学生篇<small>首页、明细、信用、排名、我的、存折版</small></span><span class="p" data-ref="ch3"></span></a>
+      <a><span class="n">04</span><span class="t">柜员篇<small>上班、办理存取兑换与贷款定期理财、冲正、离线存款、下班轧账、考勤</small></span><span class="p" data-ref="ch4"></span></a>
+      <a><span class="n">05</span><span class="t">利息、理财、贷款与信用分<small>每周锚点、活期与定期、理财三档、贷款额度与还款、信用分规则</small></span><span class="p" data-ref="ch5"></span></a>
+      <a><span class="n">06</span><span class="t">后台管理篇<small>各身份的页面、学生与人员、商品、流水与报表、轧账、风险、货币、学期、考勤工资</small></span><span class="p" data-ref="ch6"></span></a>
+      <a><span class="n">07</span><span class="t">公开页面<small>利率看板、大屏时间、文件传输</small></span><span class="p" data-ref="ch7"></span></a>
+      <a><span class="n">08</span><span class="t">运维篇<small>部署、运维命令、备份与恢复、定时任务</small></span><span class="p" data-ref="ch8"></span></a>
+      <a><span class="n">09</span><span class="t">常见提示与处理<small>界面提示的含义和下一步</small></span><span class="p" data-ref="ch9"></span></a>
+      <a><span class="n">10</span><span class="t">术语表<small>手册中出现的业务名词</small></span><span class="p" data-ref="ch10"></span></a>
+    </nav>
+    <div class="dc-notice"><i data-icon="help"></i><div><p class="dc-notice-title">怎样读这本手册</p><p class="dc-notice-text">第 1、2 章人人都看；学生看第 3、5 章；柜员看第 4、5、9 章；财务、库管、行长和银行管理员看第 5、6 章；运维员看第 6、8 章。界面截图取自海豚云设计系统的页面示例，人名和金额都是示例。</p></div></div>
+  </div>
+  <footer class="foot"><span>海豚云使用手册</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 1 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch1">
+      <span class="no">CHAPTER 01</span>
+      <h1>认识海豚云</h1>
+      <p>海豚云是明德学校校园银行「海豚银行」的业务平台。学生用海豚币存款、取款、兑换文创、办理定期、理财和贷款；学生社员担任柜员、财务、库管和行长，银行管理员负责管理。</p>
+      <span class="ib lg"><i data-icon="school"></i></span>
+      <div class="waves"></div>
+    </header>
+    <h2 class="heading"><span class="ib"><i data-icon="apps"></i></span>平台做什么</h2>
+    <div class="grid3">
+      <div class="dc-card tight"><div class="card-head"><span class="ib dc-kind-save"><i data-icon="deposit"></i></span><h3>柜台办业务</h3></div><p class="dc-text">柜员在平板或电脑上为同学办理存款、取款、兑换、贷款、定期和理财，系统算总额、配钞和找零。</p></div>
+      <div class="dc-card tight"><div class="card-head"><span class="ib"><i data-icon="home"></i></span><h3>学生查账户</h3></div><p class="dc-text">学生用手机或电脑查看余额、交易明细、信用分、利率和存款排名，也可以打开仿真存折。</p></div>
+      <div class="dc-card tight"><div class="card-head"><span class="ib"><i data-icon="gauge"></i></span><h3>后台管经营</h3></div><p class="dc-text">财务、库管、行长和银行管理员管理流水、商品、轧账、风险提醒、货币发行、学期和工资。</p></div>
+    </div>
+    <h2 class="heading"><span class="ib"><i data-icon="star"></i></span>四条原则</h2>
+    <div class="grid2">
+      <div class="dc-card tight"><h3>账永远对得上</h3><p class="dc-text">余额只由业务流水推出，任何人都不能直接改余额。办错的业务用冲正更正，原记录保留，流水只增不删。</p></div>
+      <div class="dc-card tight"><h3>办理与审批分离</h3><p class="dc-text">每个身份只做自己权限内的事：柜员办理，财务复核，银行管理员管理参数和处理风险。所有操作记下操作人和时间。</p></div>
+      <div class="dc-card tight"><h3>孩子用得会</h3><p class="dc-text">大按钮、少层级，每屏只办一件事；按钮写明下一步，不可撤销的动作先确认。界面用语与柜台业务 SOP 一致。</p></div>
+      <div class="dc-card tight"><h3>纸质兜底</h3><p class="dc-text">下班总结打印签字留存；断网时柜台仍可登记存款，联网后补传，同时按 SOP 填写纸质凭条。</p></div>
+    </div>
+  </div>
+  <footer class="foot"><span>01 认识海豚云</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib dc-kind-reward"><i data-icon="coin"></i></span>海豚币与金额写法</h2>
+    <ul class="dots">
+      <li>海豚币的单位是 <b>HTB</b>。金额都是整数，最小 1 HTB；利息按 0.01 HTB 累计，满 1 HTB 入账。</li>
+      <li>金额用千分位逗号，如 <b>1,280 HTB</b>；收入写 <b>+50</b>，支出写 <b>−20</b>（用减号 −）。</li>
+      <li>时间写「11月20日 14:20」，当年内不写年份。「当天」一律按上海时间计算。</li>
+      <li>纸币面额由银行管理员设定，默认 1、2、5、10 元四种。柜台录入现金时按面额填张数。</li>
+      <li>每笔业务有交易号，如 <code>HT2611120000123</code>；每笔贷款有贷款号，如 <code>DK2611120001</code>。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="star"></i></span>界面颜色的含义</h2>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>颜色</th><th>表示</th><th>出现在</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--dolphin)">海豚蓝</td><td>可以点、去办理</td><td>主按钮、链接、选中的导航</td></tr>
+        <tr><td style="color:var(--sea-ink)">海青</td><td>储蓄：钱存进来</td><td>存款、定期</td></tr>
+        <tr><td style="color:var(--grape-ink)">葡萄紫</td><td>支取：钱出去或借还</td><td>取款、贷款、还款</td></tr>
+        <tr><td style="color:var(--rose-ink)">莓红</td><td>兑换：用海豚币换东西</td><td>兑换文创</td></tr>
+        <tr><td style="color:var(--coin-ink)">金色</td><td>海豚币与奖励</td><td>利息、理财、排名</td></tr>
+        <tr><td style="color:var(--success)">绿 / <span style="color:var(--danger)">橙红</span></td><td>状态：办成了 / 需要注意</td><td>提示条、标签，总配图标和文字</td></tr>
+        <tr><td style="color:var(--rise)">红涨 / <span style="color:var(--fall)">绿跌</span></td><td>利率和行情的涨跌</td><td>理财收益、指数涨跌、利率升降，总写「+」「−」</td></tr>
+      </tbody>
+    </table></div>
+    <h2 class="heading"><span class="ib"><i data-icon="fullscreen"></i></span>使用设备</h2>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>谁在用</th><th>设备与浏览器</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>学生</td><td>手机或电脑：iOS Safari 16 起、Android Chrome 105 起、微信内置浏览器</td><td>可以添加到主屏幕，像 App 一样打开</td></tr>
+        <tr><td>柜台</td><td>iPad Safari 16 起、Android Chrome 105 起，横屏；或电脑</td><td>联网打开过一次柜台的设备，断网时仍能登记存款</td></tr>
+        <tr><td>后台</td><td>电脑 Chrome、Edge 最新两个大版本；手机也能用</td><td>手机上页面的主操作在底部操作栏</td></tr>
+      </tbody>
+    </table></div>
+    <div class="dc-notice"><i data-icon="calendar"></i><div><p class="dc-notice-title">后续规划</p><p class="dc-notice-text">家长端（查看孩子账务、预约办理、变动通知）、教师端（班级与社团的海豚币发放）、对公业务和积分转海豚币安排在第三阶段，上线后另行说明。</p></div></div>
+  </div>
+  <footer class="foot"><span>01 认识海豚云</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 2 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch2">
+      <span class="no">CHAPTER 02</span>
+      <h1>账号与登录</h1>
+      <p>每个账号只有一种身份。学生账号只用来查看自己的账户；柜员、财务、库管、行长、银行管理员、运维员各用一个独立的工作账号。</p>
+      <span class="ib lg"><i data-icon="person"></i></span>
+      <div class="waves"></div>
+    </header>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>身份</th><th>由谁担任</th><th>在海豚云上做什么</th></tr></thead>
+      <tbody>
+        <tr><td>学生</td><td>全体开户学生</td><td>查看本人余额、明细、信用分、利息、定期、理财和贷款；不能自己发起任何账务操作</td></tr>
+        <tr><td>柜员</td><td>当班的出纳、支行负责人</td><td>上班后办理存款、取款、兑换、贷款与还款、定期、理财，冲正本人当天办错的业务</td></tr>
+        <tr><td>财务</td><td>老成员（复核岗）</td><td>查看全部流水和报表，复核轧账，查看贷款、利率、货币监控</td></tr>
+        <tr><td>库管</td><td>老成员</td><td>管理文创商品、上架下架、入库出库，查看库存预警</td></tr>
+        <tr><td>行长</td><td>学生负责人</td><td>查看经营全貌与各项业务，强制柜员下班，在考勤表里签到与作废，查看风险提醒</td></tr>
+        <tr><td>银行管理员</td><td>老师，全系统一个</td><td>后台的全部管理：学生、人员、参数、货币、学期、工资、风险处理、补录与更正</td></tr>
+        <tr><td>运维员</td><td>信息技术老师</td><td>账号维护、备份与恢复、查看日志；不办理业务，不改业务数据</td></tr>
+      </tbody>
+    </table></div>
+    <p class="dc-text muted">同一个人担任两种身份时持有两个账号，例如担任柜员的同学既有学生账号，也有柜员账号。柜员不能为本人或本人的工资账户办理任何业务，要请其他柜员办理。</p>
+  </div>
+  <footer class="foot"><span>02 账号与登录</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <figure><img data-shot="LoginPage" alt="登录页在手机、平板、电脑上的样子"><figcaption>登录页：选「学生」或「工作人员」，填账号和密码。底部是三个不用登录的公开页面。</figcaption></figure>
+    <h2 class="heading"><span class="ib"><i data-icon="lock"></i></span>登录与密码</h2>
+    <ol class="steps">
+      <li><b>拿到初始密码</b><span class="dc-text">学生的初始密码印在开户通知单上，工作人员的印在密码单上。初始密码是随机 8 位数字，只出现这一次。</span></li>
+      <li><b>首次登录设置新密码</b><span class="dc-text">学生选「学生」填学号，工作人员选「工作人员」填工作账号。用初始密码登录后必须设置新密码，至少 8 位。这是本人唯一一次改密码。</span></li>
+      <li><b>忘记密码找管理员</b><span class="dc-text">之后只能由银行管理员或运维员重置，重置后拿新的初始密码重新设置。银行管理员本人忘记密码时由运维员执行 <code>dolphin reset-admin</code>。</span></li>
+    </ol>
+    <div class="dc-notice"><i data-icon="warning"></i><div><p class="dc-notice-title">连续输错 5 次锁定 15 分钟</p><p class="dc-notice-text">同一账号 15 分钟内输错 5 次密码，会锁定 15 分钟，期间输对也进不去。重置密码会同时解除锁定。密码不要告诉别人。</p></div></div>
+  </div>
+  <footer class="foot"><span>02 账号与登录</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="transfer"></i></span>一台设备上的多个账号</h2>
+    <p class="dc-text">一台设备可以登录多个账号并随时切换。每种身份都有「我的」页，里面有「切换账号」「在此设备保存登录」和「退出账号」。</p>
+    <div class="grid2">
+      <div class="dc-card tight"><h3>保存登录</h3><p class="dc-text">登录时勾选「在此设备保存登录」，以后切换回这个账号不用再输密码，系统先问「你是 柜员小林 吗？」。不保存的账号关闭浏览器后要重新登录。在「我的」里打开保存要再输一次密码。</p></div>
+      <div class="dc-card tight"><h3>切换与退出</h3><p class="dc-text">「切换账号」列出本机账号，当前账号标「当前」，最后一行是「添加账号」。「退出账号」只退出本机这一个；本机有两个以上账号时可以「退出全部账号」。</p></div>
+      <div class="dc-card tight"><h3>会话失效</h3><p class="dc-text">密码被重置、账号被停用或 7 天没有使用时，切换会失败，账号从列表移除，重新登录即可；账号被停用时提示「账号已停用」。</p></div>
+      <div class="dc-card tight"><h3>公用设备</h3><p class="dc-text">柜台和教室的公用设备不要保存学生账号。办完事从「我的」退出账号。离线存款按柜员账号保存，切换账号不会混在一起。</p></div>
+    </div>
+    <h2 class="heading"><span class="ib"><i data-icon="me"></i></span>各身份的导航</h2>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>身份</th><th>导航</th></tr></thead>
+      <tbody>
+        <tr><td>学生</td><td>首页 · 明细 · 信用 · 排名 · 我的；也可以从登录页打开存折版</td></tr>
+        <tr><td>柜员</td><td>办理 · 今日业务 · 考勤 · 我的</td></tr>
+        <tr><td>后台各身份</td><td>总览加本身份能用的管理页面（见第 6 章），手机底部最多 5 项，其余从总览的宫格进入</td></tr>
+      </tbody>
+    </table></div>
+    <p class="dc-text muted">手机上导航在底部；平板上是左侧图标栏；电脑上是左侧完整导航。同一套页面随屏幕宽度自动换排版。</p>
+  </div>
+  <footer class="foot"><span>02 账号与登录</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 3 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch3">
+      <span class="no">CHAPTER 03</span>
+      <h1>学生篇</h1>
+      <p>登录后随时看到自己有多少海豚币、钱去了哪里、信用分多少、利息攒了多少。所有业务都到柜台由柜员办理，学生端只能查看。</p>
+      <span class="ib lg"><i data-icon="student"></i></span>
+      <div class="waves"></div>
+    </header>
+    <figure><img data-shot="StudentHomePage" alt="学生首页"><figcaption>首页：余额卡、存款排名和最近交易。</figcaption></figure>
+    <h2 class="heading"><span class="ib"><i data-icon="home"></i></span>首页</h2>
+    <ul class="dots">
+      <li><b>我的海豚币</b>：当前余额（活期），下面是本学期存入和支出。</li>
+      <li><b>攒着的利息</b>：已经算出、还没存进余额的利息，满 1 HTB 后在下周一存进余额。</li>
+      <li><b>定期、理财、贷款</b>：定期合计、理财现值和盈亏、贷款的本期应还；没有时写「没有」。贷款逾期时标红。</li>
+      <li><b>存款排名</b>：本人名次，再存多少超过前一名；<b>最近交易</b>：最近几笔，点「查看全部」进明细。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>03 学生篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <figure><img data-shot="TxnHistoryPage" alt="交易明细"><figcaption>明细：按类型分页签，按天分组；电脑上右栏是本月收支。</figcaption></figure>
+    <h2 class="heading"><span class="ib"><i data-icon="query"></i></span>明细</h2>
+    <ul class="dots">
+      <li>页签：全部、存款、取款、兑换、工资、利息、贷款。开定期、定期转回、买理财、理财转回只在「全部」里。</li>
+      <li>可以按交易号或商品搜索，按日期、时段筛选；每次加载 30 笔，「加载更早的交易」继续。</li>
+      <li>每笔写明时间和金额。现金兑换注明「现金支付，余额不变」；冲正过的业务标「已冲正」，冲正本身是一笔反向的流水。</li>
+      <li>本月合计不含已冲正的业务，也不含活期与定期、理财之间的转移和借还款。</li>
+    </ul>
+    <figure><img data-shot="RankingPage" alt="存款排名"><figcaption>排名：小学部、初中部分开排，本人一行标「我」。</figcaption></figure>
+    <h2 class="heading"><span class="ib dc-kind-reward"><i data-icon="ranking"></i></span>排名</h2>
+    <p class="dc-text">先显示本人名次和存款，再列出本学部前若干名（人数由银行管理员设定）。「存款」= 活期 + 定期本金 + 理财本金 − 未还的贷款本金，借钱不会抬高名次。银行管理员打开匿名时，姓名显示为「张*明」。</p>
+  </div>
+  <footer class="foot"><span>03 学生篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="gauge"></i></span>信用</h2>
+    <figure><img data-shot="CreditGauge" alt="海豚信用分仪表盘"><figcaption>信用分仪表盘：中间是分数，弧上 400 分处标「可贷款」。400 分以上为绿色，可以贷款；400 分以下为红色。</figcaption></figure>
+    <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+        <p class="dc-text">海豚信用分 0～1000 分，开户时 600 分。分数越高，能借的越多、贷款利率越低；活期利率与分数无关。</p>
+        <ul class="dots">
+          <li><b>仪表盘</b>：中间大字是分数，下面写贷款额度和「再涨 N 分，额度加 5 HTB」。</li>
+          <li><b>变动记录</b>：每次加减分的时间、变动、变动后分数和原因，例如「按时还清贷款 DK… 第 2 期 +5」。</li>
+          <li><b>本周利率</b>：活期、定期和按本人分数的贷款利率，每行举一个金额例子。</li>
+          <li>加减分规则见第 5 章。按时还款、每周存钱、多攒余额都会加分；逾期会扣分。</li>
+          <li>银行管理员可以暂停信用分。暂停期间所有同学按 600 分计算额度和利率，仪表盘变灰并标「已暂停」；重新开启后恢复原来的分数。</li>
+        </ul>
+    </div>
+    <h2 class="heading"><span class="ib"><i data-icon="settings"></i></span>我的</h2>
+    <p class="dc-text">本人信息（姓名、班级、学号）、页面样式（普通版或存折版）、切换账号、在此设备保存登录、退出账号。</p>
+  </div>
+  <footer class="foot"><span>03 学生篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="passbook"></i></span>存折版</h2>
+    <p class="dc-text">存折版把学生的全部信息放进一本仿真的储蓄存折里：没有导航栏，靠存折右边的书签换栏目，一屏放下、页面不滚动。在登录页点「打开存折版」，或在「我的」里把页面样式换成存折版。存折版只能用学号登录。</p>
+    <figure><img data-shot="StudentBookPage" alt="存折版"><figcaption>存折版：电脑上两页摊开，手机上一次一页；「上一页」「下一页」、左右滑动或方向键翻页。</figcaption></figure>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>书签</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>账户</td><td>储蓄存折（户名、账号、班级、学部、储种）、盖章的当前余额、本学期存入支出与排名；交易记录印最近几笔；第 3 页是利息、定期、理财、贷款</td></tr>
+        <tr><td>明细</td><td>本月和本学期收支，之后每页 10 行交易明细（手机 8 行），往后翻接着印更早的记录</td></tr>
+        <tr><td>排名</td><td>本学部存款榜，10 名一页，本人一行浅金底印「我」；我的名次和再存多少超过前一名</td></tr>
+        <tr><td>我的</td><td>户主信息、预留印鉴、切换回普通版、退出</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <footer class="foot"><span>03 学生篇</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 4 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch4">
+      <span class="no">CHAPTER 04</span>
+      <h1>柜员篇</h1>
+      <p>柜员的一天：上班登记备用金，为一位位同学连续办理业务，办错当场冲正，下班点储蓄盒、打印总结签字，等财务复核。</p>
+      <span class="ib lg"><i data-icon="teller"></i></span>
+      <div class="waves"></div>
+    </header>
+    <div class="flow">
+      <div><h3>1 上班</h3><p>点「上班」，按面额填储蓄盒里的备用金张数。</p></div><i>›</i>
+      <div><h3>2 找学生</h3><p>搜姓名、拼音、班级或学号，当面核对本人。</p></div><i>›</i>
+      <div><h3>3 办理</h3><p>存、取、兑换、贷款、定期、理财，一位同学连续办完。</p></div><i>›</i>
+      <div><h3>4 下班</h3><p>打印总结，按面额录入实点，平账或写明原因。</p></div><i>›</i>
+      <div><h3>5 复核</h3><p>财务或银行管理员再点一遍储蓄盒并复核。</p></div>
+    </div>
+    <h2 class="heading"><span class="ib"><i data-icon="clock"></i></span>上班</h2>
+    <ul class="dots">
+      <li>柜员登录后进入「办理」。还没上班时这里只有「上班」卡片，上班后才出现搜索框。</li>
+      <li>上班时登记储蓄盒里的备用金：各面额张数，默认是上次下班点出的张数（复核时改过的按复核的数），按实际张数修改，没有就填 0。</li>
+      <li>上次上班跨天还没下班时，先下班再重新上班。参与考勤的柜员，上班、下班会自动记下中午班（13:30 前）或下午班（13:30 起）。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="query"></i></span>找学生</h2>
+    <ul class="dots">
+      <li>在搜索框输入姓名、拼音全拼或首字母（如 <code>zxm</code>）、班级（如「四年级1班」）或学号，结果即时列出；只有一个结果时按回车直接选中。</li>
+      <li>搜索框为空时列出「今天办理过的学生」，点一下就能再办。</li>
+      <li>选中后顶部学生条大字显示姓名、班级、学号，<b>柜员当面核对是本人</b>；同时显示当前余额、今日还可取金额和小号信用仪表盘。账户冻结、毕业或贷款逾期时在学生条上注明。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>04 柜员篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <figure><img data-shot="CounterServicePage" alt="柜台办理"><figcaption>柜台办理：上方选业务，左栏录入，右栏办理单记下这位同学已办的每一笔；主按钮写明金额。</figcaption></figure>
+    <h2 class="heading"><span class="ib dc-kind-save"><i data-icon="deposit"></i></span>存款</h2>
+    <p class="dc-text">每个面额一张卡片，按「−」「+」填收到的张数，系统算出合计。点「确认存款 22 HTB」即办理，成功后显示「存款成功，存入 22 HTB，当前余额 120 HTB」。</p>
+    <h2 class="heading"><span class="ib dc-kind-withdraw"><i data-icon="withdraw"></i></span>取款</h2>
+    <p class="dc-text">输入金额，系统给出配钞方案，如「10 元 × 2 张、5 元 × 1 张」（张数最少）。超出余额、单笔或今日限额时，主按钮写明原因并不能点。点主按钮后在确认框里核对金额、配钞和办理后余额，再确认。单笔和单日限额由银行管理员按学部设定。</p>
+    <h2 class="heading"><span class="ib dc-kind-exchange"><i data-icon="exchange"></i></span>兑换</h2>
+    <p class="dc-text">选商品（库存为 0 的置灰）、调整数量、选付款方式：<b>从账户扣</b>，或<b>现金支付</b>（录入收到的各面额张数，系统给出找零方案）。扣款、扣库存、记账同时完成，任一项不成功三者都不变。同时抢最后一件时，后到者提示「已售罄」。</p>
+    <h2 class="heading"><span class="ib"><i data-icon="query"></i></span>查询</h2>
+    <p class="dc-text">占满整个宽度：当前余额、累计存入、累计取出、累计兑换，以及这位同学的全部交易记录（含其他柜员办理的），可以按交易号、商品、日期、类型和时段筛选。</p>
+  </div>
+  <footer class="foot"><span>04 柜员篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <div class="grid2" style="grid-template-columns: 290px 1fr; align-items:start">
+      <figure><img data-shot="Loan" alt="柜台贷款与学生端的贷款"><figcaption>左：柜台办理新贷款。右：学生端看到的贷款和还款计划。</figcaption></figure>
+      <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+        <h2 class="heading"><span class="ib dc-kind-withdraw"><i data-icon="loan"></i></span>贷款与还款</h2>
+        <ul class="dots">
+          <li>顶部是信用仪表盘、单笔额度、本周贷款利率和最晚应还日。信用分 400 分以下、账户冻结或毕业时只显示一句原因，不能办理。</li>
+          <li><b>新贷款</b>：金额（1 HTB 起，不超过额度）、用途（必填，最多 30 字）、还款方式「分期还」（每周一期，1～8 期）或「一次还清」（1～8 周）、放款方式「存入账户」或「付现金」（按面额配钞）。</li>
+          <li>确认弹层列出每期应还日、本金和约估利息，按钮「确认放款」。当场放款，不设审批。</li>
+          <li>有未结清的贷款时不能再借，直接显示这笔贷款：剩余本金、已产生利息、本期应还、周利率和还款计划。</li>
+          <li><b>还款</b>：填金额（默认本期应还），选「从账户扣」或「交现金」，提示「本期应还 33 HTB · 全部结清 100 HTB」。可以提前还、多还。</li>
+          <li>逾期的那期标红，提示还差多少；冻结、毕业的账户不能在柜台还款，由每期应还日结束时从活期自动扣。</li>
+        </ul>
+      </div>
+    </div>
+    <h2 class="heading"><span class="ib dc-kind-save"><i data-icon="savings"></i></span>定期</h2>
+    <p class="dc-text">选存期（2、4、12、24、48 周），填金额（1 HTB 起，不超过活期），页面显示锁定的周利率、到期日和到期可得利息。到期日当天结束时本金和利息自动转回活期。<b>提前支取</b>：在「定期」里选一笔，二次确认，只按活期计息。有未结清贷款的同学不能新开定期。</p>
+    <h2 class="heading"><span class="ib dc-kind-reward"><i data-icon="invest"></i></span>理财</h2>
+    <p class="dc-text">选期限（2、4、12、24、48 周）和档位（稳健、平衡、进取），填金额。买入前向同学说清楚：理财随指数浮动，<b>可能亏损，到期可能少于本金</b>。可以随时按当时的现值赎回，到期自动转回活期。有未结清贷款的同学不能买理财。</p>
+  </div>
+  <footer class="foot"><span>04 柜员篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="retry"></i></span>冲正</h2>
+    <p class="dc-text">办错的业务不涂改、不删除，用冲正更正：系统生成一笔反向流水，余额和库存恢复，原记录保留并标「已冲正」。</p>
+    <ul class="dots">
+      <li>入口：办理单上的每一笔，以及「今日业务」的每一行。在弹层里核对业务和交易号，选原因（选「其他」要写说明），点「确认冲正」。</li>
+      <li>柜员只能在上班时冲正<b>本人今天</b>办理的业务；其他情况请联系银行管理员。</li>
+      <li>存款冲正时，如果同学余额已少于原存款金额，会提示「暂不能冲正」，请联系银行管理员。</li>
+      <li>一位柜员一天冲正 3 笔以上会生成风险提醒。办理前先核对，少冲正。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="inbox"></i></span>今日业务</h2>
+    <p class="dc-text">今天本人办理的全部业务，最新在前，可以按姓名、学号或交易号筛选。每行写明学生、业务、交易号和时间，带「冲正」和「继续办理」。右栏「今日合计」列出存款、取款、兑换各几笔、共多少 HTB（不含已冲正的）。需要联网。</p>
+    <h2 class="heading"><span class="ib dc-kind-save"><i data-icon="upload"></i></span>离线存款</h2>
+    <div class="dc-notice"><i data-icon="warning"></i><div><p class="dc-notice-title">断网时只能办理存款</p><p class="dc-notice-text">柜台顶部显示「离线登记」，取款、兑换、贷款、定期、理财都不可用。存款登记在本机，结果写「已登记存款 15 HTB，联网后入账」。同时按 SOP 填写纸质凭条。</p></div></div>
+    <ol class="steps">
+      <li><b>离线登记</b><span class="dc-text">在本机名册上搜索、核对学生，按面额录入张数。前提是这台设备联网打开过一次柜台。</span></li>
+      <li><b>联网上传</b><span class="dc-text">恢复网络后，柜台各页顶部提示「有 N 笔离线存款待上传」，点「上传」按登记时间逐笔入账。中途断开重传不会重复记账。</span></li>
+      <li><b>处理被拒的记录</b><span class="dc-text">只有登记它的柜员登录时才能上传。被服务器拒绝的记录标红保留，银行管理员核对纸质凭条后，柜员点「已核对，移除」。</span></li>
+    </ol>
+  </div>
+  <footer class="foot"><span>04 柜员篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="balance"></i></span>下班与轧账</h2>
+    <figure><img data-shot="CashCount" alt="下班点钞"><figcaption>下班点钞：按面额录入实点张数。左：录入；中：不平，列出差额和本次的现金业务；右：平账。</figcaption></figure>
+    <ol class="steps">
+      <li><b>生成下班总结</b><span class="dc-text">点「下班」，列出本次上班的每一笔业务和合计，下面是现金表：备用金、收入、付出、应有，按面额列张数和金额（不含已冲正的业务）。应有 = 备用金 + 收入 − 付出。</span></li>
+      <li><b>数储蓄盒</b><span class="dc-text">按面额录入实点张数。每种面额都相等时显示「平账」；有差额时显示每种面额多几张、少几张和本次的逐笔现金业务，柜员逐笔核对后写明原因（必填）。</span></li>
+      <li><b>打印签字、确认下班</b><span class="dc-text">打印或下载 PDF，柜员签字留存后确认下班，状态变为「待复核」。打印后又办了业务时提示重新打印。</span></li>
+      <li><b>交储蓄盒复核</b><span class="dc-text">财务或银行管理员再点一遍，一致就「复核通过」，不一致按复核的数为准并写明原因。轧账不平会生成风险提醒。</span></li>
+    </ol>
+    <h2 class="heading"><span class="ib"><i data-icon="calendar"></i></span>考勤</h2>
+    <p class="dc-text">「考勤」页顶部是上班 / 下班；下面按周显示每天中午班、下午班的状态（有效、待审、未通过、未上班）和打卡时间，以及这周的有效班次、工资和已发金额。工资发到「我的」里绑定的工资账户（本人的学生账户，绑定时输入这位学生的密码）。</p>
+  </div>
+  <footer class="foot"><span>04 柜员篇</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 5 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch5">
+      <span class="no">CHAPTER 05</span>
+      <h1>利息、理财、贷款与信用分</h1>
+      <p>全部利率都是<b>周利率</b>。学期内和假期一样：每天计息，每个周一结息、公布锚点、加减信用分，周末和节假日也算。</p>
+      <span class="ib lg dc-kind-reward"><i data-icon="rate"></i></span>
+      <div class="waves"></div>
+    </header>
+    <h2 class="heading"><span class="ib"><i data-icon="rate"></i></span>每周锚点</h2>
+    <p class="dc-text">每周一凌晨按上周的存贷情况自动算出本周锚点，<b>锚点就是本周的活期周利率</b>，所有同学相同。初始 2%，限在 1%～4%。借的人多、存款增长慢时锚点上调，鼓励存款；存款增长快时下调。每周的计算过程都保存，后台「利率」页可以复算。</p>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>项目</th><th>周利率</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>活期</td><td>= 锚点</td><td>余额每天计息，每周一把上周的利息存入余额；不满 1 HTB 的零头留到下周</td></tr>
+        <tr><td>定期</td><td>按存期固定</td><td>默认 2 周 2.5%、4 周 2.75%、12 周 3%、24 周 3.25%、48 周 3.5%，开定期时锁定</td></tr>
+        <tr><td>贷款</td><td>锚点 × 2 × 贷款系数</td><td>贷款系数由信用分决定，放款时锁定，还清前不变</td></tr>
+        <tr><td>逾期罚息</td><td>贷款利率 × 1.5</td><td>只对逾期的本金计算</td></tr>
+      </tbody>
+    </table></div>
+    <div class="formula">例：余额 100 HTB、锚点 2%，一天的利息 = 100 × 2% ÷ 7 ≈ 0.28 HTB，一周约 2 HTB。</div>
+    <h2 class="heading"><span class="ib dc-kind-save"><i data-icon="savings"></i></span>定期</h2>
+    <ul class="dots">
+      <li>到期利息 = 本金 × 周利率 × 周数，到期日当天结束时与本金一起转回活期，不自动续存。可以跨学期、跨假期。</li>
+      <li>提前支取只付活期利息：从开定期那天到支取前一天，每天按当天的活期利率计算；当天支取的不计息。</li>
+      <li>一位同学可以同时有多笔定期。有未结清贷款时不能新开定期。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>05 利息、理财、贷款与信用分</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib dc-kind-reward"><i data-icon="invest"></i></span>理财</h2>
+    <p class="dc-text">理财让同学体验投资的风险：收益跟着中国股市的参考指数（默认沪深 300）每天浮动，有赚有亏。</p>
+    <div class="formula">当天收益率 = 当日基础收益 + 档位倍率 × 2 × 指数当天的涨跌，限在这一档的每日上下限内</div>
+    <div class="tbl"><table class="dc-table center">
+      <thead><tr><th>档位</th><th>倍率</th><th>相当于指数的</th><th>每日上下限</th></tr></thead>
+      <tbody>
+        <tr><td>稳健</td><td>×1</td><td>2 倍</td><td>±5%</td></tr>
+        <tr><td>平衡</td><td>×2</td><td>4 倍</td><td>±10%</td></tr>
+        <tr><td>进取</td><td>×4</td><td>8 倍</td><td>±20%</td></tr>
+      </tbody>
+    </table></div>
+    <ul class="dots">
+      <li>从买入次日起每个自然日计一次收益，按天复利；A 股休市的日子（周末和节假日）只计基础收益。</li>
+      <li>基础收益使指数不涨不跌时，到期金额比同期限定期略高。例如 100 HTB 买 12 周，不涨不跌时到期约 154 HTB，同期限定期约 136 HTB。</li>
+      <li>不设亏损保护，最多亏光本金，现值不会为负。倍率、基础收益和上下限在买入时锁定。</li>
+      <li>随时可以按现值赎回，买入当天赎回拿回本金；到期日当天结束时自动转回活期。</li>
+      <li>指数行情每天自动从国内公开行情接口取得；取不到时由银行管理员查证后登记，在登记前这笔理财暂停计收益。</li>
+    </ul>
+    <h2 class="heading"><span class="ib dc-kind-withdraw"><i data-icon="loan"></i></span>贷款额度与利率</h2>
+    <div class="formula">贷款额度 = 50 + (信用分 − 400) ÷ 600 × 250，向下取整到 5 HTB；400 分以下不能贷款</div>
+    <div class="tbl"><table class="dc-table center">
+      <thead><tr><th>信用分</th><th>单笔额度</th><th>贷款系数</th><th>锚点 2% 时的周利率</th></tr></thead>
+      <tbody>
+        <tr><td>400 以下</td><td>不能贷款</td><td>—</td><td>—</td></tr>
+        <tr><td>400</td><td>50 HTB</td><td>×1.8</td><td>7.2%</td></tr>
+        <tr><td>600</td><td>130 HTB</td><td>×1.5667</td><td>6.2667%</td></tr>
+        <tr><td>750</td><td>195 HTB</td><td>×1.3917</td><td>5.5667%</td></tr>
+        <tr><td>900</td><td>255 HTB</td><td>×1.2167</td><td>4.8667%</td></tr>
+        <tr><td>1000</td><td>300 HTB</td><td>×1.1</td><td>4.4%</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <footer class="foot"><span>05 利息、理财、贷款与信用分</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib dc-kind-withdraw"><i data-icon="loan"></i></span>还款与逾期</h2>
+    <ul class="dots">
+      <li><b>等额本金</b>：每期应还本金 = 本金 ÷ 期数，最后一期补齐余数。分期的应还日是放款后每满 7 天，最长 8 周，可以落在假期或下一学期。</li>
+      <li><b>按天计息</b>：每天按剩余本金计算，提前还就少付利息，可以多还。还款时先付已产生的利息，再还本金。</li>
+      <li><b>自动扣款</b>：每个应还日当天结束时，这一期没还清的从活期自动扣；扣到的算按时还款。</li>
+      <li><b>逾期</b>：过了应还日仍没还清，贷款标红；逾期本金按罚息计息，当天扣 50 分，之后每满一周再扣 30 分；结清前不能再贷款。之后每天结束时继续从活期自动扣。</li>
+      <li>银行管理员、行长可以让一笔贷款提前到期：剩余本金和利息立即全部到期，先从活期扣，不够的算逾期。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="gauge"></i></span>信用分加减分规则</h2>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>类别</th><th>事件</th><th style="text-align:right">分值</th><th>何时记</th></tr></thead>
+      <tbody>
+        <tr><td>还款</td><td>按时还清一期（应还日当天或之前）</td><td class="n">+5</td><td>还清那一期时</td></tr>
+        <tr><td>还款</td><td>放款满 7 天后提前还清一笔贷款</td><td class="n">+10</td><td>结清时</td></tr>
+        <tr><td>还款</td><td>逾期（应还日结束仍未还清）</td><td class="n">−50</td><td>逾期当天结束时</td></tr>
+        <tr><td>还款</td><td>逾期后仍未还清，每满一周</td><td class="n">−30</td><td>每周一</td></tr>
+        <tr><td>存款习惯</td><td>上周在柜台存过款</td><td class="n">+3</td><td>每周一</td></tr>
+        <tr><td>存款习惯</td><td>连续 4 周都存过款（第 4、8、12……周）</td><td class="n">再 +10</td><td>每周一</td></tr>
+        <tr><td>存款习惯</td><td>上周取款合计超过上周初余额的一半</td><td class="n">−5</td><td>每周一</td></tr>
+        <tr><td>账户</td><td>开户每满 4 周</td><td class="n">+2</td><td>每周一</td></tr>
+        <tr><td>账户</td><td>上周日均余额 ≥ 100 HTB</td><td class="n">+2</td><td>每周一</td></tr>
+        <tr><td>账户</td><td>上周日均余额 ≥ 300 HTB</td><td class="n">再 +2</td><td>每周一</td></tr>
+      </tbody>
+    </table></div>
+    <p class="dc-text muted">日均余额按活期 + 定期本金 + 理财本金 − 剩余贷款本金计算，借来的钱不抬高日均余额。银行管理员可以手动加减分，必须写原因。例：开学开户、每周都存钱、余额 100 以上的同学，一学期 18 周可以从 600 分涨到 738 分，额度从 130 涨到 190 HTB。</p>
+  </div>
+  <footer class="foot"><span>05 利息、理财、贷款与信用分</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 6 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch6">
+      <span class="no">CHAPTER 06</span>
+      <h1>后台管理篇</h1>
+      <p>财务、库管、行长、银行管理员和运维员在后台工作。每个身份只看到自己能用的页面；直接打开没有权限的地址会回到总览。</p>
+      <span class="ib lg"><i data-icon="teacher"></i></span>
+      <div class="waves"></div>
+    </header>
+    <div class="tbl"><table class="dc-table center">
+      <thead><tr><th>页面</th><th>财务</th><th>库管</th><th>行长</th><th>银行管理员</th><th>运维员</th></tr></thead>
+      <tbody>
+        <tr><td>总览与经营看板</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+        <tr><td>流水、报表</td><td class="ok">✓</td><td></td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
+        <tr><td>贷款、利率、理财、信用分</td><td class="ok">✓</td><td></td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
+        <tr><td>轧账</td><td class="ok">复核</td><td></td><td class="ok">查看</td><td class="ok">复核</td><td></td></tr>
+        <tr><td>风险提醒</td><td></td><td></td><td class="ok">查看</td><td class="ok">处理</td><td></td></tr>
+        <tr><td>货币</td><td class="ok">✓</td><td></td><td class="ok">✓</td><td class="ok">登记</td><td></td></tr>
+        <tr><td>商品、出入库</td><td class="ok">只读</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td></td></tr>
+        <tr><td>考勤</td><td></td><td></td><td class="ok">签到</td><td class="ok">✓</td><td></td></tr>
+        <tr><td>学生、工作人员</td><td></td><td></td><td></td><td class="ok">✓</td><td class="ok">✓</td></tr>
+        <tr><td>学期、参数、文件传输</td><td></td><td></td><td></td><td class="ok">✓</td><td></td></tr>
+        <tr><td>日志</td><td></td><td></td><td></td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      </tbody>
+    </table></div>
+    <p class="dc-text muted">行长办理银行业务的权限与银行管理员相同，但不管理学生、人员和参数，不看日志，不处理风险提醒，不审查考勤、不发工资。</p>
+  </div>
+  <footer class="foot"><span>06 后台管理篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="home"></i></span>总览与经营看板</h2>
+    <p class="dc-text">顶部 6 个核心指标：账户余额（活期 + 定期 + 理财本金）、银行应有现金（兑付能力低于提示线时醒目提示）、贷款余额（逾期笔数和金额标红）、文创库存、本周业务笔数、本周锚点；下面是按周业务柱状图和未处理的风险提醒。余额与流水自检不一致时，总览最上面会提示。</p>
+    <h2 class="heading"><span class="ib"><i data-icon="student"></i></span>学生与名册（银行管理员、运维员）</h2>
+    <ul class="dots">
+      <li><b>导入名册</b>（银行管理员）：下载模板 → 选择 Excel 或 CSV → 逐行校验，问题按行号列出 → 核对各学部人数与期初余额 → 确认导入 → 打印开户通知单（每人一页，含初始密码和登录说明）。</li>
+      <li><b>期初余额核对表</b>：每班一页，与原 Excel 账本逐人核对签字。</li>
+      <li><b>学生列表</b>：按姓名、拼音、班级或学号查找，注明「未设置密码」和冻结、毕业。「选择」后批量冻结、恢复正常、标记毕业、重置密码（重印通知单）或注销。有未结清贷款的学生不能注销。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="person"></i></span>工作人员（银行管理员、运维员）</h2>
+    <ul class="dots">
+      <li>「新增账号」填账号、姓名、身份；「导入」用 Excel 批量创建，并为柜员批量绑定工资账户。所有创建账号和重置密码都出每人一页的通知单，页面上不显示密码。</li>
+      <li>批量停用或启用、重置密码、注销。银行管理员全系统只有一个；至少保留一个在用的运维员。</li>
+      <li>人员详情里有「参与考勤」开关（银行管理员）、「查看他办理的流水」和「操作日志」。</li>
+    </ul>
+    <h2 class="heading"><span class="ib dc-kind-exchange"><i data-icon="storekeeper"></i></span>商品与出入库（库管、银行管理员）</h2>
+    <ul class="dots">
+      <li>商品：名称、价格、成本、分类、安全库存（默认 5 件）、图片、是否上架。缺货的标「缺货」。</li>
+      <li>出入库：切换入库 / 出库，每件商品一张数量卡片，入库可写备注，出库须写原因，一次提交。库存只通过出入库调整。</li>
+      <li>库存降到安全库存或以下时，在总览和风险提醒里提示。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>06 后台管理篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="query"></i></span>流水、补录与更正</h2>
+    <ul class="dots">
+      <li><b>流水</b>（财务、行长、银行管理员）：搜索学生、班级、学部、柜员或交易号，按日期、类型、时段筛选，每次加载 50 笔。每一行可以展开看详情；银行管理员可以冲正任意业务。</li>
+      <li><b>补录</b>（只有银行管理员）：系统故障等情况下的备用方案。选学生、类型（存款、取款、兑换、调账）、原始发生时间（这位学生开户以后到现在），写原因，二次确认。之后已算过的活期利息随之更正，差额在下次结息时入账。补录不计入任何柜员的上班现金。</li>
+      <li><b>编辑</b>：在一笔流水的详情里点「编辑」，系统冲正原流水并按改好的内容生成新流水，两笔互相关联，原流水保留。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="download"></i></span>报表与打印</h2>
+    <p class="dc-text">期间一键选今天、本周、本月、上月，或任选日期（最长一年），可以限定学生、班级或学部和时段。四个页签：<b>营业</b>（存取兑换、营业时段、按柜员）、<b>账户</b>（余额分布、按班级）、<b>财务</b>（余额核对、柜面现金）、<b>商品</b>（兑换、成本、毛利、库存）。主要数字下写「比上期 +12%」。流水导出为 Excel，列与原台账一致；所有文件都可以「打印」或「下载 PDF」。</p>
+    <h2 class="heading"><span class="ib"><i data-icon="balance"></i></span>轧账复核</h2>
+    <figure><img data-shot="CashReview" alt="后台轧账"><figcaption>后台「轧账」：按状态分页签，每行柜员、上下班时间、应有、实点、差额和原因。</figcaption></figure>
+    <ul class="dots">
+      <li>状态：待下班 → 待复核 → 已轧账；被强制下班的为「强制下班」。下班后第二天仍未复核的标红。</li>
+      <li>复核时收到储蓄盒再点一遍：「和柜员点的一致」直接复核通过；「不一致」录入复核时点出的张数，写明原因后复核通过，以复核的数为准。</li>
+      <li>行长或银行管理员可以强制柜员下班（写原因）；强制下班的由财务或银行管理员点数录入后复核。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>06 后台管理篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="warning"></i></span>风险提醒</h2>
+    <p class="dc-text">下面这些情况会自动记一条提醒。行长和银行管理员能查看；银行管理员处理：标为「已查看」，或「终止」执行对应的撤销。阈值都可以在参数页修改。</p>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>提醒</th><th>触发条件（默认值）</th><th>「终止」做什么</th></tr></thead>
+      <tbody>
+        <tr><td>大额贷款</td><td>单笔超过 50 HTB，或放款时信用分低于 600</td><td>让贷款提前到期</td></tr>
+        <tr><td>贷款逾期</td><td>贷款第一次进入逾期</td><td>让贷款提前到期</td></tr>
+        <tr><td>大额取款</td><td>柜台单笔取款超过学部单笔限额的 80%</td><td>冲正这笔取款</td></tr>
+        <tr><td>提前支取</td><td>柜台定期提前支取</td><td>冲正，定期恢复</td></tr>
+        <tr><td>频繁冲正</td><td>一位柜员一天冲正 3 笔以上</td><td>强制该柜员下班</td></tr>
+        <tr><td>频繁操作</td><td>同一学生 10 分钟内在柜台办理 5 笔以上</td><td>强制经办柜员下班</td></tr>
+        <tr><td>参数修改</td><td>参数页任何一项或工资标准改了值</td><td>恢复修改前的值</td></tr>
+        <tr><td>信用分调整</td><td>银行管理员手动加减分</td><td>恢复原分</td></tr>
+        <tr><td>库存不足</td><td>上架商品在安全库存或以下</td><td>只能标为已查看</td></tr>
+        <tr><td>轧账不平</td><td>下班或复核的实点与应有不同</td><td>只能标为已查看</td></tr>
+        <tr><td>补录、更正</td><td>银行管理员每补录或编辑一笔</td><td>只能标为已查看</td></tr>
+        <tr><td>信用分开关</td><td>暂停或重新开启信用分</td><td>只能标为已查看</td></tr>
+      </tbody>
+    </table></div>
+    <h2 class="heading"><span class="ib dc-kind-reward"><i data-icon="coin"></i></span>货币发行与监控</h2>
+    <ul class="dots">
+      <li>银行管理员登记上线时的银行期初现金、新发行、回收、销毁，每笔写明面额和张数；登记错了用更正。</li>
+      <li>纸币与电子币分开监控：纸币看银行应有现金和流到学生手中的；利息、工资和理财盈利计为「电子币新增」。</li>
+      <li>顶部是<b>兑付能力</b>，低于提示线时在总览和货币页醒目提示。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>06 后台管理篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="rate"></i></span>利率、理财与信用分页</h2>
+    <ul class="dots">
+      <li><b>利率</b>：本周锚点和按分数的利率表，每周历史（存贷比、增速、调整、锚点），以及计算参数。</li>
+      <li><b>理财</b>：最近一个开盘日的指数涨跌、持有中笔数与本金、当前总值，每日收益表。某个工作日第二天上午仍是「待登记」时，银行管理员去行情网站查到这一天的涨跌并登记，说明里写数据来源。</li>
+      <li><b>信用分</b>：按学生查分数和全部变动；银行管理员可以调整分数，最上面的「启用信用分」开关用于暂停和重新开启（暂停要写原因）。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="calendar"></i></span>学期与结转（银行管理员）</h2>
+    <ul class="dots">
+      <li>登记每学期的名称和起止日期，学期不能重叠。两个学期之间是假期，各项业务和定时任务照常。</li>
+      <li>学期结束日之后点「结转」（二次确认）：余额、信用分和未结的定期、理财、贷款原样转入下学期，不生成流水。之前要等每天的任务处理完学期最后一天。</li>
+      <li>上学期的流水、利息、贷款、定期、轧账按学期归档，报表、流水和学生明细都可以按学期查看。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="clock"></i></span>考勤与工资</h2>
+    <ol class="steps">
+      <li><b>绑定工资账户、开启参与考勤</b><span class="dc-text">柜员、财务、库管、行长在「我的」里绑定本人的学生账户（或由银行管理员、运维员为其绑定），银行管理员在人员详情里开启「参与考勤」。</span></li>
+      <li><b>记班次</b><span class="dc-text">柜员上班、下班自动记；财务、库管、行长在「我的」里签到当前班次。这两种都是待审。行长、银行管理员也可以在考勤周表里点空格为别人签到（写说明，直接有效），不能给自己签。</span></li>
+      <li><b>审查</b><span class="dc-text">银行管理员点待审的班次选「有效」或「未通过」，或「全部确认」。有效、未发工资的班次可以写原因作废。</span></li>
+      <li><b>发放工资</b><span class="dc-text">全部审查后「发放工资」，按每个班次的身份和班次取工资标准（参数页「考勤与工资」），发到工资账户。已发的班次不能再改。</span></li>
+    </ol>
+    <h2 class="heading"><span class="ib"><i data-icon="settings"></i></span>参数与日志</h2>
+    <p class="dc-text"><b>参数</b>（银行管理员）：面额、两个学部的单笔与单日取款上限、排名人数与匿名、升年级日期、工资标准、定期周利率、锚点范围、理财、信用分、风险阈值。任何修改都生成风险提醒。<b>日志</b>（银行管理员、运维员）：每条操作写明操作人、时间、设备与 IP，展开列出改动的字段（旧值 → 新值）。</p>
+  </div>
+  <footer class="foot"><span>06 后台管理篇</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 7 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch7">
+      <span class="no">CHAPTER 07</span>
+      <h1>公开页面</h1>
+      <p>三个页面不用登录，入口在登录页底部。页面上不出现任何学生或工作人员的信息。</p>
+      <span class="ib lg"><i data-icon="fullscreen"></i></span>
+      <div class="waves"></div>
+    </header>
+    <figure><img data-shot="RateBoard" alt="利率看板"><figcaption>利率看板：五块拼块，活期、贷款、定期标「本周」，指数、理财标「今天」。</figcaption></figure>
+    <h2 class="heading"><span class="ib"><i data-icon="rate"></i></span>利率看板</h2>
+    <ul class="dots">
+      <li>用于大厅或教室的大屏，横屏 16:9，3 米外能看清。显示本周活期利率、600～1000 分的贷款利率、五种定期利率，以及参考指数和理财三档当天的涨跌（红涨绿跌）。</li>
+      <li>每 60 秒自动更新，页头写「更新于 HH:mm:ss」；连不上时保留上一次的数字并写明时间。点页头右边的「全屏」铺满屏幕。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>07 公开页面</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <div class="grid2" style="grid-template-columns: 300px 1fr; align-items:start">
+      <figure><img data-shot="BigClock" alt="大屏时间"><figcaption>大屏时间：以服务器时间为准。</figcaption></figure>
+      <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+        <h2 class="heading"><span class="ib"><i data-icon="clock"></i></span>大屏时间</h2>
+        <p class="dc-text">大字显示上海时间，精确到秒，上面一行写日期和星期。打开时向服务器校准，之后每 10 分钟重新校准；校准不上时右下角写「未校准」。有全屏按钮。</p>
+      </div>
+    </div>
+    <h2 class="heading"><span class="ib"><i data-icon="file"></i></span>文件传输</h2>
+    <figure><img data-shot="FileTransfer" alt="文件传输"><figcaption>左：发送时拖入文件，显示每个文件的进度。右：传完后得到 4 位取件码和到期时间。</figcaption></figure>
+    <div class="grid2">
+      <div class="dc-card tight"><div class="card-head"><span class="ib"><i data-icon="upload"></i></span><h3>发送</h3></div><p class="dc-text">选择或拖入文件，一次至多 20 个，每个不超过 100 MB，合计不超过 200 MB。全部传完才生成 4 位取件码，7 天内有效。失败的文件可以重试；中途离开不生成取件码。</p></div>
+      <div class="dc-card tight"><div class="card-head"><span class="ib"><i data-icon="download"></i></span><h3>接收</h3></div><p class="dc-text">在另一台设备上输入 4 位取件码，列出文件名和大小，逐个下载，7 天内可以反复下载。到期后文件自动删除。</p></div>
+    </div>
+    <p class="dc-text muted">同一网络每小时至多上传 10 次；10 分钟内输错 10 次取件码要等 10 分钟再试；全站未到期的文件合计不超过 5 GB。银行管理员在后台「文件」页可以提前删除（写原因）。</p>
+  </div>
+  <footer class="foot"><span>07 公开页面</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 8 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch8">
+      <span class="no">CHAPTER 08</span>
+      <h1>运维篇</h1>
+      <p>海豚云打包在一个 Docker 镜像里，一条命令启动并自动申请 HTTPS 证书。本章给运维员（信息技术老师）。</p>
+      <span class="ib lg"><i data-icon="sysadmin"></i></span>
+      <div class="waves"></div>
+    </header>
+    <h2 class="heading"><span class="ib"><i data-icon="upload"></i></span>部署与首次启动</h2>
+    <ol class="steps">
+      <li><b>启动容器</b><span class="dc-text">用 <code>docker run</code> 启动 <code>ghcr.io/hy916-cn/dolphin-cloud</code>，映射 80、443 端口，挂载数据卷 <code>/data</code>，设置 <code>DOLPHIN_DOMAIN</code>（访问域名）和 <code>ACME_EMAIL</code>（证书通知邮箱）。生产环境设置 <code>BACKUP_RECIPIENT</code> 加密备份。</span></li>
+      <li><b>创建银行管理员</b><span class="dc-text"><code>docker exec -it dolphin-cloud dolphin create-admin admin</code>，命令打印初始密码，登录后设置新密码。</span></li>
+      <li><b>开账户</b><span class="dc-text">银行管理员导入名册、创建工作人员账号，打印开户通知单和密码单发给本人。</span></li>
+    </ol>
+    <h2 class="heading"><span class="ib"><i data-icon="settings"></i></span>运维命令</h2>
+    <p class="dc-text">在容器里运行 <code>dolphin &lt;命令&gt;</code>，如 <code>docker exec dolphin-cloud dolphin status</code>。</p>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>命令</th><th>作用</th></tr></thead>
+      <tbody>
+        <tr><td><code>dolphin status</code></td><td>各进程状态、版本、最近一次备份、备份是否加密、定时任务是否正常</td></tr>
+        <tr><td><code>dolphin backup</code></td><td>立即备份；<code>dolphin backups</code> 列出备份文件</td></tr>
+        <tr><td><code>dolphin restore &lt;文件名&gt;</code></td><td>恢复指定备份，恢复前自动再备份一次；加密备份从标准输入读私钥</td></tr>
+        <tr><td><code>dolphin check</code></td><td>核对余额与流水，有不一致时退出码为 1</td></tr>
+        <tr><td><code>dolphin jobs</code></td><td>定时任务处理到哪天、有没有失败、当前学期；<code>jobs run</code> 立即补跑</td></tr>
+        <tr><td><code>dolphin jobs fetch</code></td><td>立即取理财参考指数的行情；<code>jobs clean</code> 立即清理到期的文件传输</td></tr>
+        <tr><td><code>dolphin reset-admin</code></td><td>银行管理员忘记密码时生成新的初始密码，解除停用和锁定</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <footer class="foot"><span>08 运维篇</span><b class="pno"></b></footer>
+</section>
+
+<section class="page">
+  <div class="body">
+    <h2 class="heading"><span class="ib"><i data-icon="download"></i></span>备份与恢复</h2>
+    <ul class="dots">
+      <li>每天自动备份（默认 02:00），保留 30 天；设置了 <code>BACKUP_RECIPIENT</code> 时备份加密为 <code>.tar.gz.age</code>，私钥另行妥善保管。</li>
+      <li>恢复加密备份：<code>docker exec -i dolphin-cloud dolphin restore &lt;文件名&gt; &lt; backup-key.txt</code>。</li>
+      <li>每学期至少演练一次恢复。文件传输的文件不进备份。</li>
+      <li>升级镜像前会自动备份；升级后用 <code>dolphin status</code> 和 <code>dolphin check</code> 确认。</li>
+    </ul>
+    <h2 class="heading"><span class="ib"><i data-icon="clock"></i></span>定时任务</h2>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>时间</th><th>任务</th></tr></thead>
+      <tbody>
+        <tr><td>每天 00:05</td><td>按天计活期和贷款利息、到期的定期和理财转回活期、贷款自动扣款与逾期、理财计收益、清理文件传输</td></tr>
+        <tr><td>每周一</td><td>结息、公布本周锚点、加减信用分</td></tr>
+        <tr><td>开盘日 15:30 起</td><td>取参考指数行情，取不到时每 10 分钟重试 6 次，之后每小时重试到当天结束</td></tr>
+      </tbody>
+    </table></div>
+    <div class="dc-notice"><i data-icon="success"></i><div><p class="dc-notice-title">停机后自动补跑</p><p class="dc-notice-text">每个任务都可以重复执行，错过的会补跑，补跑结果与按时运行相同。用 <code>dolphin jobs</code> 查看处理到哪天，必要时 <code>dolphin jobs run</code> 立即补跑。</p></div></div>
+    <h2 class="heading"><span class="ib"><i data-icon="lock"></i></span>安全与隐私</h2>
+    <ul class="dots">
+      <li>不采集学生身份证号、家庭住址。任何人都不能直接修改余额或删除记录，所有操作记下操作人和时间。</li>
+      <li>数据库密码和各项密钥在首次启动时自动生成，保存在 <code>/data/secrets/</code>。</li>
+      <li>运维员不能办理业务、不能修改业务数据；账号维护和恢复都记在日志里。</li>
+      <li>含真实姓名的名册文件只在本地使用，不外传。</li>
+    </ul>
+  </div>
+  <footer class="foot"><span>08 运维篇</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 9 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch9">
+      <span class="no">CHAPTER 09</span>
+      <h1>常见提示与处理</h1>
+      <p>没办成时，界面用提示条写明发生了什么、具体数字和下一步。下表是柜台和后台最常见的提示。</p>
+      <span class="ib lg"><i data-icon="help"></i></span>
+      <div class="waves"></div>
+    </header>
+    <div class="tbl"><table class="dc-table">
+      <thead><tr><th>提示</th><th>含义与下一步</th></tr></thead>
+      <tbody>
+        <tr><td>余额不足</td><td>写明可用余额和还差多少，减少金额后再办</td></tr>
+        <tr><td>超过单笔取款限额</td><td>写明单笔最多取多少，分开办理或减少金额</td></tr>
+        <tr><td>超过今日取款限额</td><td>写明今日还可取多少，明天再取</td></tr>
+        <tr><td>已售罄 / 商品已下架</td><td>库存不足或已下架，调整数量或重新选择商品</td></tr>
+        <tr><td>收款不足</td><td>现金兑换收到的少于应付，按提示补足</td></tr>
+        <tr><td>还没有上班</td><td>先点「上班」，再办理业务</td></tr>
+        <tr><td>上次上班还没下班</td><td>上次上班已经跨天，先下班，再重新上班</td></tr>
+        <tr><td>不能为自己办理</td><td>这是你本人或你的工资账户，请其他柜员办理</td></tr>
+        <tr><td>不能冲正这笔业务</td><td>只能冲正本人今天办理的业务，其他情况联系银行管理员</td></tr>
+        <tr><td>暂不能冲正</td><td>余额已少于原存款金额，联系银行管理员</td></tr>
+        <tr><td>账户不可办理</td><td>账户已冻结、已毕业或已注销，联系银行管理员</td></tr>
+        <tr><td>信用分 400 分以上才能贷款</td><td>写明现在的分数，按时还款、每周存钱可以涨分</td></tr>
+        <tr><td>超过贷款额度</td><td>写明这位同学的额度，减少金额</td></tr>
+        <tr><td>先还清这笔贷款</td><td>有未结清贷款时不能再借，也不能开定期、买理财</td></tr>
+        <tr><td>下班总结已过时</td><td>打印后又办了业务，重新打印下班总结</td></tr>
+        <tr><td>网络已断开</td><td>联网后再办理；存款可以继续离线登记</td></tr>
+        <tr><td>密码不对 / 账号已锁定</td><td>连续输错 5 次锁定 15 分钟，等待或请管理员重置密码</td></tr>
+        <tr><td>还有待审的班次</td><td>全部审查后才能发放工资</td></tr>
+        <tr><td>取件码不对或已过期</td><td>核对 4 位取件码，取件码在生成后 7 天内有效</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <footer class="foot"><span>09 常见提示与处理</span><b class="pno"></b></footer>
+</section>
+
+<!-- 第 10 章 -->
+<section class="page">
+  <div class="body">
+    <header class="opener" id="ch10">
+      <span class="no">CHAPTER 10</span>
+      <h1>术语表</h1>
+      <p>手册和界面中出现的业务名词。</p>
+      <span class="ib lg"><i data-icon="passbook"></i></span>
+      <div class="waves"></div>
+    </header>
+    <div class="tbl"><table class="dc-table">
+      <tbody>
+        <tr><td>HTB</td><td>海豚币的单位，余额和金额都是整数</td></tr>
+        <tr><td>活期</td><td>账户余额，存取兑换都从活期走，每天计息</td></tr>
+        <tr><td>攒着的利息</td><td>已算出、还没存进余额的利息，满 1 HTB 后下周一入账</td></tr>
+        <tr><td>锚点</td><td>每周一算出的基准周利率，就是本周的活期利率，贷款利率随它涨跌</td></tr>
+        <tr><td>定期</td><td>把活期转为 2～48 周的存款，利率固定，到期自动转回</td></tr>
+        <tr><td>理财</td><td>收益跟随参考指数每天浮动的投资，可能亏损</td></tr>
+        <tr><td>海豚信用分</td><td>0～1000 分，决定贷款额度和贷款利率</td></tr>
+        <tr><td>等额本金</td><td>每期还相同的本金，利息按剩余本金按天计算</td></tr>
+        <tr><td>逾期</td><td>过了应还日仍未还清，按罚息计息并扣信用分</td></tr>
+        <tr><td>冲正</td><td>为办错的业务生成一笔反向流水，原记录保留并标「已冲正」</td></tr>
+        <tr><td>流水</td><td>每一笔业务的记录，只增不改，余额由它推出</td></tr>
+        <tr><td>交易号 / 贷款号</td><td>HT 开头的业务编号 / DK 开头的贷款编号</td></tr>
+        <tr><td>储蓄盒</td><td>柜员收付现金的钱盒，一位柜员一个</td></tr>
+        <tr><td>备用金</td><td>上班时储蓄盒里已有的零钱</td></tr>
+        <tr><td>实点</td><td>下班或复核时实际点出的各面额张数</td></tr>
+        <tr><td>轧账</td><td>按面额核对储蓄盒的现金与系统的应有是否一致</td></tr>
+        <tr><td>补录</td><td>银行管理员把系统外发生的业务按原始时间记进系统</td></tr>
+        <tr><td>兑付能力</td><td>银行持有的现金能兑付学生存款的程度</td></tr>
+        <tr><td>学期结转</td><td>学期结束后把余额、信用分和未结业务转入下学期</td></tr>
+        <tr><td>工资账户</td><td>工作人员领工资的本人学生账户</td></tr>
+        <tr><td>存折版</td><td>以仿真储蓄存折呈现的学生端</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <footer class="foot"><span>10 术语表</span><b class="pno"></b></footer>
+</section>
+
+<!-- 封底 -->
+<section class="page cover back">
+  <div class="art" aria-hidden="true" style="top:0;bottom:auto;height:520px">
+    <svg viewBox="0 0 794 520" preserveAspectRatio="xMidYMin slice">
+      <path d="M0 0 H794 V300 C 660 330 520 330 397 300 S 130 270 0 300Z" fill="#e2e9fc"/>
+      <path d="M0 0 H794 V250 C 640 276 520 270 380 246 S 120 226 0 248Z" fill="#c9d6f8"/>
+      <path d="M0 0 H794 V200 C 660 220 530 218 400 198 S 140 180 0 196Z" fill="#1f5ff5"/>
+    </svg>
+  </div>
+  <div class="words" style="padding-bottom:0">
+    <div class="brand"><img src="../../design-system/project/assets/Logos/dolphin-cloud-logo.png" alt="">海豚云</div>
+    <p class="meta">明德学校海豚银行业务平台<br>使用中遇到问题，请联系银行管理员；系统与账号问题请联系信息技术老师。</p>
+  </div>
+</section>
+
+</body>
+</html>
