@@ -233,6 +233,9 @@ const PAYMENT = { account: '账户', cash: '现金' } as const;
 // The repayments of a loan not reversed.
 const repays = (row: LedgerRow) => row.loan?.txns.filter((t) => t.type === 'repay' && t.status === 'normal') ?? [];
 
+// What the bank admin alone reverses: they change the HTB in circulation (PHASE-2.md §10.9).
+const ADMIN_REVERSES = ['opening', 'adjust', 'term_close', 'wealth_close'];
+
 // One transaction; it opens to the full facts, links to the student and the teller (teacher), and 冲正 (teacher, on a
 // transaction that is not itself a reversal and has not been reversed; a 开定期 while its 定期 is open, a 定期转回 only
 // for 提前支取 up to the day it was to mature; a 贷款 while it is 还款中 with no repayment, a 还款 only the loan's latest,
@@ -266,6 +269,7 @@ function TxnLine({ row, page, first, isNew, open, teacher, admin, onReverse }: {
   ];
   const canEdit = admin && row.status === 'normal' && ['deposit', 'withdraw', 'purchase', 'adjust'].includes(row.type);
   const canReverse = teacher && row.status === 'normal' && !['reversal', 'salary', 'interest', 'closing'].includes(row.type)
+    && (admin || !ADMIN_REVERSES.includes(row.type))
     && (row.type !== 'term_open' || row.term?.status === 'open')
     && (row.type !== 'term_close' || (row.term?.status === 'early' && row.term.matures_on >= today()))
     // 买理财 until its first day is counted; a 赎回 up to its maturity day (an end at maturity is the system's).

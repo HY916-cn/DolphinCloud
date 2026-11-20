@@ -238,3 +238,12 @@ test('the 利息 that pays the corrections says so and has no 编辑; the presid
     await expect(page).toHaveURL(/\/admin\/txns$/);
   }
 });
+
+test('the president has no 冲正 on a 调账, whose 冲正 is the bank admin’s alone', async ({ page }) => {
+  await signIn(page, '工作人员', 'president01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/txns?student=20260002&type=adjust');
+  const line = list(page).locator('details', { hasText: '调账' }).first();
+  await line.locator('summary').click();
+  await expect(line.getByRole('button', { name: '冲正' })).toHaveCount(0);
+});

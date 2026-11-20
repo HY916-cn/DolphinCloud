@@ -29,10 +29,10 @@ const entered = (n: number) => (Math.round(n * 10_000) % 100 ? `${n > 0 ? '+' : 
 
 // 理财 (PHASE-2.md §10.10, §16.2; design system Invest 后台「理财」页): today's index, what is held and worth, the working
 // days still without a close, the rules read only, every calendar day's rates for one length (30 days at a time), and the
-// open holdings. The president and the bank admin enter a day's index change by hand (登记指数涨跌).
+// open holdings. Only the bank admin enters a day's index change by hand (登记指数涨跌) and changes the rules.
 export default function Wealth() {
   const me = useMe().data!;
-  const admin = me.roles.includes('teacher') || me.roles.includes('president');
+  const admin = me.roles.includes('teacher');
   const queryClient = useQueryClient();
   const [weeks, setWeeks] = useState(12);
   const [entering, setEntering] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export default function Wealth() {
         <section className="dc-card dc-stack dc-enter" aria-label="收益规则" style={enter(1)}>
           <div className="dc-section-head">
             <h2 className="heading">收益规则</h2>
-            {me.roles.includes('teacher') && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/settings')}>在参数页修改</a>}
+            {admin && <a className="dc-btn dc-btn-ghost dc-btn-sm" {...link('/admin/settings')}>在参数页修改</a>}
           </div>
           <Kv rows={[['参考指数', `${o.params.name} · ${o.params.symbol}`], ['系数', `×${o.params.factor}`]]} />
           <p className="dc-list-title">每天的基础收益</p>

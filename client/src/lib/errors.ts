@@ -83,7 +83,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       if (d.cash) return { title: '张数有误', text: '实点张数不对，请检查各面额。' };
       return { title: '金额有误', text: d.payoff != null ? `还清本金要连利息零头一起付，全部结清是 ${d.payoff} HTB。` : '请输入正整数金额，并使用柜台列出的面额。' };
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
-    case 'FORBIDDEN': return { title: '没有权限', text: '当前账号不能办理这项业务。' };
+    // `type` is the business a 冲正 was tried on (client's own); the server's detail is the roles that may.
+    case 'FORBIDDEN':
+      return { title: '没有权限', text: ['opening', 'adjust', 'term_close', 'wealth_close'].includes(String(d.type))
+        ? '开户、调账、定期转回和理财转回只由银行管理员冲正。' : '当前账号不能办理这项业务。' };
     case 'LAST_SYSADMIN': return { title: '至少保留一个运维员', text: '这是最后一个在用的运维员账号，不能停用、注销或改为其他身份；请先新增一个运维员。' };
     case 'ONE_BANK_ADMIN': return { title: '银行管理员只有一个', text: '不能新增银行管理员，也不能更改银行管理员的身份。' };
     case 'INVALID_INPUT':

@@ -297,6 +297,12 @@ test('行长 has the bank pages but not 学生, 人员, 参数 or 日志, whose 
   await first.locator('summary').click();
   await expect(first.getByRole('link', { name: '查看学生' })).toHaveCount(0);
   await expect(first.getByRole('link', { name: '查看经办人' })).toHaveCount(0);
+  // 开户 is the bank admin's alone to reverse; a 存款 the president still reverses.
+  const line = (text: string) => page.locator('section[aria-label="流水"] details', { hasText: text }).first();
+  await line('期初余额').locator('summary').click();
+  await expect(line('期初余额').getByRole('button', { name: '冲正' })).toHaveCount(0);
+  await line('存款').locator('summary').click();
+  await expect(line('存款').getByRole('button', { name: '冲正' })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/admin');

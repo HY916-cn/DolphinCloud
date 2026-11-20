@@ -8,6 +8,13 @@ assert.equal(explain('TERM_OVERLAP', { term: '2026 学年第一学期' }).text, 
 assert.equal(explain('INVALID_INPUT', { field: 'starts_on' }).text, '请检查开始日。');
 assert.equal(explain('INVALID_INPUT', { field: 'term_rates' }).text, '请检查定期周利率。');
 
+// 冲正 of an 开户, 调账, 定期转回 or 理财转回 by anyone but the bank admin.
+for (const type of ['opening', 'adjust', 'term_close', 'wealth_close']) {
+  assert.deepEqual(explain('FORBIDDEN', { roles: ['teacher', 'sysadmin'], type }),
+    { title: '没有权限', text: '开户、调账、定期转回和理财转回只由银行管理员冲正。' });
+}
+assert.equal(explain('FORBIDDEN', { type: 'deposit' }).text, '当前账号不能办理这项业务。');
+
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_open' }).text, '这笔定期已经到期或提前支取，不能再冲正。');
 assert.equal(explain('REVERSAL_NOT_ALLOWED', { type: 'term_close' }).text, '已过到期日，不能再冲正这笔提前支取。');
 // 理财 (design system Invest).

@@ -170,6 +170,15 @@ test('学生: 理财 on the home page, 我的理财 on 信用, and the 理财 en
 test('后台「理财」: the figures, the rules, each day for one length, entering a waiting day, and the open holdings', async ({ page }) => {
   // The open holding has waited since W1, which has no close yet.
   sql(`update public.wealth_holdings set opened_on = '${W1}'::date - 1, starts_on = '${W1}', valued_to = '${W1}' where student_no = '20260001' and status = 'open'`);
+  // The president reads it all: a waiting day is 待登记 without 登记, and there is no 登记指数涨跌 or 在参数页修改.
+  await signIn(page, '工作人员', 'president01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/wealth');
+  await expect(page.getByRole('table', { name: '每日收益 · 12 周' }).locator('.dc-tag-pending', { hasText: '待登记' })).toHaveCount(1);
+  await expect(page.getByRole('region', { name: '收益规则' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '登记' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '登记指数涨跌' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '在参数页修改' })).toHaveCount(0);
   const name = sql(`select display_name from public.profiles where login_id = 'admin'`);
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
