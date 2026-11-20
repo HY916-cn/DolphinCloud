@@ -35,7 +35,7 @@ export default function Board() {
         <div className="dc-board-body">
           <header className="dc-board-head">
             <img src="/logo.png" alt="海豚云标志" />
-            <h1 className="dc-board-title">海豚银行 · 利率</h1>
+            <h1 className="dc-board-title">海豚银行 · 利率<span className="dc-board-when">实时</span></h1>
             <span className={`dc-board-status ${rates.isError ? 'is-danger' : ''}`} role="status">
               {rates.isError && <Icon name="warning" />}{status}
             </span>

@@ -33,7 +33,7 @@ test('利率看板: five tiles, 活期 at the bank admin’s 本周锚点, no si
   await page.goto('/admin/rates');
   const anchor = (await page.getByRole('region', { name: '本周锚点' }).locator('.dc-stat').first().textContent())!.replace('本周锚点', '');
   await page.goto('/board');
-  await expect(page.getByRole('heading', { name: '海豚银行 · 利率' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('海豚银行 · 利率实时');
   await expect(page.locator('.dc-board-panel h2')).toHaveText(['活期本周', '贷款本周', '定期本周', '指数今天', '理财今天']);
   await expect(page.getByRole('region', { name: '活期周利率' }).locator('.dc-board-hero')).toHaveText(anchor);
   await expect(page.getByRole('region', { name: '贷款周利率' }).locator('dt')).toHaveText(['600 分', '750 分', '900 分', '1000 分']);
