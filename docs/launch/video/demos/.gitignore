@@ -1,0 +1,4 @@
+node_modules
+captures/
+# Rendered clips go to docs/launch/video/out/demos/.
+out/
