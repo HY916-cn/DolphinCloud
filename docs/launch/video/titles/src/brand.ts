@@ -1,7 +1,10 @@
-// Design-system values for video. Colors, radii and the font stack come from the
-// generated client theme (tokens.css); easings mirror bundle.css (--ease-*).
+// Design-system values for video. Colors, radii, the font stack and component styles
+// come from the generated client theme; easings mirror bundle.css (--ease-*).
 import "../../../../../client/src/theme/tokens.css";
-import { continueRender, delayRender, Easing, staticFile } from "remotion";
+// Real dc- component styles, so P5 shows the actual components.
+import "../../../../../client/src/theme/bundle.css";
+import "./still.css";
+import { continueRender, delayRender, Easing, interpolate, staticFile } from "remotion";
 
 export const easeOut = Easing.bezier(0.22, 1, 0.36, 1); // --ease-out
 export const easeIn = Easing.bezier(0.4, 0, 1, 1); // --ease-in
@@ -32,3 +35,11 @@ export const loadFonts = (text: string) => {
     )
     .then(() => continueRender(handle));
 };
+
+// Fade from `from` over `length` frames with --ease-out, clamped to 0…1.
+export const fade = (frame: number, from: number, length: number) =>
+  interpolate(frame, [from, from + length], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: easeOut,
+  });

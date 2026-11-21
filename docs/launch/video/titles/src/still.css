@@ -1,0 +1,3 @@
+/* Remotion renders frame by frame: CSS transitions and keyframes from bundle.css would
+   run on wall-clock time, so every motion here is driven from the frame instead. */
+*, *::before, *::after { transition: none !important; animation: none !important; }

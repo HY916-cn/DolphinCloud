@@ -1,7 +1,7 @@
 // P2 · 标题（脚本 1.5，1:20–1:35）。苹果发布会式的快节奏：
 // 一笔笔进账随鼓点闪过并越来越快 → 合计 → “It all adds up.” 逐词落下 → 中文主题 → 标志与海浪。
 import { AbsoluteFill, Img, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
-import { easeOut, font, loadFonts } from "./brand";
+import { easeOut, fade, font, loadFonts } from "./brand";
 import { Waves } from "./Waves";
 
 export type Theme = "light" | "dark";
@@ -26,13 +26,6 @@ const ZH = "每一笔，都算数。";
 const T = { total: 119, theme: 150, wordGap: 5, zh: 192, logo: 270, end: 450 };
 
 loadFonts(ENTRIES.map(([k]) => k).join("") + `累计${TOTAL}HTB${WORDS.join(" ")}${ZH}海豚云2026发布会+0123456789`);
-
-const fade = (frame: number, from: number, length: number) =>
-  interpolate(frame, [from, from + length], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  });
 
 const Center: React.FC<{ children: React.ReactNode; gap?: number }> = ({ children, gap = 24 }) => (
   <AbsoluteFill style={{ flexDirection: "column", alignItems: "center", justifyContent: "center", gap }}>
