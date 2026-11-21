@@ -25,8 +25,8 @@
   "scripts": {
     "dev": "remotion studio",
     "lint": "eslint src && tsc",
-    "render:p2": "remotion render P2-Title-Light ../out/titles/P2-title.mov --codec=prores --prores-profile=hq && remotion render P2-Title-Light ../out/titles/P2-title-preview.mp4 --codec=h264 --crf=16 --image-format=jpeg --jpeg-quality=95",
-    "numbers": "node scripts/count-numbers.mjs"
+    "numbers": "node scripts/count-numbers.mjs",
+    "render": "scripts/render.sh"
   },
   "allowScripts": {
     "esbuild": false
