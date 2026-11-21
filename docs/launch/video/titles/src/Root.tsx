@@ -2,6 +2,7 @@ import { Composition, Folder } from "remotion";
 import { Chapter, CHAPTERS, EndCredit, LowerThird, PEOPLE, Subtitle, SUBTITLES } from "./Captions";
 import { Design, DESIGN } from "./Design";
 import { Numbers, PAGE_FRAMES, PAGES } from "./Numbers";
+import { Opening, OPENING_FRAMES } from "./Opening";
 import { LOOP_SECONDS, StageLaunch, StagePrinciples, StageSheet, StageThree, StageTheme, StageWaves } from "./Stage";
 import { Title } from "./Title";
 import { Wall, WALL } from "./Wall";
@@ -42,6 +43,9 @@ export const RemotionRoot: React.FC = () => (
     </Folder>
     <Folder name="P10">
       <Composition id="P10-Numbers" component={Numbers} durationInFrames={PAGES.length * PAGE_FRAMES + 60} {...video} />
+    </Folder>
+    <Folder name="Preview">
+      <Composition id="Opening-Animatic" component={Opening} durationInFrames={OPENING_FRAMES} {...video} />
     </Folder>
     <Folder name="P14">
       <Composition id="P14-Wall" component={Wall} durationInFrames={WALL.frames} {...video} />

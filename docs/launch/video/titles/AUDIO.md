@@ -2,6 +2,14 @@
 
 本地文件都在 `audio/`（已被 `.gitignore` 忽略，不进仓库）：开场曲在 `audio/music/`，音效在 `audio/sfx/`。下文的时间写法：“曲 87.2 s”指曲子本身的秒数，“片 1:15”指成片时间。
 
+## 选用
+
+- **开场曲：01 Dreaming Big**（Ahjay Stelino，Mixkit Stock Music Free License，无需署名）。钢琴加弦乐，正好接开场片的钢琴单音。
+- 卡点：片时间 = 曲时间 − 12.2 s。片 0:11 从曲 23.2 s 起播，淡入 3 s；片 1:15 对曲 87.2 s 的骤停，留 0.5 s 尾音后完全安静。
+- 标题段（片 1:20）的 18 下鼓点沿用这首曲子的速度 135 BPM：先 4 个四分音符，再 4 个八分音符，最后 10 个十六分音符，每下对一笔金额闪出；鼓点用落地通鼓单击（`fs_378378`），起音提前 43 ms 放。
+- 结尾回顾（片 11:40–11:52）用曲 75.2–87.2 s，在 87.2 s 切断，接 11:52 黑场的余音。
+- 开场片 0:00–1:45 的音乐与音效由 `scripts/opening-mix.sh` 混成 `../out/titles/opening-mix.wav`，每个音效的位置写在脚本里；`Opening-Animatic` 合成是配上这条音轨的卡点预览（实拍镜头为占位卡）。
+
 ## 开场曲候选
 
 三首都能免费商用，无需付费或登录，音频文件直接从曲库下载。
@@ -50,6 +58,8 @@
 | “叮”备选 | `audio/sfx/fs_554803_Glass-Ding.mp3` | https://freesound.org/people/LoafDV/sounds/554803/ | LoafDV | CC BY 4.0（需署名） | 0.6 s | 轻敲半杯水的玻璃杯，更短更轻 |
 | 低音冲击 sub boom（1:29 硬切到 App 图标；也可垫在 1:20 标题段最后一拍） | `audio/sfx/fs_428073_Sub-Drop-Smooth-wav.mp3` | https://freesound.org/people/newagesoup/sounds/428073/ | newagesoup | CC0 | 3.8 s | 平滑的低频下沉，峰值在 0.49 s，3.6 s 衰减完，↓4674、★4.7（74 票） |
 | 低音冲击备选 | `audio/sfx/fs_710368_Cinematic-Punch.mp3` | https://freesound.org/people/mittenboy/sounds/710368/ | mittenboy | CC0 | 7.8 s | 更硬的一击，尾部是胸腔共振的低频，起音 0.52 s |
+| 标题段鼓点（1:20–1:24） | `audio/sfx/fs_378378_Floor-tom-wav.mp3` | https://freesound.org/people/karolist/sounds/378378/ | karolist | CC0 | 0.22 s | 录音棚实录的落地通鼓，单击。起音 0.043 s，峰值 0.052 s（−5 dBFS），9 ms 升到峰值；起音后 110 ms 已降约 14 dB，0.177 s 衰减到 −40 dB，最密 0.11 s 一下时前后两下不糊。每下提前 43 ms 放，起音就正落在金额闪出的那一帧 |
+| 标题段鼓点（1:20–1:24）备选 | `audio/sfx/fs_268108_Button-Tick.mp3` | https://freesound.org/people/NenadSimic/sounds/268108/ | NenadSimic | CC0 | 0.22 s | 短促的“滴答”点击，↓5240、★4.8（51 票）。起音 0.006 s，峰值 0.011 s（−4 dBFS），25 ms 内衰减到 −40 dB |
 | 海浪（1:29 三层海浪升起；1:35 大屏海浪） | `audio/sfx/fs_531015_Ocean-Waves-wav.mp3` | https://freesound.org/people/Noted451/sounds/531015/ | Noted451 | CC0 | 70.9 s | 实录海浪，↓42370、★4.3（346 票）；浪头约每 3～5 s 一次 |
 | 礼堂环境声（1:35 礼堂空镜） | `audio/sfx/fs_718274_empty-lecture-theatre-ambience-stereo.mp3` | https://freesound.org/people/busabx/sounds/718274/ | busabx | CC BY 4.0（需署名） | 105.2 s | 空的阶梯礼堂底噪，立体声 |
 | 礼堂环境声备选 | `audio/sfx/fs_212137_RoomTone-Hall-32x8x3-AC-SHORT-130626_01-.mp3` | https://freesound.org/people/klankbeeld/sounds/212137/ | klankbeeld | CC BY 4.0（需署名） | 122.2 s | 32×8×3 米大厅的空间底噪，带空调声 |

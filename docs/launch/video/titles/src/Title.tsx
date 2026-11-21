@@ -27,19 +27,22 @@ const THEMES = {
   },
 };
 
-// Small deposits in real denominations (1 / 2 / 5 / 10), each held for `hold` frames;
-// the holds shrink so the cuts speed up into the total.
+// Small deposits in real denominations (1 / 2 / 5 / 10), each held for a number of beats of
+// the opening music (Dreaming Big, 135 BPM): four quarter notes, four eighths, then sixteenths.
+export const BEAT = (30 * 60) / 135;
 const ENTRIES: [string, number, number][] = [
-  ["存款", 10, 16], ["奖励", 5, 14], ["存款", 2, 12], ["利息", 1, 10], ["存款", 10, 9], ["存款", 5, 8],
-  ["奖励", 2, 7], ["存款", 10, 6], ["利息", 1, 5], ["存款", 5, 5], ["存款", 10, 4], ["奖励", 5, 4],
-  ["存款", 2, 4], ["存款", 10, 3], ["利息", 1, 3], ["存款", 5, 3], ["存款", 10, 3], ["奖励", 2, 3],
+  ["存款", 10, 1], ["奖励", 5, 1], ["存款", 2, 1], ["利息", 1, 1], ["存款", 10, 0.5], ["存款", 5, 0.5],
+  ["奖励", 2, 0.5], ["存款", 10, 0.5], ["利息", 1, 0.25], ["存款", 5, 0.25], ["存款", 10, 0.25], ["奖励", 5, 0.25],
+  ["存款", 2, 0.25], ["存款", 10, 0.25], ["利息", 1, 0.25], ["存款", 5, 0.25], ["存款", 10, 0.25], ["奖励", 2, 0.25],
 ];
 const TOTAL = ENTRIES.reduce((sum, [, amount]) => sum + amount, 0);
+// Each cut lands on the nearest frame to its beat; the drum hits in the opening mix use these frames.
+export const CUTS = ENTRIES.reduce<number[]>((acc, [, , beats]) => [...acc, acc[acc.length - 1] + beats], [0]).map((b) => Math.round(b * BEAT));
 const WORDS = ["It", "all", "adds", "up."];
 const ZH = "每一笔，都算数。";
 
 // Beats in frames from 1:20 (30 fps); 1:25 = 150, 1:29 = 270.
-const T = { total: 119, theme: 150, wordGap: 5, zh: 192, logo: 270, end: 450 };
+const T = { total: CUTS[CUTS.length - 1], theme: 150, wordGap: 5, zh: 192, logo: 270, end: 450 };
 
 loadFonts(ENTRIES.map(([k]) => k).join("") + `累计${TOTAL}HTB${WORDS.join(" ")}${ZH}海豚云2026发布会+0123456789`);
 
@@ -137,19 +140,14 @@ const Brand: React.FC<{ c: (typeof THEMES)[Theme]; theme: Theme }> = ({ c, theme
 
 export const Title: React.FC<{ theme: Theme }> = ({ theme }) => {
   const c = THEMES[theme];
-  let at = 0;
   return (
     <AbsoluteFill style={{ background: c.bg, fontFamily: font }}>
       {/* Hard cuts on the beat: each entry replaces the last. */}
-      {ENTRIES.map(([label, amount, hold], i) => {
-        const from = at;
-        at += hold;
-        return (
-          <Sequence key={i} from={from} durationInFrames={hold}>
-            <Amount label={label} value={`+${amount}`} c={c} />
-          </Sequence>
-        );
-      })}
+      {ENTRIES.map(([label, amount], i) => (
+        <Sequence key={i} from={CUTS[i]} durationInFrames={CUTS[i + 1] - CUTS[i]}>
+          <Amount label={label} value={`+${amount}`} c={c} />
+        </Sequence>
+      ))}
       <Sequence from={T.total} durationInFrames={T.theme - T.total}>
         <Total c={c} />
       </Sequence>
