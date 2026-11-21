@@ -7,5 +7,4 @@ dist
 audio/
 # Renders and review frames
 out
-qc/stills*
-qc/*.png
+qc/
