@@ -44,9 +44,9 @@ const Page: React.FC<(typeof PAGES)[number] & { hold?: boolean }> = ({ value, un
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 32, color: "var(--ink)" }}>
           {shown === null ? null : (
-            <span style={{ font: `800 300px/1 ${font}`, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{fmt(shown)}</span>
+            <span style={{ font: `800 300px/1 ${font}`, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em", color: "var(--dolphin)" }}>{fmt(shown)}</span>
           )}
-          <span style={{ font: `800 ${shown === null ? 240 : 96}px/1.1 ${font}`, letterSpacing: "0.06em" }}>{unit}</span>
+          <span style={{ font: `800 ${shown === null ? 240 : 96}px/1.1 ${font}`, letterSpacing: "0.06em", color: shown === null ? "var(--dolphin)" : undefined }}>{unit}</span>
         </div>
         <div style={{ font: `700 56px/1.3 ${font}`, letterSpacing: "0.1em", color: "var(--ink-muted)", opacity: fade(frame, 14, 16) }}>
           {note}

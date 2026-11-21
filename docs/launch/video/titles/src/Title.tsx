@@ -6,9 +6,25 @@ import { Waves } from "./Waves";
 
 export type Theme = "light" | "dark";
 
+// Text colours follow the content: ink for titles, dolphin for the words and numbers that
+// matter, the category colour when a line names a kind of business. On black: white with gold.
 const THEMES = {
-  light: { bg: "var(--surface-raised)", text: "var(--ink)", muted: "var(--ink-muted)", tile: "var(--surface-raised)" },
-  dark: { bg: "#000", text: "var(--on-dolphin)", muted: "var(--cloud-200)", tile: "var(--surface-raised)" },
+  light: {
+    bg: "var(--surface-raised)",
+    text: "var(--ink)",
+    muted: "var(--ink-muted)",
+    accent: "var(--dolphin)",
+    tile: "var(--surface-raised)",
+    kind: { 存款: "var(--sea-ink)", 奖励: "var(--coin-ink)", 利息: "var(--coin-ink)", 累计: "var(--ink-muted)" } as Record<string, string>,
+  },
+  dark: {
+    bg: "#000",
+    text: "var(--on-dolphin)",
+    muted: "var(--cloud-200)",
+    accent: "var(--coin)",
+    tile: "var(--surface-raised)",
+    kind: { 存款: "var(--sea-soft)", 奖励: "var(--coin-soft)", 利息: "var(--coin-soft)", 累计: "var(--cloud-200)" } as Record<string, string>,
+  },
 };
 
 // Small deposits in real denominations (1 / 2 / 5 / 10), each held for `hold` frames;
@@ -35,8 +51,8 @@ const Center: React.FC<{ children: React.ReactNode; gap?: number }> = ({ childre
 
 const Amount: React.FC<{ label: string; value: string; c: (typeof THEMES)[Theme] }> = ({ label, value, c }) => (
   <Center gap={8}>
-    <div style={{ font: `700 56px/1.2 ${font}`, letterSpacing: "0.08em", color: c.muted }}>{label}</div>
-    <div style={{ font: `800 240px/1.1 ${font}`, fontVariantNumeric: "tabular-nums", color: c.text }}>
+    <div style={{ font: `700 56px/1.2 ${font}`, letterSpacing: "0.08em", color: c.kind[label] }}>{label}</div>
+    <div style={{ font: `800 240px/1.1 ${font}`, fontVariantNumeric: "tabular-nums", color: c.accent }}>
       {value}
       <span style={{ fontSize: 88, marginLeft: 24, color: c.muted }}>HTB</span>
     </div>
@@ -59,6 +75,7 @@ const Theme: React.FC<{ c: (typeof THEMES)[Theme] }> = ({ c }) => {
           <span
             key={w}
             style={{
+              color: i >= 2 ? c.accent : undefined,
               opacity: fade(frame, i * T.wordGap, 4),
               translate: `0 ${interpolate(fade(frame, i * T.wordGap, 10), [0, 1], [36, 0])}px`,
             }}

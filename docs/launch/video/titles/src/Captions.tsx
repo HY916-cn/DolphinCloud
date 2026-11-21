@@ -10,9 +10,10 @@ export const CHAPTERS = {
   bank: { zh: "银行", en: "Bank" },
 };
 export const PEOPLE = {
-  teller: { name: "柜员姓名", role: "海豚银行柜员" },
-  president: { name: "行长姓名", role: "海豚银行行长" },
-  admin: { name: "老师姓名", role: "海豚银行管理员" },
+  // Placeholders until the cast is set; change the names here and re-render P1.
+  teller: { name: "〔柜员姓名〕", role: "海豚银行柜员" },
+  president: { name: "〔行长姓名〕", role: "海豚银行行长" },
+  admin: { name: "〔老师姓名〕", role: "海豚银行管理员" },
 };
 export const END_CREDIT = "海豚云 · 明德实验学校海豚银行";
 
@@ -22,7 +23,7 @@ loadFonts(
     ...Object.values(CHAPTERS).flatMap((c) => [c.zh, c.en]),
     ...Object.values(PEOPLE).flatMap((p) => [p.name, p.role]),
     END_CREDIT,
-    "王李张刘陈杨赵黄周吴",
+    "王李张刘陈杨赵黄周吴〔〕·",
   ].join(""),
 );
 
@@ -106,6 +107,7 @@ export const LowerThird: React.FC<{ name: string; role: string }> = ({ name, rol
         }}
       >
         <span style={{ font: `800 52px/1.2 ${font}`, letterSpacing: "0.06em", color: "var(--ink)" }}>{name}</span>
+        <span style={{ font: `600 34px/1.2 ${font}`, letterSpacing: "0.06em", color: "var(--dolphin)" }}>·</span>
         <span style={{ font: `600 34px/1.2 ${font}`, letterSpacing: "0.06em", color: "var(--ink-muted)" }}>{role}</span>
       </div>
     </AbsoluteFill>

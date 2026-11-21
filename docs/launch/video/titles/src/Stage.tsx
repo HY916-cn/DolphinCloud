@@ -38,7 +38,9 @@ export const StageTheme: React.FC = () => (
   <AbsoluteFill style={white}>
     <Waves scale={4} focusBlur={4} loopSeconds={LOOP_SECONDS} />
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 36, paddingBottom: 160 }}>
-      <div style={{ font: `800 190px/1.15 ${font}`, color: "var(--ink)" }}>{THEME.en}</div>
+      <div style={{ font: `800 190px/1.15 ${font}`, color: "var(--ink)" }}>
+        It all <span style={{ color: "var(--dolphin)" }}>adds up.</span>
+      </div>
       <div style={{ font: `700 72px/1.3 ${font}`, letterSpacing: "0.12em", color: "var(--ink-muted)" }}>{THEME.zh}</div>
     </AbsoluteFill>
   </AbsoluteFill>
@@ -237,7 +239,7 @@ export const StageThree: React.FC = () => {
   );
 };
 
-// Four principles, line by line; the first, the one the speaker dwells on, in ink.
+// Four principles, line by line; the first, the one the speaker dwells on, in dolphin.
 export const PRINCIPLE_GAP = 24;
 export const StagePrinciples: React.FC = () => {
   const frame = useCurrentFrame();
@@ -251,7 +253,7 @@ export const StagePrinciples: React.FC = () => {
             style={{
               font: `800 112px/1.2 ${font}`,
               letterSpacing: "0.12em",
-              color: i === 0 ? "var(--ink)" : "var(--ink-muted)",
+              color: i === 0 ? "var(--dolphin)" : "var(--ink)",
               opacity: fade(frame, at, 10),
               translate: `0 ${interpolate(fade(frame, at, 18), [0, 1], [32, 0])}px`,
             }}
