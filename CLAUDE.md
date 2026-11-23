@@ -45,7 +45,7 @@
   2. 更新 `design-system.json` 的 `lastChange`。
   3. 运行 `npm --prefix client run tokens`，生成 `client/src/theme/{tokens.css,bundle.css,icons.ts}`；生成物不手改。
   4. `design-system/` 和 `client/src/theme/` 放在同一个提交里。
-  5. 发布到设计系统 Artifact（https://claude.ai/artifact/SM1TwrRscwoUyscrogRjtV，`root` 为 `design-system`）：先读线上版本，与改动前的仓库版本比对哈希再发布；新图标先作为资产上传，再登记进 `assetGroups.Icons`。
+  5. 发布到设计系统 Artifact（https://claude.ai/artifact/E4mSUxQ4Z2dArqWrjfDRu6，`root` 为 `design-system`）：先读线上版本，与改动前的仓库版本比对哈希再发布；新图标先作为资产上传，再登记进 `assetGroups.Icons`。
   6. 推送，再开前端子会话应用到 `client/`。
 - 图标取自 `lucide-static`（ISC），从 npm 包取官方 SVG，描边 `#1f5ff5`，48×48，文件首行写来源注释。图标变形用 morphicons（MIT），只用于同一位置随状态换图标（见 `motion.md`），图标包在 `fill="none"` 的 svg 里。字体是 Nunito Sans 加 Noto Sans SC，正式站点自己托管。
 - 代码位置：页面在 `client/src/app/`（Expo Router），组件在 `client/src/components/` 并从 `index.ts` 导出，纯函数在 `client/src/lib/` 并配 `*.test.mjs`。
