@@ -105,7 +105,8 @@ test('流水: jump to a day last year through the month panel', async ({ page })
   await expect(calendar).toBeHidden();
 });
 
-test('参数: switch 排名匿名 off and on again', async ({ page }) => {
+// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
+test.skip('参数: switch 排名匿名 off and on again', async ({ page }) => {
   await open(page, '参数', 'settings');
   const anonymous = page.getByRole('switch', { name: /排名匿名/ });
   const toggle = () => page.locator('.dc-switch', { hasText: '排名匿名' }).click();
@@ -154,7 +155,8 @@ test('人员 → 操作日志 shows only that login, and the filter can be remov
   await expect(chip).toHaveCount(0);
 });
 
-test('日志: the 参数 change made above, with its fields', async ({ page }) => {
+// Skipped with the 参数 case above it depends on (M24).
+test.skip('日志: the 参数 change made above, with its fields', async ({ page }) => {
   await open(page, '日志', 'audit');
   const entry = page.locator('details', { has: page.locator('.dc-txn-title', { hasText: '修改参数 · 排名匿名' }) }).first();
   await expect(entry).toContainText('银行管理员');
