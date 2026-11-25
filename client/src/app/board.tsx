@@ -4,7 +4,7 @@ import { Fullscreen, Icon } from '@/components';
 import { boardView, clockFace, type Cell, type PublicRates } from '@/lib/public';
 import { call } from '@/lib/rpc';
 
-const Bone = () => <span className="dc-skeleton" style={{ width: '3.4em', height: '0.9em' }} />;
+const Bone = () => <span className="dc-skeleton" aria-hidden />;
 // What period a tile's numbers cover: 本周 (活期, 贷款, 定期) or 今天 (指数, 理财: the rates in force today).
 const When = ({ children }: { children: string }) => <span className="dc-board-when">{children}</span>;
 // A number with its % in small type; a skeleton before the first read.

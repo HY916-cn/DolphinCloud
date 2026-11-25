@@ -14,16 +14,26 @@ const typed = (page: Page) => expect.poll(() => boxes(page).evaluateAll((els) =>
 test('the login page links to the three pages, all on one 375×667 screen', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/login');
-  const links = page.getByRole('list', { name: '不用登录的功能' }).getByRole('link');
-  await expect(links).toHaveText(['利率看板', '大屏时间', '文件传输']);
   await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
+  // They sit under 更多 in the top right corner; Esc closes it and returns focus to 更多.
+  const more = page.locator('.dc-login-more summary');
+  const list = page.getByRole('list', { name: '不用登录的功能' });
+  await more.click();
+  await expect(list.getByRole('link', { name: /^利率看板/ })).toBeVisible();
+  await expect(list.getByRole('link', { name: /^大屏时间/ })).toBeVisible();
+  await expect(list.getByRole('link', { name: /^文件传输/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(list).toBeHidden();
+  await expect(more).toBeFocused();
   // Staff sign-in has them too.
   await page.locator('.dc-seg label', { hasText: '工作人员' }).click();
-  await links.nth(2).click();
+  await more.click();
+  await list.getByRole('link', { name: /^文件传输/ }).click();
   await expect(page).toHaveURL(/\/transfer$/);
   await page.goto('/login');
-  await links.first().click();
+  await more.click();
+  await list.getByRole('link', { name: /^利率看板/ }).click();
   await expect(page).toHaveURL(/\/board$/);
 });
 

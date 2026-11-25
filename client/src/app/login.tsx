@@ -55,7 +55,7 @@ export default function Login() {
   // 切换账号: this device's accounts, the last row 添加账号; also after 退出账号.
   if (!adding && accounts.length > 0) {
     return (
-      <Welcome label="切换账号">
+      <Welcome label="切换账号" more>
         <h2 className="dc-login-title">切换账号</h2>
         <DeviceAccounts current={session?.user.id} />
         {session && <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/')}>返回</a>}
@@ -64,7 +64,7 @@ export default function Login() {
   }
 
   return (
-    <Welcome label="登录" onSubmit={signIn}>
+    <Welcome label="登录" onSubmit={signIn} more>
       <h2 className="dc-login-title">欢迎登录</h2>
       <fieldset className="dc-seg" aria-label="身份">
         {KINDS.map((k) => (
@@ -105,11 +105,6 @@ export default function Login() {
         <p className="dc-login-help">首次登录请使用初始密码，登录后设置新密码<br />忘记密码请联系银行管理员</p>
       )}
       {kind === 'student' && <a className="dc-btn dc-btn-ghost dc-btn-sm dc-btn-block" {...link('/book')}>打开存折版</a>}
-      <ul className="dc-login-links" aria-label="不用登录的功能">
-        <li><a {...link('/board')}><Icon name="rate" />利率看板</a></li>
-        <li><a {...link('/clock')}><Icon name="clock" />大屏时间</a></li>
-        <li><a {...link('/transfer')}><Icon name="upload" />文件传输</a></li>
-      </ul>
     </Welcome>
   );
 }

@@ -1,13 +1,16 @@
 import type { FormEvent, ReactNode } from 'react';
+import { LoginMore } from './Public';
 import { Icon } from './ui';
 
 // The sign-in look (LoginPage): the dolphin floating in sonar rings above a white shore, the panel rising from it.
 // Used by every page shown before the app proper: sign in, set a new password, this device's accounts.
-export function Welcome({ label, onSubmit, children }: { label: string; onSubmit?: (e: FormEvent) => void; children: ReactNode }) {
+// more: 更多 in the top right corner, on the login page only.
+export function Welcome({ label, onSubmit, more, children }: { label: string; onSubmit?: (e: FormEvent) => void; more?: boolean; children: ReactNode }) {
   const Panel = onSubmit ? 'form' : 'div';
   return (
     <div className="dc-app">
       <div className="dc-login">
+        {more && <LoginMore />}
         <section className="dc-login-hero">
           <div className="dc-login-mark"><img src="/logo.png" alt="海豚云标志" /></div>
           <h1 className="dc-enter" style={{ '--i': 1 } as React.CSSProperties}>海豚云</h1>
