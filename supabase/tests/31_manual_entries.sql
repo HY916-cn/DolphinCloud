@@ -165,8 +165,10 @@ select is((select app_private.duty_cash(d) #>> '{income,total}' from duty d wher
 select is((select cash_delta from txns where txn_no = :'f_dep'), 10, 'the bank''s cash takes it');
 
 -- 当初就记对 against 补录 later (§9.3, §10.11). In both, a deposits 50 and b takes out 30 fifteen days ago, c is
--- adjusted −20 and f buys 3 notebooks fifteen days ago; g deposits 40 on the last day accrued, after the last 结息. On
+-- adjusted −20 and f buys 3 notebooks fifteen days ago; g deposits 400 on the last day accrued, after the last 结息. On
 -- time, every entry is made before the jobs run; later, the jobs run first. Meanwhile run_jobs catches up to x.
+-- g's one day corrected comes to ⌊500 × 2 ÷ 7⌋ − ⌊100 × 2 ÷ 7⌋ = 1.14 HTB, so the next 结息 pays it whatever day of the
+-- week it is: what little has accrued since Monday's 结息 may not reach the 1 HTB a 结息 pays from (§9.3).
 create function tests.d1_entries() returns void language sql as $$
   select tests.entry('a', 'deposit', tests.noon(app_private.cn_date(now()) - 15), p_den => '{"10":5}');
   select tests.entry('b', 'withdraw', tests.noon(app_private.cn_date(now()) - 15), 30);
@@ -181,7 +183,7 @@ $$;
 savepoint on_time;
 select tests.d1_entries();
 select tests.entry('d', 'deposit', tests.noon(:'today'::date - 5), p_den => '{"10":3}');
-select tests.entry('g', 'deposit', tests.noon(:'x'::date - 1), p_den => '{"10":4}');
+select tests.entry('g', 'deposit', tests.noon(:'x'::date - 1), p_den => '{"10":40}');
 select is(app_private.run_jobs(:'x') -> 'failed', 'null', 'on time: the jobs after every entry');
 select is(count(*)::int, 0, 'no correction, none needed') from interest_adjustments;
 select tests.state() as on_time \gset
@@ -192,7 +194,7 @@ select is(tests.entry('d', 'deposit', tests.noon(:'today'::date - 5), p_den => '
   'd five days ago: nothing accrued since, nothing corrected');
 select is(app_private.run_jobs(:'x') -> 'failed', 'null', 'the jobs on to x');
 select tests.d1_entries();
-select is(tests.entry('g', 'deposit', tests.noon(:'x'::date - 1), p_den => '{"10":4}') -> 'interest' -> 0 -> 'days', '1', 'g: one day accrued since');
+select is(tests.entry('g', 'deposit', tests.noon(:'x'::date - 1), p_den => '{"10":40}') -> 'interest' -> 0 -> 'days', '1', 'g: one day accrued since');
 
 select is(count(*)::int, 0, 'every day accrued since an entry has its interest on 活期 at its end now')
 from interest_accruals i where floor(app_private.balance_on(i.student_no, i.day) * i.rate / 7)
