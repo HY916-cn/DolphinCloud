@@ -132,7 +132,7 @@
 
 ## 登录页的入口
 
-见 `LoginPage`：登录区最下面一行 `dc-login-links`，三个入口“利率看板”（`rate`）、“大屏时间”（`clock`）、“文件传输”（`upload`）。
+见 `LoginPage`：右上角“更多”（`dc-login-more`）里的三个入口“利率看板”（`rate`）、“大屏时间”（`clock`）、“文件传输”（`upload`）。
 
 ## 后台“文件传输”页
 
