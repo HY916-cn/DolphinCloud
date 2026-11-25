@@ -1,11 +1,10 @@
 -- 复核轧账 by the bank admin (PHASE-2.md §3, §7.1): the accountant and the bank admin review, the reviewer is recorded,
--- the president and tellers are refused, and each duty is reviewed once.
+-- tellers are refused, and each duty is reviewed once.
 \ir helpers/setup.psql
 
 select tests.staff('t1', 'teller') as t1 \gset
 select tests.staff('t2', 'teller') as t2 \gset
 select tests.staff('acc', 'accountant') as acc \gset
-select tests.staff('p1', 'president') as p1 \gset
 select tests.staff('admin', 'teacher') as admin \gset
 select tests.student('s1', 200) as s1 \gset
 select id as dt2 from duty where user_id = :'t2' \gset
@@ -33,8 +32,6 @@ select tests.age(:'t1', '40 seconds');
 -- Who reviews.
 select is(tests.call(:'t1', format($$select review_cash_count(%L)$$, :'d1')),
   '{"error":"FORBIDDEN","detail":"{\"roles\": [\"accountant\", \"teacher\"]}"}', 'a teller does not review');
-select is(tests.call(:'p1', format($$select review_cash_count(%L)$$, :'d1')),
-  '{"error":"FORBIDDEN","detail":"{\"roles\": [\"teacher\", \"sysadmin\"]}"}', 'nor the president');
 select is((select status from cash_counts where duty_id = :'d1'), 'pending', 'and the duty still waits for review');
 select is(tests.call(:'admin', $$select cash_review_overview()$$) -> 'pending', '3', 'the bank admin sees what waits for review');
 

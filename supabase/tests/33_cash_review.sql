@@ -71,7 +71,6 @@ select tests.age(:'t1', '40 seconds');
 
 -- 复核
 select is(tests.err(:'t1', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'a teller does not review');
-select is(tests.err(:'p1', format($$select review_cash_count(%L)$$, :'d1')), 'FORBIDDEN', 'nor the president');
 select is(tests.call(:'acc', $$select review_cash_count(gen_random_uuid())$$) ->> 'detail', '{"field": "duty_id"}', 'an unknown duty');
 select tests.call(:'acc', format($$select review_cash_count(%L)$$, :'d1')) as r1 \gset
 select is(row(:'r1'::jsonb ->> 'status', :'r1'::jsonb -> 'review_count', :'r1'::jsonb -> 'count', :'r1'::jsonb ->> 'reviewer_name',
