@@ -129,10 +129,10 @@ insert into tests.matrix values
   -- 理财: the counter's; the 理财 page the accountant's, president's and bank admin's, 手动登记 the bank admin's alone
   -- (PHASE-2.md §10.10); students and the back office read the wealth tables
   ('wealth_quote(text)', 'select wealth_quote(''nobody'')', '{teller}'),
-  ('buy_wealth(uuid,text,integer,integer,text)', 'select buy_wealth(gen_random_uuid(), ''nobody'', 1, 2, ''steady'')', '{teller}'),
+  ('buy_wealth(uuid,text,integer,text)', 'select buy_wealth(gen_random_uuid(), ''nobody'', 1, ''csi300'')', '{teller}'),
   ('redeem_wealth(uuid)', 'select redeem_wealth(gen_random_uuid())', '{teller}'),
   ('wealth_overview(date,integer)', 'select wealth_overview()', '{accountant,president,teacher}'),
-  ('record_wealth_day(date,numeric,text)', 'select record_wealth_day(current_date, 0, '''')', '{teacher}'),
+  ('record_wealth_day(text,date,numeric,text)', 'select record_wealth_day(''csi300'', current_date, 0, '''')', '{teacher}'),
   -- 贷款: the counter's; 终止 the president's and bank admin's (PHASE-2.md §10.3–10.8); the back office reads the loans tables
   ('loan_quote(text)', 'select loan_quote(''nobody'')', '{teller}'),
   ('loan_preview(text,integer,text,integer)', 'select loan_preview(''nobody'', 1, ''bullet'', 1)', '{teller}'),
@@ -225,6 +225,7 @@ insert into tests.writes values
   ('term_deposits', 'update term_deposits set status = ''open'''),
   ('wealth_holdings', 'update wealth_holdings set status = ''open'''),
   ('wealth_days', 'delete from wealth_days'),
+  ('wealth_navs', 'delete from wealth_navs'),
   ('transfers', 'insert into transfers (total) values (0)'),
   ('transfer_files', 'delete from transfer_files'),
   ('transfer_misses', 'delete from transfer_misses'),

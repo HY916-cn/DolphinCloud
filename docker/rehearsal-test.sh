@@ -8,9 +8,10 @@
 #      started again, and dolphin-jobs catches up by itself. Every job's result in A and B must be the same.
 # The days are in the past (the clock cannot be moved): the window is the 16 days before today, the term ends 8 days
 # before today and the next term starts the day after. Past business goes in with its own time, as docker/sim-test.sh
-# does; the days are run with app_private.run_jobs(day), what dolphin-jobs runs at 00:05 that day. The index's daily
-# closes come from `dolphin jobs fetch` itself, against a stand-in for the providers (fixed closes, no network): each day
-# in A, and for B at its restart the days it missed, as the real fetch at a restart brings in the days since.
+# does; the days are run with app_private.run_jobs(day), what dolphin-jobs runs at 00:05 that day. The six 理财
+# products' daily closes come from `dolphin jobs fetch` itself, against a stand-in for the providers (fixed closes, no
+# network): each day in A, and for B at its restart the days it missed, as the real fetch at a restart brings in the days
+# since; the net values follow, and A and B must have the same.
 # Usage: docker/rehearsal-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the containers running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -45,7 +46,7 @@ login() { # login <container> <email> <password> → token
     -H 'Content-Type: application/json' -d "{\"email\":\"$2\",\"password\":\"$3\"}" | jq -r '.access_token // empty'
 }
 
-# The stand-in for the index providers: Tencent answers with the closes in /tmp/rehearsal-closes.json, Sina and
+# The stand-in for the providers: Tencent answers every product with the closes in /tmp/rehearsal-closes.json, Sina and
 # eastmoney do not answer; every other curl is the real one.
 mkdir -p "$WORK/bin"
 cat > "$WORK/bin/curl" <<'SH'
@@ -81,10 +82,15 @@ echo "today $T; window $D0 to $(sq "$A" -c "select date '$T' - 1"); term 1 ends 
 
 for c in "$A" "$B"; do
   sq "$c" -v d0="$D0" -v e="$E" -v t="$T" <<'SQL'
--- A fresh database: nothing to undo but the startup run, which on a Monday published today's anchor.
+-- A fresh database: nothing to undo but the startup run, which on a Monday published today's anchor, and the startup
+-- fetch; each 理财 product at 1 from the day before the window.
 set session_replication_role = replica;
 delete from public.rate_weeks;
+delete from public.wealth_days;
+delete from public.wealth_navs;
 set session_replication_role = origin;
+insert into public.wealth_navs (product, day, nav)
+select p ->> 'key', date :'d0' - 1, 1 from jsonb_array_elements(app_private.setting('wealth_params') -> 'products') p;
 update public.job_runs set done_to = date :'d0' - 1, last_ok = null, last_err = null;
 create schema reh;
 create table reh.cfg as select date :'d0' as d0, date :'e' as e, date :'t' as t;
@@ -122,7 +128,8 @@ begin
     when 1 then
       perform app_private.start_term_deposit(gen_random_uuid(), '70000002', 200, 12, sys, (d + time '10:00') at time zone 'Asia/Shanghai');
       perform app_private.start_term_deposit(gen_random_uuid(), '70000002', 50, 2, sys, (d + time '10:05') at time zone 'Asia/Shanghai');
-      perform app_private.start_wealth(gen_random_uuid(), '70000003', 150, 4, 'bold', sys, (d + time '10:30') at time zone 'Asia/Shanghai');
+      perform app_private.start_wealth(gen_random_uuid(), '70000003', 150, 'csi300', sys, (d + time '10:30') at time zone 'Asia/Shanghai');
+      perform app_private.start_wealth(gen_random_uuid(), '70000006', 40, 'ndx', sys, (d + time '10:40') at time zone 'Asia/Shanghai');
     when 2 then
       perform app_private.start_loan(gen_random_uuid(), '70000005', 40, '演练', 'installment', 4, 'account', sys, (d + time '11:00') at time zone 'Asia/Shanghai');
     when 3 then
@@ -130,17 +137,21 @@ begin
       perform app_private.credit_change('70000001', 20, 'manual', '演练：课堂表现', null, null, (d + time '12:00') at time zone 'Asia/Shanghai');
     when 5 then
       perform reh.move('70000001', -40, d + time '15:00');
+      perform app_private.end_wealth(id, 'redeemed', sys, (d + time '15:10') at time zone 'Asia/Shanghai')
+      from public.wealth_holdings where student_no = '70000006';
     when 9 then
       perform reh.move('70000001', 30, d + time '10:00');
       perform reh.move('70000006', 25, d + time '10:10');
     else
   end case;
 end $$;
--- The index's daily closes up to a day, as Tencent sends them: every weekday from two weeks before the window.
+-- Each product's daily closes up to a day, as Tencent sends them (黄金, an ETF, under qfqday): every weekday from two
+-- weeks before the window, 纳斯达克 100's by the US date.
 create function reh.closes(p_to date) returns text language sql as $$
-  select jsonb_build_object('data', jsonb_build_object('sh000300', jsonb_build_object('day', coalesce(jsonb_agg(jsonb_build_array(
-    d::date::text, '3800.00', round((3800 + 90 * sin(d::date - date '2026-01-01'))::numeric, 2)::text) order by d), '[]'))))::text
-  from generate_series((select d0 from reh.cfg) - 14, p_to, interval '1 day') d where extract(isodow from d) < 6
+  select jsonb_build_object('data', jsonb_object_agg(s.symbol, jsonb_build_object(case when s.symbol = 'sh518880' then 'qfqday' else 'day' end,
+    (select coalesce(jsonb_agg(jsonb_build_array(d::date::text, '1', round((3800 + 90 * sin(d::date - date '2026-01-01' + s.i))::numeric, 2)::text) order by d), '[]')
+     from generate_series((select d0 from reh.cfg) - 14, p_to, interval '1 day') d where extract(isodow from d) < 6))))::text
+  from unnest(array['sh000012', 'sh518880', 'sh000300', 'sz399006', 'hkHSI', 'us.NDX']) with ordinality s(symbol, i)
 $$;
 -- Everything the jobs make, without ids, transaction numbers (a sequence: Postgres may skip numbers after a restart)
 -- and the times things were entered: A and B must print the same.
@@ -152,12 +163,13 @@ create function reh.snapshot() returns setof text language sql as $$
   union all (select concat_ws('|', 'correction', student_no, day, balance, centi, settled_txn is not null) from public.interest_adjustments order by 1)
   union all (select concat_ws('|', 'anchor', week_start, prev_anchor, deposits, loans, ratio, growth, adjust, anchor) from public.rate_weeks order by 1)
   union all (select concat_ws('|', 'term', student_no, principal, weeks, rate, opened_on, matures_on, status, interest_centi, expected_centi) from public.term_deposits order by 1)
-  union all (select concat_ws('|', 'wealth', student_no, principal, weeks, tier, opened_on, matures_on, value_centi, valued_to, status, closed_on) from public.wealth_holdings order by 1)
+  union all (select concat_ws('|', 'wealth', student_no, principal, product, buy_nav, opened_on, value_centi, valued_to, status, closed_on) from public.wealth_holdings order by 1)
   union all (select concat_ws('|', 'loan', loan_no, student_no, principal, remaining, rate, score, plan, periods, interest_centi, status, opened_on, closed_on) from public.loans order by 1)
   union all (select concat_ws('|', 'period', l.loan_no, p.seq, p.due_on, p.principal, p.paid, p.overdue_at) from public.loan_periods p join public.loans l on l.id = p.loan_id order by 1)
   union all (select concat_ws('|', 'payment', l.loan_no, t.created_at, p.interest, p.principal, p.auto) from public.loan_payments p join public.loans l on l.id = p.loan_id join public.txns t on t.id = p.txn_id order by 1)
   union all (select concat_ws('|', 'txn', created_at, type, student_no, amount, balance_delta, balance_after, cash_delta, status, reason) from public.txns order by 1)
-  union all (select concat_ws('|', 'index', day, change) from public.wealth_days order by 1)
+  union all (select concat_ws('|', 'index', product, day, change) from public.wealth_days order by 1)
+  union all (select concat_ws('|', 'nav', product, day, change, anchor, premium, multiplier, rate, nav) from public.wealth_navs order by 1)
   union all (select concat_ws('|', 'term_row', name, starts_on, ends_on, closed_at is not null) from public.terms order by 1)
   union all (select concat_ws('|', 'job', job, done_to) from public.job_runs order by 1)
 $$;
@@ -237,7 +249,8 @@ diff "$WORK/a.snap" "$WORK/b.snap" >&2 || fail "A and B differ after the catch-u
 docker exec "$B" dolphin check >/dev/null 2>&1 || fail "B: dolphin check"
 summary=$(cut -d'|' -f1 "$WORK/a.snap" | sort | uniq -c | awk '{printf "%s %s, ", $1, $2}' | sed 's/, $//')
 pass "A (every day) and B (caught up) are the same, row for row: $summary"
-sq "$A" -c "select string_agg(concat_ws(' ', student_no, principal, status, value_centi, valued_to), '; ') from public.wealth_holdings" | sed 's/^/理财 (student, principal, status, value 0.01 HTB, valued to): /'
+sq "$A" -c "select string_agg(concat_ws(' ', student_no, product, principal, buy_nav, status, value_centi), '; ') from public.wealth_holdings" | sed 's/^/理财 (student, product, principal, bought at, status, value 0.01 HTB): /'
+sq "$A" -c "select string_agg(concat_ws(' ', product, day, nav), '; ' order by product) from (select distinct on (product) * from public.wealth_navs order by product, day desc) n" | sed 's/^/net values: /'
 sq "$A" -c "select string_agg(concat_ws(' ', week_start, anchor), '; ' order by week_start) from public.rate_weeks" | sed 's/^/anchors: /'
 
 echo "== 演练 1：学期结转"

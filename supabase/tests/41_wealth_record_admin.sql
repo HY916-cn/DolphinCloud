@@ -10,16 +10,16 @@ select tests.staff('keeper', 'storekeeper') as storekeeper \gset
 select tests.staff('ops', 'sysadmin') as sysadmin \gset
 select tests.student('s1', 0) as student \gset
 
-select is(tests.err(:'president', $$select record_wealth_day('2025-03-03', 1, '中证指数官网收盘行情')$$), 'FORBIDDEN',
+select is(tests.err(:'president', $$select record_wealth_day('csi300', '2025-03-03', 1, '中证指数官网收盘行情')$$), 'FORBIDDEN',
   'a president does not enter the index');
-select is(tests.err(w, $$select record_wealth_day('2025-03-03', 1, '中证指数官网收盘行情')$$), 'FORBIDDEN', format('nor %s', n))
+select is(tests.err(w, $$select record_wealth_day('csi300', '2025-03-03', 1, '中证指数官网收盘行情')$$), 'FORBIDDEN', format('nor %s', n))
 from (values (:'accountant'::uuid, '财务'), (:'teller', '柜员'), (:'storekeeper', '库管'), (:'sysadmin', 'the sysadmin'),
   (:'student', 'a student')) t(w, n);
-select is((select count(*)::int from wealth_days where day = '2025-03-03'), 0, 'and none of them entered it');
-select is(tests.call(:'teacher', $$select record_wealth_day('2025-03-03', 1, '中证指数官网收盘行情')$$) - 'created_at',
-  jsonb_build_object('day', '2025-03-03', 'close', null, 'prev_close', null, 'change', 1, 'source', 'manual',
+select is((select count(*)::int from wealth_days where product = 'csi300' and day = '2025-03-03'), 0, 'and none of them entered it');
+select is(tests.call(:'teacher', $$select record_wealth_day('csi300', '2025-03-03', 1, '中证指数官网收盘行情')$$) - 'created_at',
+  jsonb_build_object('product', 'csi300', 'day', '2025-03-03', 'close', null, 'prev_close', null, 'change', 1, 'source', 'manual',
     'note', '中证指数官网收盘行情', 'created_by', :'teacher'), 'the bank admin enters it');
-select is((select count(*)::int from audit_log where action = 'wealth.record' and target = 'wealth_days:2025-03-03' and actor_id = :'teacher'), 1,
+select is((select count(*)::int from audit_log where action = 'wealth.record' and target = 'wealth_days:csi300:2025-03-03' and actor_id = :'teacher'), 1,
   'with its log');
 
 select * from finish();

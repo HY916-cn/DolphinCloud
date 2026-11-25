@@ -100,8 +100,8 @@ npm --prefix client run lint
 | `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；`E2E_SHARDS=3` 时分 3 份同时跑，各用一个容器；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：旧容器正常关闭、迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
-| `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、买理财与赎回、放款与还款）与每天的定时任务：每个周一都有锚点且始终在 1%～4%，每天都计活期利息（含假期），每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期和理财全部转回活期（更长的转入下学期），全部到期的贷款都已结清或逾期在册 |
-| `docker/rehearsal-test.sh` | 上线前演练（约 1～2 分钟）：两个容器用同一份数据按天跑过今天之前的 16 天。学期结转后余额、信用分和未结的定期、理财、贷款原样转入下学期，上学期按学期可查、只有补录和编辑能改；一个容器 `docker stop` 几天再 `docker start`，Postgres 正常关闭，`dolphin-jobs` 自己补跑，结果与每天运行的容器逐行相同 |
+| `docker/sim-test.sh` | 2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、六个品种的理财买入与卖出、放款与还款）与每天的定时任务：每个周一都有锚点且始终在 1%～4%，每天都计活期利息（含假期），每天自检无差异，单次 `run_daily` 不超过 30 秒，到期的定期全部转回活期（更长的转入下学期），没有买入当天卖出的理财，每个品种每天都有净值，全部到期的贷款都已结清或逾期在册 |
+| `docker/rehearsal-test.sh` | 上线前演练（约 1～2 分钟）：两个容器用同一份数据按天跑过今天之前的 16 天。学期结转后余额、信用分和未结的定期、理财、贷款原样转入下学期，上学期按学期可查、只有补录和编辑能改；一个容器 `docker stop` 几天再 `docker start`，Postgres 正常关闭，`dolphin-jobs` 自己取到停机期间六个品种的行情并补跑，行情、净值和其他结果与每天运行的容器逐行相同 |
 
 ```bash
 docker/upgrade-test.sh <生产环境当前的提交>
@@ -153,7 +153,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | `dolphin check` | 核对余额与流水，有不一致时退出码为 1 |
 | `dolphin jobs` | 定时任务处理到哪天、最后成功时间、有没有失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务；有任务失败时退出码为 1 |
-| `dolphin jobs fetch` | 立即取理财参考指数（沪深 300）最近 10 个开盘日的日线，依次试腾讯、新浪、东方财富；都取不到时写日志并退出码为 1。`dolphin-jobs` 每天 00:05 补跑前和 15:30 收盘后会自动执行，取不到时每 10 分钟重试 6 次、之后每小时重试到当天结束 |
+| `dolphin jobs fetch` | 立即取理财六个品种最近 10 个交易日的日线写入 `wealth_days`（PHASE-2.md §10.10），每个品种依次试腾讯、新浪（只有 A 股）、东方财富；每个品种的某一天过了它的收盘后可写入时刻（A 股 15:30、恒生指数 16:40、纳斯达克 100 次日 06:00）才写入，写入后计入净值；某个品种都取不到时写日志 `wealth.fetch_failed`，其他品种照常，有取不到的退出码为 1。`dolphin-jobs` 每天 00:05 补跑前执行它，之后每 30 分钟执行一次 |
 | `dolphin jobs clean` | 立即清理文件传输：到期的取件、2 小时内没传完的发送及其文件；`dolphin-jobs` 每天 00:05 自动执行 |
 | `dolphin status` | 各进程状态、版本、最近一次备份、备份是否加密、定时任务是否正常 |
 | `dolphin health` | 镜像健康检查：Auth、PostgREST、Storage 应答且 Caddy 在运行 |

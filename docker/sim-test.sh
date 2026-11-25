@@ -1,13 +1,13 @@
 #!/bin/bash
 # One term at full school size (PHASE-2.md §17): a fresh container, 2000 students and an 18-week term in the past, then a
 # week of the holidays; each school day writes random deposits and withdrawals, a few 定期 opened or withdrawn early, a
-# few 理财 bought or redeemed (in 稳健, 平衡 or 进取; each trading day's index change fixed, a week's holiday in October, no
-# network), a few 信用分 changes and, mid-term, some frozen accounts, loans paid out for 1–4 weeks (past the term's end
+# few 理财 bought or sold (in the six products; each product's change of a trading day fixed, a week's holiday in October
+# for the A shares and 恒生指数, no network), a few 信用分 changes and, mid-term, some frozen accounts, loans paid out for 1–4 weeks (past the term's end
 # too) and repaid; every day the jobs run as at 00:05 and 00:10 (run_weekly on Mondays before the day's business,
 # run_daily after it), the holiday week as the term. Checks that the anchor stays within 1%–4% with one every Monday,
 # that 活期 accrues every day, that check_balances finds nothing every day, that no run_daily takes 30 s, that every 定期
-# due by the last day simulated has come back (the longer ones run on into the next term), that every 理财 past its last
-# day has come back and that every loan with all its periods due by then is paid off or 逾期.
+# due by the last day simulated has come back (the longer ones run on into the next term), that every product has a net
+# value for every day to the last and that every loan with all its periods due by then is paid off or 逾期.
 # Usage: docker/sim-test.sh [image]   (default dolphin-cloud:dev). KEEP=1 leaves the container running.
 set -euo pipefail
 IMAGE=${1:-dolphin-cloud:dev}
@@ -31,6 +31,13 @@ psql <<'SQL'
 create schema sim;
 insert into public.terms (name, starts_on, ends_on) values ('模拟学期', '2025-09-01', '2026-01-04');
 update public.job_runs set done_to = '2025-08-31', last_ok = null, last_err = null;
+-- 理财 from 31 August, each product at 1 (what dolphin-jobs fetched at start goes).
+set session_replication_role = replica;
+delete from public.wealth_days;
+delete from public.wealth_navs;
+set session_replication_role = origin;
+insert into public.wealth_navs (product, day, nav)
+select p ->> 'key', '2025-08-31', 1 from jsonb_array_elements(app_private.setting('wealth_params') -> 'products') p;
 insert into public.students (student_no, name, division, cohort, class_no, opened_at)
 select '4' || lpad(i::text, 7, '0'), '学生' || i, case when i % 3 = 0 then 'junior' else 'primary' end,
   case when i % 3 = 0 then 2024 + i % 3 else 2021 + i % 6 end, 1 + i % 8, '2025-08-25 08:00+08'
@@ -45,9 +52,8 @@ from public.accounts where student_no like '4%' and balance > 0;
 -- 17:30, a withdrawal never more than the balance; at 17:40 about 0.5% of those with no loan and 400 分 or more borrow up
 -- to 60 HTB within their 额度 for 1–4 weeks, into the account or in cash; at 17:45 about 1% open a 定期 of up to half
 -- their 活期 for 2, 4, 12, 24 or 48 weeks (none with a loan not paid off), and 2% of the 定期 open are withdrawn early;
--- at 17:47 about 0.5% of those with no loan buy 理财 with up to a third of their 活期 for 2, 4, 12, 24 or 48 weeks in a
--- random tier, and
--- at 17:52 1% of the holdings open are redeemed; at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
+-- at 17:47 about 0.5% of those with no loan buy 理财 of a random product with up to a third of their 活期, and at 17:52 1%
+-- of the holdings open bought before the day are sold; at 17:55 4% of the loans not paid off are repaid in part or in full, from 活期 when it is enough, else in cash; five
 -- 信用分 changes by hand. The days' 自动扣款 and 逾期 come from run_daily.
 create function sim.business(p_day date) returns integer language plpgsql as $$
 declare v_n integer;
@@ -76,16 +82,15 @@ begin
     (p_day + time '17:50') at time zone 'Asia/Shanghai')
   from public.term_deposits d join public.students s using (student_no)
   where d.status = 'open' and s.status = 'normal' and d.matures_on >= p_day and random() < 0.02;
-  perform app_private.start_wealth(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 3))::integer, x.w, x.tier,
+  perform app_private.start_wealth(gen_random_uuid(), x.student_no, 1 + (random() * (x.balance / 3))::integer, x.product,
     app_private.system_user(), (p_day + time '17:47') at time zone 'Asia/Shanghai')
-  from (select a.student_no, a.balance, (array[2, 4, 12, 24, 48])[1 + floor(random() * 5)::integer] as w,
-          (array['steady', 'balanced', 'bold'])[1 + floor(random() * 3)::integer] as tier
+  from (select a.student_no, a.balance, (array['bond', 'gold', 'csi300', 'chinext', 'hsi', 'ndx'])[1 + floor(random() * 6)::integer] as product
         from public.accounts a join public.students s using (student_no)
         where s.status = 'normal' and a.balance >= 10 and random() < 0.005
           and not exists (select 1 from public.loans l where l.student_no = a.student_no and l.status in ('active', 'overdue'))) x;
   perform app_private.end_wealth(h.id, 'redeemed', app_private.system_user(), (p_day + time '17:52') at time zone 'Asia/Shanghai')
   from public.wealth_holdings h join public.students s using (student_no)
-  where h.status = 'open' and s.status = 'normal' and random() < 0.01;
+  where h.status = 'open' and s.status = 'normal' and h.opened_on < p_day and random() < 0.01;
   perform app_private.start_loan(gen_random_uuid(), x.student_no, least(x.lim, 1 + (random() * 59)::integer), '模拟', x.plan, x.k, x.via,
     app_private.system_user(), (p_day + time '17:40') at time zone 'Asia/Shanghai')
   from (select s.student_no, app_private.credit_limit(c.score) as lim,
@@ -129,15 +134,18 @@ begin
   elsif p_day = '2025-11-15' then
     update public.students set status = 'normal' where status = 'frozen';
   end if;
+  -- The closes as dolphin-jobs would have fetched them by the day's business: the A shares' and 恒生指数's of the day
+  -- (1 to 7 October a holiday, closed), 纳斯达克 100's of the US day before; each a fixed cycle from −2.6% to +2.4%,
+  -- shifted by product. Then the net values.
+  insert into public.wealth_days (product, day, change, source, params)
+  select p.key, x.d, (array[0.6, -0.4, 1.1, -1.3, 0.2, -2.6, 2.4, 0])[1 + (x.d - date '2025-09-01' + p.i::integer) % 8], 'tencent',
+    app_private.setting('wealth_params')
+  from unnest(array['bond', 'gold', 'csi300', 'chinext', 'hsi', 'ndx']) with ordinality p(key, i),
+    lateral (select case when p.key = 'ndx' then p_day - 1 else p_day end as d) x
+  where extract(isodow from x.d) <= 5 and (p.key = 'ndx' or x.d not between '2025-10-01' and '2025-10-07') and x.d >= '2025-09-01';
+  perform app_private.advance_wealth_navs(p_day);
   if extract(isodow from p_day) <= 5 and (app_private.current_term(p_day)).id is not null then
     v_n := sim.business(p_day);
-  end if;
-  if extract(isodow from p_day) <= 5 and p_day not between '2025-10-01' and '2025-10-07' then
-    -- The day's index close, as dolphin-jobs would have fetched it after 15:30: a fixed cycle from −2.6% to +2.4%;
-    -- 1 to 7 October are a holiday, closed.
-    insert into public.wealth_days (day, change, source, params)
-    select p_day, c, 'tencent', app_private.setting('wealth_params')
-    from (select (array[0.6, -0.4, 1.1, -1.3, 0.2, -2.6, 2.4, 0])[1 + (p_day - date '2025-09-01') % 8] as c) x;
   end if;
   v_t := clock_timestamp();
   v_status := app_private.run_daily(p_day) ->> 'status';
@@ -182,13 +190,20 @@ psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'mature
   [ "$due" = 0 ] || fail "$due 定期 due by 11 January still open"
   echo "定期: $n opened, $matured matured, $early withdrawn early, $open still open into the next term; $centi (0.01 HTB) of interest"
 }
-psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'matured'), count(*) filter (where status = 'redeemed'),
-  count(*) filter (where status = 'open'), coalesce(sum(value_centi - 100 * principal) filter (where status <> 'open'), 0),
-  count(*) filter (where status = 'open' and matures_on <= '2026-01-11')) from public.wealth_holdings" | {
-  read -r n matured redeemed open gain due
+psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'redeemed'), count(*) filter (where status = 'open'),
+  coalesce(sum(value_centi - 100 * principal) filter (where status <> 'open'), 0),
+  count(*) filter (where status = 'redeemed' and closed_on <= opened_on)) from public.wealth_holdings" | {
+  read -r n sold open gain early
   [ "$n" -gt 0 ] || fail "no 理财"
-  [ "$due" = 0 ] || fail "$due 理财 past their last day still open"
-  echo "理财: $n bought, $matured matured, $redeemed redeemed, $open still open; $gain (0.01 HTB) gained over the principal"
+  [ "$early" = 0 ] || fail "$early 理财 sold the day bought"
+  echo "理财: $n bought, $sold sold, $open still open; $gain (0.01 HTB) gained over the principal"
+}
+# Every product has a net value for each day from 31 August to 11 January (134 rows).
+psql -F ' ' -c "select product, count(*), max(day), min(nav), max(nav), (array_agg(nav order by day desc))[1] from public.wealth_navs group by product order by product" | {
+  while read -r product days last lo hi nav; do
+    [ "$days" = 134 ] && [ "$last" = 2026-01-11 ] || fail "$product: $days net values to $last"
+    echo "理财 $product: $days net values to $last, from $lo to $hi, last $nav"
+  done
 }
 psql -c "select concat_ws(' ', count(*), count(*) filter (where status = 'closed'), count(*) filter (where status = 'overdue'),
   count(*) filter (where status = 'active'), coalesce(sum(principal), 0),

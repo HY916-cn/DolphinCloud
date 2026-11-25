@@ -157,9 +157,6 @@ SQL
   ! grep -q '^FAILED' <<<"$out"
 }
 
-# 理财 (PHASE-2.md §10.10): the index's latest daily closes into wealth_days, the trading days that have none yet
-# (today's after 15:30), from Tencent, else Sina, else eastmoney. When none answers with closes, says so, logs
-# wealth.fetch_failed and exits 1, for dolphin-jobs to try again; a trading day still missing is entered by hand.
 # 文件传输's daily clean-up (PHASE-2.md §13): expired and unfinished transfers, then the folders on disk of transfers that
 # no longer exist. A folder changed within 3 hours is left for the next run, so an upload just begun is never touched.
 jobs_clean() {
@@ -173,32 +170,40 @@ jobs_clean() {
   done
 }
 
+# 理财 (PHASE-2.md §10.10): each product's latest daily closes into wealth_days, the trading days that have none yet
+# once the product's close may be written, from Tencent, else Sina, else eastmoney (Sina for A shares only); the net
+# values follow. A product none answers for is said, logged as wealth.fetch_failed and tried again at the next fetch;
+# the others go on. Exits 1 when any failed; a trading day still missing is entered by hand.
 jobs_fetch() {
-  local symbol secid src url body out errors=
+  local key symbol src url secid body out errors failed=0
   ready
-  symbol=$(psql_ -qAt -c "select app_private.setting('wealth_params') ->> 'symbol'")
-  secid=$([ "${symbol:0:2}" = sh ] && echo 1 || echo 0).${symbol:2}
-  for src in tencent sina eastmoney; do
-    case $src in
-      tencent) url="https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=$symbol,day,,,10,qfq" ;;
-      sina) url="https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData?symbol=$symbol&scale=240&ma=no&datalen=10" ;;
-      eastmoney) url="https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=$secid&fields1=f1,f2,f3&fields2=f51,f53&klt=101&fqt=0&end=20500101&lmt=10" ;;
-    esac
-    if body=$(curl -fsS --max-time 20 "$url" 2>&1) \
-       && out=$(psql_ -qAt -v src="$src" -v body="$body" 2>&1 <<'SQL'
-select app_private.record_wealth_days(:'src', :'body'::jsonb);
+  while IFS='|' read -r key symbol; do
+    errors=
+    for src in tencent sina eastmoney; do
+      case $src in
+        tencent) url="https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=$symbol,day,,,10,qfq" ;;
+        sina) [[ $symbol =~ ^s[hz][0-9]{6}$ ]] || continue
+          url="https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData?symbol=$symbol&scale=240&ma=no&datalen=10" ;;
+        eastmoney) case $symbol in sh*) secid=1.${symbol:2} ;; sz*) secid=0.${symbol:2} ;; *) secid=100.${symbol##*[a-z.]} ;; esac  # hkHSI, us.NDX
+          url="https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=$secid&fields1=f1,f2,f3&fields2=f51,f53&klt=101&fqt=0&end=20500101&lmt=10" ;;
+      esac
+      if body=$(curl -fsS --max-time 20 "$url" 2>&1) \
+         && out=$(psql_ -qAt -v key="$key" -v src="$src" -v body="$body" 2>&1 <<'SQL'
+select app_private.record_wealth_days(:'key', :'src', :'body'::jsonb);
 SQL
 ); then
-      echo "wealth: $out new day(s) of $symbol from $src"
-      return 0
-    fi
-    errors="$errors$src: ${body:0:200} ${out:-}; "
-  done
-  psql_ -qAt -v symbol="$symbol" -v err="$errors" >/dev/null <<'SQL' || true
+        echo "wealth: $out new day(s) of $key ($symbol) from $src"
+        continue 2
+      fi
+      errors="$errors$src: ${body:0:200} ${out:-}; "
+    done
+    psql_ -qAt -v symbol="$symbol" -v err="$errors" >/dev/null <<'SQL' || true
 select app_private.log_system('wealth.fetch_failed', jsonb_build_object('symbol', :'symbol', 'error', :'err'));
 SQL
-  echo "wealth: could not fetch $symbol: $errors" >&2
-  return 1
+    echo "wealth: could not fetch $key ($symbol): $errors" >&2
+    failed=1
+  done < <(psql_ -qAt -c "select p ->> 'key' || '|' || (p ->> 'symbol') from jsonb_array_elements(app_private.setting('wealth_params') -> 'products') p")
+  return $failed
 }
 
 # One line for `dolphin status`.

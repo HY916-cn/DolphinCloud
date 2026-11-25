@@ -94,7 +94,7 @@ grep -q "^daily  done to $YESTERDAY, last ok " <<<"$JOBS" && grep -q '^weekly do
   || fail "dolphin jobs: $JOBS"
 docker exec "$NAME" dolphin status | grep -q "^jobs: ok, daily done to $YESTERDAY" || fail "dolphin status has no jobs line"
 # On a Monday this week's weekly job may still wait for dolphin-jobs, whose start fetches the 理财 closes first (up to a
-# minute, depending on the network): one run catches up whatever is left, and then there is nothing to do.
+# few minutes, depending on the network): one run catches up whatever is left, and then there is nothing to do.
 OUT=$(docker exec "$NAME" dolphin jobs run) || fail "dolphin jobs run: $OUT"
 grep -qvE "^(Nothing to catch up|weekly $(sql "select app_private.cn_date(now())") done)\$" <<<"$OUT" && fail "dolphin jobs run caught up more than today's weekly job: $OUT"
 [ "$(docker exec "$NAME" dolphin jobs run)" = "Nothing to catch up" ] || fail "dolphin jobs run when up to date"
@@ -150,7 +150,7 @@ pass "image upload (RLS blocks users without a policy) and public read, sandboxe
 # 公开页面 (PHASE-2.md §16.4), not signed in.
 [ "$(rpc server_time '{}')" = 200 ] && [ $(( $(cat "$WORK/body") / 1000 - $(date +%s) )) -ge -5 ] \
   && [ $(( $(cat "$WORK/body") / 1000 - $(date +%s) )) -le 5 ] || fail "server_time: $(cat "$WORK/body")"
-[ "$(rpc public_rates '{}')" = 200 ] && jq -e '.current > 0 and (.scores | length) == 4 and (.term | length) == 5 and (.wealth.tiers | length) == 3 and (has("anchor") | not)' "$WORK/body" >/dev/null \
+[ "$(rpc public_rates '{}')" = 200 ] && jq -e '.current > 0 and (.scores | length) == 4 and (.term | length) == 5 and (.wealth | length) == 6 and (has("anchor") | not)' "$WORK/body" >/dev/null \
   || fail "public_rates: $(cat "$WORK/body")"
 pass "server_time and public_rates answer anon"
 

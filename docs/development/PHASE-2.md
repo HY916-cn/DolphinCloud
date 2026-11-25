@@ -71,7 +71,7 @@
 | 操作 | 学生 | 柜员 | 财务 | 库管 | 行长 | 银行管理员 | 运维员 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 查看本人信用分、利息、贷款、定期 | ✓ | | | | | | |
-| 办理贷款、还款、开定期、提前支取、买理财、赎回 | | ✓ | | | | | |
+| 办理贷款、还款、开定期、提前支取、买理财、卖出理财 | | ✓ | | | | | |
 | 冲正本人当天的放款、还款、开定期 | | ✓ | | | | | |
 | 冲正开户、定期转回、理财转回、调账 | | | | | | ✓ | |
 | 上班登记备用金、下班录入实点 | | ✓ | | | | | |
@@ -196,7 +196,7 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 - 前提：每天的任务已处理完学期最后一天。不满足时返回 `TERM_OPEN_ITEMS`，详情 `{"items": [{"kind":"job","job":"daily","done_to":"…"}]}`，补跑后再结转。名单由 `app_private.term_open_items(term)` 给出。
 - 结转后余额、信用分和未结的定期、理财、贷款（含逾期的）原样转入下学期，不生成流水；贷款照常按计划还款、计息、自动扣款。
 - 上学期的流水、利息、贷款、定期、轧账按学期归档；报表、流水查询、学生明细都可以按学期筛选。结转后的学期，银行管理员的补录、编辑（10.11）是唯一能改动它的途径。
-- 日期落在已结转学期里的流水不能冲正：`reverse_txn` 返回 `TERM_CLOSED`，风险提醒的「终止」随之失败、保持未处理。存款、取款、兑换、调账要更正就「编辑」；定期、理财、贷款按各自的业务办理（提前支取、赎回、终止），或在今天补录调账。
+- 日期落在已结转学期里的流水不能冲正：`reverse_txn` 返回 `TERM_CLOSED`，风险提醒的「终止」随之失败、保持未处理。存款、取款、兑换、调账要更正就「编辑」；定期、理财、贷款按各自的业务办理（提前支取、卖出、终止），或在今天补录调账。
 - 结转写一条日志 `term.close`。
 
 ---
@@ -579,14 +579,18 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 - **什么时候计入**：每次写入行情之后，以及每天 00:05 的任务里，把每个品种所有不晚于今天、涨跌已知的日子按顺序计入（`app_private.advance_wealth_navs(today)`）。所以 A 股品种当天 15:30 后就有当天的净值，恒生指数 16:40 后，纳斯达克 100 次日早上；周末在当天 00:05 计入。00:05 的任务先算当周锚点（周一），再计净值。
 - 某个品种某一天的涨跌还不知道时，它的净值停在前一天，之后的日子也先不计；取到或登记后按顺序补上。其他品种不受影响。只用数据库里的行情，补跑结果与按时运行相同。
 - 「当前净值」是这个品种最近计入的一天的净值。
+- 起点：上线迁移在迁移当天的前一天给每个品种写一行净值 1（没有涨跌、收益率），上线当天是第一个计入的日子。
+- 某一天要等它所在那一周的锚点：这一周的周一已做完每周任务（`job_runs` 的 `weekly`）才计入，所以停机后重启时先取到的行情不会用上周的锚点，补跑结果与按时运行相同。
+- 每天的 `wealth_navs` 一行记下涨跌、所用的锚点、加成、倍率、收益率和净值，可据此复算。
+- 持有中、按净值买入的理财的现值（`value_centi`）在每次计入净值后更新为 本金 × 当前净值 ÷ 买入净值（`app_private.revalue_wealth`），卖出、注销和冲正卖出时先更新一次再计算；`check_balances`、货币监控、看板和报表都读这个现值或本金，口径不变。
 
 **行情**：
 
 - 每个品种每个交易日一行 `wealth_days`（品种、日期、收盘价、上一个交易日的收盘价、涨跌、来源 `tencent` / `sina` / `eastmoney` / `manual`、手动登记的说明和登记人），登记后不能修改。
 - 休市的判断按品种分别进行，不维护节假日表（`app_private.wealth_day_change`）：周末总是休市；工作日有行情就按它，没有行情而之后已有这个品种的行情，就是休市；没有行情、之后也还没有，就是「还不知道」。
 - 取数：`dolphin-jobs` 在每天 00:05 跑定时任务之前，以及之后每 30 分钟执行一次 `dolphin jobs fetch`，对每个品种按顺序从腾讯（`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=<代码>,day,,,10,qfq`，指数在 `data.<代码>.day`，ETF 在 `data.<代码>.qfqday`，每行 `[日期, 开, 收, …]`）→ 新浪 → 东方财富取最近 10 个交易日的日线，哪个先给出数据就用哪个（新浪、东方财富只取它们支持的品种），由 `app_private.record_wealth_days` 写入有上一个交易日收盘价、且已过「收盘后可写入」时刻的每一天，已有的日子不改。数据库函数不访问网络。
-- 取不到时：不停机、不影响其他定时任务，写日志 `wealth.fetch_failed`（`{"symbol","error"}`），半小时后再取。
-- 手动登记：某个品种的某个工作日过了可写入时刻 18 小时仍是「待登记」（后台「理财」页 `wealth_overview().missing` 按品种列出），银行管理员去行情网站查这一天的涨跌，用 `record_wealth_day(品种, 日期, 涨跌, 说明)` 登记（百分数，−50～50，说明必填写数据来源），写日志 `wealth.record`。实际休市的不用登记。要从这个品种最早的待登记日起按顺序登记：登记了后面的日子，前面没有行情的工作日就当作休市。登记后再取到的同一天不会覆盖它。
+- 取不到时：不停机、不影响其他定时任务和其他品种，写日志 `wealth.fetch_failed`（`{"symbol","error"}`），半小时后再取。腾讯 ETF 的日线在 `qfqday` 下；新浪只取 A 股（`sh`、`sz`）；东方财富的代码为 `1.`（沪）、`0.`（深）加 6 位数字，恒生指数 `100.HSI`、纳斯达克 100 `100.NDX`。
+- 手动登记：某个品种的某个工作日过了可写入时刻 18 小时仍是「待登记」（后台「理财」页 `wealth_overview().products[].missing` 按品种列出），银行管理员去行情网站查这一天的涨跌，用 `record_wealth_day(品种, 日期, 涨跌, 说明)` 登记（百分数，−50～50，说明必填写数据来源；这一天要已过这个品种的可写入时刻），写日志 `wealth.record`，登记后立即计入净值。实际休市的不用登记。要从这个品种最早的待登记日起按顺序登记：登记了后面的日子，前面没有行情的工作日就当作休市。登记后再取到的同一天不会覆盖它。
 
 **买入**（柜台「理财」）：
 
@@ -596,14 +600,14 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 **卖出**：
 
-- 柜员在「理财」里选一笔，二次确认后按当前净值算出的现值整笔转回活期，生成一笔 `wealth_close`，状态「已卖出」。`p_holding_id` 即幂等键，重复提交返回原来那笔。
+- 柜员在「理财」里选一笔，二次确认后按当前净值算出的现值整笔转回活期（`redeem_wealth`），生成一笔 `wealth_close`，状态「已卖出」（`redeemed`）。`p_holding_id` 即幂等键，重复提交返回原来那笔。
 - T+1：从买入次日（上海日期）起才能卖出；买入当天卖出返回 `WEALTH_LOCKED`（`{"sellable_on":"YYYY-MM-DD"}`）。
 - 转回的钱：现值加上账户的零头（`interest_carry`），整数部分转回活期，不满 1 HTB 的部分留作零头，下次结息时一起入账（同 9.5 的定期利息）。本金很小又亏了时整数部分可能是 0：这笔 `wealth_close` 的金额为 0 HTB，现值全部留作零头（`txns.amount` 只对 `wealth_close` 和冲正它的流水允许 0）。
 - 理财一直持有到卖出，跨学期、跨假期照常计；学期结转原样转入下学期。
 - 冻结、毕业：照常随净值变动，不能卖出（`STUDENT_INACTIVE`）。注销（`close_accounts`）：先按当前净值卖出（不受 T+1 限制），再与活期一起由「注销账号」流水清零。
 - 理财按本金计入存款余额（锚点）、日均余额和存款排名，同定期；现值的涨跌不计入。频繁买卖由风险提醒的「频繁操作」（12.1）提示。
 
-**按期限买入的理财**：上线六个品种之前买入的理财带期限和档位（`wealth_holdings.weeks`、`tier` 不为空），照买入时锁定的周基础收益、系数、倍率和每日上下限，按沪深 300 的涨跌每天计收益（`app_private.holding_rate`），到期日当天结束时由 `run_daily` 自动转回活期（状态「已到期」，经办人「系统」，时间记为次日 0 点），在此之前可以随时按现值赎回。它们用 `csi300` 品种的行情，不再新开。
+**按期限买入的理财**：上线六个品种之前买入的理财带期限和档位（`wealth_holdings.weeks`、`tier` 不为空），照买入时锁定的周基础收益、系数、倍率和每日上下限，按沪深 300 的涨跌每天计收益（`app_private.holding_rate`），到期日当天结束时由 `run_daily` 自动转回活期（状态「已到期」，经办人「系统」，时间记为次日 0 点），在此之前可以随时按现值卖出。它们用 `csi300` 品种的行情，不再新开；`product` 为 `csi300`，`buy_nav` 为空。上线前已有的行情都归到 `csi300`。
 
 ### 10.11 手动补录与更正
 
@@ -757,7 +761,7 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 
 | 时间（上海） | 函数 | 内容 |
 | --- | --- | --- |
-| 每天 00:05 | `app_private.run_daily(d)` | 对前一天 d：活期计息；到期的定期转回活期；理财计入已知行情的日子的收益、到期的转回活期；应还日到期的贷款自动扣款或记逾期，逾期贷款自动扣款；贷款计息 |
+| 每天 00:05 | `app_private.run_daily(d)` | 对前一天 d：活期计息；到期的定期转回活期；按期限买入的理财计入已知行情的日子的收益、到期的转回活期；各品种计入不晚于 d 的净值；应还日到期的贷款自动扣款或记逾期，逾期贷款自动扣款；贷款计息 |
 | 每周一 00:10 | `app_private.run_weekly(w)` | 活期结息；信用分的每周加减分与逾期满一周扣分；计算并公布本周锚点 |
 | 每天 00:05（补跑之后） | `dolphin jobs clean` | 文件传输（16.4）的清理，见下 |
 
@@ -765,12 +769,12 @@ P1 §7.5 的「柜员下班总结」在逐笔业务之后加一张现金表，�
 - `app_private.run_jobs(today)` 补跑：从每天任务的 `done_to` 的下一天开始，每天的任务做到昨天，每周的任务做到今天（周一）。`dolphin-jobs` 在容器启动、数据库迁移完成后补跑一次，之后每天 00:05 以后补跑一次；`dolphin jobs run` 立即补跑。
 - `run_daily(d)` 只接受 `done_to` 的下一天且早于今天；`run_weekly(w)` 只接受周一，且每天的任务已做完前一天。已做过的日子直接跳过（`skipped`），同一天重复执行结果不变。各项计算只用 `d`、`w`，不用当前时间。
 - 每天、每个周一都做全部的事，学期内和假期一样；返回 `{"job","day","status"}`，`status` 为 `done`，已做过的为 `skipped`。M20 迁移之前标为 `holiday` 的日子不回头重算（6.2）。
-- `dolphin-jobs` 每次补跑之前先执行 `dolphin jobs fetch` 取理财参考指数的日线，A 股收盘后 15:30 起再取当天的（10.10）；取不到不影响补跑。
+- `dolphin-jobs` 每次补跑之前先执行 `dolphin jobs fetch` 取六个品种的日线，之后每 30 分钟再取一次（10.10）；每个品种的某一天过了它的「收盘后可写入」时刻才写入，写入后立即计入净值。取不到写日志 `wealth.fetch_failed`，不影响补跑和其他品种。`run_jobs(today)` 补跑完成后再计入不晚于今天的净值，所以周末的净值在当天 00:05 计入。
 - 任一任务失败时停在那一天：之前的日子保留，这一天的改动撤销，`job_runs.last_err` 记下日期和原因，写日志 `job.failed`（`{"job","day","error"}`）。下一次补跑（第二天 00:05、容器重启或 `dolphin jobs run`）从这一天重试，成功后清空 `last_err`。
 - 上线（本迁移执行）之前的日子不补跑：`job_runs` 两个任务的 `done_to` 初始为迁移当天的前一天。
 - 运维命令新增 `dolphin jobs`：显示每个任务最后处理到哪天、最后成功时间、有没有失败，以及当前学期；`dolphin jobs run` 立即补跑；`dolphin status` 加一行任务状态。
 - 任务失败写日志（`job.failed`），并在运维员总览上提示：运维员和银行管理员（含行长）可直接读 `job_runs`，`last_err` 不为空即为失败。
-- `run_daily` 里依次是活期计息（M9，`accrue_interest`）、到期定期转回活期（M10、M16，`mature_term_deposits`，利息零头并入 `interest_carry`）、理财按天计收益与到期（M16，`value_wealth`、`mature_wealth`）、贷款自动扣款与逾期（M11，`collect_loans(d)`：转回的定期当晚就能用来还款）、贷款计息（M11，`accrue_loans`：按扣款后剩下的本金，应还日当天还掉的本金当天不计息）；`run_weekly` 里依次是结息（M9，`settle_interest`）、信用分每周加减分（M8，`credit_weekly(w)`）、逾期满一周扣分（M11，`overdue_weekly(w)`）、本周锚点（M9，`publish_anchor(w)`）。
+- `run_daily` 里依次是活期计息（M9，`accrue_interest`）、到期定期转回活期（M10、M16，`mature_term_deposits`，利息零头并入 `interest_carry`）、按期限买入的理财按天计收益与到期（M16，`value_wealth`、`mature_wealth`）、各品种的净值（M24，`advance_wealth_navs(d)`）、贷款自动扣款与逾期（M11，`collect_loans(d)`：转回的定期当晚就能用来还款）、贷款计息（M11，`accrue_loans`：按扣款后剩下的本金，应还日当天还掉的本金当天不计息）；`run_weekly` 里依次是结息（M9，`settle_interest`）、信用分每周加减分（M8，`credit_weekly(w)`）、逾期满一周扣分（M11，`overdue_weekly(w)`）、本周锚点（M9，`publish_anchor(w)`）。
 - 贷款计息、扣款按任务运行时贷款的状态和计划；停机期间柜台不办业务，所以补跑与按时运行相同。
 - 文件传输的清理不按日子补跑，只看当前时间：`app_private.clean_transfers()` 删除到期的取件（`expires_at` 已到）、创建 2 小时后仍没生成取件码的发送、不再有取件的 `transfers` 桶记录，以及一天前的输错记录，返回 `{"expired","unfinished","orphans"}` 三项个数，有删除时写日志 `transfer.cleanup`（同样三项）；之后 `dolphin jobs clean` 删除磁盘上不再有取件、3 小时内没有变动的文件夹（刚开始上传的不会被删）。重复执行什么也不删。容器启动时随补跑执行一次，也可以手动执行 `dolphin jobs clean`。
 - 补录和编辑（10.11）与 `run_daily` 都先锁住 `job_runs` 的 `daily` 一行，补录不会夹在一天的任务中间；任务已算过的日子由补录更正利息，没算到的日子由任务照常计息。
@@ -788,7 +792,7 @@ alter type txn_type add value 'term_close';  -- 定期到期或提前支取（�
 alter type txn_type add value 'loan';        -- 放款
 alter type txn_type add value 'repay';       -- 还款
 alter type txn_type add value 'wealth_buy';  -- 买理财（活期 −）
-alter type txn_type add value 'wealth_close'; -- 理财到期或赎回（活期 +，现值的整数部分）
+alter type txn_type add value 'wealth_close'; -- 理财到期或卖出（活期 +，现值的整数部分）
 alter type txn_type add value 'adjust';      -- 调账（银行管理员补录，活期 + 或 −，不涉及现金）
 
 alter table txns add column entered_at timestamptz;                      -- 补录、编辑的实际录入时间；当时记下的流水为空
@@ -817,9 +821,9 @@ alter table txns add column corrects uuid unique references txns(id);    -- 编�
 
 | 流水 | 说明 | 例 |
 | --- | --- | --- |
-| `wealth_buy` | 周数、到期日 | 「12 周，2月8日 到期」 |
+| `wealth_buy` | 品种名称，买入净值（6 位小数） | 「沪深 300，净值 1.012345」（按期限买入的写「12 周 · 进取 ×4，2月5日 到期」） |
 | `wealth_close` 到期 | 到期，盈亏 | 「到期，盈 +3.20 HTB」「到期，亏 −3.50 HTB」「到期，持平」 |
-| `wealth_close` 赎回（含注销时赎回的） | 赎回，盈亏 | 「赎回，盈 +3.20 HTB」 |
+| `wealth_close` 卖出（含注销时卖出的） | 卖出，盈亏 | 「卖出，盈 +3.20 HTB」（M24 以前的写「赎回，…」） |
 
 `loan`、`repay` 的 `payment` 是放款方式、付款方式（`account` / `cash`）；现金的配钞或收到的面额记在 `denominations`。冲正这几种流水的 `reversal` 的说明仍是冲正原因。
 
@@ -930,16 +934,32 @@ create table term_deposits (                  -- 定期
 -- 读取：学生读本人的，财务、行长、银行管理员读全部；柜员经 term_quote 读正在办理的学生的
 -- 状态：open 存期中、matured 已到期、early 已提前支取（含注销时转回的）、reversed 开定期已冲正
 
-create table wealth_days (                    -- 理财参考指数每个开盘日的行情，只增不改（append_only 触发器）
-  day        date primary key,                -- 开盘日；休市日没有行
+create table wealth_days (                    -- 各品种每个交易日的行情，只增不改（append_only 触发器）
+  product    text not null,                   -- 品种（wealth_params.products 的 key）
+  day        date not null,                   -- 交易日（纳斯达克 100 为美国日期）；休市日没有行
   close      numeric(14,4),                   -- 收盘价；手动登记时为空
-  prev_close numeric(14,4),                   -- 上一个开盘日的收盘价
+  prev_close numeric(14,4),                   -- 上一个交易日的收盘价
   change     numeric(10,4) not null,          -- 当天涨跌（百分数）
   source     text not null check (source in ('tencent','sina','eastmoney','manual')),
   note       text,                            -- 手动登记的说明
   params     jsonb not null,                  -- 当时的 wealth_params
   created_by uuid references profiles(id),    -- 登记人
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  primary key (product, day)
+);
+-- 读取：所有登录身份
+
+create table wealth_navs (                    -- 各品种每个自然日的净值，只增不改（append_only 触发器）
+  product    text not null,
+  day        date not null,                   -- 上海日期
+  change     numeric(10,4),                   -- 当天涨跌（百分数），休市为 0；起点为空
+  anchor     numeric(8,4),                    -- 当周锚点
+  premium    numeric(8,4),                    -- 当时的基准加成
+  multiplier numeric(8,4),                    -- 当时的倍率
+  rate       numeric(8,4),                    -- 当天收益率（百分数）；起点为空
+  nav        numeric(12,6) not null,          -- 净值，起点为 1
+  created_at timestamptz not null default now(),
+  primary key (product, day)
 );
 -- 读取：所有登录身份
 
@@ -947,27 +967,30 @@ create table wealth_holdings (                -- 理财
   id          uuid primary key,               -- 客户端生成，作幂等键
   student_no  text not null references students(student_no),
   principal   integer not null check (principal > 0),
-  weeks       integer not null check (weeks in (2,4,12,24,48)),
-  opened_on   date not null,
-  starts_on   date not null,                  -- 开始计收益的那天（买入次日）
-  matures_on  date not null,                  -- 到期日：买入那天 + 7 × 周数
+  product     text not null,                  -- 品种
+  buy_nav     numeric(12,6),                  -- 买入净值；按期限买入的为空
+  weeks       integer check (weeks in (2,4,12,24,48)),   -- 以下到 max_rate 只有按期限买入的才有
+  opened_on   date not null,                  -- 买入那天
+  starts_on   date not null,                  -- 买入次日：按净值买入的从这天起可以卖出，按期限买入的从这天起计收益
+  matures_on  date,                           -- 到期日：买入那天 + 7 × 周数
   value_centi integer not null,               -- 现值（0.01 HTB）
-  valued_to   date not null,                  -- 下一天要计的收益；全部计完为 matures_on + 1
+  valued_to   date not null,                  -- 按净值买入的：现值所用净值的次日；按期限买入的：下一天要计的收益，全部计完为 matures_on + 1
   status      text not null default 'open' check (status in ('open','matured','redeemed','reversed')),
   open_txn    uuid not null references txns(id) deferrable initially deferred,
   close_txn   uuid references txns(id),
-  closed_on   date,                           -- 结束的那天（上海时间）：赎回当天，到期为到期日次日（转回流水记在次日 0 点）；持有中为空，冲正赎回后也清空。由触发器按 close_txn 的时间填写
-  tier        text not null,                  -- 档位（wealth_params.tiers 的 key）
-  tier_name   text not null,                  -- 买入时锁定：档位名称
-  multiplier  numeric(6,4) not null,          -- 买入时锁定：倍率
-  factor      numeric(6,4) not null,          --             系数
-  base        numeric(8,4) not null,          --             这一期限的周基础收益（百分数），每天按 (1 + base)^(1/7) − 1
-  min_rate    numeric(8,4) not null,          --             这一档每日下限
-  max_rate    numeric(8,4) not null           --             这一档每日上限
+  closed_on   date,                           -- 结束的那天（上海时间）：卖出当天，到期为到期日次日（转回流水记在次日 0 点）；持有中为空，冲正卖出后也清空。由触发器按 close_txn 的时间填写
+  tier        text,                           -- 档位
+  tier_name   text,                           -- 买入时锁定：档位名称
+  multiplier  numeric(6,4),                   -- 买入时锁定：倍率
+  factor      numeric(6,4),                   --             系数
+  base        numeric(8,4),                   --             这一期限的周基础收益（百分数），每天按 (1 + base)^(1/7) − 1
+  min_rate    numeric(8,4),                   --             这一档每日下限
+  max_rate    numeric(8,4)                    --             这一档每日上限
 );
+-- 按净值买入的 buy_nav 不为空、weeks 到 max_rate 为空；按期限买入的相反（约束 wealth_holdings_kind）
 -- 读取：学生读本人的，财务、行长、银行管理员读全部；柜员经 wealth_quote 读正在办理的学生的
--- 状态：open 持有中、matured 已到期、redeemed 已赎回（含注销时赎回的）、reversed 买入已冲正
--- 审计触发器不记只改 value_centi、valued_to 的更新（每周计收益）
+-- 状态：open 持有中、matured 已到期、redeemed 已卖出（含注销时卖出的）、reversed 买入已冲正
+-- 审计触发器不记只改 value_centi、valued_to 的更新（计收益、计入净值）
 
 create table loans (
   id            uuid primary key,             -- 客户端生成，作幂等键
@@ -1169,18 +1192,18 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
 | `open_loan(p_id, p_student_no, p_amount, p_purpose, p_plan, p_periods, p_via)` | teller（行长不可） | 10.3；`p_id` 是贷款的 id（幂等键）；`p_plan` 为 `installment` / `bullet`，`p_periods` 为期数或周数（1～8），`p_via` 为 `account` / `cash`；返回流水结果（同 P1，付现金时 `denominations` 为配钞）加 `loan`（贷款详情）。学期内和假期里都能办，应还日可以晚于学期末。错误：`INVALID_INPUT`（`field`：`plan`、`periods`、`via`、`purpose`）、`LOAN_OUTSTANDING`、`CREDIT_TOO_LOW`（`{"score","min_score"}`）、`INVALID_AMOUNT`、`OVER_CREDIT_LIMIT`（`{"limit"}`）、`STUDENT_INACTIVE`、`STUDENT_NOT_FOUND`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY` |
 | `repay_loan(p_id, p_loan_id, p_amount, p_payment, p_denominations)` | teller（行长不可） | 10.5；`p_id` 是还款流水的 id（幂等键）；`p_payment` 为 `account` / `cash`，现金时金额为 `p_denominations` 的合计；返回流水结果加 `loan`。错误：`INVALID_INPUT`（`{"field":"loan_id"}` 贷款不存在，`{"field":"loan_id","status"}` 已结清或作废；`field: payment`）、`INVALID_AMOUNT`（金额不对；只差利息零头就能结清时详情 `{"payoff"}`）、`REPAY_TOO_MUCH`（`{"max"}`）、`INSUFFICIENT_BALANCE`（`{"balance","short"}`）、`STUDENT_INACTIVE`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY` |
 | `terminate_loan(p_loan_id, p_reason)` | president / teacher | 10.8；返回 `{"loan": 贷款详情, "txn": 扣款的流水结果或 null}`。原因为空 `INVALID_INPUT`（`field: reason`）；贷款不存在或已结清、作废 `INVALID_INPUT`（`field: loan_id`） |
-| `wealth_quote(p_student_no)` | teller | 10.10 柜台「理财」面板：`{"student_no","today":{"day","closed"},"index":{"symbol","name"},"factor","tiers":[{"key","name","multiplier","min","max"}],"options":[{"weeks","starts_on","matures_on","base","day_base","tiers":[{"key","name","multiplier","rate","min","max"}]}],"latest","recent","balance","wealth_total","holdings"}`。`today.closed`：周末为 `true`，今天的收盘行情已写入为 `false`，其他（工作日收盘前、或节假日还没法判断）为 `null`。`options` 为今天买入的 5 种期限（开始计收益的那天即明天、到期日、周基础收益 `base` 与当日基础收益 `day_base`）；每个期限的 `tiers` 是各档的名称、倍率、按 `latest` 那个开盘日的涨跌算出的当天收益率 `rate`（还没有任何行情时为 `null`）和每日最多亏、最多赚 `min`、`max`。`recent` 为最近 10 个开盘日的 `wealth_days`（只有开盘日，新的在前，不含 `params`、`created_by`，加来源名称 `source_name`：腾讯行情 / 新浪财经 / 东方财富 / 手动登记），`latest` 为其中第一行（日期 `day`、收盘价 `close`、涨跌 `change`）；还没有任何行情时 `latest` 为 `null`、`recent` 为 `[]`。`holdings` 为该生的全部理财（`wealth_holdings` 行，含结束日期 `closed_on`：赎回当天或到期转回的那天，持有中为 `null`；柜员读不到 `txns`，「1月6日 赎回」取它），按买入日从新到旧。百分数都是 4 位小数。学生检查同 `term_quote` |
-| `buy_wealth(p_id, p_student_no, p_amount, p_weeks, p_tier)` | teller（行长不可） | 10.10；`p_id` 是理财的 id（幂等键），`p_tier` 为档位的 `key`；返回流水结果加 `holding`（`wealth_holdings` 一行，含锁定的 `tier`、`tier_name`、`multiplier`、`factor`、`base`、`min_rate`、`max_rate`）。错误：`INVALID_INPUT`（`field: weeks`、`tier`）、`INVALID_AMOUNT`、`INSUFFICIENT_BALANCE`（`{"balance","short"}`）、`LOAN_OUTSTANDING`、`STUDENT_INACTIVE`、`STUDENT_NOT_FOUND`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY` |
-| `redeem_wealth(p_holding_id)` | teller（行长不可） | 10.10；按现值赎回，返回同上，`holding.status` 为 `redeemed`；重复提交返回原来那笔。理财不存在 `INVALID_INPUT`（`{"field":"holding_id"}`），已到期、已作废 `INVALID_INPUT`（`{"field":"holding_id","status"}`）；冻结、毕业 `STUDENT_INACTIVE` |
-| `wealth_overview(p_before default null, p_limit default 30)` | accountant / president / teacher | 16.2 后台「理财」页：`{"params","days","missing","open"}`。`params` 为 `wealth_params` 加各期限的当日基础收益 `day_base`。`days` 为 `p_before`（默认今天）之前的 `p_limit`（1～366）个自然日，新的在前，每天一行 `{"day","status","close","prev_close","change","source","source_name","note","created_by_name","created_at","rates"}`：`status` 为 `open`（开盘，有行情）、`closed`（周末或节假日休市：收盘价、涨跌为空，`source` 为 `closed`，`source_name` 为「休市」）、`pending`（还不知道：`source_name` 为「待登记」）或 `none`（早于第一条行情，什么都没有）；`rates` 为按现在的参数各期限、各档在这一天的收益率 `{"<周数>":{"<档位 key>":收益率}}`（休市日即当日基础收益，`pending`、`none` 为 `null`；已买的理财按自己锁定的参数算，可能不同）。往前翻页时 `p_before` 传上一页最早那天。`missing` 为持有中的理财还等着、已经过去却还不知道行情的工作日（从早到晚），`open` 为持有中的 `{"count","principal","value_centi"}`。`p_limit` 不在 1～366 `INVALID_INPUT`（`field: limit`）。持有中的理财读 `wealth_holdings` 表 |
-| `record_wealth_day(p_day, p_change, p_note)` | teacher（行长不可） | 10.10 手动登记某个开盘日的指数涨跌；返回 `wealth_days` 一行（不含 `params`）。`p_day` 是周末或不早于今天 `INVALID_INPUT`（`field: day`）；涨跌不在 −50～50 或超过 4 位小数 `INVALID_INPUT`（`field: change`）；说明为空或超过 200 字 `INVALID_INPUT`（`field: note`）；这一天已有行情 `ALREADY_EXISTS`（`field: day`） |
+| `wealth_quote(p_student_no)` | teller | 10.10 柜台「理财」面板：`{"student_no","today","products","balance","wealth_total","holdings"}`。`products` 为六个品种（`wealth_params.products` 的顺序），每个 `{"key","name","symbol","multiplier","premium","day","nav","change","rate","closed","week_base","day_base"}`：`day`、`nav` 为当前净值和它的日子，`change`、`rate` 为这一天的涨跌和收益率（起点为空），`closed` 为这一天没有行情（休市，只计日基准）时 `true`，`week_base` 为本周基准收益（本周锚点 + 加成），`day_base` 为它的日基准。`holdings` 为这位学生的全部理财，按买入日从新到旧，每笔是 `wealth_holdings` 一行加 `name`（品种名称）、`nav`（当前净值；按期限买入的为空）、`gain_centi`（现值 − 本金，0.01 HTB）、`sellable_on`（买入次日）。百分数都是 4 位小数，净值 6 位。学生检查同 `term_quote` |
+| `buy_wealth(p_id, p_student_no, p_amount, p_product)` | teller（行长不可） | 10.10；`p_id` 是理财的 id（幂等键），`p_product` 为品种的 `key`；按当前净值买入，返回流水结果加 `holding`（同 `wealth_quote` 的 `holdings` 一项）。错误：`INVALID_INPUT`（`field: product`）、`INVALID_AMOUNT`、`INSUFFICIENT_BALANCE`（`{"balance","short"}`）、`LOAN_OUTSTANDING`、`STUDENT_INACTIVE`、`STUDENT_NOT_FOUND`、`SELF_SERVICE_FORBIDDEN`、`OFF_DUTY` |
+| `redeem_wealth(p_holding_id)` | teller（行长不可） | 10.10 卖出：按当前净值的现值转回活期，返回同上，`holding.status` 为 `redeemed`；重复提交返回原来那笔。买入当天 `WEALTH_LOCKED`（`{"sellable_on"}`）；理财不存在 `INVALID_INPUT`（`{"field":"holding_id"}`），已到期、已作废 `INVALID_INPUT`（`{"field":"holding_id","status"}`）；冻结、毕业 `STUDENT_INACTIVE` |
+| `wealth_overview(p_before default null, p_limit default 30)` | accountant / president / teacher | 16.2 后台「理财」页：`{"params","products","open"}`。`params` 即 `wealth_params`；`products` 为六个品种，每个同 `wealth_quote` 的 `products` 一项，另加 `open`（这个品种持有中的 `{"count","principal","value_centi"}`）、`missing`（已过可写入时刻 18 小时、涨跌仍不知道的工作日，从早到晚）、`days`（`p_before`，默认今天，之前的 `p_limit`（1～366）个自然日，新的在前，每天 `{"day","status","close","prev_close","change","source","source_name","note","created_by_name","created_at","rate","nav"}`：`status` 为 `open`（有行情）、`none`（不晚于这个品种的净值起点且没有行情：其余为空）、`closed`（休市：`source` 为 `closed`，`source_name`「休市」）或 `pending`（还不知道：`source_name`「待登记」）；`rate`、`nav` 为这一天计入的收益率和净值，还没计入为空）。`open` 为全部持有中的理财（含按期限买入的）。往前翻页时 `p_before` 传上一页最早那天。`p_limit` 不在 1～366 `INVALID_INPUT`（`field: limit`） |
+| `record_wealth_day(p_product, p_day, p_change, p_note)` | teacher（行长不可） | 10.10 手动登记某个品种某个交易日的涨跌，登记后立即计入净值；返回 `wealth_days` 一行（不含 `params`）。品种不对 `INVALID_INPUT`（`field: product`）；`p_day` 是周末或还没到这个品种的可写入时刻 `INVALID_INPUT`（`field: day`）；涨跌不在 −50～50 或超过 4 位小数 `INVALID_INPUT`（`field: change`）；说明为空或超过 200 字 `INVALID_INPUT`（`field: note`）；这一天已有行情 `ALREADY_EXISTS`（`field: day`） |
 | 贷款详情 | — | `loan_quote`、`open_loan`、`repay_loan`、`terminate_loan` 返回的 `loan`：`loans` 一行，加 `payoff`（全部结清的金额，未结清时才有）、`next`（`{"seq","due_on","amount"}`，最早一期没还清的期与本期应还，10.4；结清后为 `null`）、`schedule`（`loan_periods` 各行，不含 `loan_id`）、`payments`（`[{"txn_id","txn_no","created_at","amount","interest","principal","auto","payment","status"}]`）、`penalty_rate`（按锁定的 `rate` 算的罚息周利率，9.2） |
 | `adjust_credit(p_student_no, p_delta, p_reason)` | teacher（行长不可） | 8.3；返回 `{"event": 变动记录, "credit": 调整后的 credit_profile}`；信用分暂停时返回 `CREDIT_DISABLED` |
 | `set_credit_enabled(p_on, p_reason)` | teacher（行长不可） | 8.5；返回 `{"enabled","changed","students"}`，`changed` 为 `false` 表示已是这个状态、什么都没做，`students` 为这次分数有变化的学生数。暂停时原因为空 `INVALID_INPUT`（`field: reason`），开启时原因可以为空；`p_on` 为空 `INVALID_INPUT`（`field: on`） |
 | `credit_profile(p_student_no default null)` | 学生（不传，读本人）/ accountant / president / teacher | 8.1；返回 `{"student_no","score","loan_limit","points_to_next","loan_factor"}`，不能贷款时额度、贷款系数为 `null`，`points_to_next` 为 `null` 表示不显示「再涨 N 分」 |
 | `lookup_student(p_student_no)` | 改动 | 返回里加 `credit`：同 `credit_profile`，不含学号；加 `term_total`（定期本金合计）、`wealth_total`（理财本金合计）、`wealth_value_centi`（持有中理财的现值合计，0.01 HTB）、`loan_remaining`（未结清贷款的剩余本金，没有时 0）、`loan_overdue`（是否逾期） |
 | `deposit_ranking(p_division)` | 改动 | 按活期 + 定期本金 + 理财本金 − 未结清贷款的剩余本金排名，`balance` 为这个数，可以为负，照常参加排名（16.3） |
-| `close_accounts(p_user_ids)` | 改动 | 注销学生账户时，持有中的理财先按现值赎回（10.10），未到期的定期先按提前支取转回活期、不付利息，再随余额清零（10.2）；有未结清贷款的返回 `LOAN_OUTSTANDING`（`{"student_no","loan_no"}`） |
+| `close_accounts(p_user_ids)` | 改动 | 注销学生账户时，持有中的理财先按当前净值卖出（10.10，不受 T+1 限制），未到期的定期先按提前支取转回活期、不付利息，再随余额清零（10.2）；有未结清贷款的返回 `LOAN_OUTSTANDING`（`{"student_no","loan_no"}`） |
 | `set_savings_interest_enabled(p_enabled)` | teacher（行长不可） | 9.3；返回 `{"enabled","changed"}`，`changed` 为 `false` 表示已是这个状态、什么都没做；`p_enabled` 为空 `INVALID_INPUT`（`field: enabled`） |
 | `interest_profile(p_student_no default null)` | 学生（不传，读本人）/ accountant / president / teacher | 9.2、9.4；返回 `{"student_no","score","week_start","anchor","savings_enabled","rates":{"current","term":{"2","4","12","24","48"},"loan"},"pending_centi"}`：本周锚点（`week_start` 为空表示还没有公布过，用初始锚点）、活期计息开关现在的状态（9.3）、本周各项周利率（百分数，`current` 即今天的活期周利率：本周锚点，开关关闭时为 0；`term` 即 `term_rates`，`loan` 按现在的分数算出、为空表示分数不够贷款）、待入账利息（0.01 HTB） |
 | `rate_overview()` | accountant / president / teacher | 16.2「利率」页：`{"week_start","anchor","table":[{"score","current","term","loan"}]}`，`table` 为 9.2 表格的分数（含 `credit_curve.min_score`）在本周锚点下的利率，每行的 `current` 都是本周锚点；每周历史读 `rate_weeks` 表，参数读 `settings` |
@@ -1200,7 +1223,7 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
 | `student_txns(…)` | 改动 | 按发生时间（`created_at`，同一时刻按 `seq`）最新在前排列和翻页，补录的流水排在原始时间；`p_before` 仍是上一页最后一笔的 `seq`；每笔加 `entered_at`（补录、编辑的录入时间，其他为空）、`corrects_no`（更正自哪一笔的交易号）、`corrected_no`（已更正为哪一笔的交易号） |
 
 | `server_time()` | anon / 任何登录 | 16.4 大屏时间：服务器当前时间，毫秒（1970 年起，UTC），如 `1795106641123` |
-| `public_rates()` | anon / 任何登录 | 16.4 利率看板：`{"credit_enabled":true,"savings_enabled":true,"current":2,"scores":[{"score":600,"loan":6.2667},{"score":750,"loan":5.5667},{"score":900,"loan":4.8667},{"score":1000,"loan":4.4}],"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"wealth":{"name":"沪深 300","weeks":12,"day":"2026-11-19","change":0.42,"closed":false,"tiers":[{"key":"steady","name":"稳健","multiplier":1,"rate":1.3553},{"key":"balanced","name":"平衡","multiplier":2,"rate":2.1953},{"key":"bold","name":"进取","multiplier":4,"rate":3.8753}]}}`。`current` 为今天的活期周利率，所有学生相同（`app_private.saving_rate_on`，9.2、9.3）；活期计息开关关闭时 `savings_enabled` 为 `false`、`current` 为 0；`scores` 为 600、750、900、1000 分在本周锚点下的贷款周利率，`loan` 为空表示这个分数不能贷款；信用分暂停时 `credit_enabled` 为 `false`，`scores` 只有 600 一行（暂停期间人人按 600 分）；`term` 即 `term_rates`。`wealth`：参考指数名称，各档（`wealth_params.tiers` 的顺序）12 周理财在 `day` 那天的日收益率（`app_private.tier_rate`：每日基础收益 + 倍率 × 系数 × 涨跌，按这一档的上下限截断）。`day`、`change` 为最近一个开盘日和它的涨跌；今天休市（周末，或已有更晚开盘日的工作日）时 `closed` 为 `true`、`day` 为今天、`change` 为 0、各档为基础收益；还没有任何行情时 `day`、`change` 和各档的 `rate` 为 `null`、`closed` 为 `false`。不含锚点和任何个人信息 |
+| `public_rates()` | anon / 任何登录 | 16.4 利率看板：`{"credit_enabled":true,"savings_enabled":true,"current":2,"scores":[{"score":600,"loan":6.2667},{"score":750,"loan":5.5667},{"score":900,"loan":4.8667},{"score":1000,"loan":4.4}],"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"wealth":[{"key":"bond","name":"国债","day":"2026-11-25","change":-0.086,"rate":-0.5416,"closed":false},…,{"key":"ndx","name":"纳斯达克 100","day":"2026-11-24","change":null,"rate":null,"closed":false}]}`。`current` 为今天的活期周利率，所有学生相同（`app_private.saving_rate_on`，9.2、9.3）；活期计息开关关闭时 `savings_enabled` 为 `false`、`current` 为 0；`scores` 为 600、750、900、1000 分在本周锚点下的贷款周利率，`loan` 为空表示这个分数不能贷款；信用分暂停时 `credit_enabled` 为 `false`，`scores` 只有 600 一行（暂停期间人人按 600 分）；`term` 即 `term_rates`。`wealth`：六个品种（`wealth_params.products` 的顺序）当前净值那一天的日期、涨跌、收益率和是否休市（同 `wealth_quote` 的 `products`）；还没计入过的品种 `change`、`rate` 为空。不含锚点、基准收益和任何个人信息 |
 | `create_transfer(p_files)` | anon / 任何登录 | 16.4 发送第一步。`p_files`：`[{"name":"报告.pdf","size":1048576}]`，1～20 个，文件名 1～255 字，`size` 为字节数。返回 `{"id","upload_until":"2026-11-20T10:30:00+08:00","files":[{"seq":1,"name":"报告.pdf","size":1048576,"url":"/storage/v1/object/upload/sign/transfers/<id>/1?token=…"}]}`，`url` 相对于站点，2 小时内有效。错误：`INVALID_INPUT`（`field: files`，没有文件、文件名或大小不对）、`FILE_TOO_LARGE`：超过 20 个 `{"field":"count","max":20,"count":23}`；单个超过 100 MB `{"field":"file","max":104857600,"files":[{"name":"视频.mp4","size":272629760}]}`（列出每个超过的文件）；合计超过 200 MB `{"field":"total","max":209715200,"total":272629760}`；`RATE_LIMITED`（`{"retry_at"}`，同一 IP 1 小时内已发送 10 次，`retry_at` 为可以再发送的时间）、`STORAGE_FULL`（未到期的取件与 2 小时内的发送合计将超过 5 GB） |
 | `finish_transfer(p_id)` | anon / 任何登录 | 16.4 发送第二步，每个文件都按声明的大小传完后调用。返回 `{"id","code":"0427","created_at","expires_at","total","files":[{"seq","name","size"}]}`，`created_at` 为生成取件码的时间，`expires_at` 为其后 7 天；再次调用返回同一结果。错误：`TRANSFER_INCOMPLETE`（`{"missing":[2]}`，没传或大小不对的文件，重传后再调用）、`TRANSFER_NOT_FOUND`（没有这次发送、已过 2 小时或已过期）、`STORAGE_FULL`（10000 个码都被占用） |
 | `open_transfer(p_code)` | anon / 任何登录 | 16.4 接收：返回同 `finish_transfer`，`files` 每项另有 `url`：`/storage/v1/object/sign/transfers/<id>/<seq>?token=…&download=<文件名>`，到取件到期前有效，下载时按原文件名保存（`Content-Disposition: attachment`）。码不存在或已过期返回 HTTP 400 与 `TRANSFER_NOT_FOUND`（格式同其他错误，这次输错会记下）；同一 IP 10 分钟内输错 10 次后，从第 10 次起 10 分钟内一律 `RATE_LIMITED`（`{"retry_at"}`），这期间的尝试不计数 |
@@ -1231,6 +1254,7 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
 | `TERM_CLOSED` | 学期已结转 | 结转后的学期不能再修改。 |
 | `NOTE_REQUIRED` | 请写明原因 | 现金和应有不一致，写明原因后才能下班。（复核时：写明原因后才能复核通过。） |
 | `REPAY_TOO_MUCH` | 还多了 | 这笔贷款现在一共只需还 {max} HTB。 |
+| `WEALTH_LOCKED` | 明天才能卖出 | 理财买入当天不能卖出，{sellable_on} 起可以卖出。（`sellable_on` 写「M月D日」） |
 | `CREDIT_DISABLED` | 信用分已暂停 | 暂停期间所有学生按 600 分计，不能调整。重新开启后再调整。 |
 | `ALERT_HANDLED` | 这条提醒已处理 | {handler_name} 已于 {handled_at} 标为已查看。（已终止时：已于 {handled_at} 终止。） |
 | `ALERT_OUTDATED` | 参数之后又改过 | 这项参数在提醒之后又改过，请先终止后来的那条提醒，或到参数页直接修改。 |
@@ -1272,13 +1296,12 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
   - 冻结、毕业的账户不显示开定期和提前支取，提示「账户已冻结，不能开定期或提前支取；定期照常到期转回活期。」
   - 开定期和提前支取的弹层遇到服务器拒绝时不关闭，错误写在弹层里。
   - 「今日业务」：开定期有冲正按钮（柜员读不到定期状态，由服务器把关），同一次办理中这笔定期已提前支取的不再显示；定期转回没有冲正按钮。
-- 「理财」：数据取 `wealth_quote`，写法见设计系统 `Invest`。
-  - 「今天」写指数最近一个开盘日的涨跌 `latest.change`（带正负号，最多 2 位小数），（`latest.day` 是今天写「今天」，否则写日期），小字「参考 沪深 300 指数 · 11月13日 收盘 · 腾讯行情」（`source_name`）；只有 `today.closed` 为 true 时加一句「今天休市，只算基础收益。」，为 null 时不写休市，下面是最近 10 个开盘日（`recent`）的指数涨跌表；还没有时「还没有行情。每个交易日收盘后更新。」
-  - 风险提示「理财可能亏损」：理财的钱每天跟着沪深 300 指数涨跌，休市的日子只有基础收益；到期或赎回时拿回的钱可能少于本金；可以随时按当时的价值赎回。
-  - 五张期限卡（`options`），名称「12 周」，说明「2月5日 到期」；三张档位卡（所选期限的 `options[].tiers`，还没有行情时写「今天还没有收益率」）：「平衡 ×2 / 今天 +2.85% / 每天最多赚 10% / 每天最多亏 10%」（`name`、`multiplier`、`rate`、`max`、`min`）；金额框同定期。确认弹层「给张小明买理财 100 HTB？」列期限、档位、开始计收益（明天）、到期日、这一档今天的收益率、活期余额 A → B，红字「理财可能亏损，到期拿回的钱可能少于 100 HTB。」，按钮「确认买入」。
-  - 列表（`holdings`）每笔一行：持有中写「理财 12 周 · 平衡 ×2 · 本金 100 HTB，现在值 103.20 HTB」（`tier_name`、`multiplier`）（`value_centi`），小字「盈 +3.20 HTB · 2月8日 到期」或「亏 −3.50 HTB」（盈红亏绿，并写文字和正负号）；已到期、已赎回写「拿回」的数（`value_centi`）；状态 持有中 / 已到期 / 已赎回，作废的不显示。
-  - 赎回：持有中的有「赎回」按钮，二次确认写出现值和盈亏「按现在的价值 103.20 HTB 转回活期，盈 +3.20 HTB。赎回后不再随市场涨跌。」；成功后提示「已赎回，转回活期 103 HTB」（流水的 `amount`，零头留作待入账利息）。柜台不能冲正赎回；买理财当天、还没有计过收益时可在办理单冲正。
-  - 冻结、毕业的账户不显示买入和赎回，提示「账户已冻结，不能买理财或赎回；理财照常计收益，到期转回活期。」
+- 「理财」：数据取 `wealth_quote`，写法见设计系统 `Invest`（界面与文案由前端按设计系统定）。数据与规则：
+  - 六个品种（`products`）：名称、当前净值（`nav`，6 位小数）和它的日子（`day`）、这一天的涨跌（`change`）与收益率（`rate`，红涨绿跌）、是否休市（`closed`）、本周基准收益（`week_base`）。`change` 为空时这个品种还没计入过。
+  - 买入：选品种、填金额（1 HTB 起，不超过 `balance`），按当前净值成交（`buy_wealth`）；没有期限；次日（`sellable_on`）起可以卖出。确认时要写明理财可能亏损、不保本。
+  - 列表（`holdings`）：品种（`name`）、本金、买入净值（`buy_nav`）、当前净值（`nav`）、现值（`value_centi`）、盈亏（`gain_centi`）、可卖日期（`sellable_on`）、状态（持有中 / 已卖出 / 已到期，作废的不显示）。按期限买入的（`weeks` 不为空）另写期限、档位和到期日，照常按现值卖出，到期自动转回。
+  - 卖出（`redeem_wealth`）：持有中、已到 `sellable_on` 的才能卖出，买入当天返回 `WEALTH_LOCKED`；转回的整数 HTB 是流水的 `amount`，零头留作待入账利息。柜台不能冲正卖出；买入当天可在办理单冲正买入。
+  - 冻结、毕业的账户不能买入、卖出，理财照常随净值变动。
 - 「查询」：账户累计里加理财（`lookup_student` 的 `wealth_total` 本金、`wealth_value_centi` 现值）、定期合计（`lookup_student` 的 `term_total`）、贷款剩余（`loan_remaining`，逾期时标红）、信用分。
 - 上班：「上班」弹出备用金录入（各面额张数，默认取 `default_float()`）。
 - 下班：点钞 → 核对 → 打印总结 → 确认下班。点钞：在现金表（第 4 节）下的「实点」一行录入各面额张数；核对：逐面额显示差额（「多 N 张」「少 N 张」，取 `end_duty` 返回的 `diff`，提交前可按 `duty_cash` 的应有先算出来显示），都相等时显示「平账」，不等时列出本次上班的逐笔现金业务（`duty_cash` 的 `cash_txns`）并要求写原因；打印出来的总结里，实点一行仍然留空，手写填；最后确认下班（`end_duty`）。
@@ -1294,7 +1317,7 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
 | 风险提醒 | 行长、银行管理员（侧栏和总览都有入口），第 12 节，页面与文案见下面「风险提醒」一段。`list_risk_alerts`：按状态（默认未处理）、种类、日期筛选，从新到旧；每行时间、种类、对象（学生、柜员、商品或参数）、说明（按 12.1 的 `detail` 拼写）、状态、处理人和处理时间、处理说明。银行管理员处理未处理的提醒：「已查看」（说明可不写）；`terminable` 的另有「终止」，写原因、二次确认后 `handle_alert`，失败时按错误码提示，提醒仍为未处理。已处理的显示「由<姓名>于 M月D日 HH:mm 查看 / 终止」和说明。行长只读 |
 | 贷款 | 读 `loans`、`loan_periods`、`loan_payments` 表。列表按状态分页签（全部 / 还款中 / 已逾期 / 已结清 / 已作废），逾期的排在前面，贷款号链接到详情；详情在各种宽度下都排成一列，依次是学生卡片、四项数字（本金、剩余本金、已付利息即 `loan_payments.interest` 之和且不算已冲正的、已产生利息 `interest_centi`）、放款信息、还款计划、还款记录（方式：账户 / 现金 / 自动扣款）；行长、银行管理员可终止：写原因，二次确认「剩余本金 98 HTB 和已产生利息 1.37 HTB 立即全部到期：先从活期扣，不够的部分算逾期。」 |
 | 利率 | 本周锚点与按分数的利率表（同 9.2，`rate_overview()`，标题「按分数的周利率 · 锚点 1.85%」，多一列逾期罚息）；每周历史（9.1 的全部输入和结果，`rate_weeks` 表，锚点没有变化时写「与上周持平」）；计算参数分两段：「可在参数页修改」列初始锚点、锚点范围并链接参数页，「系统固定」列目标存贷比、目标增速、每周最多调整、贷款倍数、罚息倍数，数值都读 `settings`。按分数的利率表只有贷款、逾期罚息两列，表上写一句活期周利率即本周锚点、与信用分无关；表下另有一张只读卡片「定期周利率」，五行 2、4、12、24、48 周，读 `settings` 的 `term_rates`，右上角「在参数页修改」只有银行管理员看得到。锚点下的说明：还没有锚点「还没有公布锚点，现在按初始锚点 2% 计算。每周一公布。」；其他「11月9日公布，下次 11月16日。」（假期里同样） |
-| 理财 | 导航图标 `invest`，排在「利率」后面；财务、行长、银行管理员能看，`wealth_overview()`。顶部三项统计：最近一个开盘日的指数涨跌、持有中笔数和本金、当前总值（`open`）。每日收益表（`days`，每个自然日一行，新的在上，先显示最近 30 天，「更早」用 `p_before` 往前取）：日期、参考指数、收盘价、指数涨跌、各档在这一天的收益率（`rates`，表上方选期限，默认 12 周；表下说明「按现在的参数计算；已经买的理财按买入时的参数，可能与这里不同。」）、来源（`source_name`：腾讯行情、新浪财经、东方财富、「手动登记 · 王老师」）；休市日收盘价和涨跌写「—」，来源「休市」，各档就是当日基础收益；`none` 的日子除日期外都写「—」；`missing` 不为空时表上方提示列出还没有行情的工作日；`pending` 的工作日标「待登记」，银行管理员在这一行「登记」（日期默认取 `missing` 的第一天，从最早的一天起按顺序登记），页面主操作「登记指数涨跌」：这一天指数的涨跌（可以为负，−50～50，最多 4 位小数）和说明（必填，写数据从哪里来），二次确认「按指数涨跌 −0.80% 登记 11月14日？」「每笔持有中的理财按自己买入时的参数算这一天的收益，登记后不能修改。这一天休市的不用登记。」。持有中的理财列表读 `wealth_holdings`：学生、期限、档位、本金、现值、盈亏、到期日 |
+| 理财 | 导航图标 `invest`，排在「利率」后面；财务、行长、银行管理员能看，`wealth_overview()`（界面与文案由前端按设计系统定）。数据与规则：六个品种（`products`）各自的当前净值、最近一天的涨跌与收益率、本周基准收益、持有中笔数、本金和现值（`open`），全部持有中合计（顶层 `open`）；每个品种的每日表（`days`，每个自然日一行，新的在上，先 30 天，「更早」用 `p_before` 往前取）：日期、收盘价、涨跌、来源（`source_name`，手动登记的加登记人 `created_by_name`）、当天收益率和净值；`missing` 不为空时提示这个品种待登记的工作日，银行管理员从最早的一天起按顺序登记（`record_wealth_day`，涨跌 −50～50、最多 4 位小数，说明必填写数据来源，登记后不能修改，登记后立即计入净值；实际休市的不用登记）。持有中的理财列表读 `wealth_holdings`：学生、品种、本金、买入净值、现值、盈亏、买入日；按期限买入的另有期限、档位、到期日。参数页的「理财」改为六个品种的倍率（0.1～20）和基准加成（−10～10 个百分点），提交整个 `wealth_params`，`cap` 与名称、代码不变 |
 | 信用分 | 按学生查分数和全部变动（`credit_scores`、`credit_events` 表，详情用 `credit_profile(学号)`）；银行管理员可调整（`adjust_credit`）；计算参数与规则参数。页面最上面一张卡片是开关 Switch「启用信用分」（读 `settings.credit_enabled`），只有银行管理员能操作（`set_credit_enabled`）：暂停时先写原因，再二次确认「暂停后所有学生按 600 分计算额度和利率，分数不再加减。重新开启后恢复每位学生暂停前的分数。」；开启时直接二次确认，说明加一句「暂停期间没有加减的分不补。」；完成后提示「已暂停，12 位学生按 600 分计」「已重新开启，12 位学生恢复原来的分数」，状态没变时「信用分本来就是这个状态」。暂停时「调整信用分」按钮禁用 |
 | 轧账 | 导航图标 `balance`，排在「报表」后面。财务、行长、银行管理员：`cash_reviews` 列表，按柜员、日期、状态筛选；每行柜员、上下班时间、应有、实点、差额、原因、复核人，`overdue` 标红，`reversed` 注明「其中 N 笔已于 HH:MM 冲正」；点柜员姓名进入这次上班：现金表和逐笔现金业务用 `duty_cash(p_duty_id)`。复核是单独的页面，标题「复核 <柜员姓名>的上班」，可以返回轧账页；财务、行长、银行管理员能复核待复核、强制下班的上班（`review_cash_count`），其他人和已轧账的只读。电脑上左右两栏：左栏「核对」，包括「和柜员点的一致 / 不一致」的切换、复核实点的步进控件、「复核实点合计」一行、原因和风险提示；右栏「这次上班」作参考，包括概况、现金表和现金业务，随页面滚动保持可见。手机上排成一列，依次是概况和现金表、核对、现金业务。选一致时提示「以柜员点的 96 HTB 为准。」（金额按实际数）；强制下班或没有柜员实点的，直接录入实点。「复核通过」放在 ActionBar 里，合计写「复核实点 97 HTB」；复核成功后回到轧账页（保留原来的筛选，刚复核的一行高亮），复核人列显示复核的财务、行长或银行管理员的姓名；只读的复核页写「由<姓名>复核」，复核时写的原因标题为「复核的原因」。总览的待复核统计给财务、行长和银行管理员，每一行链接到复核页。行长、银行管理员点「待下班」的记录，打开「这次上班」弹层，在弹层里对上班中的柜员「强制下班」，写原因、二次确认（`force_end_duty`） |
 | 货币 | 第 11 节。导航图标 `coin`，财务、行长、银行管理员。顶部是兑付能力（`currency_overview().payout`，低于提示线时醒目提示）；纸币一节：银行应有现金、流到学生手中（可为负，负数时说明「学生把上线前就拿着的纸币存了进来」）、期初、发行、回收、销毁的金额（`paper`），下面按面额的表（`notes`：期初、发行、回收、销毁、流水、银行应有、储蓄盒实点，实点读 `counted`，写「N 个储蓄盒最近一次轧账的实点，不含金库」）；电子币一节：账户余额合计及活期、定期、理财本金，电子币新增及其构成（工资、利息、理财盈亏、放款、还款）。还没有登记期初现金时提示「先登记银行期初现金」。登记记录读 `currency_moves`（从新到旧，更正注明对应哪一笔）。银行管理员有「登记」主操作（手机上放进 `ActionBar`）：选种类，期初现金登记过后不再出现；表单按种类：日期、各面额张数（同备用金录入）、批次号、用途或原因、审批人；更正先选对应的登记，张数可为负；二次确认后 `record_currency`，id 在打开表单时生成。行长、财务没有「登记」。参数页加「货币」组，内有「兑付能力提示线」（`payout_ratio_min`，1～100%，银行管理员）。导航排在「轧账」后面。兑付能力超过 1000% 时加千分位，如「1,348.3%」；还没有任何储蓄盒实点时，纸币表合计行的「储蓄盒实点」写「—」。登记记录的登记人取 `profiles.display_name`，读不到时（行长）写「银行管理员」。`record_currency` 的错误文案：`INVALID_AMOUNT` 带 `denomination` 时「更正后 5 元会少于 0 张」「这笔登记加上它的全部更正，每种面额都不能少于 0 张。」，其他时标题「张数不对」，期初、发行、回收、销毁写「每种面额 0～100000 张，合计不超过 10,000,000 HTB，不能为 0。」，更正写「每种面额 −100000～100000 张，不能全为 0。」；`ALREADY_EXISTS` 的 `kind`「期初现金已经登记过」「期初现金只登记一次，登错了请登一笔更正。」，`batch_no` 在批次号上写「批次号 FX-1 已经用过。」；`INVALID_INPUT` 的 `corrects`「不能更正这笔登记」「只能对应一笔不是更正的登记，请重新选择。」，`on_date`「日期不能晚于今天。」，`reason`「请写明用途，最多 100 字。」（发行以外写「原因」），`batch_no`「批次号 1～40 字。」，`approver_name`「请写审批人，最多 40 字。」，`id`、`kind`「没有登记」「请返回货币页后重新打开。」 |
@@ -1347,14 +1370,14 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
 导航：首页 / 明细 / **信用** / 排名 / 我的。
 
 - **首页**：信用摘要四行：攒着的利息、定期合计、理财（持有中的现值合计，小字写盈亏，没有理财写「没有」）、贷款。余额下面一行写「攒着的利息」（`interest_profile().pending_centi`，两位小数，没有时「0.00 HTB」，读取失败时「—」；下面小字满 1 HTB 时写「下周一存进余额」，不满时写「满 1 HTB 再存进余额」）、定期合计（`accounts.term_total`）、贷款一行「剩余 98 HTB」，小字「11月24日 应还 33 HTB」，逾期时写「已逾期 · 应还 20 HTB」并标红；旁边是中号信用仪表盘，点它进入「信用」页。
-- **信用**：大号信用仪表盘（含贷款额度和「再涨 N 分，额度加 5 HTB」，取 `credit_profile()`；变动记录读 `credit_events`）；本周各项利率（`interest_profile().rates`：活期即本周锚点，所有学生相同；贷款按本人分数），每行一句金额举例，金额加粗、两位小数，下面小字写周利率（如「2.13%/周」）：活期「活期存 100 HTB，一周多得约 2.13 HTB」（四舍五入）、定期五行「定期 12 周存 100 HTB，到期拿回 136.00 HTB」（100 + 周利率 × 周数，舍去 0.01 以下，与 9.5 一致；周利率是固定值），一共七行：活期、五种定期、贷款、贷款「借 100 HTB，一周利息约 5.89 HTB」（四舍五入；分数不够时只写「400 分以上才能贷款」）；说明行先写「信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。」，再依次取：`week_start` 为空「本周利率还没有公布，先按初始利率显示。每周一公布。」，其他「11月9日公布，每周一更新。」；学生页面不出现「锚点」「系数」「倍数」；我的贷款（读 `loans`、`loan_periods`，同柜台的每期状态；未结清的写「借了 130 HTB，还剩 98 HTB 没还」「下次 11月24日 还本金 32 HTB，利息约 1 HTB · 5.89%/周」，利息约数为 `interest_centi` 向下取整到 1 HTB；逾期时提示「贷款已逾期：11月17日 那期还差 20 HTB。请尽快到柜台还款，每晚会先从活期自动扣。」；已结清的写「贷款 60 HTB · 用途 买书」「10月13日 已结清 · 共付利息 3 HTB」；作废的不显示）；我的理财（读 `wealth_holdings`，写法同柜台列表，没有赎回；上方一句「理财的钱跟着一个国际市场指数每周涨跌：涨了多得，跌了会少拿。本周 +1.23%。」，本周收益率读 `wealth_weeks` 最新一行）；我的定期（读 `term_deposits` 表：本金、存期、周利率、到期日、状态，预计利息 `expected_centi`，已转回的写实付利息 `interest_centi`）；信用分变动记录。
+- **信用**：大号信用仪表盘（含贷款额度和「再涨 N 分，额度加 5 HTB」，取 `credit_profile()`；变动记录读 `credit_events`）；本周各项利率（`interest_profile().rates`：活期即本周锚点，所有学生相同；贷款按本人分数），每行一句金额举例，金额加粗、两位小数，下面小字写周利率（如「2.13%/周」）：活期「活期存 100 HTB，一周多得约 2.13 HTB」（四舍五入）、定期五行「定期 12 周存 100 HTB，到期拿回 136.00 HTB」（100 + 周利率 × 周数，舍去 0.01 以下，与 9.5 一致；周利率是固定值），一共七行：活期、五种定期、贷款、贷款「借 100 HTB，一周利息约 5.89 HTB」（四舍五入；分数不够时只写「400 分以上才能贷款」）；说明行先写「信用分越高，借得越多，利息越少；活期利率人人相同，定期利率是固定的。」，再依次取：`week_start` 为空「本周利率还没有公布，先按初始利率显示。每周一公布。」，其他「11月9日公布，每周一更新。」；学生页面不出现「锚点」「系数」「倍数」；我的贷款（读 `loans`、`loan_periods`，同柜台的每期状态；未结清的写「借了 130 HTB，还剩 98 HTB 没还」「下次 11月24日 还本金 32 HTB，利息约 1 HTB · 5.89%/周」，利息约数为 `interest_centi` 向下取整到 1 HTB；逾期时提示「贷款已逾期：11月17日 那期还差 20 HTB。请尽快到柜台还款，每晚会先从活期自动扣。」；已结清的写「贷款 60 HTB · 用途 买书」「10月13日 已结清 · 共付利息 3 HTB」；作废的不显示）；我的理财（读本人的 `wealth_holdings`：品种 `product`、本金、买入净值 `buy_nav`、现值 `value_centi`、买入日、可卖日期即 `starts_on`、状态；品种名称读 `settings` 的 `wealth_params.products`，当前净值读 `wealth_navs` 这个品种最新的一行；按期限买入的另有期限、档位和到期日；学生不能卖出，到柜台办理）；我的定期（读 `term_deposits` 表：本金、存期、周利率、到期日、状态，预计利息 `expected_centi`，已转回的写实付利息 `interest_centi`）；信用分变动记录。
 - 信用分暂停时（`settings.credit_enabled` 为 `false`），「信用」页的说明写「信用分暂停中，所有同学都按 600 分计算额度和利率。重新开启后恢复你原来的分数。」；首页和「信用」页的仪表盘按 8.4 变灰、标「已暂停」。变动记录里的 `switch_off`、`switch_on` 照常列出，原因直接显示。
 - **明细**：分类加「利息」「贷款」（含放款、还款），定期的转入转出放在「全部」里；存折同样加「贷款」页签。补录、编辑的流水按原始发生时间排列，标题后半句取说明（「存款 · 补录：…」），小字写「11月15日 补录」；`adjust`「调账」用存款或支取的图标和类别色（随正负），金额带正负号；被编辑的原流水与它的冲正同普通冲正一样显示；利息流水的说明里带「含更正」。
 - 开定期、定期转回、买理财、理财转回是本人的钱在活期和定期、理财之间转，放款、还款是借钱和还钱，首页本学期存入 / 支出和明细的本月统计都不计带 `term_id`、`wealth_id` 或 `loan_id` 的流水（含冲正它们的流水）。
 - **排名**：改按活期 + 定期 + 理财本金 − 未还贷款本金排，文案写「存款」（P1 §7.10 的排名口径随之改动）；`deposit_ranking` 返回的 `balance` 是这个数，借钱不抬高名次，借得比存得多时为负数，照常排在后面。
 - 存折版（`/book`）同样显示新类型的流水。账户栏第 3 页「利息 · 定期 · 理财 · 贷款」：攒着的利息、定期合计（如「100 HTB」，下面小字写最早到期那笔的到期日）、理财（现值与盈亏，没有时印「无」）、贷款四行，写法同首页，只是没有定期、没有贷款时印「无」，贷款逾期时用印章红；页底四条说明「利息每周一满 1 HTB 存进余额。」「定期到期当天结束时连本带息转回活期。」「贷款每期应还日结束时从活期自动扣。」「要看每笔定期和还款计划，在我的栏换回普通版，再到信用页查看。」电脑上这一页在第二组摊开的左页，右页空着；手机上再翻一页。数据取 `interest_profile()`、`accounts.term_total`、`term_deposits`、`loans`。
 - 流水名称：`term_open`「开定期」（金额 −，下写「转定期」），`term_close`「定期转回」（金额 +，下写「转回」），都用储蓄图标与储蓄类别色；标题后半句取流水说明（14.1），如「开定期 · 4 周，12月10日 到期」，说明为空时只写类型名。后台流水的类型筛选加这两项，冲正入口只给提前支取的定期转回；冲正被拒（`REVERSAL_NOT_ALLOWED`）时开定期写「这笔定期已经到期或提前支取，不能再冲正。」，提前支取的定期转回写「已过到期日，不能再冲正这笔提前支取。」；结转名单的定期项写「张小明 · 定期 100 HTB · 12月10日 到期」。
-- `wealth_buy`「买理财」（金额 −，下写「转理财」）、`wealth_close`「理财转回」（金额 +，下写「转回」），用 `invest` 图标与金色类别 `dc-kind-reward`；标题后半句取流水说明（14.1），如「理财转回 · 赎回，盈 +3.20 HTB」；只在「全部」里显示，后台流水的类型筛选和报表的余额变动加这两项；后台冲正入口给持有中、还没计过收益的买理财和到期日之前的赎回。
+- `wealth_buy`「买理财」（金额 −，下写「转理财」）、`wealth_close`「理财转回」（金额 +，下写「转回」），用 `invest` 图标与金色类别 `dc-kind-reward`；标题后半句取流水说明（14.1），如「理财转回 · 卖出，盈 +3.20 HTB」；只在「全部」里显示，后台流水的类型筛选和报表的余额变动加这两项；后台冲正入口给持有中的买理财和卖出（按期限买入的要不晚于到期日）。
 - `loan`「贷款」、`repay`「还款」，用 loan 图标和支取类别色：放款存入账户写「+130」，下写「放款」；从账户还款写「−33」，下写「还款」；现金的金额不带正负号，下写「现金」；标题后半句取流水说明（14.1）。后台流水的类型筛选和报表的余额变动加这两项。放款冲正被拒时写「这笔贷款已经开始还款，不能再冲正。」；结转名单的贷款项写「张小明 · 贷款未结清」。
 
 ### 16.4 公开页面
@@ -1366,10 +1389,8 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
     - 活期：一个大数字，本周的活期周利率，所有学生相同。活期计息暂停时（`public_rates().savings_enabled` 为 `false`，`current` 为 0）这一块写「暂停计息」，不显示 0%。
     - 贷款：600、750、900、1000 分的周利率，排成 2×2；还不能贷款的分数写「—」。
     - 定期：2、4、12、24、48 周的周利率。
-    - 理财 · 今天：参考指数名称和最近一个开盘日的涨跌，如「沪深300 +0.42%」（红涨绿跌）；今天休市时写「今天休市」，还没有行情时写「还没有行情」。
-    - 理财三档：12 周时各档当天的收益率，带名称和倍率，如「进取 ×4 +3.88%」（红涨绿跌）；今天休市时是基础收益，还没有行情时写「—」。
-    - 最新一天不是今天时，两块理财的标题写日期，如「理财 · 11月14日」。
-    - 不显示锚点（学生能看到的页面一律不出现锚点）、能贷款的最低分和理财各期限的基础收益。
+    - 理财：六个品种（`public_rates().wealth`）各自的名称、日期（`day`）、涨跌（`change`）和当天收益率（`rate`），红涨绿跌；`closed` 为 `true` 时这一天休市，收益率只是日基准；`change` 为空时还没有净值。版式由前端按设计系统定。
+    - 不显示锚点（学生能看到的页面一律不出现锚点）、能贷款的最低分和理财的基准收益。
   - 字号：主要数字不小于 64px，标题不小于 40px，3 米外能看清。
   - 刷新：每 60 秒更新一次，页头右边写「更新于 HH:mm:ss」。读不到时保留上一次的数字，并写「暂时连不上，显示的是 HH:mm 的数据」。
   - 全屏按钮也在页头右边，没有其他操作。
@@ -1419,12 +1440,12 @@ create table app_private.jwt_secret (         -- Storage 的 JWT 密钥，用于
 
 | 类别 | 内容 |
 | --- | --- |
-| 数据库（pgTAP） | 信用分（`supabase/tests/23_credit.sql`）：8.1 表格每个分数的额度与系数、「再涨 N 分」、截断、每条每周规则、冻结毕业注销不变、假期里和学期第一个周一照常加减分、同一周重复执行不变、整学期补跑与每周按时运行相同、手动调整的身份与记录、参数校验、读取权限、一学期的稳定存款学生（600 → 738）；信用分开关（`supabase/tests/29_credit_switch.sql`）：只有银行管理员能切换且要写原因、暂停后都是 600 分且额度和利率按 600 分算、暂停期间每周规则、还款、逾期和手动调整都不记分、补跑与按时运行相同、重新开启后恢复原分、重复切换不变；锚点公式的边界与限幅、活期每天计息与结息零头（跨学期和假期每天计息、每周一结息、每周一公布锚点）、补跑与按时运行相同、利息自检（`supabase/tests/24_interest.sql`）；活期只随锚点（`supabase/tests/40_saving_rate_anchor.sql`）：各锚点、各分数下活期都等于锚点，贷款利率仍按分数，`credit_curve` 只有贷款一侧的六个键（带储蓄系数保存时 `INVALID_INPUT`，六个键能保存），`20261209000000_saving_rate_anchor.sql` 之前已计息的日子在之前、之后两次补录下都保持记下的利率和利息，更正按记下的利率计算，补跑与按时运行相同；活期计息开关（`supabase/tests/45_savings_switch.sql`）：只有银行管理员能切换，`set_setting` 不接受这个键，重复切换不变、不写日志和提醒，切换写日志、记一行切换记录、生成 `setting_change`，「终止」恢复并同样记一行，关闭时 `public_rates`、`interest_profile` 的活期为 0、锚点和贷款利率不变，开关的历史下每天按时运行与一次补跑相同、当天结束时关闭的日子利率与利息为 0、结息照常，补录在关闭的日子不更正，提前支取关闭的日子按 0 计，自检；定期的锁定利率、到期付息与零头、提前支取按天计息、各种不能开的情况、冲正与零头收回、注销、排名、存款余额与日均余额含定期、补跑与按时运行相同、自检（`supabase/tests/25_term_deposits.sql`）；定期定值：`term_rates` 的默认值、校验与谁能改，已开的定期保持原利率，跨学期与假期里到期、假期里开定期、提前支取按每一天（含假期）计活期利息、未到期的定期不影响结转（`supabase/tests/27_fixed_term.sql`）；理财：腾讯、新浪、东方财富日线的解析（当天 15:30 以前不写、缺上一个开盘日）、休市日的判断、`wealth_params` 校验、周基础收益的反推公式、当日基础收益、三档倍率的每日收益率与截断、买入时锁定参数、按周计收益与到期（假期里到期、冻结照常）、缺一个开盘日时等待与按天手动登记后补上、补跑与按时运行相同、买入与赎回的各种情况、零头、冲正、注销、排名、读取权限、自检（`supabase/tests/28_wealth.sql`）；手动登记指数涨跌只限银行管理员（`supabase/tests/41_wealth_record_admin.sql`）：行长、财务、柜员、库管、运维员和学生 `FORBIDDEN` 且不写入，银行管理员登记并写日志 `wealth.record`；冲正开户、定期转回、理财转回、调账只限银行管理员（`supabase/tests/42_reverse_admin_only.sql`）：行长冲正这四类 `FORBIDDEN` 且不生成流水，仍能冲正存款、取款，柜员 `REVERSAL_NOT_ALLOWED`、财务 `FORBIDDEN`，银行管理员冲正四类后自检通过，风险提醒「终止」提前支取由银行管理员执行、行长 `FORBIDDEN`；贷款的等额本金计划、按天计息、估算利息、提前还款、多还重排、利息零头、自动扣款、逾期、罚息、扣分、终止、有贷款不能开定期、贷款可以跨学期末和在假期里办、未结清的贷款不影响结转、放款与还款的冲正、日均余额与排名不计借来的钱、存贷比、补跑与按时运行相同、自检（`supabase/tests/26_loans.sql`）；全员考勤与工资（`supabase/tests/30_staff_attendance.sql`）：四种身份绑定本人的工资账户与密码、银行管理员和运维员不能参与、为他人绑定的权限、开启考勤、签到与作废的权限和不能签自己、工资标准的校验与日志、按记下的身份发放（身份改了也按原来的）；考勤签到与行长权限（`supabase/tests/34_attendance_sign_in.sql`）：只有柜员、财务、库管、行长参与考勤，本人签到的身份、班次判断、待审与各种拒绝、每个班次一次（含未通过的），在表里签到的权限（本人、行长对行长、银行管理员对行长），审查和发放只限银行管理员，作废的权限与待审不能作废，作废记下 `voided_at`、`voided_by` 而审查未通过不记、按审计日志回填（不回填审查未通过的、重复执行不变），行长被收回的每个写函数都 `FORBIDDEN`、读不到日志、仍能读学生和人员，`salary_rates` 只有四种身份；手动补录与更正（`supabase/tests/31_manual_entries.sql`）：只限银行管理员、原因必填、四种类型各自的写法、时间范围（不晚于现在、不早于开户，与学期无关，已结转的学期里也能补录）、幂等、现在和历史余额不为负、现金不进柜员的上班、补录之后每个已计息的日子都按更正后的活期重算（已结息和未结息的周、学期内和假期）、更正等到下一次结息并写进说明、补录早于计息与当初就记对完全相同、跨过结息日时每天至多差 0.01 HTB、编辑生成冲正与新流水并互相关联（含改学生和类型）、不能编辑的类型、冲正调账（只限银行管理员）、报表的期初期末、柜台查询的关联、自检；取消假期限制（`supabase/tests/32_no_holidays.sql`）：没有学期时每天、每个周一都做全部的事，迁移前已处理的日子不重算，假期里和跨学期末放款，结转不受未结清贷款影响，不再有函数报 `NO_TERM`、`TERM_TOO_LONG`；轧账（`supabase/tests/33_cash_review.sql`）：下班不录实点时不比对、实点的校验、不平时必须写原因且不下班、平账不用写原因、返回的差额与逐笔现金业务、下次上班默认取柜员或复核的实点、柜员不能复核且只复核一次、与柜员一致、财务重点与柜员不同时写原因、强制下班的身份与原因、强制下班后不能办理且不记班次、强制下班由财务录入实点复核、银行管理员的冲正不进柜员的上班、早先上班的业务之后被冲正的标注、列表的身份与筛选、金额合计、隔天未复核、财务总览、上班卡片的默认备用金；银行管理员复核轧账（`supabase/tests/35_admin_cash_review.sql`）：银行管理员复核一致的、不一致的（写原因）和强制下班的上班，`reviewed_by` 与复核人姓名为银行管理员本人，柜员 `FORBIDDEN`，财务照旧能复核，谁先复核都只复核一次，总览的待复核统计；行长复核轧账（`supabase/tests/46_president_cash_review.sql`）：行长读待复核统计、轧账列表、现金表和 `cash_counts`，复核一致的、不一致的（写原因）和强制下班的上班，`reviewed_by` 与复核人姓名为行长本人，复核过的财务、银行管理员不能再复核，柜员仍 `FORBIDDEN`，行长处理风险提醒和补录仍 `FORBIDDEN`；风险提醒（`supabase/tests/36_risk_alerts.sql`）：`risk_rules` 的默认值与校验，13 种提醒各自的触发与不触发的边界（80% 的取款、50 HTB 与 600 分的贷款、前一天的冲正、10 分钟以前的业务、值不变的参数、安全库存以上、平账、银行管理员的冲正），重复提交与同一事件只记一条，每种「终止」的效果（冲正取款与提前支取、提前到期、强制下班后不能办理、恢复参数与工资标准、信用分的相反变动）与失败时保持未处理（已冲正、余额不足、已作废的贷款、已下班、参数又改过、信用分暂停），只能「已查看」的种类，只由银行管理员处理（行长、运维员 `FORBIDDEN`）、每条只处理一次，行长能读列表和总览、财务读不到，列表的筛选与翻页、总览，触发失败不影响业务；库存不足（`supabase/tests/38_stock_low_listed.sql`）：新建时已不足、未上架时降到不足、不足时上架、库存降低、安全库存调高，未处理时不重复，迁移的回填与重复执行，有未处理提醒的商品与总览的库存不足清单相同；货币登记与监控、经营看板（`supabase/tests/37_currency_dashboard.sql`）：五种登记的写法与校验、期初现金只一次、幂等、不能修改、更正（引用、为负、合计为 0）、谁能登记与读取，按类型核对每种流水的现金变动、期初现金之前的流水不计、流到学生手中可为负、按面额的银行应有现金与储蓄盒实点、电子币新增的构成、兑付能力与提示线（含参数校验），`dashboard()` 的 6 个指标、最近 12 周，与同期 `bank_report` 一致，报表的放款、还款、利息、定期与发行；已结转学期的流水不能冲正（`supabase/tests/44_closed_term_reversal.sql`）：银行管理员、行长 `TERM_CLOSED`，柜员仍是 `REVERSAL_NOT_ALLOWED`，不生成流水；编辑照常、两笔都记在原时间；未结转的学期和假期里照常冲正；免密码绑定只限管理员；`import_staff` |
+| 数据库（pgTAP） | 信用分（`supabase/tests/23_credit.sql`）：8.1 表格每个分数的额度与系数、「再涨 N 分」、截断、每条每周规则、冻结毕业注销不变、假期里和学期第一个周一照常加减分、同一周重复执行不变、整学期补跑与每周按时运行相同、手动调整的身份与记录、参数校验、读取权限、一学期的稳定存款学生（600 → 738）；信用分开关（`supabase/tests/29_credit_switch.sql`）：只有银行管理员能切换且要写原因、暂停后都是 600 分且额度和利率按 600 分算、暂停期间每周规则、还款、逾期和手动调整都不记分、补跑与按时运行相同、重新开启后恢复原分、重复切换不变；锚点公式的边界与限幅、活期每天计息与结息零头（跨学期和假期每天计息、每周一结息、每周一公布锚点）、补跑与按时运行相同、利息自检（`supabase/tests/24_interest.sql`）；活期只随锚点（`supabase/tests/40_saving_rate_anchor.sql`）：各锚点、各分数下活期都等于锚点，贷款利率仍按分数，`credit_curve` 只有贷款一侧的六个键（带储蓄系数保存时 `INVALID_INPUT`，六个键能保存），`20261209000000_saving_rate_anchor.sql` 之前已计息的日子在之前、之后两次补录下都保持记下的利率和利息，更正按记下的利率计算，补跑与按时运行相同；活期计息开关（`supabase/tests/45_savings_switch.sql`）：只有银行管理员能切换，`set_setting` 不接受这个键，重复切换不变、不写日志和提醒，切换写日志、记一行切换记录、生成 `setting_change`，「终止」恢复并同样记一行，关闭时 `public_rates`、`interest_profile` 的活期为 0、锚点和贷款利率不变，开关的历史下每天按时运行与一次补跑相同、当天结束时关闭的日子利率与利息为 0、结息照常，补录在关闭的日子不更正，提前支取关闭的日子按 0 计，自检；定期的锁定利率、到期付息与零头、提前支取按天计息、各种不能开的情况、冲正与零头收回、注销、排名、存款余额与日均余额含定期、补跑与按时运行相同、自检（`supabase/tests/25_term_deposits.sql`）；定期定值：`term_rates` 的默认值、校验与谁能改，已开的定期保持原利率，跨学期与假期里到期、假期里开定期、提前支取按每一天（含假期）计活期利息、未到期的定期不影响结转（`supabase/tests/27_fixed_term.sql`）；按期限买入的理财（`supabase/tests/28_wealth.sql`）：沪深 300 日线的解析（当天 15:30 以前不写、缺上一个交易日）、休市日的判断、周基础收益的反推公式、当日基础收益、三档倍率的每日收益率与截断、锁定的参数、按天计收益与到期（假期里到期、冻结照常）、缺一个交易日时等待与手动登记后补上、补跑与按时运行相同、自检；理财六品种（`supabase/tests/47_wealth_products.sql`）：`wealth_params` 的默认值与校验（只能改倍率和加成）、日基准、每天的收益率与 ±20% 截断、周末和各品种自己的休市日只计日基准、纳斯达克 100 按美国日期、一天还不知道时只停这个品种、等当周锚点、补跑与每天按时运行相同、改参数从下一个计入的日子起生效、各品种按自己的可写入时刻取数（A 股 15:30、恒生指数 16:40、纳斯达克 100 次日 06:00，黄金 ETF 的 `qfqday`、新浪、东方财富）、行情和净值只增不改、后台按品种的每日表与待登记、按品种手动登记及其校验，柜台按当前净值买入的各种情况、报价、T+1（`WEALTH_LOCKED`）、按净值卖出的盈亏与零头、冲正卖出与买入（柜员当天、银行管理员不限当天）、冻结、读取权限、排名、频繁操作计入买卖、注销时卖出不受 T+1 限制、利率看板各品种的日期、涨跌、收益率与休市、自检；手动登记涨跌只限银行管理员（`supabase/tests/41_wealth_record_admin.sql`）：行长、财务、柜员、库管、运维员和学生 `FORBIDDEN` 且不写入，银行管理员登记并写日志 `wealth.record`；冲正开户、定期转回、理财转回、调账只限银行管理员（`supabase/tests/42_reverse_admin_only.sql`）：行长冲正这四类 `FORBIDDEN` 且不生成流水，仍能冲正存款、取款，柜员 `REVERSAL_NOT_ALLOWED`、财务 `FORBIDDEN`，银行管理员冲正四类后自检通过，风险提醒「终止」提前支取由银行管理员执行、行长 `FORBIDDEN`；贷款的等额本金计划、按天计息、估算利息、提前还款、多还重排、利息零头、自动扣款、逾期、罚息、扣分、终止、有贷款不能开定期、贷款可以跨学期末和在假期里办、未结清的贷款不影响结转、放款与还款的冲正、日均余额与排名不计借来的钱、存贷比、补跑与按时运行相同、自检（`supabase/tests/26_loans.sql`）；全员考勤与工资（`supabase/tests/30_staff_attendance.sql`）：四种身份绑定本人的工资账户与密码、银行管理员和运维员不能参与、为他人绑定的权限、开启考勤、签到与作废的权限和不能签自己、工资标准的校验与日志、按记下的身份发放（身份改了也按原来的）；考勤签到与行长权限（`supabase/tests/34_attendance_sign_in.sql`）：只有柜员、财务、库管、行长参与考勤，本人签到的身份、班次判断、待审与各种拒绝、每个班次一次（含未通过的），在表里签到的权限（本人、行长对行长、银行管理员对行长），审查和发放只限银行管理员，作废的权限与待审不能作废，作废记下 `voided_at`、`voided_by` 而审查未通过不记、按审计日志回填（不回填审查未通过的、重复执行不变），行长被收回的每个写函数都 `FORBIDDEN`、读不到日志、仍能读学生和人员，`salary_rates` 只有四种身份；手动补录与更正（`supabase/tests/31_manual_entries.sql`）：只限银行管理员、原因必填、四种类型各自的写法、时间范围（不晚于现在、不早于开户，与学期无关，已结转的学期里也能补录）、幂等、现在和历史余额不为负、现金不进柜员的上班、补录之后每个已计息的日子都按更正后的活期重算（已结息和未结息的周、学期内和假期）、更正等到下一次结息并写进说明、补录早于计息与当初就记对完全相同、跨过结息日时每天至多差 0.01 HTB、编辑生成冲正与新流水并互相关联（含改学生和类型）、不能编辑的类型、冲正调账（只限银行管理员）、报表的期初期末、柜台查询的关联、自检；取消假期限制（`supabase/tests/32_no_holidays.sql`）：没有学期时每天、每个周一都做全部的事，迁移前已处理的日子不重算，假期里和跨学期末放款，结转不受未结清贷款影响，不再有函数报 `NO_TERM`、`TERM_TOO_LONG`；轧账（`supabase/tests/33_cash_review.sql`）：下班不录实点时不比对、实点的校验、不平时必须写原因且不下班、平账不用写原因、返回的差额与逐笔现金业务、下次上班默认取柜员或复核的实点、柜员不能复核且只复核一次、与柜员一致、财务重点与柜员不同时写原因、强制下班的身份与原因、强制下班后不能办理且不记班次、强制下班由财务录入实点复核、银行管理员的冲正不进柜员的上班、早先上班的业务之后被冲正的标注、列表的身份与筛选、金额合计、隔天未复核、财务总览、上班卡片的默认备用金；银行管理员复核轧账（`supabase/tests/35_admin_cash_review.sql`）：银行管理员复核一致的、不一致的（写原因）和强制下班的上班，`reviewed_by` 与复核人姓名为银行管理员本人，柜员 `FORBIDDEN`，财务照旧能复核，谁先复核都只复核一次，总览的待复核统计；行长复核轧账（`supabase/tests/46_president_cash_review.sql`）：行长读待复核统计、轧账列表、现金表和 `cash_counts`，复核一致的、不一致的（写原因）和强制下班的上班，`reviewed_by` 与复核人姓名为行长本人，复核过的财务、银行管理员不能再复核，柜员仍 `FORBIDDEN`，行长处理风险提醒和补录仍 `FORBIDDEN`；风险提醒（`supabase/tests/36_risk_alerts.sql`）：`risk_rules` 的默认值与校验，13 种提醒各自的触发与不触发的边界（80% 的取款、50 HTB 与 600 分的贷款、前一天的冲正、10 分钟以前的业务、值不变的参数、安全库存以上、平账、银行管理员的冲正），重复提交与同一事件只记一条，每种「终止」的效果（冲正取款与提前支取、提前到期、强制下班后不能办理、恢复参数与工资标准、信用分的相反变动）与失败时保持未处理（已冲正、余额不足、已作废的贷款、已下班、参数又改过、信用分暂停），只能「已查看」的种类，只由银行管理员处理（行长、运维员 `FORBIDDEN`）、每条只处理一次，行长能读列表和总览、财务读不到，列表的筛选与翻页、总览，触发失败不影响业务；库存不足（`supabase/tests/38_stock_low_listed.sql`）：新建时已不足、未上架时降到不足、不足时上架、库存降低、安全库存调高，未处理时不重复，迁移的回填与重复执行，有未处理提醒的商品与总览的库存不足清单相同；货币登记与监控、经营看板（`supabase/tests/37_currency_dashboard.sql`）：五种登记的写法与校验、期初现金只一次、幂等、不能修改、更正（引用、为负、合计为 0）、谁能登记与读取，按类型核对每种流水的现金变动、期初现金之前的流水不计、流到学生手中可为负、按面额的银行应有现金与储蓄盒实点、电子币新增的构成、兑付能力与提示线（含参数校验），`dashboard()` 的 6 个指标、最近 12 周，与同期 `bank_report` 一致，报表的放款、还款、利息、定期与发行；已结转学期的流水不能冲正（`supabase/tests/44_closed_term_reversal.sql`）：银行管理员、行长 `TERM_CLOSED`，柜员仍是 `REVERSAL_NOT_ALLOWED`，不生成流水；编辑照常、两笔都记在原时间；未结转的学期和假期里照常冲正；免密码绑定只限管理员；`import_staff` |
 | 公开页面 | `supabase/tests/39_public_pages.sql`：`server_time` 与服务器时钟相差不到 1 秒；`public_rates` 没有锚点，活期为一个数，600～1000 分的贷款利率与本周锚点下的一致，定期即 `term_rates`，理财各档按 12 周、最近一个开盘日算（与 `tier_rate` 一致，−3% 时到各档下限），今天休市时为基础收益，没有行情时为空，信用分暂停时只有 600 分，不含个人信息；`create_transfer` 的校验（文件名、大小）与超限详情（超过 20 个的个数、每个超过 100 MB 的文件名与大小、超过 200 MB 的合计），签名地址的密钥、对象、用途与有效期；没传完或大小不对时不生成取件码，再次完成返回同一个码；取件码 4 位、随机、不与任何现存取件重复，只剩一个码时取到它、没有时 `STORAGE_FULL`；7 天到期与 2 小时内完成；下载地址按原文件名（URL 编码）；同一 IP 每小时 10 次上传与 10 分钟 10 次输错（输错返回 400 且记下，锁定期间不计数，跨过 10 分钟不锁，其他 IP 不受影响）；5 GB（到期的不计，2 小时内的发送计入）；每日清理（到期、超过 2 小时未完成、孤立文件、一天前的输错，重复执行不变，写日志）；后台列表（不含取件码，带未到期的次数、合计与 5 GB 上限）与删除只限银行管理员（行长、柜员、学生 `FORBIDDEN`，anon 无权限），删除写原因与日志、不含 IP，删除后码失效；anon 读不到三张表。`20_rpc_matrix.sql`：五个公开函数 anon 与任何登录都能调用，anon 只能调用这五个，没有身份能直接往 `transfers` 桶写文件。冒烟测试：经 Caddy 和 Storage 真实上传三个文件（含 100 MB，超过 100 MB 被拒）、生成取件码、输错一次被记下、按原文件名下载且带沙箱 CSP，签名地址不能用于别的对象或别的用途，请求自带的 `X-Forwarded-For` 不被采用，带 PROXY 协议头时取头部的 IP；银行管理员删除后下载失效、`dolphin jobs clean` 删除磁盘上的文件；备份与恢复不含文件传输，恢复后能照常上传 |
 | 定时任务 | 用固定的「今天」跑 `run_daily`、`run_weekly`：学期内和假期的每天、每个周一都做（`done`）；重复执行结果不变；停机三天后补跑结果与每天都跑相同；失败时停在出错的那天并记录（`supabase/tests/22_terms_jobs.sql`）；冒烟测试检查 `dolphin-jobs` 在运行、`dolphin jobs` 的输出和重启后的补跑 |
 | 端到端 | 柜台办贷款（账户 / 现金）、还款、开定期、提前支取；上班登记备用金、下班实点不平写原因、财务复核、银行管理员复核；风险提醒终止贷款、总览的库存不足清单；学生「信用」页；利率页、待入账利息与「利息」流水（`client/e2e/rates.spec.ts`）；工作人员导入与通知单；后台暂停与重新开启信用分、暂停时学生「信用」页与后台的提示；银行管理员登记期初现金与发行后「货币」页的数字、总览看板的 6 个指标 |
-| 模拟 | `docker/sim-test.sh`：2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、买理财与赎回、放款与还款，部分贷款逾期、跨过学期末；理财每个开盘日用固定的模拟涨跌，10 月 1～7 日休市，不联网），检查每个周一都有锚点（19 个）且保持在 1%～4%、每天都计活期利息（含假期）、每天自检通过、单次 `run_daily` 在 30 秒内完成、到期的定期和理财全部转回活期（更长的转入下学期）、全部到期的贷款都已结清或逾期在册 |
-| 演练 | `docker/rehearsal-test.sh`：两个容器 A、B 用同一份数据和业务按天跑过今天之前的 16 天（跨两个周一和一个学期末），银行管理员的操作经 HTTPS 调用；指数日线由 `dolphin jobs fetch` 从替身行情源取（固定收盘价，不联网） | 学期结转：结转前每天的任务没做完学期最后一天时 `TERM_OPEN_ITEMS`，结转不生成流水、账不变，余额、信用分和未结的定期、理财、贷款（含逾期）原样带到下学期；之后每天计息、每个周一结息、加减信用分、公布锚点；`dolphin check` 一致；上学期的报表与流水按学期日期可查；直接写表 403，已结转学期不能修改或再结转（`TERM_CLOSED`），柜员今天的业务不改上学期的报表，上学期的流水柜员和银行管理员都不能冲正，补录和编辑能改。停机补跑：B 在最后 3～6 天（总含一个周一）`docker stop`，期间不办业务，`docker start` 后 `dolphin-jobs` 自己取到停机期间的行情并补跑，补跑的日期与顺序符合 13 节，A、B 的计息、结息、锚点、信用分、理财、定期、贷款、余额与流水逐行相同（交易号除外） |
+| 模拟 | `docker/sim-test.sh`：2000 名学生跑满一学期（18 周）和之后一周假期的随机业务（含开定期与提前支取、六个品种的理财买入与次日起卖出、放款与还款，部分贷款逾期、跨过学期末；每个品种每个交易日用固定的模拟涨跌，A 股和恒生指数 10 月 1～7 日休市，纳斯达克 100 按美国日期，不联网），检查每个周一都有锚点（19 个）且保持在 1%～4%、每天都计活期利息（含假期）、每天自检通过、单次 `run_daily` 在 30 秒内完成、到期的定期全部转回活期（更长的转入下学期）、没有买入当天卖出的理财、每个品种每天都有净值、全部到期的贷款都已结清或逾期在册 |
+| 演练 | `docker/rehearsal-test.sh`：两个容器 A、B 用同一份数据和业务按天跑过今天之前的 16 天（跨两个周一和一个学期末），银行管理员的操作经 HTTPS 调用；六个品种的日线由 `dolphin jobs fetch` 从替身行情源取（固定收盘价，不联网），净值随之计入 | 学期结转：结转前每天的任务没做完学期最后一天时 `TERM_OPEN_ITEMS`，结转不生成流水、账不变，余额、信用分和未结的定期、理财、贷款（含逾期）原样带到下学期；之后每天计息、每个周一结息、加减信用分、公布锚点；`dolphin check` 一致；上学期的报表与流水按学期日期可查；直接写表 403，已结转学期不能修改或再结转（`TERM_CLOSED`），柜员今天的业务不改上学期的报表，上学期的流水柜员和银行管理员都不能冲正，补录和编辑能改。停机补跑：B 在最后 3～6 天（总含一个周一）`docker stop`，期间不办业务，`docker start` 后 `dolphin-jobs` 自己取到停机期间的行情并补跑，补跑的日期与顺序符合 13 节，A、B 的计息、结息、锚点、信用分、理财（行情、净值、持有）、定期、贷款、余额与流水逐行相同（交易号除外） |
 
 ---
 
@@ -1475,7 +1496,7 @@ M6 不依赖其他里程碑，最先做。M8 以后各里程碑依次依赖前�
 - [x] 定期到期自动转回活期并付息；提前支取只付活期利息。
 - [x] 贷款最长 8 周，学期内和假期都能办，可以跨学期；活期计息、结息、锚点、信用分在假期照常。
 - [x] 定期可选 2 / 4 / 12 / 24 / 48 周，可以跨学期，假期照常计息，到期按锁定的固定利率付息。
-- [x] 理财每天按沪深 300 涨跌和所选档位变动，休市日只计基础收益，可能亏损；取不到行情时手动登记；随时按现值赎回，到期自动转回活期。
+- [x] 按期限买入的理财每天按沪深 300 涨跌和所选档位变动，休市日只计基础收益，可能亏损；取不到行情时手动登记；随时按现值卖出，到期自动转回活期。
 - [x] 学期结转后余额、信用分和未结的定期、理财、贷款转入下学期，上学期数据按学期可查，只能通过补录、编辑改动。
 - [x] 第 12 节的每种情况都生成风险提醒，同一事件只有一条；银行管理员「终止」时在一个事务里执行对应的撤销操作，撤销失败时提醒保持未处理；行长只能查看。
 - [x] 货币监控按纸币与电子币分开显示，兑付能力低于提示线时醒目提示。

@@ -1,15 +1,12 @@
 #!/bin/bash
-# The scheduled jobs (PHASE-2.md §13): fetch the 理财 index's daily closes, catch up and clean up 文件传输 once the
-# database is ready, so a restart makes up the days the server was down, then every day after 00:05 (the container's TZ,
-# Asia/Shanghai). A job that fails is tried again the next day, at a restart, or with `dolphin jobs run`. After the
-# A-share close, from 15:30, the day's close is fetched; a fetch that fails is tried again every 10 minutes six times,
-# then every hour to the end of the day, and once more at 00:05 before the jobs. A day fetched late is applied by the
-# next run_daily.
+# The scheduled jobs (PHASE-2.md §13): once the database is ready, and every day after 00:05 (the container's TZ,
+# Asia/Shanghai), fetch the 理财 closes, catch up and clean up 文件传输, so a restart makes up the days the server was
+# down; a job that fails is tried again the next day, at a restart, or with `dolphin jobs run`. Between those the closes
+# are fetched every 30 minutes: each product's day is written once its close may be, and the net values follow. A fetch
+# that fails is logged and tried again at the next one.
 set -uo pipefail
 until dolphin jobs >/dev/null 2>&1; do sleep 10; done
 last=
-fetched=
-tries=0
 next_fetch=0
 while true; do
   today=$(date +%F)
@@ -18,15 +15,10 @@ while true; do
     dolphin jobs run || echo "dolphin-jobs: a job failed; see dolphin jobs" >&2
     dolphin jobs clean >/dev/null || echo "dolphin-jobs: the 文件传输 clean-up failed" >&2
     last=$today
-    tries=0
-    next_fetch=0
-  elif [ "$fetched" != "$today" ] && (( 10#$(date +%H%M) >= 1530 )) && (( $(date +%s) >= next_fetch )); then
-    if dolphin jobs fetch; then
-      fetched=$today
-    else
-      tries=$(( tries + 1 ))
-      next_fetch=$(( $(date +%s) + (tries < 6 ? 600 : 3600) ))
-    fi
+    next_fetch=$(( $(date +%s) + 1800 ))
+  elif (( $(date +%s) >= next_fetch )); then
+    dolphin jobs fetch || true
+    next_fetch=$(( $(date +%s) + 1800 ))
   fi
   sleep 60
 done

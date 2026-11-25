@@ -35,18 +35,20 @@ done
 # replacing tables, so Auth, PostgREST and Storage keep their connections. Replica mode skips triggers and foreign
 # keys (txns refers to itself) while it truncates and reloads. dolphin-jobs stops first, with what it was running, and
 # the lock waits for a statement of theirs still under way. Whatever it did at start-up stays out of the snapshot: no
-# 理财 days and no anchor (a spec that needs them inserts its own), the jobs where the migrations left them. So every
-# restore gives the same data, however late a fetch or catch-up wrote.
+# 理财 days, each product's net value at 1 yesterday and no anchor (a spec that needs more inserts its own), the jobs
+# where the migrations left them. So every restore gives the same data, however late a fetch or catch-up wrote.
 docker exec "$NAME" supervisorctl stop dolphin-jobs >/dev/null
 docker exec -i "$NAME" sh -e <<'SH'
-psql -U postgres -qAt -c "begin; lock public.job_runs, public.wealth_days, public.rate_weeks; commit" >/dev/null
+psql -U postgres -qAt -c "begin; lock public.job_runs, public.wealth_days, public.wealth_navs, public.rate_weeks; commit" >/dev/null
 { echo "set session_replication_role = replica;"
   psql -U postgres -qAt -c "select 'truncate ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ';'
     from pg_tables where schemaname in ('public', 'app_private', 'auth', 'storage')"
   pg_dump -U postgres --data-only -n public -n app_private -n auth -n storage \
-    --exclude-table-data=public.wealth_days --exclude-table-data=public.rate_weeks postgres 2>/dev/null # warns about txns' self-reference
+    --exclude-table-data=public.wealth_days --exclude-table-data=public.wealth_navs --exclude-table-data=public.rate_weeks postgres 2>/dev/null # warns about txns' self-reference
   psql -U postgres -qAt -c "select format('update public.job_runs set done_to = %L, last_ok = null, last_err = null;',
     app_private.cn_date(now()) - 1)"
+  psql -U postgres -qAt -c "select format('insert into public.wealth_navs (product, day, nav) select p ->> ''key'', %L, 1
+    from jsonb_array_elements(app_private.setting(''wealth_params'') -> ''products'') p;', app_private.cn_date(now()) - 1)"
 } > /tmp/e2e-base.sql
 tar -cf /tmp/e2e-storage.tar -C /data storage
 SH

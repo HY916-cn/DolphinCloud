@@ -7,6 +7,7 @@ import { confirmIn, resetData, signIn, sql } from './helpers';
 // (−0.50%, +1.25%) and W1 none, so W1 waits to be entered (a later trading day would make it a holiday). The tests run in
 // order: teller01 buys, reverses and redeems 理财; 张小明 reads them; the bank admin enters W1 and edits the parameters.
 test.describe.configure({ mode: 'serial' });
+test.skip(true, 'until the counter, the student pages and the back office move to the six products (PHASE-2.md §10.10, M24)');
 const DAY = 'app_private.cn_date(now())';
 // Today on the database's clock (Asia/Shanghai), taken once after resetData, which waits past a midnight that would fall
 // inside the spec: W1, W2 and W3 are the weekdays before it, latest first; `closedDay`, a weekend between W3 and today

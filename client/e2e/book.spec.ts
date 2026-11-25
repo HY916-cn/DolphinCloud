@@ -191,7 +191,7 @@ test('the account’s third page prints 攒着的利息, 定期合计, 理财 an
        insert into public.interest_accruals (student_no, day, balance, rate, centi) values ('20260001', current_date - 1, 108, 2.08, 37);
        select set_config('request.jwt.claims', json_build_object('sub', (select id from public.profiles where login_id = 'teller01'), 'role', 'authenticated')::text, false);
        select public.open_term_deposit(gen_random_uuid(), '20260001', 50, 4);
-       select public.buy_wealth(gen_random_uuid(), '20260001', 20, 2, 'steady');
+       select public.buy_wealth(gen_random_uuid(), '20260001', 20, 'csi300');
        update public.wealth_holdings set value_centi = 1965 where student_no = '20260001';
        select public.open_loan(gen_random_uuid(), '20260001', 60, '买书', 'installment', 4, 'account')`);
   const centi = Number(sql(`select app_private.pending_interest('20260001')`));
