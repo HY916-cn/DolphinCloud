@@ -1,12 +1,41 @@
-# 海豚云
+<div align="center">
 
-海豚云是明德学校校园银行「海豚银行」的业务平台：学生以海豚币办理存取和文创兑换，柜员在柜台办理业务，财务、库管、银行管理员和运维员在后台管理流水、商品、账号与系统。余额只能由业务流水推出，错账用冲正更正，记录不删除。前端是 Expo Router Web 应用，后端是自托管的 Supabase（Postgres、Auth、PostgREST、Storage）加 Caddy，全部打包在一个 Docker 镜像里，一条 `docker run` 启动并自动申请 HTTPS 证书。
+# 海豚云 · DolphinCloud
+
+**面向校园银行的一体化业务平台——让每笔业务可追溯，让柜台、财务与运营协同在同一套系统中。**
+
+[![Expo](https://img.shields.io/badge/Expo-58-000020?logo=expo&logoColor=white)](https://expo.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-self--hosted-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-one--image-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+
+[![Stars](https://img.shields.io/github/stars/HY916-cn/DolphinCloud?logo=github&label=Stars)](https://github.com/HY916-cn/DolphinCloud/stargazers)
+[![Forks](https://img.shields.io/github/forks/HY916-cn/DolphinCloud?logo=github&label=Forks)](https://github.com/HY916-cn/DolphinCloud/network/members)
+[![Last Commit](https://img.shields.io/github/last-commit/HY916-cn/DolphinCloud?logo=git&logoColor=white)](https://github.com/HY916-cn/DolphinCloud/commits/main)
+[![Repo Size](https://img.shields.io/github/repo-size/HY916-cn/DolphinCloud)](https://github.com/HY916-cn/DolphinCloud)
+[![Issues](https://img.shields.io/github/issues/HY916-cn/DolphinCloud?logo=github&label=Issues)](https://github.com/HY916-cn/DolphinCloud/issues)
+
+学生以海豚币办理存取、定期、理财、贷款与文创兑换；<br/>
+柜员、行长、财务、库管、银行管理员与运维员分角色完成日常经营。
+
+</div>
+
+---
+
+## 核心能力
+
+- **完整的校园银行业务**：覆盖存取、定期、理财、贷款、利息、信用分、文创商品与库存管理。
+- **不可变流水**：余额由业务流水推出，错账通过冲正更正，保留完整审计轨迹。
+- **分角色工作台**：学生、柜员、行长、财务、库管、银行管理员和运维员拥有各自的界面与权限。
+- **单镜像自托管**：Expo Router Web 前端、Supabase 后端与 Caddy 集成在一个 Docker 镜像中，支持自动 HTTPS、备份、恢复与健康检查。
+- **面向上线的验证链路**：包含单元测试、pgTAP、Playwright 端到端测试、性能测试、学期模拟、升级与上线演练。
 
 完整的开发文档（架构、数据模型、接口、测试与验收）见 [docs/development/PHASE-1.md](docs/development/PHASE-1.md)，二期开发文档见 [docs/development/PHASE-2.md](docs/development/PHASE-2.md)，验收清单见 [docs/development/ACCEPTANCE.md](docs/development/ACCEPTANCE.md)，历次审查报告见 [docs/audit/](docs/audit/)。
 
 ## 仓库结构
 
-```
+```text
 client/          Expo 前端（src/ 源码，e2e/ Playwright 测试）
 supabase/
   migrations/    数据库迁移（开发与生产共用）
@@ -42,6 +71,7 @@ docker exec -i dolphin-dev psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/see
 启动前端：
 
 ```bash
+npm --prefix client ci
 npm --prefix client run web
 ```
 
@@ -82,10 +112,16 @@ CI（`.github/workflows/ci.yml`）在每次推送和 PR 上同时运行依赖审
 ## 部署
 
 ```bash
-docker run -d --name dolphin-cloud --restart unless-stopped --stop-timeout 120 -p 80:80 -p 443:443 -v dolphin-data:/data -e DOLPHIN_DOMAIN=bank.example.edu.cn -e ACME_EMAIL=it@example.edu.cn ghcr.io/hy916-cn/dolphin-cloud:1.0.0
+docker run -d --name dolphin-cloud --restart unless-stopped --stop-timeout 120 \
+  -p 80:80 -p 443:443 \
+  -v dolphin-data:/data \
+  -e DOLPHIN_DOMAIN=bank.example.edu.cn \
+  -e ACME_EMAIL=it@example.edu.cn \
+  -e BACKUP_RECIPIENT='age1...' \
+  ghcr.io/hy916-cn/dolphin-cloud:main
 ```
 
-`--stop-timeout 120` 让 Postgres 在 Docker 强制结束前写完关闭检查点；用 docker compose 时写 `stop_grace_period: 2m`（见 PHASE-1.md §9.2）。
+将 `age1...` 替换为实际的 age 公钥；容器会自动备份业务数据，生产环境应始终配置加密接收者。`--stop-timeout 120` 让 Postgres 在 Docker 强制结束前写完关闭检查点；用 docker compose 时写 `stop_grace_period: 2m`（见 PHASE-1.md §9.2）。
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
