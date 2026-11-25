@@ -85,7 +85,7 @@ select app_private.cn_date(now()) as today, extract(isodow from app_private.cn_d
 
 select tests.no_trading_days();
 select tests.anon('select public_rates()') as rates \gset
-select is((select array_agg(k order by k) from jsonb_object_keys(:'rates'::jsonb) k), array['credit_enabled', 'current', 'scores', 'term', 'wealth'],
+select is((select array_agg(k order by k) from jsonb_object_keys(:'rates'::jsonb) k), array['credit_enabled', 'current', 'savings_enabled', 'scores', 'term', 'wealth'],
   'public_rates for anon: no anchor');
 select is((:'rates'::jsonb ->> 'current')::numeric, app_private.saving_rate(app_private.anchor_on(:'today'), 600), '活期: one rate for everyone');
 select is(:'rates'::jsonb -> 'scores', (select jsonb_agg(jsonb_build_object('score', s, 'loan', app_private.loan_rate(app_private.anchor_on(:'today'), s)) order by s)

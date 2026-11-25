@@ -157,7 +157,7 @@ select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_bala
 -- Who reads what (§3, §16).
 select user_id as a_login from students where student_no = 'a' \gset
 select is(tests.call(:'a_login', 'select interest_profile()'),
-  '{"student_no":"a","score":600,"week_start":null,"anchor":2,"rates":{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667},"pending_centi":124}',
+  '{"student_no":"a","score":600,"week_start":null,"anchor":2,"savings_enabled":true,"rates":{"current":2,"term":{"2":2.5,"4":2.75,"12":3,"24":3.25,"48":3.5},"loan":6.2667},"pending_centi":124}',
   'a student reads this week''s rates and 待入账利息 1.24 HTB');
 select is(tests.call(:'a_login', 'select interest_profile(''a'')') ->> 'pending_centi', '124', 'also by their own number');
 select is(tests.err(:'a_login', 'select interest_profile(''b'')'), 'FORBIDDEN', 'but no one else''s');

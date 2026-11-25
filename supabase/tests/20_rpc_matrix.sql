@@ -118,6 +118,7 @@ insert into tests.matrix values
   ('credit_profile(text)', 'select credit_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
   ('adjust_credit(text,integer,text)', 'select adjust_credit(''nobody'', 1, ''x'')', '{teacher}'),
   ('set_credit_enabled(boolean,text)', 'select set_credit_enabled(null, ''x'')', '{teacher}'),
+  ('set_savings_interest_enabled(boolean)', 'select set_savings_interest_enabled(null)', '{teacher}'),
   -- 利率与利息: the student their own, the accountant, president and bank admin anyone's and the 利率 page (PHASE-2.md §3)
   ('interest_profile(text)', 'select interest_profile(coalesce(app_private.my_student_no(), ''nobody''))', '{student,accountant,president,teacher}'),
   ('rate_overview()', 'select rate_overview()', '{accountant,president,teacher}'),
