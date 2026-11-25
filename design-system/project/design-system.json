@@ -3,7 +3,7 @@
   "layout": "files",
   "createdOnFiles": {
     "v": 1,
-    "at": "2026-10-27T12:16:25Z"
+    "at": "2026-11-25T11:12:38Z"
   },
   "title": "海豚云",
   "namespace": "DolphinCloud",
@@ -23,7 +23,7 @@
       "files": {
         "dolphin-cloud-logo.png": {
           "name": "dolphin-cloud-logo.png",
-          "blob": "3db5cb4e2901c4767590e8c2cffe7d7e",
+          "blob": "de0f44a90ef28768ca8b648bf19bb5b0",
           "size": 132998,
           "type": "image/png"
         }
@@ -87,301 +87,301 @@
       "files": {
         "home.svg": {
           "name": "home.svg",
-          "blob": "2778c80d6c84c07950ceeb8ce41a0c82",
-          "size": 361,
+          "blob": "a8cb8a8e2473591a9110ba1b46427ca2",
+          "size": 400,
           "type": "image/svg+xml"
         },
         "coin.svg": {
           "name": "coin.svg",
-          "blob": "7416b8f1ed71fdfbd25a44ae8409aff0",
-          "size": 345,
+          "blob": "b21bdd60ca85c147c36b0bd133cce154",
+          "size": 370,
           "type": "image/svg+xml"
         },
         "query.svg": {
           "name": "query.svg",
-          "blob": "2d488ab3bc871fd30153949f921134b5",
-          "size": 255,
+          "blob": "e8dfedb8fff4cfd022088ed3e2c8af7c",
+          "size": 293,
           "type": "image/svg+xml"
         },
         "deposit.svg": {
           "name": "deposit.svg",
-          "blob": "e5fe46f92f412c0151ad52e51d98ced9",
-          "size": 409,
+          "blob": "1bbac7da417d1dc7f187a9496da1b188",
+          "size": 436,
           "type": "image/svg+xml"
         },
         "withdraw.svg": {
           "name": "withdraw.svg",
-          "blob": "941ad749324888385c6aac1321f6b1dc",
-          "size": 410,
+          "blob": "c86f84944a990ea906f765b439734250",
+          "size": 435,
           "type": "image/svg+xml"
         },
         "savings.svg": {
           "name": "savings.svg",
-          "blob": "065ce0b30bb687d66d4f5165b804d435",
-          "size": 473,
+          "blob": "ca1e8789f0a12a2965b480217da87723",
+          "size": 511,
           "type": "image/svg+xml"
         },
         "exchange.svg": {
           "name": "exchange.svg",
-          "blob": "b8e8081ff402ff93d919d7918886ab3a",
-          "size": 408,
+          "blob": "2d2699ae1e02d908a43110c5ecffca8c",
+          "size": 434,
           "type": "image/svg+xml"
         },
         "invest.svg": {
           "name": "invest.svg",
-          "blob": "eeee0928aaa9da75173040f3fdfbbe0a",
-          "size": 249,
+          "blob": "53d4450f7571d3a3a5627bb1601d56d5",
+          "size": 294,
           "type": "image/svg+xml"
         },
         "loan.svg": {
           "name": "loan.svg",
-          "blob": "8d5e0a222324e6745bf995086cfa0579",
-          "size": 461,
+          "blob": "0763c34aff8eae668e8b664ae1edd1a1",
+          "size": 483,
           "type": "image/svg+xml"
         },
         "transfer.svg": {
           "name": "transfer.svg",
-          "blob": "1e30bd3321665444e4094f8865bf726d",
-          "size": 295,
+          "blob": "67d8c5d61cfd8a3f9b1a4269f995a313",
+          "size": 333,
           "type": "image/svg+xml"
         },
         "passbook.svg": {
           "name": "passbook.svg",
-          "blob": "7a978f228eb4d7f1761295a0da49d4c3",
-          "size": 365,
+          "blob": "3ceab20077249c831f2d32c9477dba31",
+          "size": 408,
           "type": "image/svg+xml"
         },
         "calendar.svg": {
           "name": "calendar.svg",
-          "blob": "7da1b92206f197f47dbd9c0ef1da3db5",
-          "size": 342,
+          "blob": "77b98bab3911a7ebd8ce71283f5efdb5",
+          "size": 372,
           "type": "image/svg+xml"
         },
         "star.svg": {
           "name": "star.svg",
-          "blob": "c2638daa90accf31be6ac27d747ac9f9",
-          "size": 564,
+          "blob": "ddf3e31e0aac38a81b4407b75fc9e2e5",
+          "size": 608,
           "type": "image/svg+xml"
         },
         "me.svg": {
           "name": "me.svg",
-          "blob": "f895e89265d83b657a4cd0830d8a60fb",
-          "size": 279,
+          "blob": "994c6f0432d7970076241f21027748e7",
+          "size": 315,
           "type": "image/svg+xml"
         },
         "parent.svg": {
           "name": "parent.svg",
-          "blob": "2f85f44dbeddb083084c35011e482a43",
-          "size": 367,
+          "blob": "6dc8ed6d332c291d9a141162050a4dcb",
+          "size": 392,
           "type": "image/svg+xml"
         },
         "teacher.svg": {
           "name": "teacher.svg",
-          "blob": "7b0cf25448fb800f758fec742697812f",
-          "size": 296,
+          "blob": "5c4642bc4b32fdb524176bd6d8feb529",
+          "size": 336,
           "type": "image/svg+xml"
         },
         "lock.svg": {
           "name": "lock.svg",
-          "blob": "0f547cc9051acdbcc5a1aa5ca02cb3fb",
-          "size": 287,
+          "blob": "c193d8d41a3834c8c512084532dfaf01",
+          "size": 325,
           "type": "image/svg+xml"
         },
         "bell.svg": {
           "name": "bell.svg",
-          "blob": "3c3a4ab5c144075963c1648703adf688",
-          "size": 371,
+          "blob": "cb561827e94b4c16465b0f9c89dddddb",
+          "size": 409,
           "type": "image/svg+xml"
         },
         "help.svg": {
           "name": "help.svg",
-          "blob": "94b8ba4766403f2d7825dc8387b14271",
-          "size": 304,
+          "blob": "5d66206e2942fda09e548a8dd489a697",
+          "size": 341,
           "type": "image/svg+xml"
         },
         "success.svg": {
           "name": "success.svg",
-          "blob": "0d472a9357e863edb8763b6472753776",
-          "size": 258,
+          "blob": "eb5f557683afbec3b93a9b5914a2c4e4",
+          "size": 302,
           "type": "image/svg+xml"
         },
         "warning.svg": {
           "name": "warning.svg",
-          "blob": "a16e733babcdb91e352a474415e2f483",
-          "size": 325,
+          "blob": "8d2584d67afcfdab1f2b6cb951cb6ba6",
+          "size": 367,
           "type": "image/svg+xml"
         },
         "ranking.svg": {
           "name": "ranking.svg",
-          "blob": "82bbf9feeb48aa44168ded434916472c",
-          "size": 540,
+          "blob": "38403bd71979d0608557c354e6e5a250",
+          "size": 556,
           "type": "image/svg+xml"
         },
         "plus.svg": {
           "name": "plus.svg",
-          "blob": "41ce2012374560a5521c7de551b8d697",
-          "size": 234,
+          "blob": "450202a09c1446aa6720e209e7cb5761",
+          "size": 272,
           "type": "image/svg+xml"
         },
         "minus.svg": {
           "name": "minus.svg",
-          "blob": "f538d52f6963b83f7a9b719803fb3714",
-          "size": 208,
+          "blob": "8d4c25b47cbbb515d7d0b6d0f47009d9",
+          "size": 253,
           "type": "image/svg+xml"
         },
         "back.svg": {
           "name": "back.svg",
-          "blob": "247d784585c7fb20d7bfe7584dda6c84",
-          "size": 214,
+          "blob": "42df1aa95a62fea2e7d14a6e0fd68e18",
+          "size": 266,
           "type": "image/svg+xml"
         },
         "close.svg": {
           "name": "close.svg",
-          "blob": "330f063129427b531e9d38a6306bede5",
-          "size": 238,
+          "blob": "dbdea0cd6433d07edaff43201ab1ba23",
+          "size": 273,
           "type": "image/svg+xml"
         },
         "check.svg": {
           "name": "check.svg",
-          "blob": "e655e0b3ac50cd5d369f80728b339899",
-          "size": 215,
+          "blob": "5459d9559a7e8ea0ab28dfe9078b43a3",
+          "size": 260,
           "type": "image/svg+xml"
         },
         "next.svg": {
           "name": "next.svg",
-          "blob": "2ce8325037dd95dc92a97d9e0a487b9c",
-          "size": 213,
+          "blob": "fe9fa805c761867fa1de6e00027dfff9",
+          "size": 266,
           "type": "image/svg+xml"
         },
         "expand.svg": {
           "name": "expand.svg",
-          "blob": "b4d59e2a8c2a3450267e7c037b923d11",
-          "size": 212,
+          "blob": "77a945a7853d7ed6e668ccdb8ef0b3d1",
+          "size": 264,
           "type": "image/svg+xml"
         },
         "logout.svg": {
           "name": "logout.svg",
-          "blob": "a51ce9b826c428c79cf87ab82a5e0b02",
-          "size": 297,
+          "blob": "da91be3aa16b151597f3a52324f8003b",
+          "size": 332,
           "type": "image/svg+xml"
         },
         "inbox.svg": {
           "name": "inbox.svg",
-          "blob": "513bf30944f8766ff9787e927f818722",
-          "size": 370,
+          "blob": "0c507b936e85124adb0689c5d3f3af86",
+          "size": 405,
           "type": "image/svg+xml"
         },
         "settings.svg": {
           "name": "settings.svg",
-          "blob": "5be6bb476c5a0b429c8212f2866c9787",
-          "size": 566,
+          "blob": "6a54009f0e737c6c150442931710d42a",
+          "size": 606,
           "type": "image/svg+xml"
         },
         "clock.svg": {
           "name": "clock.svg",
-          "blob": "934aad5db0fef305a4bf346a5c1d3787",
-          "size": 251,
+          "blob": "946f8ebfe3759cb6f542e03bc81fddf8",
+          "size": 288,
           "type": "image/svg+xml"
         },
         "person.svg": {
-          "blob": "64f8e6596a237615b5c1fe305cf10fe4",
+          "blob": "8f3fed2676546c153c5c2926a76901f4",
           "name": "person.svg",
-          "size": 259,
+          "size": 301,
           "type": "image/svg+xml"
         },
         "student.svg": {
-          "blob": "24a57b44c4a9ce41be5f39aefc582973",
+          "blob": "970b869c58be41eb2af267b883b7231d",
           "name": "student.svg",
-          "size": 392,
+          "size": 434,
           "type": "image/svg+xml"
         },
         "teller.svg": {
-          "blob": "ea5084a29a43f0772ee9f8025cc28639",
+          "blob": "02c297ff5ca971c79e209b1e6f9725ba",
           "name": "teller.svg",
-          "size": 313,
+          "size": 347,
           "type": "image/svg+xml"
         },
         "accountant.svg": {
-          "blob": "96c5a246eff5fc847f43036cc66552f8",
+          "blob": "1ce302ea85e533a959e0cb1d482625b6",
           "name": "accountant.svg",
-          "size": 430,
+          "size": 438,
           "type": "image/svg+xml"
         },
         "storekeeper.svg": {
-          "blob": "66136ace3006335da1b037a52ccde4df",
+          "blob": "f836431bedb3ab04265790bab9f7272d",
           "name": "storekeeper.svg",
-          "size": 381,
+          "size": 416,
           "type": "image/svg+xml"
         },
         "president.svg": {
-          "blob": "f80549e5d133c1ce5a279f278c44a2f2",
+          "blob": "cf7657d2f696ebe9afc77689c91cd565",
           "name": "president.svg",
-          "size": 418,
+          "size": 436,
           "type": "image/svg+xml"
         },
         "sysadmin.svg": {
-          "blob": "420e51666bc7f1aa89b8ca4aa1c29959",
+          "blob": "d182d6408f04be81b3bed8b3a422b10f",
           "name": "sysadmin.svg",
-          "size": 393,
+          "size": 439,
           "type": "image/svg+xml"
         },
         "gauge.svg": {
           "name": "gauge.svg",
-          "blob": "fda7cdef925e41101082c928475a3914",
-          "size": 256,
+          "blob": "49074c7d9c2c16e454e3bed80ac0b2f3",
+          "size": 295,
           "type": "image/svg+xml"
         },
         "school.svg": {
           "name": "school.svg",
-          "blob": "f5f030779e4524de16205010057fc6c3",
-          "size": 492,
+          "blob": "420190b322fbd40a88213a4bda3b812a",
+          "size": 506,
           "type": "image/svg+xml"
         },
         "rate.svg": {
           "name": "rate.svg",
-          "blob": "ec5683b1e12267838a2a01b6d0803f45",
-          "size": 440,
+          "blob": "26129c273de8958bda75d26e81dd1130",
+          "size": 475,
           "type": "image/svg+xml"
         },
         "balance.svg": {
           "name": "balance.svg",
-          "blob": "2883d8f4d4ca79134958e1316598b14a",
-          "size": 379,
+          "blob": "8ee8ec9f174785a355c80a8c263a73a0",
+          "size": 400,
           "type": "image/svg+xml"
         },
         "apps.svg": {
           "name": "apps.svg",
-          "blob": "b9fb15516ccd0bf35cd3dc9ce7df90c4",
-          "size": 527,
+          "blob": "19b9dd5a5f04481704e8ecb63bd0025e",
+          "size": 505,
           "type": "image/svg+xml"
         },
         "upload.svg": {
           "name": "upload.svg",
-          "blob": "b93b8670684eaeee9483333cb232628d",
+          "blob": "d5967b0fd0a2aa9c6026a72efc7b62e7",
           "size": 332,
           "type": "image/svg+xml"
         },
         "download.svg": {
           "name": "download.svg",
-          "blob": "0e9437ce50ec831a14d56f26e81063d2",
+          "blob": "4bf05340064244abf593197f6209dd25",
           "size": 334,
           "type": "image/svg+xml"
         },
         "file.svg": {
           "name": "file.svg",
-          "blob": "9accc22820df9863eccbdc7e85500399",
+          "blob": "2ade1e9073f5bead88e9598f96467f46",
           "size": 389,
           "type": "image/svg+xml"
         },
         "fullscreen.svg": {
           "name": "fullscreen.svg",
-          "blob": "8336c8fdae1af8dcb1742c65f45dad27",
+          "blob": "c018c115379225a7916c886f33665c75",
           "size": 378,
           "type": "image/svg+xml"
         },
         "retry.svg": {
           "name": "retry.svg",
-          "blob": "12dca9bc7a8a76a84039aeeeccddc33a",
+          "blob": "e7cb096842e331346e0a4a56fbdd8fab",
           "size": 320,
           "type": "image/svg+xml"
         }
@@ -399,8 +399,8 @@
   },
   "lastChange": {
     "by": "HY916",
-    "at": "2026-11-20T10:19:30Z",
+    "at": "2026-11-25T11:12:38Z",
     "via": "Claude Code",
-    "note": "开户、调账、定期转回、理财转回只由银行管理员冲正"
+    "note": "从仓库 8efa4ff 恢复设计系统"
   }
 }
