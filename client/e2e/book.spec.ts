@@ -210,6 +210,7 @@ test('the account’s third page prints 攒着的利息, 定期合计, 理财 an
   await expect(lines.nth(2).locator('.dc-pl.is-down')).toHaveText('亏 −0.35 HTB');
   await expect(lines.nth(3)).not.toHaveClass(/is-danger/);
   await expect(sums.getByRole('list', { name: '说明' }).locator('li')).toHaveCount(5);
+  await expect(sums.getByRole('list', { name: '说明' })).toContainText('理财有六个品种，每天随行情涨跌，可能亏损；买入第二天起可以在柜台卖出。');
   await expect(sums.locator('.dc-pb-foot')).toContainText('第 3 页');
   if (test.info().project.name === 'phone') expect(await sums.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
   expect(await page.evaluate(() => document.scrollingElement!.scrollHeight <= innerHeight)).toBe(true);

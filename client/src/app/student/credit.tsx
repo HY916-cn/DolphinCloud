@@ -1,9 +1,8 @@
 import {
   CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, MyLoans, Page, RateCard, TermList, today, TxnListLoading, useCredit, useCreditEvents, useCreditPaused,
-  useGaugeCurve, useLatestDay, useMyLoans, useMyTerms, useMyWealth, WealthList,
+  useGaugeCurve, useMyLoans, useMyTerms, useMyWealth, WealthList,
 } from '@/components';
-import { monthDay } from '@/lib/term';
-import { plClass, signedPct } from '@/lib/wealth';
+import { heldValue } from '@/lib/wealth';
 import { useNewRows } from '@/lib/motion';
 import { useMe } from '@/lib/session';
 
@@ -22,8 +21,8 @@ export default function StudentCredit() {
   const fresh = useNewRows(rows?.map((e) => e.id));
   const terms = useMyTerms(student.student_no);
   const loans = useMyLoans(student.student_no);
-  const wealth = useMyWealth(student.student_no);
-  const latest = useLatestDay().data;
+  const wealth = useMyWealth();
+  const held = wealth.data && heldValue(wealth.data);
   const c = credit.data;
 
   return (
@@ -63,14 +62,21 @@ export default function StudentCredit() {
             <p className="dc-list-title">我的理财</p>
             {wealth.isError ? <CreditFailed title="暂时无法读取理财" onRetry={() => wealth.refetch()} />
               : !wealth.data ? <TxnListLoading rows={2} label="正在加载理财" />
-              : wealth.data.length ? <>
-                <p className="dc-caption">
-                  理财的钱跟着中国股市的一个指数每天涨跌：涨了多得，跌了会少拿；倍率越高涨跌越大。周末和节假日休市，只加基础收益。
-                  {latest && <>{latest.day === today() ? '今天' : `${monthDay(latest.day)} `}指数 <span className={`dc-pl ${plClass(latest.change)}`}>{signedPct(latest.change)}</span>。</>}
-                </p>
-                <WealthList holdings={wealth.data} />
-              </> : (
-                <section className="dc-card"><p className="dc-caption">没有理财。可以在柜台用活期买理财，期限 2 到 48 周，可能赚也可能亏。</p></section>
+              : wealth.data.holdings.length ? (
+                <div className="dc-stack">
+                  <p className="dc-caption">理财有六个品种，每个跟着一种行情每天涨跌：涨了多得，跌了会少拿。买入第二天起可以到柜台卖出。</p>
+                  {held && (
+                    <div className="dc-card">
+                      <dl className="dc-kv">
+                        <div><dt>现在值合计</dt><dd>{held.text}</dd></div>
+                        <div><dt>盈亏合计</dt><dd>{held.gain.cls ? <span className={`dc-pl ${held.gain.cls}`}>{held.gain.text}</span> : held.gain.text}</dd></div>
+                      </dl>
+                    </div>
+                  )}
+                  <WealthList holdings={wealth.data.holdings} today={wealth.data.today} />
+                </div>
+              ) : (
+                <section className="dc-card"><p className="dc-caption">没有理财。可以在柜台用活期买理财，有国债、黄金和四种股票指数，可能赚也可能亏。</p></section>
               )}
           </div>
           <div {...enter(5)}>

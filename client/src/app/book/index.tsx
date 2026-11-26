@@ -27,7 +27,7 @@ export default function BookAccount() {
   const open = loans.data && openLoan(loans.data);
   const loan = open && homeLoanLine(open);
   const due = terms.data && nextMaturity(terms.data);
-  const wealth = useMyWealth(student.student_no);
+  const wealth = useMyWealth();
   const held = wealth.data && heldValue(wealth.data);
   const curve = useGaugeCurve();
   const wide = useWide();
@@ -89,7 +89,7 @@ export default function BookAccount() {
         <ol className="dc-pb-rules" aria-label="说明">
           <li>利息每周一满 1 HTB 存进余额。</li>
           <li>定期到期当天结束时连本带息转回活期。</li>
-          <li>理财跟着中国股市的一个指数每天涨跌，可能亏损。</li>
+          <li>理财有六个品种，每天随行情涨跌，可能亏损；买入第二天起可以在柜台卖出。</li>
           <li>贷款每期应还日结束时从活期自动扣。</li>
           <li>要看每笔定期、理财和还款计划，在我的栏换回普通版，再到信用页查看。</li>
         </ol>

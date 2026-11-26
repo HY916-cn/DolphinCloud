@@ -1,7 +1,7 @@
 // node src/lib/wealth.test.mjs — 理财 as the counter, 我的理财, the 首页, the back office and 参数 write it.
 import assert from 'node:assert/strict';
 const {
-  amountHint, buyText, cnDay, dayName, fixedPct, gain, heldValue, holdingLine, holdingName, lockedText, missingText, nav4, parseChange,
+  amountHint, buyText, cnDay, dayName, fixedPct, gain, heldValue, holdingLine, holdingName, missingText, nav4, parseChange,
   plClass, productDay, sellableTag, shownHoldings, signedPct, wealthDraft, wealthProblems, wealthValues, weekBase,
 } = await import('./wealth.ts');
 
@@ -41,8 +41,6 @@ assert.equal(sellableTag({ ...open, sellable_on: '2026-11-30' }, today), '11月3
 assert.equal(sellableTag({ ...open, sellable_on: today }, today), null);
 assert.equal(sellableTag({ ...open, weeks: 12 }, today), null);
 assert.equal(sellableTag({ ...open, status: 'redeemed' }, today), null);
-assert.equal(lockedText('2026-11-27', today), '这笔理财明天起可以卖出。');
-assert.equal(lockedText('2026-11-30', today), '这笔理财11月30日起可以卖出。');
 
 assert.deepEqual(amountHint(0, 415), { text: '1 HTB 起，最多 415 HTB（活期余额）', error: false });
 assert.deepEqual(amountHint(500, 415), { text: '余额不足：活期余额 415 HTB，还差 85 HTB', error: true });
@@ -73,8 +71,9 @@ assert.deepEqual([`${l.lead}${l.amount}`, l.day, l.tag], ['沪深 300 · 4 周 �
 
 // Open ones first, latest bought first; then the closed ones, latest closed first.
 assert.deepEqual(shownHoldings([sold, gold, matured, ndx, term]).map((h) => h.id), ['b', 'a', 'c', 'd', 'e']);
-assert.deepEqual(heldValue([gold, ndx, sold]), { text: '153.24 HTB', gain: { text: '盈 +3.24 HTB', cls: 'is-up' } });
-assert.equal(heldValue([sold]), null);
+assert.deepEqual(heldValue({ value_centi: 15324, gain_centi: 324, holdings: [gold, ndx, sold] }), { text: '153.24 HTB', gain: { text: '盈 +3.24 HTB', cls: 'is-up' } });
+assert.deepEqual(heldValue({ value_centi: 7808, gain_centi: -192, holdings: [gold] }).gain, { text: '亏 −1.92 HTB', cls: 'is-down' });
+assert.equal(heldValue({ value_centi: 0, gain_centi: 0, holdings: [sold] }), null);
 
 assert.deepEqual(missingText([{ name: '黄金', missing: ['2026-11-21'] }, { name: '国债', missing: [] }, { name: '恒生指数', missing: ['2026-11-21', '2026-11-24'] }]),
   { count: 3, text: '黄金 11月21日；恒生指数 11月21日、11月24日' });

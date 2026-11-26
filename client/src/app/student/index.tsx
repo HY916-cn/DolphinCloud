@@ -23,7 +23,7 @@ export default function StudentHome() {
   const credit = useCredit();
   const interest = useInterest();
   const loans = useMyLoans(student.student_no);
-  const wealth = useMyWealth(student.student_no);
+  const wealth = useMyWealth();
   const held = wealth.data && heldValue(wealth.data);
   const curve = useGaugeCurve();
   const c = credit.data;

@@ -1,29 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { call } from '@/lib/rpc';
-import { supabase } from '@/lib/supabase';
 import { holdingLine, holdingName, shownHoldings, type Holding, type MyWealth } from '@/lib/wealth';
 import { today as todayOf } from './DatePicker';
 import { Icon } from './ui';
 
 // A student's own 理财 (my_wealth): the products, the open holdings' value and gain, and every holding but the void.
-export function useMyWealthQuote() {
+export function useMyWealth() {
   return useQuery({ queryKey: ['my-wealth'], queryFn: () => call<MyWealth>('my_wealth', {}) });
-}
-// The holdings alone, as a list shows them.
-export function useMyWealth(_studentNo: string) {
-  return useQuery({ queryKey: ['my-wealth'], queryFn: () => call<MyWealth>('my_wealth', {}), select: (w) => shownHoldings(w.holdings) });
-}
-
-// 沪深 300's latest trading day, for the sentence over 我的理财 on 信用; null before the first.
-export function useLatestDay() {
-  return useQuery({
-    queryKey: ['wealth-latest'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('wealth_days').select('day,change').eq('product', 'csi300').order('day', { ascending: false }).limit(1);
-      if (error) throw error;
-      return (data[0] ?? null) as { day: string; change: number } | null;
-    },
-  });
 }
 
 // 理财 list (design system Invest 持仓列表): one row each, the sentence with its value in bold, the gain and its day, and on

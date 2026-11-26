@@ -63,9 +63,6 @@ export function sellableTag(h: Pick<Holding, 'status' | 'sellable_on' | 'weeks'>
   if (h.status !== 'open' || h.weeks != null || h.sellable_on <= today) return null;
   return h.sellable_on === nextDay(today) ? '明天可卖' : `${monthDay(h.sellable_on)}可卖`;
 }
-// WEALTH_LOCKED's sentence from its sellable_on.
-export const lockedText = (sellableOn: string, today: string) =>
-  `这笔理财${sellableOn === nextDay(today) ? '明天' : monthDay(sellableOn)}起可以卖出。`;
 
 // The amount field's hint: the range before an amount, then the shortfall over 活期.
 export function amountHint(amount: number, balance: number) {
@@ -106,12 +103,10 @@ export function shownHoldings<T extends Pick<Holding, 'status' | 'bought_at' | '
   return [...open, ...closed];
 }
 
-// What the open ones are worth, with their gain, as the 首页 and the 存折 write 理财; null with none.
-export function heldValue(list: Pick<Holding, 'status' | 'principal' | 'value_centi'>[]) {
-  const open = list.filter((h) => h.status === 'open');
-  if (!open.length) return null;
-  const value = open.reduce((s, h) => s + h.value_centi, 0);
-  return { text: `${formatCenti(value)} HTB`, gain: gain(value - 100 * open.reduce((s, h) => s + h.principal, 0)) };
+// What the open ones are worth, with their gain, as 我的理财, the 首页 and the 存折 write 理财; null with none open.
+export function heldValue(w: Pick<MyWealth, 'value_centi' | 'gain_centi' | 'holdings'>) {
+  if (!w.holdings.some((h) => h.status === 'open')) return null;
+  return { text: `${formatCenti(w.value_centi)} HTB`, gain: gain(w.gain_centi) };
 }
 
 // The days still to enter, as the back office's notice lists them: 黄金 11月21日；恒生指数 11月21日、11月24日; with their count.

@@ -158,6 +158,34 @@ test('柜台「理财」: six products, 买入 with its 冲正, 卖出 refused o
   await expect(page.locator('.dc-txns > li', { hasText: '理财转回' }).getByRole('button', { name: /^冲正/ })).toHaveCount(0);
 });
 
+test('学生: 理财 on the home page, and 我的理财 on 信用 one by one, with 明天可卖 on the one bought today', async ({ page }) => {
+  // Left by the counter: 沪深 300 10 HTB open since yesterday and 黄金 30 HTB sold today. 纳斯达克 100 5 HTB is bought today.
+  sql(`select set_config('request.jwt.claims', json_build_object('sub', (select id from public.profiles where login_id = 'teller01'), 'role', 'authenticated')::text, false);
+       select public.buy_wealth(gen_random_uuid(), '20260001', 'ndx', 5);
+       update public.wealth_holdings set value_centi = 1050 where student_no = '20260001' and product = 'csi300'`);
+  const sold = sql(`select to_char(value_centi / 100.0, 'FM990.00') from public.wealth_holdings where student_no = '20260001' and product = 'gold' and status = 'redeemed'`);
+  await signIn(page, '学生', '20260001');
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.locator('.dc-credit-summary .dc-kv > div', { hasText: '理财' })).toHaveText('理财15.50 HTB盈 +0.50 HTB');
+
+  await page.goto('/student/credit');
+  await expect(page.getByText('理财有六个品种，每个跟着一种行情每天涨跌：涨了多得，跌了会少拿。买入第二天起可以到柜台卖出。')).toBeVisible();
+  const mine = page.locator('.dc-stack', { has: page.getByText('理财有六个品种') }).last();
+  await expect(mine.locator('.dc-kv > div')).toHaveText(['现在值合计15.50 HTB', '盈亏合计盈 +0.50 HTB']);
+  await expect(mine.locator('.dc-list-item')).toHaveText([
+    '纳斯达克 100 · 本金 5 HTB，现在值 5.00 HTB持平 · 今天 买入明天可卖',
+    '沪深 300 · 本金 10 HTB，现在值 10.50 HTB盈 +0.50 HTB · 今天 买入持有中',
+    `黄金 · 本金 30 HTB，拿回 ${sold} HTB盈 +${(Number(sold) - 30).toFixed(2)} HTB · ${md(TODAY)} 卖出已卖出`,
+  ]);
+  await expect(mine.getByRole('button')).toHaveCount(0);
+  await expect(mine.locator('.dc-list-item', { hasText: '纳斯达克' }).locator('.dc-tag')).toHaveText('明天可卖');
+
+  // 明细: the two types under 全部 only, titled from what the server wrote.
+  await page.goto('/student/txns');
+  await expect(page.locator('.dc-txn', { hasText: '买理财 · 纳斯达克 100，净值 1.0000' }).locator('.dc-txn-amount')).toHaveText('−5转理财');
+  await expect(page.locator('.dc-txn', { hasText: '理财转回 · 卖出黄金，盈' }).locator('.dc-txn-amount small')).toHaveText('转回');
+});
+
 test('后台「理财」: the days to enter, the products, each day of one product, entering a day, and the open holdings', async ({ page }) => {
   // The president reads it all: a waiting day is 待登记 without 登记, and there is no 登记行情.
   await signIn(page, '工作人员', 'president01');
@@ -176,9 +204,9 @@ test('后台「理财」: the days to enter, the products, each day of one produ
   const table = page.getByRole('table', { name: '理财品种' });
   await expect(table.locator('tbody tr')).toHaveCount(6);
   await expect(table.locator('tbody tr').nth(1)).toHaveText('黄金1.056500今天+5.65%000.00');
-  await expect(table.locator('tbody tr').nth(2)).toHaveText('沪深 3000.993800今天−0.62%11010.00');
-  await expect(table.locator('tbody tr').nth(5)).toHaveText(`纳斯达克 1001.000000${md(shift(W, -1))} 待登记—000.00`);
-  await expect(table.locator('tfoot tr')).toHaveText('合计11010.00');
+  await expect(table.locator('tbody tr').nth(2)).toHaveText('沪深 3000.993800今天−0.62%11010.50');
+  await expect(table.locator('tbody tr').nth(5)).toHaveText(`纳斯达克 1001.000000${md(shift(W, -1))} 待登记—155.00`);
+  await expect(table.locator('tfoot tr')).toHaveText('合计21515.50');
 
   // 每日行情 opens on the first product with a day to enter.
   await expect(page.getByRole('tab', { name: '纳斯达克 100' })).toHaveAttribute('aria-selected', 'true');
@@ -223,7 +251,11 @@ test('后台「理财」: the days to enter, the products, each day of one produ
   await page.keyboard.press('Escape');
 
   const open = page.getByRole('table', { name: '持有中的理财' });
-  await expect(open.locator('tbody tr')).toHaveText([`张小明 · 20260001沪深 30010 HTB0.993810.00 HTB持平${md(shift(TODAY, -1))}`]);
+  await expect(open.locator('tbody tr')).toHaveText([
+    // 纳斯达克 100 moves with the day just entered.
+    new RegExp(`^张小明 · 20260001纳斯达克 1005 HTB1\\.0000\\d\\.\\d\\d HTB.+${md(TODAY)}$`),
+    `张小明 · 20260001沪深 30010 HTB0.993810.50 HTB盈 +0.50 HTB${md(shift(TODAY, -1))}`,
+  ]);
 
   // 流水: the two types as filters.
   await page.goto('/admin/txns');
