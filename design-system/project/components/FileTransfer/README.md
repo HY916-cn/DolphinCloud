@@ -70,9 +70,21 @@
 
 选好的文件列在拖入区下面：`dc-list`，每个文件一行 `dc-list-item`。
 
-- 左边 `dc-list-icon`，图标 `file`。
+- 左边 `dc-list-icon`，图标按文件类型，见下表。
 - 中间 `span.dc-file-name` 写文件名，下面一行 `small`。
 - 上传中和上传失败时，`small` 下面放一条 `dc-progress-track`（8px 高），里面是 `dc-progress-fill`，`--value` 为进度。
+
+文件图标按扩展名选，不区分大小写；各处的文件行都用这一套，`dc-list-icon` 底色和描边不随类型变：
+
+| 图标 | 扩展名 |
+| --- | --- |
+| `file-text` | pdf、doc、docx、txt、md、rtf、ppt、pptx、key、pages |
+| `file-sheet` | xls、xlsx、csv、numbers |
+| `file-image` | jpg、jpeg、png、gif、webp、heic、bmp、svg |
+| `file-video` | mp4、mov、m4v、avi、mkv、webm |
+| `file-audio` | mp3、m4a、wav、aac、flac、ogg |
+| `file-archive` | zip、rar、7z、tar、gz |
+| `file` | 其他，或没有扩展名 |
 
 每个文件的状态：
 
@@ -150,7 +162,7 @@
 
 - 一个 `dc-stack`：`p.dc-pickup-due`“11月27日 14:30 到期”，下面 `dc-caption`“还剩 5 天 5 小时，有效期内可以反复下载。”。
 - `dc-list`，每个文件一行 `dc-list-item`：
-  - 左边 `dc-list-icon`，图标 `file`。
+  - 左边 `dc-list-icon`，图标按文件类型。
   - 中间 `dc-file-name`，下面 `small` 写大小。
   - 右边 `dc-btn-secondary dc-btn-sm`，图标 `download`，“下载”，`aria-label`“下载 报告.pdf”。
 - 列表下面 `dc-caption`“3 个文件，合计 24.6 MB”。
@@ -178,7 +190,7 @@
 
 - 页面最上面 `dc-caption`“未到期的取件 12 次，合计 1.2 GB，上限 5 GB。”
 - 下面 `dc-list`，按生成时间从新到旧，每次取件一行 `dc-list-item`：
-  - 左边 `dc-list-icon`，图标 `file`。
+  - 左边 `dc-list-icon`，图标按文件类型。
   - 第一行：“3 个文件 · **24.6 MB**”。
   - 第二行 `small`：“11月20日 14:30 生成 · 11月27日 14:30 到期 · 来源 10.0.3.15”。
   - 第三行 `small`：全部文件名，用“、”隔开，可以折行。

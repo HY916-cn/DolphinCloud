@@ -52,6 +52,12 @@
 | `upload` | 上传、文件传输 | `upload` |
 | `download` | 下载 | `download` |
 | `file` | 文件 | `file` |
+| `file-text` | 文档文件 | `file-text` |
+| `file-sheet` | 表格文件 | `file-spreadsheet` |
+| `file-image` | 图片文件 | `file-image` |
+| `file-video` | 视频文件 | `file-video` |
+| `file-audio` | 音频文件 | `file-music` |
+| `file-archive` | 压缩包 | `file-archive` |
 | `fullscreen` | 全屏 | `maximize` |
 | `retry` | 重试 | `rotate-cw` |
 
