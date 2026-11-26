@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ConfirmSheet, Desk, link, ListLoading, Notice, Stats } from '@/components';
-import { formatAmount, formatPercent, formatPoints, formatRate, shiftDay, trendClass } from '@/lib/format';
+import { ConfirmSheet, Desk, link, ListLoading, Notice, SavingsPausedNotice, Stats, Toast, useSavingsSwitch } from '@/components';
+import { AppError, explain } from '@/lib/errors';
+import { formatAmount, formatPercent, formatPoints, formatRate, formatTime, shiftDay, trendClass } from '@/lib/format';
 import { byWeeks, penaltyRate, type AnchorParams, type TermRates } from '@/lib/rates';
 import { call } from '@/lib/rpc';
 import { useMe } from '@/lib/session';
@@ -33,6 +34,8 @@ const Kv = ({ rows }: { rows: [string, string][] }) => <dl className="dc-kv">{ro
 export default function Rates() {
   const me = useMe().data!;
   const edit = me.roles.includes('teacher');
+  // 活期计息开关: the bank admin alone, not the president.
+  const switches = edit && !me.roles.includes('president');
   const [shown, setShown] = useState<Week | null>(null);
   const overview = useQuery({ queryKey: ['rate-overview'], queryFn: () => call<Overview>('rate_overview', {}) });
   const weeks = useQuery({
@@ -63,6 +66,8 @@ export default function Rates() {
 
   return (
     <Desk title="利率">
+      <SavingsPausedNotice />
+      <SavingsSwitchCard switches={switches} />
       {overview.isError ? <Notice tone="danger" title="暂时无法读取本周利率">请检查网络后刷新页面。</Notice> : !o ? <ListLoading rows={4} label="正在加载利率" /> : (
         <section className="dc-stack dc-enter" aria-label="本周锚点">
           <Stats items={[
@@ -167,5 +172,72 @@ export default function Rates() {
         </ConfirmSheet>
       )}
     </Desk>
+  );
+}
+
+// 活期计息开关 (design system data.md 活期计息开关（后台）): the state and who paused it on the left, the Switch on the
+// right for the bank admin; read-only words for everyone else. Each turn is confirmed first; it takes no reason, as
+// set_savings_interest_enabled has none (the turn raises a risk alert).
+type SavingsResult = { enabled: boolean; changed: boolean };
+function SavingsSwitchCard({ switches }: { switches: boolean }) {
+  const queryClient = useQueryClient();
+  const state = useSavingsSwitch();
+  const sw = state.data;
+  const by = useQuery({
+    queryKey: ['profile-name', sw?.updated_by],
+    enabled: !!sw?.updated_by && !sw.value,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('display_name').eq('id', sw!.updated_by!).maybeSingle();
+      if (error) throw error;
+      return data?.display_name as string | undefined;
+    },
+  });
+  const [turning, setTurning] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  if (state.isError) return <Notice tone="danger" title="暂时无法读取活期计息开关">请检查网络后刷新页面。</Notice>;
+  if (!sw) return <ListLoading rows={1} label="正在读取活期计息开关" />;
+  const status = sw.value ? '活期正常计息'
+    : `活期暂停计息 · ${formatTime(sw.updated_at).split(' ')[0]}${by.data ? ` 由 ${by.data}` : ''} 暂停`;
+
+  async function turn(on: boolean) {
+    setBusy(true);
+    setRefusal(null);
+    try {
+      const r = await call<SavingsResult>('set_savings_interest_enabled', { p_enabled: on });
+      setTurning(null);
+      setToast(!r.changed ? (r.enabled ? '已在计息' : '已是暂停计息') : r.enabled ? '已重新开启活期计息' : '已暂停活期计息');
+      queryClient.invalidateQueries();
+    } catch (e) {
+      const { code, detail } = e instanceof AppError ? e : new AppError('');
+      setRefusal(explain(code, detail).title);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const close = () => { setTurning(null); setRefusal(null); };
+
+  return (
+    <section className="dc-card dc-enter">
+      {switches ? (
+        <label className="dc-switch">
+          <span className="dc-switch-text"><b>活期计息</b><small>{status}</small></span>
+          <input type="checkbox" role="switch" checked={sw.value} onChange={(e) => setTurning(e.target.checked)} />
+          <span className="dc-switch-track" />
+        </label>
+      ) : (
+        <div className="dc-switch-text"><b>{status}</b><small>由银行管理员统一设置</small></div>
+      )}
+      {turning !== null && (
+        <ConfirmSheet title={turning ? '重新开启活期计息？' : '暂停活期计息？'} confirm={turning ? '确认开启' : '确认暂停'} busy={busy}
+          text={turning ? '从今天结束时起恢复每天计息，暂停期间的利息不补。'
+            : '暂停后每天不再计活期利息，已经攒着的利息照常在周一存进余额。重新开启后从当天起恢复计息，暂停期间的利息不补。'}
+          onConfirm={() => turn(turning)} onClose={close}>
+          {refusal && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={refusal} /></div>}
+        </ConfirmSheet>
+      )}
+      {toast && <Toast text={toast} onDone={() => setToast(null)} />}
+    </section>
   );
 }

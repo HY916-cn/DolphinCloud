@@ -29,13 +29,14 @@ export const SECTIONS: { href: string; icon: IconName; label: string; roles: Rol
 ];
 export const sectionsFor = (me: Me) => SECTIONS.filter((s) => s.roles.some((r) => me.roles.includes(r)));
 
-type NavItem = { href: string; icon: IconName; label: string; exact?: boolean; kind?: string };
+// `also`: other pages under this item (利息 is reached from 首页).
+type NavItem = { href: string; icon: IconName; label: string; exact?: boolean; also?: string[]; kind?: string };
 
 // The pages of this login's identity.
 function navItems(me: Me): NavItem[] {
   if (me.student) {
     return [
-      { href: '/student', icon: 'home', label: '首页', exact: true },
+      { href: '/student', icon: 'home', label: '首页', exact: true, also: ['/student/interest'] },
       { href: '/student/txns', icon: 'passbook', label: '明细' },
       { href: '/student/credit', icon: 'gauge', label: '信用' },
       { href: '/student/ranking', icon: 'ranking', label: '排名' },
@@ -92,7 +93,7 @@ export function Shell({ me, children }: { me: Me; children: ReactNode }) {
   const tabs = many ? [...items.slice(0, 4), items[items.length - 1]] : items;
   const [inFlow, setInFlow] = useState(false);
   const [apps, setApps] = useState(false);
-  const current = (i: NavItem) => (i.exact ? path === i.href : path.startsWith(i.href)) ? ('page' as const) : undefined;
+  const current = (i: NavItem) => (i.exact ? path === i.href || !!i.also?.includes(path) : path.startsWith(i.href)) ? ('page' as const) : undefined;
   return (
     <div className="dc-app" onClickCapture={() => { returning = false; }}>
       <div className="dc-shell">

@@ -64,7 +64,7 @@ const SETTINGS: Record<string, string> = {
   denominations: '面额', withdraw_single_limit: '单笔取款上限', withdraw_daily_limit: '单日取款上限', ranking_size: '排名人数',
   ranking_anonymous: '排名匿名', promotion_date: '升年级日期', term_rates: '定期周利率', anchor_params: '锚点', wealth_params: '理财',
   credit_curve: '信用分', credit_rules: '加减分规则', risk_rules: '风险提醒', salary_rates: '工资标准',
-  payout_ratio_min: '兑付能力提示线',
+  payout_ratio_min: '兑付能力提示线', savings_interest_enabled: '活期计息',
 };
 export const settingName = (key: string) => SETTINGS[key] ?? key;
 

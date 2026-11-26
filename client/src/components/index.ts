@@ -34,7 +34,7 @@ export {
   CreditEvents, CreditFailed, CreditGauge, CreditGaugeLoading, CreditPausedNotice, useCredit, useCreditEvents, useCreditPaused, useCreditSwitch, useGaugeCurve,
   type CreditEvent, type CreditSwitch,
 } from './Credit';
-export { RateCard, useInterest, type InterestProfile } from './Rate';
+export { RateCard, SavingsPausedNotice, useInterest, useSavingsSwitch, type InterestProfile, type SavingsSwitch } from './Rate';
 export { outside, Stepper, type Range } from './Stepper';
 export { Toast } from './Toast';
 export { AlertRow, AlertTag, useAlertOverview } from './Alerts';

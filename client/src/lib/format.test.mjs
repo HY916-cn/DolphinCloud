@@ -1,6 +1,6 @@
 // node src/lib/format.test.mjs — checks the wording rules the screens rely on.
 import assert from 'node:assert/strict';
-const { formatAmount, formatCenti, formatPercent, formatNet, formatPoints, formatRate, formatSigned, formatTime, maskName, periodOf, shanghai, shiftAt, shiftDay, signClass, trendClass } = await import('./format.ts');
+const { formatAmount, formatCenti, formatSignedCenti, formatPercent, formatNet, formatPoints, formatRate, formatSigned, formatTime, maskName, periodOf, shanghai, shiftAt, shiftDay, signClass, trendClass } = await import('./format.ts');
 assert.equal(formatAmount(1280), '1,280');
 assert.equal(formatSigned(50), '+50');
 assert.equal(formatSigned(-20), '−20');
@@ -38,6 +38,9 @@ assert.equal(formatRate(2.6), '2.6%');
 assert.equal(formatRate(1.23456), '1.2346%');
 assert.equal(formatCenti(37), '0.37');
 assert.equal(formatCenti(0), '0.00');
+assert.equal(formatSignedCenti(126), '+1.26');
+assert.equal(formatSignedCenti(0), '+0.00');
+assert.equal(formatSignedCenti(-5), '−0.05');
 assert.equal(formatCenti(105), '1.05');
 assert.equal(formatCenti(123456), '1,234.56');
 assert.equal(formatCenti(-12), '−0.12');

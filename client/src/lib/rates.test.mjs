@@ -38,6 +38,9 @@ assert.deepEqual(rateProblems({ ...d, initial: '5' }), { min: ANCHOR_ORDER, init
 assert.deepEqual(rateProblems({ ...d, min: '0', initial: '5' }), { min: ANCHOR_RANGE, initial: ANCHOR_ORDER, max: ANCHOR_ORDER });
 assert.deepEqual(rateProblems({ initial: '0.01', min: '0.01', max: '100' }), {});
 assert.equal(pendingNote(37), '满 1 HTB 再存进余额');
+assert.equal(pendingNote(37, true), '活期暂停计息 · 满 1 HTB 再存进余额');
+assert.equal(pendingNote(302, true), '活期暂停计息 · 下周一存进余额');
+assert.equal(pendingNote(0, true), '活期暂停计息');
 assert.equal(pendingNote(99), '满 1 HTB 再存进余额');
 assert.equal(pendingNote(-12), '之前的利息有更正，之后的利息先补上这部分');
 assert.equal(pendingNote(100), '下周一存进余额');

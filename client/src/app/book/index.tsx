@@ -78,7 +78,7 @@ export default function BookAccount() {
       <PassbookPage key="sums" title="利息 · 定期 · 理财 · 贷款">
         <dl className="dc-pb-fields">
           <dt>攒着的利息</dt>
-          <dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB<small>{pendingNote(interest.data.pending_centi)}</small></> : interest.isError ? '—' : '…'}</dd>
+          <dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB<small>{pendingNote(interest.data.pending_centi, !interest.data.savings_enabled)}</small></> : interest.isError ? '—' : '…'}</dd>
           <dt>定期合计</dt>
           <dd>{!term.data ? (term.error ? '—' : '…') : term.data.term_total ? <>{formatAmount(term.data.term_total)} HTB{due && <small>{due}</small>}</> : '无'}</dd>
           <dt>理财</dt>

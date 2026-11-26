@@ -80,6 +80,17 @@ test('the student and the teller see 信用分 paused at 600', async ({ page, br
   await teller.context().close();
 });
 
+test('利率看板 while 信用分 is paused: the loan tile holds one big number at 600', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/board');
+  await expect(page.locator('.dc-board-grid')).toHaveClass(/is-flat-loan/);
+  const loan = page.getByRole('region', { name: '贷款周利率' });
+  // 600 分 at the initial anchor (2%): 6.2667%.
+  await expect(loan.locator('.dc-board-hero')).toHaveText('6.27%');
+  await expect(loan.locator('.dc-board-note')).toHaveText('信用分暂停，均按 600 分计');
+  await expect(loan.locator('dl')).toHaveCount(0);
+});
+
 test('行长 reads how 信用分 stands, without the switch', async ({ page }) => {
   await signIn(page, '工作人员', 'president01');
   await expect(page).toHaveURL(/\/admin$/);

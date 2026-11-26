@@ -25,8 +25,12 @@ export const weekCenti = (rate: number) => Math.round(Math.round(rate * 10_000) 
 export const maturityCenti = (rate: number, weeks: number) => 10_000 + Math.floor((Math.round(rate * 10_000) * weeks) / 100);
 
 // When 攒着的利息 (interest_profile's pending_centi) is paid in: each Monday, the whole HTB of it. Below 0 after a
-// 补录 took back interest already counted, until later interest makes it up (§10.11).
-export const pendingNote = (centi: number) => (centi < 0 ? '之前的利息有更正，之后的利息先补上这部分' : centi >= 100 ? '下周一存进余额' : '满 1 HTB 再存进余额');
+// 补录 took back interest already counted, until later interest makes it up (§10.11). While 活期 is paused (§9.3) the note
+// says so first, and says only that when nothing is saved up.
+export const pendingNote = (centi: number, paused = false) => {
+  const note = centi < 0 ? '之前的利息有更正，之后的利息先补上这部分' : centi >= 100 ? '下周一存进余额' : '满 1 HTB 再存进余额';
+  return !paused ? note : centi ? `活期暂停计息 · ${note}` : '活期暂停计息';
+};
 
 // The anchor_params the 参数 page edits, in its order; set_setting takes each from 0.01 to 100 with 2 decimals and
 // refuses any change to the other keys.

@@ -47,8 +47,13 @@ export default function StudentHome() {
               {credit.isError ? <CreditFailed title="暂时无法读取信用分" onRetry={() => credit.refetch()} />
                 : !c || interest.isPending || loans.isPending || !term.data ? <CreditGaugeLoading size="md" /> : <>
                   <dl className="dc-kv">
-                    <div><dt>攒着的利息</dt><dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
-                      <small>{pendingNote(interest.data.pending_centi)}</small></> : '—'}</dd></div>
+                    {/* The whole row opens 利息 (StudentInterestPage), when it cannot be read too. */}
+                    <div className="is-link">
+                      <dt><a {...link('/student/interest')} aria-label={interest.data
+                        ? `攒着的利息 ${formatCenti(interest.data.pending_centi)} HTB，查看利息` : '攒着的利息，查看利息'}>攒着的利息</a></dt>
+                      <dd>{interest.data ? <>{formatCenti(interest.data.pending_centi)} HTB
+                        <small>{pendingNote(interest.data.pending_centi, !interest.data.savings_enabled)}</small></> : '—'}<Icon name="next" /></dd>
+                    </div>
                     <div><dt>定期合计</dt><dd>{term.data.term_total ? `${formatAmount(term.data.term_total)} HTB` : '没有'}</dd></div>
                     <div><dt>理财</dt><dd>{wealth.isError ? '—' : !wealth.data ? '…' : held
                       ? <>{held.text}<small><span className={`dc-pl ${held.gain.cls}`}>{held.gain.text}</span></small></> : '没有'}</dd></div>

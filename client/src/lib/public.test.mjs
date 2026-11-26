@@ -49,41 +49,79 @@ assert.deepEqual(clockFace(Date.parse('2026-11-20T06:30:05Z')), { time: '14:30:0
 assert.deepEqual(clockFace(Date.parse('2026-11-20T16:00:00Z')), { time: '00:00:00', date: '11月21日 星期六' });
 
 // 利率看板: what each tile shows of public_rates().
-const { boardView } = await import('./public.ts');
-const tiers = (rates) => ['steady', 'balanced', 'bold'].map((key, i) => ({ key, name: ['稳健', '平衡', '进取'][i], multiplier: [1, 2, 4][i], rate: rates[i] }));
-const rates = (wealth, scores) => ({
-  credit_enabled: !!scores, current: 2,
+const { boardView, roll, ROLL_WAIT } = await import('./public.ts');
+const NAMES = [['bond', '国债'], ['gold', '黄金'], ['csi300', '沪深 300'], ['chinext', '创业板指'], ['hsi', '恒生指数'], ['ndx', '纳斯达克 100']];
+const TODAY = '2026-11-25';
+const products = (rows) => NAMES.map(([key, name], i) => ({ key, name, day: TODAY, rate: null, closed: false, ...rows[i] }));
+const rates = (wealth, scores, savings = true) => ({
+  today: TODAY, credit_enabled: !!scores, savings_enabled: savings, current: savings ? 2 : 0,
   scores: scores ?? [{ score: 600, loan: 6.2667 }],
   term: { 12: 3, 2: 2.5, 48: 3.5, 4: 2.75, 24: 3.25 },
-  wealth: { name: '沪深 300', weeks: 12, ...wealth },
+  wealth,
 });
 const shown = (c) => `${c.text}${c.pct ? '%' : ''}${c.trend ? ` ${c.trend}` : ''}`;
 const FULL = [{ score: 600, loan: 6.2667 }, { score: 750, loan: 5.5667 }, { score: 900, loan: null }, { score: 1000, loan: 4.4 }];
 
-// Normal: 活期 one rate, loans by score (— where none), terms by weeks, the index and tiers signed in red or green.
-let v = boardView(rates({ day: '2026-11-19', change: 0.42, closed: false, tiers: tiers([1.3553, -2.1953, 0]) }, FULL));
+// Normal: 活期 one rate, loans by score (— where none), terms by weeks, the six products signed in red or green, 0 plain.
+let v = boardView(rates(products([{ rate: 0.6214 }, { rate: -0.6666 }, { rate: 1.4 }, { rate: -0.2891 }, { rate: 0.0012 },
+  { rate: 2.7612, day: '2026-11-24' }]), FULL));
 assert.equal(shown(v.current), '2%');
+assert.equal(v.paused, false);
+assert.equal(v.flat, false);
 assert.deepEqual(v.loans.map((l) => `${l.label} ${shown(l.cell)}`), ['600 分 6.27%', '750 分 5.57%', '900 分 —', '1000 分 4.4%']);
 assert.deepEqual(v.terms.map((t) => `${t.label} ${shown(t.cell)}`), ['2 周 2.5%', '4 周 2.75%', '12 周 3%', '24 周 3.25%', '48 周 3.5%']);
-assert.equal(`${v.index.label} ${shown(v.index.cell)}`, '沪深 300 +0.42% is-up');
-assert.deepEqual(v.tiers.map((t) => `${t.name}×${t.multiplier} ${shown(t.cell)}`), ['稳健×1 +1.36% is-up', '平衡×2 −2.2% is-down', '进取×4 0%']);
+assert.deepEqual(v.wealth.map((w) => `${w.name}|${w.day}|${shown(w.cell)}`), [
+  '国债||+0.62% is-up', '黄金||−0.67% is-down', '沪深 300||+1.4% is-up', '创业板指||−0.29% is-down', '恒生指数||0%',
+  '纳斯达克 100|11月24日|+2.76% is-up',
+]);
 
-// Closed today: the index reads 休市, the tiers their bases.
-v = boardView(rates({ day: '2026-11-21', change: 0, closed: true, tiers: tiers([0.5153, 0.5153, 0.5153]) }, FULL));
-assert.equal(shown(v.index.cell), '休市');
-assert.deepEqual(v.tiers.map((t) => shown(t.cell)), ['+0.52% is-up', '+0.52% is-up', '+0.52% is-up']);
+// Closed: 休市 under the name, the rate as given; a day not today too: both. No net value yet: —.
+v = boardView(rates(products([{ closed: true, rate: 0.32 }, { closed: true, day: '2026-11-24', rate: 0.32 }, { day: null }]), FULL));
+assert.deepEqual(v.wealth.slice(0, 3).map((w) => `${w.day}|${shown(w.cell)}`), ['休市|+0.32% is-up', '11月24日 · 休市|+0.32% is-up', '|—']);
 
-// No quote yet: — for the index and every tier.
-v = boardView(rates({ day: null, change: null, closed: false, tiers: tiers([null, null, null]) }, FULL));
-assert.equal(shown(v.index.cell), '—');
-assert.deepEqual(v.tiers.map((t) => shown(t.cell)), ['—', '—', '—']);
-
-// The latest trading day is not today: the numbers are that day's, shown as they come.
-v = boardView(rates({ day: '2026-11-14', change: -0.8, closed: false, tiers: tiers([-1.1, -2.2, -4.4]) }, FULL));
-assert.equal(shown(v.index.cell), '−0.8% is-down');
-assert.deepEqual(v.tiers.map((t) => shown(t.cell)), ['−1.1% is-down', '−2.2% is-down', '−4.4% is-down']);
-
-// Credit paused: only the 600 row, not padded to four.
-v = boardView(rates({ day: '2026-11-19', change: 0.42, closed: false, tiers: tiers([1, 2, 3]) }));
+// Credit paused: only the 600 row, flat; 活期 paused: by savings_enabled.
+v = boardView(rates(products([]), undefined, false));
 assert.deepEqual(v.loans.map((l) => `${l.label} ${shown(l.cell)}`), ['600 分 6.27%']);
+assert.equal(v.flat, true);
+assert.equal(v.paused, true);
+
+// 自动滚动: wait 5 s at the top, down at the speed, wait 5 s at the bottom, back up, wait again.
+let r = { phase: 'top', since: 0, pos: 0 };
+assert.equal(roll(r, ROLL_WAIT - 1, 600, 100, 0), r);
+r = roll(r, ROLL_WAIT, 600, 100, 0);
+assert.deepEqual(r, { phase: 'down', since: ROLL_WAIT, pos: 0 });
+r = roll(r, ROLL_WAIT + 1000, 600, 100, 0);
+assert.deepEqual(r, { phase: 'down', since: ROLL_WAIT + 1000, pos: 100 });
+r = roll(r, ROLL_WAIT + 7000, 600, 100, 100);
+assert.deepEqual(r, { phase: 'bottom', since: ROLL_WAIT + 7000, pos: 600 });
+assert.equal(roll(r, ROLL_WAIT + 7000 + ROLL_WAIT - 1, 600, 100, 600), r);
+r = roll(r, ROLL_WAIT * 2 + 7000, 600, 100, 600);
+assert.equal(r.phase, 'up');
+assert.equal(roll(r, r.since + 500, 600, 100, 300), r);
+assert.deepEqual(roll(r, r.since + 600, 600, 100, 0), { phase: 'top', since: r.since + 600, pos: 0 });
+// A board that fits stays at the top; one that grew shorter goes on from its new bottom.
+assert.deepEqual(roll({ phase: 'down', since: 0, pos: 300 }, 10, 1, 100, 300), { phase: 'top', since: 10, pos: 0 });
+assert.deepEqual(roll({ phase: 'down', since: 0, pos: 500 }, 10, 400, 100, 400), { phase: 'bottom', since: 10, pos: 400 });
+// Going on from where someone left it after a pause: down from scrollTop.
+assert.deepEqual(roll({ phase: 'top', since: 0, pos: 0 }, ROLL_WAIT, 600, 100, 250), { phase: 'down', since: ROLL_WAIT, pos: 250 });
+
+// The upload's progress: files left, the one under way counted, bytes sent rounded down.
+const { remaining, sendProgress } = await import('./public.ts');
+const item = (size, status, progress = 0) => ({ size, status, progress });
+assert.deepEqual(sendProgress([item(2_516_582, 'done', 100), item(19_608_371, 'uploading', 45), item(3_670_016, 'waiting')]),
+  { left: 2, sent: 2_516_582 + 8_823_766, total: 25_794_969, percent: 43 });
+assert.deepEqual(sendProgress([item(0, 'done', 100), item(0, 'done', 100)]), { left: 0, sent: 0, total: 0, percent: 100 });
+assert.deepEqual(sendProgress([item(0, 'waiting')]), { left: 1, sent: 0, total: 0, percent: 0 });
+
+// 剩余时间, rounded down.
+const NOW = Date.parse('2026-11-20T06:30:00Z');
+const at = (min) => new Date(NOW + min * 60_000 + 30_000).toISOString();
+assert.equal(remaining(at(7 * 1440 - 60), NOW), '还剩 6 天 23 小时');
+assert.equal(remaining(at(6 * 1440), NOW), '还剩 6 天');
+assert.equal(remaining(at(6 * 1440 + 59), NOW), '还剩 6 天');
+assert.equal(remaining(at(5 * 60 + 20), NOW), '还剩 5 小时 20 分');
+assert.equal(remaining(at(5 * 60), NOW), '还剩 5 小时');
+assert.equal(remaining(at(12), NOW), '还剩 12 分钟');
+assert.equal(remaining(at(0), NOW), '还剩 0 分钟');
+assert.equal(remaining(new Date(NOW).toISOString(), NOW), '已到期');
 console.log('public ok');

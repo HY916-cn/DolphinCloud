@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertRow, Dashboard, Desk, Icon, KvLoading, link, ListLoading, MoveList, Notice, Summary, today, TxnListLoading, useAlertOverview, type IconName, type Move,
+  AlertRow, Dashboard, Desk, Icon, SavingsPausedNotice, KvLoading, link, ListLoading, MoveList, Notice, Summary, today, TxnListLoading, useAlertOverview, type IconName, type Move,
 } from '@/components';
 import { LEDGER, LedgerLine, type LedgerRow } from '@/components/Ledger';
 import { diffAmount } from '@/lib/cash';
@@ -273,6 +273,7 @@ export default function Admin() {
 
   return (
     <Desk title="总览">
+      {money && <SavingsPausedNotice />}
       {!!jobs.data?.length && (
         <Notice tone="danger" title="定时任务没有完成">
           {jobs.data.map(jobFailure).map((f) => (

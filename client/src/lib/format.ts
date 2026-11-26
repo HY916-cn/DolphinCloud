@@ -12,6 +12,8 @@ export const trendClass = (n: number) => (n > 0 ? 'is-up' : n < 0 ? 'is-down' : 
 export const formatRate = (r: number) => `${Number(r.toFixed(4))}%`;
 // 待入账利息 from 0.01 HTB, always with two decimals: 37 → 0.37, 0 → 0.00.
 export const formatCenti = (c: number) => `${c < 0 ? '−' : ''}${formatAmount(Math.trunc(c / 100))}.${String(Math.abs(c) % 100).padStart(2, '0')}`;
+// A day's 活期 interest or a correction, always signed: +1.26, −0.05, +0.00.
+export const formatSignedCenti = (c: number) => `${c < 0 ? '' : '+'}${formatCenti(c)}`;
 // A change of the anchor in percentage points, two decimals: +0.25, −0.50, 0.00.
 export const formatPoints = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(2)}`;
 // 存贷比 40.0%, 增速 +2.3% (`signed`), one decimal.
