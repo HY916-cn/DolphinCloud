@@ -9,7 +9,7 @@ export type { IconName };
 // The design system's Lucide icons, inline so the colour follows the text (README "图标").
 export function Icon({ name }: { name: IconName }) {
   return (
-    <svg className="dc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"
+    <svg className="dc-icon" data-icon={name} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"
       strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: icons[name] }} />
   );
 }

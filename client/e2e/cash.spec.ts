@@ -205,7 +205,11 @@ test('财务: 待复核 on 总览 (a day late in red), 复核 as the teller coun
   const shift = page.locator('section[aria-label="这次上班"]');
   const check = page.locator('section[aria-label="核对"]');
   const actions = page.locator('.dc-actions');
-  await expect(shift.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '差额']);
+  // The cash table is in 核对, one row per face; the totals are in 这次上班.
+  const table = check.getByRole('table', { name: '本次上班现金' });
+  await expect(table.getByRole('columnheader')).toHaveText(['面额', '应有', '柜员实点', '差额']);
+  await expect(table.locator('tbody tr td:first-child')).toHaveText(['1 元', '2 元', '5 元', '10 元']);
+  await expect(shift.locator('.dc-kv > div').filter({ hasText: /^(应有|柜员实点)/ })).toHaveText(['应有97 HTB', '柜员实点97 HTB']);
   await expect(check.getByRole('radio', { name: '和柜员点的一致' })).toBeChecked();
   await expect(check.locator('.dc-caption')).toHaveText('以柜员点的 97 HTB 为准。');
   await expect(actions.locator('.dc-actions-total b')).toHaveText('97HTB');
@@ -246,7 +250,10 @@ test('财务: 待复核 on 总览 (a day late in red), 复核 as the teller coun
 
   // A review already made is read-only.
   await byDiff(page, '多 1 HTB').getByRole('link', { name: '柜员小林' }).click();
-  await expect(shift.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '复核实点', '差额']);
+  const cash = page.locator('section[aria-label="现金"]');
+  await expect(cash.getByRole('table', { name: '本次上班现金' }).getByRole('columnheader')).toHaveText(['面额', '应有', '柜员实点', '复核实点', '差额']);
+  await expect(cash.getByRole('table', { name: '本次上班现金' }).locator('tbody tr').first().locator('td')).toHaveText(['1 元', /^\d+$/, '22', '21', /^(0|[多少] \d+ 张)$/]);
+  await expect(shift).toContainText('复核实点96 HTB');
   await expect(shift).toContainText('由财务小郑复核');
   await expect(check).toHaveCount(0);
   await expect(actions).toHaveCount(0);

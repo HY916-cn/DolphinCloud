@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { Icon, Notice, Toast } from '@/components';
 import { AppError, explain } from '@/lib/errors';
+import { fileIcon } from '@/lib/files';
 import { formatTime } from '@/lib/format';
 import { codeDigits, formatSize, MAX_FILE, MAX_FILES, MAX_TOTAL, remaining, sendProgress, tooLarge } from '@/lib/public';
 import { call } from '@/lib/rpc';
@@ -225,7 +226,7 @@ function Send() {
             {pickup.files.map((f) => (
               <li key={f.seq}>
                 <div className="dc-list-item">
-                  <span className="dc-list-icon"><Icon name="file" /></span>
+                  <span className="dc-list-icon"><Icon name={fileIcon(f.name)} /></span>
                   <span><span className="dc-file-name">{f.name}</span><small>{formatSize(f.size)}</small></span>
                 </div>
               </li>
@@ -272,7 +273,7 @@ function Send() {
                 return (
                   <li key={i.key}>
                     <div className="dc-list-item">
-                      <span className="dc-list-icon"><Icon name="file" /></span>
+                      <span className="dc-list-icon"><Icon name={fileIcon(i.file.name)} /></span>
                       <span>
                         <span className="dc-file-name">{i.file.name}</span>
                         <small>{i.status === 'uploading' ? `${size} · ${i.progress}%` : i.status === 'waiting' ? `${size} · 等待上传`
@@ -414,7 +415,7 @@ function Receive({ initial }: { initial: string }) {
               {pickup.files.map((f) => (
                 <li key={f.seq}>
                   <div className="dc-list-item">
-                    <span className="dc-list-icon"><Icon name="file" /></span>
+                    <span className="dc-list-icon"><Icon name={fileIcon(f.name)} /></span>
                     <span><span className="dc-file-name">{f.name}</span><small>{formatSize(f.size)}</small></span>
                     <a className="dc-btn dc-btn-secondary dc-btn-sm" href={location.origin + f.url} download={f.name}
                       aria-label={`下载 ${f.name}`} onClick={download}><Icon name="download" />下载</a>

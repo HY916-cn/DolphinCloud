@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet, Desk, Icon, ListLoading, Notice, Toast } from '@/components';
 import { AppError, explain } from '@/lib/errors';
+import { filesIcon } from '@/lib/files';
 import { formatTime } from '@/lib/format';
 import { formatSize } from '@/lib/public';
 import { call } from '@/lib/rpc';
@@ -35,7 +36,7 @@ export default function Transfers() {
                 {d.transfers.map((t) => (
                   <li key={t.id}>
                     <div className="dc-list-item">
-                      <span className="dc-list-icon"><Icon name="file" /></span>
+                      <span className="dc-list-icon"><Icon name={filesIcon(t.files.map((f) => f.name))} /></span>
                       <span>
                         {t.files.length} 个文件 · <b>{formatSize(t.total)}</b>
                         <small>{formatTime(t.created_at)} 生成 · {formatTime(t.expires_at)} 到期 · 来源 {t.ip}</small>

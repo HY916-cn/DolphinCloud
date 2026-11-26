@@ -32,11 +32,12 @@ export default function CashReviewPage() {
   );
 }
 
-// 这次上班 is the reference: when it ran, how it stands, the cash table and its cash businesses. 核对 is the work, for the
-// accountant or the bank admin while the duty waits: 和柜员点的一致 (the teller's count stands) or a count of their own
+// 这次上班 is the reference: when it ran and how it stands with its totals. 核对 is the work, for the accountant or the
+// bank admin while the duty waits: the cash table, then 和柜员点的一致 (the teller's count stands) or a count of their own
 // with the reason. A duty without the teller's count (强制下班, or ended by an old client) takes their count at once.
-// On a computer 核对 is on the left and 这次上班 stays in view on the right; on a phone 这次上班 comes first and the
-// cash businesses last. Read-only (已轧账, or no right to review): no 核对, no ActionBar.
+// On a computer 核对 and then the cash businesses are on the left, and 这次上班 alone stays in view on the right; on a
+// phone 这次上班 comes first and the cash businesses last. Read-only (已轧账, or no right to review): 核对 becomes 现金,
+// only the cash table, and no ActionBar.
 function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; onDone: () => void }) {
   const queryClient = useQueryClient();
   const wide = useWide();
@@ -77,7 +78,10 @@ function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; o
   const rows: [string, ReactNode][] = [
     ['上班', dutySpan(r.started_at, r.ended_at)],
     ['状态', <ReviewTag key="s" r={r} />],
+    ['应有', `${formatAmount(r.expected_total)} HTB`],
     ...(r.teller_total !== null ? [['柜员实点', `${formatAmount(r.teller_total)} HTB`] as [string, ReactNode]] : []),
+    ...(r.status === 'done' && r.review_count && r.count_total !== null
+      ? [['复核实点', `${formatAmount(r.count_total)} HTB`] as [string, ReactNode]] : []),
     ...(r.diff ? [['差额', <span key="d" className={r.balanced ? undefined : 'is-danger'}>{diffAmount(r.diff)}</span>] as [string, ReactNode]] : []),
     ...(r.teller_note ? [['柜员的原因', r.teller_note] as [string, ReactNode]] : []),
     ...(r.forced_reason ? [['强制下班的原因', r.forced_reason] as [string, ReactNode]] : []),
@@ -95,19 +99,34 @@ function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; o
     <section className="dc-card dc-stack" aria-label="这次上班">
       <h2 className="heading">这次上班</h2>
       <Summary rows={rows} />
-      <CashTable r={r} />
-      {reversed && <p className="dc-caption">{reversed}，这次上班的应有不变。</p>}
-      {wide && txns}
     </section>
   );
   const refusal = problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>;
-  const after = !wide && <section className="dc-stack">{txns}</section>;
-  if (!open) return <>{refusal}{shift}{after}</>;
+  const table = (
+    <>
+      <CashTable r={r} />
+      {reversed && <p className="dc-caption">{reversed}，这次上班的应有不变。</p>}
+    </>
+  );
+  const after = <section className="dc-stack">{txns}</section>;
+  const page = (work: ReactNode) => (wide
+    ? <div className="dc-split"><div className="dc-stack">{work}{after}</div><div className="is-sticky">{shift}</div></div>
+    : <>{shift}{work}{after}</>);
+  if (!open) {
+    return page(
+      <section className="dc-card dc-stack" aria-label="现金">
+        <h2 className="heading">现金</h2>
+        {refusal}
+        {table}
+      </section>,
+    );
+  }
 
   const work = (
     <section className="dc-card dc-stack" aria-label="核对">
       <h2 className="heading">核对</h2>
       {refusal}
+      {table}
       {r.teller_count && (
         <fieldset className="dc-seg" aria-label="复核结果">
           <label><input type="radio" name="review-same" checked={same} onChange={() => setSame(true)} /><span>和柜员点的一致</span></label>
@@ -132,7 +151,7 @@ function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; o
 
   return (
     <>
-      {wide ? <div className="dc-split">{work}<div className="is-sticky">{shift}</div></div> : <>{shift}{work}{after}</>}
+      {page(work)}
       <div className="dc-actions">
         <button className={`dc-btn dc-btn-primary ${busy ? 'is-loading' : ''}`} type="button" disabled={busy || !ready} onClick={review}>
           <Icon name="check" />复核通过

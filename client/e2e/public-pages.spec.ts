@@ -10,6 +10,9 @@ let code = '';
 const pickup = (page: Page) => page.locator('.dc-pickup-code');
 const boxes = (page: Page) => page.getByRole('group', { name: '取件码' }).locator('input');
 const typed = (page: Page) => expect.poll(() => boxes(page).evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value)));
+// The icon of each file row in a list, by its type.
+const expectIcons = (page: Page, list: string, icons: string[]) => expect.poll(() => page.getByRole('list', { name: list })
+  .locator('.dc-list-icon svg').evaluateAll((els) => els.map((e) => e.getAttribute('data-icon')))).toEqual(icons);
 
 test('the login page links to the three pages, all on one 375×667 screen', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
@@ -116,6 +119,7 @@ test('发送 two small files for a pickup code', async ({ page }) => {
     { name: 'empty.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(0) },
   ]);
   await expect(page.getByRole('list', { name: '要发送的文件' }).locator('.dc-file-name')).toHaveText(['报告.txt', 'empty.bin']);
+  await expectIcons(page, '要发送的文件', ['file-text', 'file']);
   // 这次的额度 holds the count and the total; the ActionBar only the button.
   const quota = page.getByRole('region', { name: '这次的额度' });
   await expect(quota.locator('.dc-progress-head')).toHaveText(['文件个数2 / 20', '合计大小1 KB / 200 MB']);
@@ -130,6 +134,7 @@ test('发送 two small files for a pickup code', async ({ page }) => {
   // 7 days from the server's clock, read on the browser's: a little either way.
   await expect(page.locator('.dc-pickup .dc-caption')).toHaveText(/^还剩 (7 天|6 天 23 小时)$/);
   await expect(page.getByRole('list', { name: '这次发出的文件' }).locator('.dc-list-item')).toHaveText(['报告.txt1 KB', 'empty.bin1 KB']);
+  await expectIcons(page, '这次发出的文件', ['file-text', 'file']);
   await expect(page.getByText('2 个文件，合计 1 KB')).toBeVisible();
   await expect(page.locator('.dc-actions')).toHaveCount(0);
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -139,6 +144,13 @@ test('发送 two small files for a pickup code', async ({ page }) => {
   await page.getByRole('button', { name: '再发一批' }).click();
   await expect(page.getByRole('button', { name: '上传', exact: true })).toBeDisabled();
   await expect(steps.first()).toHaveAttribute('aria-current', 'step');
+});
+
+test('发送 lists each file with the icon of its type', async ({ page }) => {
+  await page.goto('/transfer');
+  await page.locator('input[type="file"]').setInputFiles(['计划.PDF', '名单.xlsx', '资料.zip', 'README']
+    .map((name) => ({ name, mimeType: 'application/octet-stream', buffer: Buffer.from('x') })));
+  await expectIcons(page, '要发送的文件', ['file-text', 'file-sheet', 'file-archive', 'file']);
 });
 
 test('发送 more than 200 MB in all: the total turns red with what is over, and nothing can be sent', async ({ page }) => {
@@ -170,6 +182,7 @@ test('接收 with the code lists the files and downloads them under their names'
   await page.getByRole('button', { name: '取件' }).click();
   const files = page.getByRole('list', { name: '文件' });
   await expect(files.locator('.dc-file-name')).toHaveText(['报告.txt', 'empty.bin']);
+  await expectIcons(page, '文件', ['file-text', 'file']);
   await expect(files.locator('small')).toHaveText(['1 KB', '1 KB']);
   await expect(page.getByRole('list', { name: '步骤' }).locator('li[aria-current="step"]')).toHaveText('下载文件');
   await expect(page.getByText(/^还剩 (7 天|6 天 23 小时)，有效期内可以反复下载。$/)).toBeVisible();
@@ -216,6 +229,8 @@ test('后台「文件」lists the pickup without its code and deletes it with a 
   await expect(row).toHaveCount(1);
   await expect(row).toContainText('2 个文件 · 1 KB');
   await expect(row).toContainText('报告.txt、empty.bin');
+  // A pickup of files of different types: the plain file icon.
+  await expect(row.locator('.dc-list-icon svg')).toHaveAttribute('data-icon', 'file');
   await expect(row).not.toContainText(code);
   await row.getByRole('button', { name: '删除' }).click();
   const sheet = page.locator('.dc-sheet');

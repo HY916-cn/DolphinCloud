@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
-import { cashCell, cashNotes, diffAmount, diffNotes, type Counts } from '@/lib/cash';
+import { useState } from 'react';
+import { cashCell, cashNotes, diffNotes } from '@/lib/cash';
 import type { CashReview, CashTxn } from '@/lib/duty';
 import { AppError, explain } from '@/lib/errors';
 import { dutySpan, formatAmount, formatSigned, formatTime } from '@/lib/format';
@@ -50,32 +50,41 @@ export function ReviewTag({ r }: { r: CashReview }) {
   return r.overdue ? <span className="dc-tag dc-tag-danger"><Icon name="warning" />待复核{late}</span> : <span className="dc-tag dc-tag-pending">待复核</span>;
 }
 
-const htb = (n: number | null) => (n === null ? '—' : `${formatAmount(n)} HTB`);
-
 // Every duty's 轧账, newest first (the 轧账 page and each 复核 page read the same list).
 // shortcut: every duty in one read, filtered on the device; fine for one school's terms, pass p_from / p_to when it grows.
 export const useCashReviews = () => useQuery({ queryKey: ['cash-reviews'], queryFn: () => call<CashReview[]>('cash_reviews', {}) });
 
-// The screen's cash table of one duty: notes per face and the amount, 应有, 柜员实点, 复核实点 (when a reviewer
-// counted) and the 差额 by the count that stands.
+// The screen's cash table of one duty, one row per face: the notes 应有, 柜员 (the teller's count, when there is one),
+// 复核 (when a reviewer counted) and the 差额 by the count that stands. The totals are in 这次上班's SummaryList.
 export function CashTable({ r }: { r: CashReview }) {
   const faces = Object.keys(r.expected).map(Number).sort((a, b) => a - b);
-  const row = (label: string, counts: Counts, total: ReactNode, totalDanger = false, cell = (n: number) => ({ text: cashCell(n, true).text, short: n < 0 })) => (
-    <tr className={label === '应有' ? 'is-total' : undefined}>
-      <td>{label}</td>
-      {faces.map((f) => { const c = cell(counts[f] ?? 0); return <td key={f} className={`n ${c.short ? 'is-danger' : ''}`}>{c.text}</td>; })}
-      <td className={`n ${totalDanger ? 'is-danger' : ''}`}>{total}</td>
-    </tr>
-  );
+  const cell = (key: string, text: string, danger: boolean) => <td key={key} className={`n ${danger ? 'is-danger' : ''}`}>{text}</td>;
   return (
     <div className="dc-table-scroll">
       <table className="dc-table" aria-label="本次上班现金">
-        <thead><tr><th scope="col"><span className="dc-sr-only">项目</span></th>{faces.map((f) => <th key={f} scope="col" className="n">{f}元</th>)}<th scope="col" className="n">合计</th></tr></thead>
+        <thead>
+          <tr>
+            <th scope="col"><span className="dc-sr-only">面额</span></th>
+            <th scope="col" className="n">应有</th>
+            {r.teller_count && <th scope="col" className="n">柜员<span className="dc-sr-only">实点</span></th>}
+            {r.review_count && <th scope="col" className="n">复核<span className="dc-sr-only">实点</span></th>}
+            {r.diff && <th scope="col" className="n">差额</th>}
+          </tr>
+        </thead>
         <tbody>
-          {row('应有', r.expected, htb(r.expected_total))}
-          {r.teller_count && row('柜员实点', r.teller_count, htb(r.teller_total))}
-          {r.review_count && row('复核实点', r.review_count, htb(r.count_total))}
-          {r.diff && row('差额', r.diff, diffAmount(r.diff), !r.balanced, (n) => ({ text: n ? diffNotes(n) : '0', short: n !== 0 }))}
+          {faces.map((f) => {
+            const expected = cashCell(r.expected[f] ?? 0, true);
+            const diff = r.diff?.[f] ?? 0;
+            return (
+              <tr key={f}>
+                <td>{f} 元</td>
+                {cell('expected', expected.text, expected.short)}
+                {r.teller_count && cell('teller', cashCell(r.teller_count[f] ?? 0, true).text, false)}
+                {r.review_count && cell('review', cashCell(r.review_count[f] ?? 0, true).text, false)}
+                {r.diff && cell('diff', diff ? diffNotes(diff) : '0', diff !== 0)}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
