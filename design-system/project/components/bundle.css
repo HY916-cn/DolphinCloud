@@ -432,6 +432,8 @@ a.dc-qty-name::after { content: ""; position: absolute; inset: -9px 0; }
 .dc-sheet::before { content: ""; display: block; width: 48px; height: 6px; margin: 0 auto var(--space-4); border-radius: var(--radius-pill); background: var(--cloud-200); }
 .dc-sheet-title { margin: 0 0 var(--space-2); font: 700 20px/28px var(--font-sans); }
 .dc-sheet-text { margin: 0; }
+/* 弹层正文后面的内容（表单、服务器拒绝时的 Notice）：和标题、说明隔开一行 */
+.dc-sheet-body { margin-top: var(--space-3); }
 .dc-sheet-actions { display: flex; flex-direction: column-reverse; gap: var(--space-3); margin-top: var(--space-5); }
 .dc-sheet-actions .dc-btn { width: 100%; }
 @container app (min-width: 600px) {

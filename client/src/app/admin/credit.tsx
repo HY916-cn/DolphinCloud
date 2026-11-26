@@ -182,13 +182,13 @@ function AdjustSheets({ student, score, onClose, onDone }: {
     return (
       <ConfirmSheet title={`给${student.name}${gain ? '加' : '减'} ${n} 分？`} text={`${score} 分 → ${to} 分。原因：${reason.trim()}。调整会生成一条风险提醒，行长和银行管理员都能看到。`}
         confirm="确认调整" busy={busy} onConfirm={adjust} onClose={() => { setConfirming(false); setRefusal(null); }}>
-        {refusal && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={refusal} /></div>}
+        {refusal && <div className="dc-sheet-body"><Notice tone="danger" title={refusal} /></div>}
       </ConfirmSheet>
     );
   }
   return (
     <ConfirmSheet title="调整信用分" confirm="下一步" ready={ok} onConfirm={() => setConfirming(true)} onClose={onClose}>
-      <div className="dc-stack" style={{ marginTop: 'var(--space-3)' }}>
+      <div className="dc-stack dc-sheet-body">
         <fieldset className="dc-seg" aria-label="加分或减分">
           {([[true, '加分'], [false, '减分']] as const).map(([g, label]) => (
             <label key={label}><input type="radio" name="credit-sign" checked={gain === g} onChange={() => setGain(g)} /><span>{label}</span></label>
@@ -284,13 +284,13 @@ function SwitchSheets({ on, onClose, onDone }: { on: boolean; onClose: () => voi
         text={on ? '恢复每位学生暂停前的分数，之后照常加减分。暂停期间没有加减的分不补。'
           : '暂停后所有学生按 600 分计算额度和利率，分数不再加减。重新开启后恢复每位学生暂停前的分数。'}
         onClose={on ? onClose : () => { setConfirming(false); setRefusal(null); }}>
-        {refusal && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={refusal} /></div>}
+        {refusal && <div className="dc-sheet-body"><Notice tone="danger" title={refusal} /></div>}
       </ConfirmSheet>
     );
   }
   return (
     <ConfirmSheet title="暂停信用分" confirm="下一步" ready={!!reason.trim()} onConfirm={() => setConfirming(true)} onClose={onClose}>
-      <label className="dc-field" style={{ marginTop: 'var(--space-3)' }}>
+      <label className="dc-field dc-sheet-body">
         <span className="dc-field-label"><Icon name="help" />原因</span>
         <span className="dc-input-wrap dc-input-area">
           <textarea className="dc-input" rows={3} maxLength={100} value={reason} placeholder="写清楚暂停的原因" onChange={(e) => setReason(e.target.value)} />

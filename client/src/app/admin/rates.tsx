@@ -234,7 +234,7 @@ function SavingsSwitchCard({ switches }: { switches: boolean }) {
           text={turning ? '从今天结束时起恢复每天计息，暂停期间的利息不补。'
             : '暂停后每天不再计活期利息，已经攒着的利息照常在周一存进余额。重新开启后从当天起恢复计息，暂停期间的利息不补。'}
           onConfirm={() => turn(turning)} onClose={close}>
-          {refusal && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={refusal} /></div>}
+          {refusal && <div className="dc-sheet-body"><Notice tone="danger" title={refusal} /></div>}
         </ConfirmSheet>
       )}
       {toast && <Toast text={toast} onDone={() => setToast(null)} />}

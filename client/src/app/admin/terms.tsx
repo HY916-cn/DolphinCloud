@@ -133,7 +133,7 @@ function TermSheet({ term, onClose, onSaved }: { term: Term | null; onClose: () 
   return (
     <ConfirmSheet title={term ? '修改学期' : '登记学期'} confirm="保存" busy={busy} ready={!!name.trim() && !!starts && ends >= starts}
       onConfirm={save} onClose={onClose}>
-      <div className="dc-stack" style={{ marginTop: 'var(--space-3)' }}>
+      <div className="dc-stack dc-sheet-body">
         {notice && <Notice tone="danger" title={notice.title}>{notice.text}</Notice>}
         <label className={`dc-field ${errorOf('name') ? 'is-error' : ''}`}>
           <span className="dc-field-label"><Icon name="passbook" />名称</span>
@@ -175,7 +175,7 @@ function CloseTermSheet({ term, onClose, onClosed, onOpenItems }: {
   return (
     <ConfirmSheet title={`结转 ${term.name}？`} text="结转后这个学期只读。余额和信用分原样转入下学期，不生成流水。" confirm="结转" busy={busy}
       onConfirm={close} onClose={onClose}>
-      {notice && <div style={{ marginTop: 'var(--space-3)' }}><Notice tone="danger" title={notice.title}>{notice.text}</Notice></div>}
+      {notice && <div className="dc-sheet-body"><Notice tone="danger" title={notice.title}>{notice.text}</Notice></div>}
     </ConfirmSheet>
   );
 }
