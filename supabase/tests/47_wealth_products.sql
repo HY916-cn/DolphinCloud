@@ -177,51 +177,52 @@ update students set status = 'frozen' where student_no = 'frz';
 select tests.student('pay', 100);
 insert into staff_payroll (user_id, account) values (:'teller', 'pay');
 
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d1', 's1', 100, 'csi300')$$) as bought \gset
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d1', 's1', 'csi300', 100)$$) as bought \gset
 select is(:'bought'::jsonb - 'id' - 'txn_no' - 'created_at' - 'holding',
   '{"type":"wealth_buy","amount":100,"balance_after":400,"denominations":null,"change_given":null}', '买入: 100 out of 活期');
-select is((:'bought'::jsonb -> 'holding') - 'open_txn',
-  jsonb_build_object('id', '00000000-0000-4000-8000-0000000047d1', 'student_no', 's1', 'principal', 100, 'product', 'csi300', 'buy_nav', 1.05,
-    'weeks', null, 'opened_on', :'today'::date, 'starts_on', :'today'::date + 1, 'matures_on', null, 'value_centi', 10000, 'valued_to', :'today'::date,
-    'status', 'open', 'close_txn', null, 'closed_on', null, 'tier', null, 'tier_name', null, 'multiplier', null, 'factor', null, 'base', null,
-    'min_rate', null, 'max_rate', null, 'name', '沪深 300', 'nav', 1.05, 'gain_centi', 0, 'sellable_on', :'today'::date + 1),
+select is(:'bought'::jsonb -> 'holding',
+  jsonb_build_object('id', '00000000-0000-4000-8000-0000000047d1', 'product', 'csi300', 'name', '沪深 300', 'principal', 100, 'buy_nav', 1.05,
+    'bought_at', (select created_at from txns where id = (:'bought'::jsonb ->> 'id')::uuid), 'value_centi', 10000, 'gain_centi', 0,
+    'sellable_on', :'today'::date + 1, 'status', 'open', 'closed_on', null, 'returned_centi', null),
   'at the latest net value, sellable tomorrow, no term');
 select is((select concat_ws(' ', balance_delta, cash_delta, operator_id = :'teller', reason) from txns where id = (:'bought'::jsonb ->> 'id')::uuid),
-  '-100 0 t 沪深 300，净值 1.050000', 'no cash moves; the product and the net value');
-select is(tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d1', 's1', 100, 'csi300')$$) ->> 'id', :'bought'::jsonb ->> 'id',
+  '-100 0 t 沪深 300，净值 1.0500', 'no cash moves; the product and the net value');
+select is(tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d1', 's1', 'csi300', 100)$$) ->> 'id', :'bought'::jsonb ->> 'id',
   'sent again, the same result');
-select is(tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 's1', 401, 'gold')$$),
+select is(tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 's1', 'gold', 401)$$),
   '{"error":"INSUFFICIENT_BALANCE","detail":"{\"short\": 1, \"balance\": 400}"}', 'not more than 活期');
-select is(tests.call(:'teller', format('select buy_wealth(gen_random_uuid(), %L, %s, %L)', n, a, p)) ->> 'error', e, why)
+select is(tests.call(:'teller', format('select buy_wealth(gen_random_uuid(), %L, %L, %s)', n, p, a)) ->> 'error', e, why)
 from (values ('s1', 0, 'gold', 'INVALID_AMOUNT', '1 HTB or more'), ('s1', 10, 'x', 'INVALID_INPUT', 'one of the six'),
   ('frz', 10, 'gold', 'STUDENT_INACTIVE', 'an account in use'), ('pay', 10, 'gold', 'SELF_SERVICE_FORBIDDEN', 'not the teller''s own pay account'),
   ('nobody', 10, 'gold', 'STUDENT_NOT_FOUND', 'a student that exists')) t(n, a, p, e, why);
-select is(tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 's1', 10, 'x')$$) ->> 'detail', '{"field": "product"}', 'field product');
-select is(tests.err(w, $$select buy_wealth(gen_random_uuid(), 's1', 10, 'gold')$$), 'FORBIDDEN', 'the counter''s alone')
+select is(tests.call(:'teller', $$select buy_wealth(gen_random_uuid(), 's1', 'x', 10)$$) ->> 'detail', '{"field": "product"}', 'field product');
+select is(tests.err(w, $$select buy_wealth(gen_random_uuid(), 's1', 'gold', 10)$$), 'FORBIDDEN', 'the counter''s alone')
 from unnest(array[:'president', :'teacher', :'accountant', :'s1']::uuid[]) w;
 update duty set ended_at = now(), txns = 0 where user_id = :'teller2';
-select is(tests.err(:'teller2', $$select buy_wealth(gen_random_uuid(), 's1', 10, 'gold')$$), 'OFF_DUTY', 'on duty');
+select is(tests.err(:'teller2', $$select buy_wealth(gen_random_uuid(), 's1', 'gold', 10)$$), 'OFF_DUTY', 'on duty');
 savepoint loan;
 select app_private.start_loan(gen_random_uuid(), 's2', 10, '测试', 'bullet', 1, 'account', :'teller', now()) is not null;
-select is(tests.err(:'teller', $$select buy_wealth(gen_random_uuid(), 's2', 10, 'gold')$$), 'LOAN_OUTSTANDING', 'none while a loan is not paid off');
+select is(tests.err(:'teller', $$select buy_wealth(gen_random_uuid(), 's2', 'gold', 10)$$), 'LOAN_OUTSTANDING', 'none while a loan is not paid off');
 rollback to savepoint loan;
 
 -- The quote.
 select tests.call(:'teller', 'select wealth_quote(''s1'')') as quote \gset
-select is(:'quote'::jsonb - 'products' - 'holdings', jsonb_build_object('student_no', 's1', 'today', :'today'::date, 'balance', 400, 'wealth_total', 100),
-  'the quote: today, 活期 and 理财本金');
+select is(:'quote'::jsonb - 'products' - 'holdings', jsonb_build_object('student_no', 's1', 'today', :'today'::date, 'balance', 400, 'wealth_total', 100,
+  'value_centi', 10000, 'gain_centi', 0), 'the quote: today, 活期, 理财本金 and the open holdings'' value and gain');
 select is(jsonb_path_query_array(:'quote'::jsonb -> 'products', '$[*].key'), '["bond","gold","csi300","chinext","hsi","ndx"]', 'the six products in order');
-select is(:'quote'::jsonb -> 'products' -> 2, jsonb_build_object('key', 'csi300', 'name', '沪深 300', 'symbol', 'sh000300', 'multiplier', 2, 'premium', 2,
-    'day', :'today'::date - 1, 'nav', 1.05, 'change', 1, 'rate', 5, 'closed', true,
-    'week_base', app_private.anchor_on(:'today') + 2, 'day_base', app_private.day_base(app_private.anchor_on(:'today') + 2)),
-  'each with its parameters, its latest day, net value, change and rate (closed: no close that day), and this week''s base');
+select is(:'quote'::jsonb -> 'products' -> 2, jsonb_build_object('key', 'csi300', 'name', '沪深 300', 'nav', 1.05, 'nav_day', :'today'::date - 1,
+    'change', 5, 'waiting', (extract(isodow from :'today'::date) <= 5 and now() >= app_private.wealth_ready_at('csi300', :'today'))),
+  'each with its latest net value, its day, that day''s rate, and whether a close past its time is missing');
+select is(tests.call(:'s1', 'select my_wealth()') - 'products', :'quote'::jsonb - 'products' - 'balance', 'the student reads the same of their own');
+select is(tests.call(:'s1', 'select my_wealth()') -> 'products', :'quote'::jsonb -> 'products', 'and the products');
+select is(tests.err(w, 'select my_wealth()'), 'FORBIDDEN', 'a student''s own') from unnest(array[:'teller', :'teacher']::uuid[]) w;
 select is(:'quote'::jsonb -> 'products' -> 0 -> 'nav', '1.000000', 'one not moved yet at 1');
 select is(jsonb_array_length(:'quote'::jsonb -> 'holdings'), 1, 'and the student''s holdings');
 select is(tests.err(:'teller', 'select wealth_quote(''pay'')'), 'SELF_SERVICE_FORBIDDEN', 'not of the teller''s own pay account');
 select is(tests.err(w, 'select wealth_quote(''s1'')'), 'FORBIDDEN', 'the quote is the counter''s') from unnest(array[:'teacher', :'s1']::uuid[]) w;
 
 -- T+1: not the day bought.
-select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000047d1')$$),
+select is(tests.call(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000047d1')$$),
   jsonb_build_object('error', 'WEALTH_LOCKED', 'detail', jsonb_build_object('sellable_on', :'today'::date + 1)::text), 'WEALTH_LOCKED until tomorrow');
 -- Bought yesterday instead; 沪深 300 at 1.1025 today: worth 105.
 update wealth_holdings set opened_on = opened_on - 1, starts_on = starts_on - 1 where id = '00000000-0000-4000-8000-0000000047d1';
@@ -236,15 +237,16 @@ select is(tests.call(:'s1', 'select jsonb_agg(value_centi) from wealth_holdings'
 select is(tests.call(:'s1', $$select to_jsonb(nav) from wealth_navs where product = 'csi300' order by day desc limit 1$$), '1.102500', 'and the net values');
 
 -- 卖出 at the value.
-select tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000047d1')$$) as sold \gset
+select tests.call(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000047d1')$$) as sold \gset
 select is(:'sold'::jsonb - 'id' - 'txn_no' - 'created_at' - 'holding',
   '{"type":"wealth_close","amount":105,"balance_after":505,"denominations":null,"change_given":null}', '105 back to 活期');
-select is(concat_ws(' ', :'sold'::jsonb #>> '{holding,status}', :'sold'::jsonb #>> '{holding,closed_on}', :'sold'::jsonb #>> '{holding,gain_centi}'),
-  concat_ws(' ', 'redeemed', :'today', 500), '已卖出 today, +5');
-select is((select reason from txns where id = (:'sold'::jsonb ->> 'id')::uuid), '卖出，盈 +5.00 HTB', 'the wealth_close says 卖出 and the gain');
-select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000047d1')$$) ->> 'id', :'sold'::jsonb ->> 'id', 'sent again, the same result');
-select is(tests.err(:'teller', $$select redeem_wealth(gen_random_uuid())$$), 'INVALID_INPUT', 'a holding that exists');
-select is(tests.err(w, $$select redeem_wealth('00000000-0000-4000-8000-0000000047d1')$$), 'FORBIDDEN', 'the counter''s alone')
+select is(concat_ws(' ', :'sold'::jsonb #>> '{holding,status}', :'sold'::jsonb #>> '{holding,closed_on}', :'sold'::jsonb #>> '{holding,value_centi}',
+    :'sold'::jsonb #>> '{holding,gain_centi}', :'sold'::jsonb #>> '{holding,returned_centi}'),
+  concat_ws(' ', 'redeemed', :'today', 10500, 500, 10500), '已卖出 today at 105, +5');
+select is((select reason from txns where id = (:'sold'::jsonb ->> 'id')::uuid), '卖出沪深 300，盈 +5.00 HTB', 'the wealth_close says 卖出, the product and the gain');
+select is(tests.call(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000047d1')$$) ->> 'id', :'sold'::jsonb ->> 'id', 'sent again, the same result');
+select is(tests.err(:'teller', $$select sell_wealth(gen_random_uuid())$$), 'INVALID_INPUT', 'a holding that exists');
+select is(tests.err(w, $$select sell_wealth('00000000-0000-4000-8000-0000000047d1')$$), 'FORBIDDEN', 'the counter''s alone')
 from unnest(array[:'president', :'teacher', :'s1']::uuid[]) w;
 
 -- 冲正 (§10.9): the teller does not reverse 卖出; the bank admin does, the holding open again at the latest net value.
@@ -262,30 +264,30 @@ set local session_replication_role = replica;
 delete from wealth_navs where day > :'today';
 set local session_replication_role = origin;
 update wealth_holdings set valued_to = :'today' where id = '00000000-0000-4000-8000-0000000047d1';
-select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000047d1')$$) ->> 'amount', '105', 'it can be sold again');
+select is(tests.call(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000047d1')$$) ->> 'amount', '105', 'it can be sold again');
 
 -- A loss: 50 bought at 1.1025 worth 46.50 at 1.025325 (tomorrow's, as if worked out): 46 HTB and 0.50 零头.
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d2', 's1', 50, 'csi300')$$) ->> 'holding' is not null;
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d2', 's1', 'csi300', 50)$$) ->> 'holding' is not null;
 update wealth_holdings set opened_on = opened_on - 1 where id = '00000000-0000-4000-8000-0000000047d2';
 select is((select buy_nav from wealth_holdings where id = '00000000-0000-4000-8000-0000000047d2'), 1.1025, 'today''s net value');
 insert into wealth_navs (product, day, change, rate, nav) values ('csi300', :'today'::date + 1, -7, -7, 1.025325);
-select is(tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000047d2')$$) ->> 'amount', '46', 'a loss pays less than the principal');
+select is(tests.call(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000047d2')$$) ->> 'amount', '46', 'a loss pays less than the principal');
 select is((select concat_ws(' ', h.value_centi, t.reason, a.interest_carry) from wealth_holdings h join txns t on t.id = h.close_txn
     join accounts a on a.student_no = h.student_no where h.id = '00000000-0000-4000-8000-0000000047d2'),
-  '4650 卖出，亏 −3.50 HTB 50', 'and says so; the 0.50 kept as 零头');
+  '4650 卖出沪深 300，亏 −3.50 HTB 50', 'and says so; the 0.50 kept as 零头');
 set local session_replication_role = replica;
 delete from wealth_navs where day > :'today';
 set local session_replication_role = origin;
 
 -- 买入 reversed: the teller their own the same day; the bank admin while it is open, any day.
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d3', 's1', 20, 'gold')$$) as third \gset
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d3', 's1', 'gold', 20)$$) as third \gset
 select is(tests.err(:'teller2', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'third'::jsonb ->> 'id')), 'REVERSAL_NOT_ALLOWED',
   'a teller reverses only their own');
 select is(tests.call(:'teller', format('select reverse_txn(gen_random_uuid(), %L, ''金额录错'')', :'third'::jsonb ->> 'id')) ->> 'amount', '20',
   'their own of today: the principal back to 活期');
 select is((select concat_ws(' ', h.status, a.wealth_total) from wealth_holdings h join accounts a using (student_no) where h.id = '00000000-0000-4000-8000-0000000047d3'),
   'reversed 0', 'the holding void');
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d4', 's1', 10, 'gold')$$) as fourth \gset
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d4', 's1', 'gold', 10)$$) as fourth \gset
 set local session_replication_role = replica;
 update txns set created_at = created_at - interval '3 days' where id = (:'fourth'::jsonb ->> 'id')::uuid;
 set local session_replication_role = origin;
@@ -298,7 +300,7 @@ select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_bala
 
 -- A frozen account keeps its holding and cannot sell it.
 select app_private.start_wealth('00000000-0000-4000-8000-0000000047d5', 'frz', 10, 'bond', :'teller', now() - interval '1 day') is not null;
-select is(tests.err(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000047d5')$$), 'STUDENT_INACTIVE', 'no 卖出 while frozen');
+select is(tests.err(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000047d5')$$), 'STUDENT_INACTIVE', 'no 卖出 while frozen');
 
 -- Who reads what (§3, §16).
 select is(tests.call(:'s1', 'select count(*) from wealth_holdings'), '4', 'a student reads their own holdings');
@@ -310,14 +312,15 @@ from unnest(array[:'teller', :'ops']::uuid[]) w;
 select is(tests.call(w, 'select to_jsonb(count(*) = (select count(*) from wealth_navs)) from wealth_navs'), 'true', 'everyone reads the net values')
 from unnest(array[:'s1', :'teller', :'ops']::uuid[]) w;
 select is(tests.err(w, 'select wealth_overview()'), 'FORBIDDEN', 'the 理财 page is the back office''s') from unnest(array[:'teller', :'s1', :'ops']::uuid[]) w;
-select is(tests.call(:'teacher', 'select wealth_overview()') #> '{products,0,open}', '{"count": 1, "principal": 10, "value_centi": 1000}',
+select is((tests.call(:'teacher', 'select wealth_overview()') -> 'products' -> 0) - 'days' - 'missing' - 'nav' - 'nav_day' - 'change' - 'waiting',
+  '{"key": "bond", "name": "国债", "count": 1, "principal": 10, "value_centi": 1000}',
   'the 理财 page: each product''s holdings open');
 select is(tests.call(:'teacher', 'select wealth_overview()') -> 'open', '{"count": 1, "principal": 10, "value_centi": 1000}', 'and all');
 
 -- 排名 (§16.3) by 活期 + 定期 + 理财本金.
 select tests.student('ra', 150, null, 'junior') as ra \gset
 select tests.student('rb', 120, null, 'junior') as rb \gset
-select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d6', 'ra', 100, 'csi300')$$) is not null;
+select tests.call(:'teller', $$select buy_wealth('00000000-0000-4000-8000-0000000047d6', 'ra', 'csi300', 100)$$) is not null;
 select is(jsonb_path_query_array(tests.call(:'rb', 'select deposit_ranking()') -> 'top', '$[*].balance'), '[150, 120]', 'ranked with the 理财本金');
 -- 频繁操作 (§12.1) counts 买入 and 卖出.
 select is(app_private.is_business(t), true, 'a 买入 is business') from txns t where t.wealth_id = '00000000-0000-4000-8000-0000000047d6';
@@ -326,20 +329,21 @@ select is(app_private.is_business(t), true, 'a 买入 is business') from txns t 
 insert into wealth_navs (product, day, change, rate, nav) values ('csi300', :'today'::date + 1, 5, 5, 1.157625);
 select is(tests.call(:'teacher', format('select close_accounts(array[%L]::uuid[])', :'ra')), '{"closed":1,"cleared":155}', '注销 clears 活期 and 理财');
 select is(array(select concat_ws(' ', type, amount, reason) from txns where student_no = 'ra' and type in ('wealth_close', 'closing') order by seq),
-  array['wealth_close 105 卖出，盈 +5.00 HTB', 'closing 155 注销账号'], 'sold first (1.157625 ÷ 1.1025), then the whole balance');
+  array['wealth_close 105 卖出沪深 300，盈 +5.00 HTB', 'closing 155 注销账号'], 'sold first (1.157625 ÷ 1.1025), then the whole balance');
 select is(count(*)::int, 0, 'the ledger checks out') from app_private.check_balances();
 
 -- 利率看板 (§16.4): each product's latest day, change and rate; closed on a day with no close.
 insert into wealth_navs (product, day, change, anchor, premium, multiplier, rate, nav)
 values ('bond', :'today'::date - 1, 0, 2, 0.25, 10, 0.3184, 1.003184);
+select is(tests.call(:'s2', 'select public_rates()') ->> 'today', :'today', 'public_rates says today');
 select is(tests.call(:'s2', 'select public_rates()') -> 'wealth',
   jsonb_build_array(
-    jsonb_build_object('key', 'bond', 'name', '国债', 'day', :'today'::date - 1, 'change', 0, 'rate', 0.3184, 'closed', true),
-    jsonb_build_object('key', 'gold', 'name', '黄金', 'day', :'today'::date - 2, 'change', null, 'rate', null, 'closed', false),
-    jsonb_build_object('key', 'csi300', 'name', '沪深 300', 'day', :'today'::date, 'change', 1, 'rate', 5, 'closed', true),
-    jsonb_build_object('key', 'chinext', 'name', '创业板指', 'day', :'today'::date - 2, 'change', null, 'rate', null, 'closed', false),
-    jsonb_build_object('key', 'hsi', 'name', '恒生指数', 'day', :'today'::date - 2, 'change', null, 'rate', null, 'closed', false),
-    jsonb_build_object('key', 'ndx', 'name', '纳斯达克 100', 'day', :'today'::date - 2, 'change', null, 'rate', null, 'closed', false)),
+    jsonb_build_object('key', 'bond', 'name', '国债', 'day', :'today'::date - 1, 'rate', 0.3184, 'closed', true),
+    jsonb_build_object('key', 'gold', 'name', '黄金', 'day', :'today'::date - 2, 'rate', null, 'closed', false),
+    jsonb_build_object('key', 'csi300', 'name', '沪深 300', 'day', :'today'::date, 'rate', 5, 'closed', true),
+    jsonb_build_object('key', 'chinext', 'name', '创业板指', 'day', :'today'::date - 2, 'rate', null, 'closed', false),
+    jsonb_build_object('key', 'hsi', 'name', '恒生指数', 'day', :'today'::date - 2, 'rate', null, 'closed', false),
+    jsonb_build_object('key', 'ndx', 'name', '纳斯达克 100', 'day', :'today'::date - 2, 'rate', null, 'closed', false)),
   'each product: none yet before the first day worked out');
 insert into wealth_days (product, day, change, source, params) values ('csi300', :'today', 1, 'tencent', '{}');
 select is(tests.call(:'s2', 'select public_rates()') #> '{wealth,2,closed}', 'false', 'open once its close is in');

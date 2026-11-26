@@ -64,7 +64,7 @@ select ok(abs((tests.anon('select to_jsonb(server_time())'))::text::bigint - ext
 
 -- 利率看板 ---------------------------------------------------------------------------------------------------------
 
--- 理财 by product (§16.4): each product's latest day, change, rate and closed, as wealth_products has them. The net values
+-- 理财 by product (§16.4): each product's latest day, rate and closed, as wealth_products has them. The net values
 -- are append-only; the cases below start from each product at 1 yesterday.
 set local session_replication_role = replica;
 delete from wealth_days;
@@ -74,24 +74,24 @@ select app_private.cn_date(now()) as today \gset
 insert into wealth_navs (product, day, nav) select p ->> 'key', :'today'::date - 1, 1 from jsonb_array_elements(app_private.setting('wealth_params') -> 'products') p;
 
 select tests.anon('select public_rates()') as rates \gset
-select is((select array_agg(k order by k) from jsonb_object_keys(:'rates'::jsonb) k), array['credit_enabled', 'current', 'savings_enabled', 'scores', 'term', 'wealth'],
+select is((select array_agg(k order by k) from jsonb_object_keys(:'rates'::jsonb) k), array['credit_enabled', 'current', 'savings_enabled', 'scores', 'term', 'today', 'wealth'],
   'public_rates for anon: no anchor');
 select is((:'rates'::jsonb ->> 'current')::numeric, app_private.saving_rate(app_private.anchor_on(:'today'), 600), '活期: one rate for everyone');
 select is(:'rates'::jsonb -> 'scores', (select jsonb_agg(jsonb_build_object('score', s, 'loan', app_private.loan_rate(app_private.anchor_on(:'today'), s)) order by s)
   from unnest(array[600, 750, 900, 1000]) s), 'loan rates at 600, 750, 900 and 1000 under this week''s anchor');
 select is(:'rates'::jsonb -> 'term', app_private.setting('term_rates'), 'the five fixed 定期 rates');
 select is(:'rates'::jsonb -> 'wealth', (select jsonb_agg(jsonb_build_object('key', p ->> 'key', 'name', p ->> 'name', 'day', :'today'::date - 1,
-    'change', null, 'rate', null, 'closed', false) order by i) from jsonb_array_elements(app_private.setting('wealth_params') -> 'products') with ordinality x(p, i)),
-  '理财: the six products, none worked out yet: no change or rate');
+    'rate', null, 'closed', false) order by i) from jsonb_array_elements(app_private.setting('wealth_params') -> 'products') with ordinality x(p, i)),
+  '理财: the six products, none worked out yet: no rate');
 select ok(:'rates'::jsonb -> 'credit_enabled' = 'true' and :'rates' not like '%张小明%' and :'rates' not like '%"s1"%', 'nothing about anyone');
 
 insert into wealth_navs (product, day, change, anchor, premium, multiplier, rate, nav) values ('hsi', :'today', 0, 2, 2, 2, 0.5619, 1.005619);
-select is(tests.anon('select public_rates()') #> '{wealth,4}', jsonb_build_object('key', 'hsi', 'name', '恒生指数', 'day', :'today'::date, 'change', 0,
+select is(tests.anon('select public_rates()') #> '{wealth,4}', jsonb_build_object('key', 'hsi', 'name', '恒生指数', 'day', :'today'::date,
   'rate', 0.5619, 'closed', true), '恒生指数 today with no close: closed, the base');
-insert into wealth_days (product, day, change, source, params) values ('hsi', :'today', 0.2, 'tencent', '{}'), ('ndx', :'today', -1.5, 'tencent', '{}');
+insert into wealth_days (product, day, change, source, params) values ('hsi', :'today', 0, 'tencent', '{}'), ('ndx', :'today', -1.5, 'tencent', '{}');
 insert into wealth_navs (product, day, change, anchor, premium, multiplier, rate, nav) values ('ndx', :'today', -1.5, 2, 2, 2, -2.4381, 0.975619);
 select is(tests.anon('select public_rates()') #> '{wealth,5}', jsonb_build_object('key', 'ndx', 'name', '纳斯达克 100', 'day', :'today'::date,
-  'change', -1.5, 'rate', -2.4381, 'closed', false), '纳斯达克 100 with its day''s close: its change and rate');
+  'rate', -2.4381, 'closed', false), '纳斯达克 100 with its day''s close: its rate');
 select is(tests.anon('select public_rates()') #> '{wealth,4,closed}', 'false', 'a close in: not closed');
 
 select tests.call(:'teacher', 'select set_credit_enabled(false, ''期中检查'')');

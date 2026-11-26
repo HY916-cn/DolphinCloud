@@ -17,7 +17,7 @@ select tests.call(:'teller', $$select withdraw_term_early('00000000-0000-4000-80
 select tests.call(:'teller', $$select withdraw_term_early('00000000-0000-4000-8000-0000000004b2')$$) ->> 'id' as term_close2 \gset
 select app_private.start_wealth('00000000-0000-4000-8000-0000000004d1', 's1', 100, 'csi300', :'teller', now()) is not null;
 update wealth_holdings set value_centi = 10350, opened_on = opened_on - 1, valued_to = (select max(day) + 1 from wealth_navs where product = 'csi300') where id = '00000000-0000-4000-8000-0000000004d1';
-select tests.call(:'teller', $$select redeem_wealth('00000000-0000-4000-8000-0000000004d1')$$) ->> 'id' as wealth_close \gset
+select tests.call(:'teller', $$select sell_wealth('00000000-0000-4000-8000-0000000004d1')$$) ->> 'id' as wealth_close \gset
 update accounts set balance = balance + 7 where student_no = 's1';
 insert into txns (id, type, student_no, amount, balance_delta, balance_after, operator_id)
 select gen_random_uuid(), 'adjust', 's1', 7, 7, balance, :'teacher' from accounts where student_no = 's1' returning id as adjust \gset

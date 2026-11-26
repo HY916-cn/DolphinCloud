@@ -145,10 +145,10 @@ select tests.call(:'t1', $$select open_term_deposit('00000000-0000-4000-8000-000
 select tests.call(:'t1', $$select open_term_deposit('00000000-0000-4000-8000-000000000c0d', 's4', 30, 4)$$);
 select tests.call(:'t1', format('select reverse_txn(''00000000-0000-4000-8000-000000000c0e'', %L, ''金额录错'')',
   (select open_txn from term_deposits where id = '00000000-0000-4000-8000-000000000c0d')));
-select tests.call(:'t1', $$select buy_wealth('00000000-0000-4000-8000-000000000c0f', 's5', 60, 'csi300')$$);
+select tests.call(:'t1', $$select buy_wealth('00000000-0000-4000-8000-000000000c0f', 's5', 'csi300', 60)$$);
 update wealth_holdings set value_centi = 6350, opened_on = opened_on - 1, valued_to = (select max(day) + 1 from wealth_navs where product = 'csi300') where id = '00000000-0000-4000-8000-000000000c0f';
-select tests.call(:'t1', $$select redeem_wealth('00000000-0000-4000-8000-000000000c0f')$$);  -- 63 back: 盈 3
-select tests.call(:'t1', $$select buy_wealth('00000000-0000-4000-8000-000000000c10', 's5', 40, 'gold')$$);
+select tests.call(:'t1', $$select sell_wealth('00000000-0000-4000-8000-000000000c0f')$$);  -- 63 back: 盈 3
+select tests.call(:'t1', $$select buy_wealth('00000000-0000-4000-8000-000000000c10', 's5', 'gold', 40)$$);
 select tests.call(:'admin', $$select manual_entry('00000000-0000-4000-8000-000000000c11', 's3', 'deposit', now(), '系统故障', p_denominations => '{"2":5}')$$); -- +10
 select tests.call(:'admin', $$select manual_entry('00000000-0000-4000-8000-000000000c12', 's3', 'adjust', now(), '调账', p_amount => 5)$$);
 insert into txns (id, type, student_no, amount, balance_delta, balance_after, operator_id)
