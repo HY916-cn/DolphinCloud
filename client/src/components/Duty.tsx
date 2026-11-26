@@ -29,7 +29,7 @@ function FloatCard({ uid, busy, onCancel, onConfirm }: { uid: string; busy: bool
     <>
       <div className="dc-card dc-stack">
         <h2 className="heading">登记备用金</h2>
-        <p className="dc-caption">储蓄盒里现有的零钱。默认是上次下班时点出的张数，财务复核改过的按财务的数；按实际张数修改，没有就填 0。</p>
+        <p className="dc-caption">储蓄盒里现有的零钱。默认是上次下班时点出的张数，复核改过的按复核的数；按实际张数修改，没有就填 0。</p>
         {last.isError && <Notice title="没有读到上次的备用金，已全部填 0" />}
         {last.isPending ? <DenomsLoading count={denominations.length} label="正在读取上次的备用金" />
           : <CashCounter faces={denominations} counts={counts} onChange={setEdited} kind="" />}
@@ -128,7 +128,7 @@ function CountCard({ me, duty, onCancel, onDone }: { me: Me; duty: Duty; onCance
             <p className="dc-list-title">本次上班的现金业务</p>
             {cash.data && <CashTxns txns={cash.data.cash_txns} />}
             <CashReason value={note} onChange={setNote} hint="必填，最多 100 字，例如：找零多给了 1 张 5 元" />
-            <p className="dc-caption">不平账会记一条风险提醒，财务收到储蓄盒后再点一遍。</p>
+            <p className="dc-caption">不平账会记一条风险提醒，复核时再点一遍储蓄盒。</p>
           </>
         ))}
       </section>

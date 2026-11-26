@@ -115,7 +115,7 @@ export default function Admin() {
   // 待复核的轧账 (PHASE-2.md §7.2): how many wait, how many since before today, and the five waiting longest.
   const cash = useQuery({
     queryKey: ['cash-overview'],
-    enabled: has('accountant', 'teacher'),
+    enabled: has('accountant', 'teacher', 'president'),
     queryFn: () => call<{ pending: number; overdue: number; oldest: CashReview[] }>('cash_review_overview', {}),
   });
 

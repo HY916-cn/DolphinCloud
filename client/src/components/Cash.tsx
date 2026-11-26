@@ -56,7 +56,7 @@ const htb = (n: number | null) => (n === null ? '—' : `${formatAmount(n)} HTB`
 // shortcut: every duty in one read, filtered on the device; fine for one school's terms, pass p_from / p_to when it grows.
 export const useCashReviews = () => useQuery({ queryKey: ['cash-reviews'], queryFn: () => call<CashReview[]>('cash_reviews', {}) });
 
-// The screen's cash table of one duty: notes per face and the amount, 应有, 柜员实点, 财务实点 (when the accountant
+// The screen's cash table of one duty: notes per face and the amount, 应有, 柜员实点, 复核实点 (when a reviewer
 // counted) and the 差额 by the count that stands.
 export function CashTable({ r }: { r: CashReview }) {
   const faces = Object.keys(r.expected).map(Number).sort((a, b) => a - b);
@@ -74,7 +74,7 @@ export function CashTable({ r }: { r: CashReview }) {
         <tbody>
           {row('应有', r.expected, htb(r.expected_total))}
           {r.teller_count && row('柜员实点', r.teller_count, htb(r.teller_total))}
-          {r.review_count && row('财务实点', r.review_count, htb(r.count_total))}
+          {r.review_count && row('复核实点', r.review_count, htb(r.count_total))}
           {r.diff && row('差额', r.diff, diffAmount(r.diff), !r.balanced, (n) => ({ text: n ? diffNotes(n) : '0', short: n !== 0 }))}
         </tbody>
       </table>
@@ -115,7 +115,7 @@ export function ForceSheet({ r, onClose, onDone }: { r: CashReview; onClose: () 
   }
   return (
     <ConfirmSheet title={`让${r.name}强制下班？`} confirm="强制下班" ready={!!reason.trim()} busy={busy} onClose={onClose} onConfirm={force}
-      text={`结束${r.name} ${formatTime(r.started_at)} 开始的上班，柜台马上不能再办理业务，要重新上班才能继续。这次上班没有柜员实点，由财务点数复核。`}>
+      text={`结束${r.name} ${formatTime(r.started_at)} 开始的上班，柜台马上不能再办理业务，要重新上班才能继续。这次上班没有柜员实点，复核时重新点数。`}>
       <CashReason value={reason} onChange={setReason} hint="必填，最多 100 字" />
       {problem && <Notice tone="danger" title={problem.title}>{problem.text}</Notice>}
     </ConfirmSheet>

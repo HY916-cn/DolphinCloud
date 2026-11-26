@@ -26,7 +26,7 @@ export default function CashReviewPage() {
       {list.isError ? <Notice tone="danger" title="暂时无法读取这次上班">请检查网络后刷新页面。</Notice>
         : !list.data ? <SkeletonGroup className="dc-stack"><KvLoading rows={4} /><TxnListLoading rows={2} label="正在加载这次上班" /></SkeletonGroup>
         : !r ? <Notice tone="danger" title="找不到这次上班">请返回轧账页刷新后再试。</Notice>
-        : <Review key={r.duty_id} r={r} canReview={me.roles.includes('accountant') || me.roles.includes('teacher')}
+        : <Review key={r.duty_id} r={r} canReview={me.roles.some((x) => ['accountant', 'teacher', 'president'].includes(x))}
             onDone={() => router.navigate(cashHref({ ...filters, fresh: r.duty_id }) as Href)} />}
     </Desk>
   );
@@ -81,7 +81,7 @@ function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; o
     ...(r.diff ? [['差额', <span key="d" className={r.balanced ? undefined : 'is-danger'}>{diffAmount(r.diff)}</span>] as [string, ReactNode]] : []),
     ...(r.teller_note ? [['柜员的原因', r.teller_note] as [string, ReactNode]] : []),
     ...(r.forced_reason ? [['强制下班的原因', r.forced_reason] as [string, ReactNode]] : []),
-    ...(r.reviewed_at ? [['复核', `${formatTime(r.reviewed_at)} 由${r.reviewer_name ?? '财务'}复核`] as [string, ReactNode]] : []),
+    ...(r.reviewed_at ? [['复核', `${formatTime(r.reviewed_at)} ${r.reviewer_name ? `由${r.reviewer_name}复核` : '已复核'}`] as [string, ReactNode]] : []),
     ...(r.review_note ? [['复核的原因', r.review_note] as [string, ReactNode]] : []),
   ];
   const txns = (
@@ -116,15 +116,15 @@ function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; o
       )}
       {editing ? (
         <>
-          <p className="dc-list-title">财务实点</p>
-          <CashCounter faces={faces} counts={counts} onChange={setCounts} kind="" what="财务实点张数"
+          <p className="dc-list-title">复核实点</p>
+          <CashCounter faces={faces} counts={counts} onChange={setCounts} kind="" what="复核实点张数"
             sum={(f) => r.teller_count
               ? <span className="dc-qty-sum">柜员<b>{r.teller_count[f] ?? 0}</b></span>
               : <span className="dc-qty-sum">应有<b className={r.expected[f] < 0 ? 'is-danger' : undefined}>{cashCell(r.expected[f], true).text}</b></span>} />
-          <Summary rows={[]} total={['财务实点合计', total]} />
+          <Summary rows={[]} total={['复核实点合计', total]} />
           <CashReason value={note} onChange={setNote}
             hint={r.teller_count ? '必填，写清和柜员点的哪里不同' : `${differs ? '必填，' : ''}写清储蓄盒的情况`} />
-          {!isBalanced(diff) && <p className="dc-caption is-danger">按财务的数，{diffAmount(diff)}，会记一条风险提醒。</p>}
+          {!isBalanced(diff) && <p className="dc-caption is-danger">按复核的数，{diffAmount(diff)}，会记一条风险提醒。</p>}
         </>
       ) : <p className="dc-caption">以柜员点的 {formatAmount(total)} HTB 为准。</p>}
     </section>
@@ -138,7 +138,7 @@ function Review({ r, canReview, onDone }: { r: CashReview; canReview: boolean; o
           <Icon name="check" />复核通过
         </button>
         <div className="dc-actions-total">
-          <span>{editing ? '财务实点' : '柜员实点'}<small>复核 {r.name}的上班</small></span>
+          <span>{editing ? '复核实点' : '柜员实点'}<small>复核 {r.name}的上班</small></span>
           <b ref={totalRef}>{formatAmount(total)}<small>HTB</small></b>
         </div>
       </div>

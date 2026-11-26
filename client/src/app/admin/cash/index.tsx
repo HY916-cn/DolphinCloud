@@ -123,7 +123,7 @@ export default function Cash() {
                           <td className="is-wrap">
                             {r.teller_note}
                             {r.forced_reason && <small className="dc-top-sub">强制下班：{r.forced_reason}</small>}
-                            {r.review_note && <small className="dc-top-sub">复核：财务点为 {htb(r.count_total)}，{r.review_note}</small>}
+                            {r.review_note && <small className="dc-top-sub">复核：复核点为 {htb(r.count_total)}，{r.review_note}</small>}
                           </td>
                         </tr>
                       );

@@ -267,7 +267,7 @@ export function termination(a: Alert, note = '') {
       return {
         caption: `终止会让${teller}强制下班：结束这笔业务时的那次上班，要重新上班才能继续办理。`,
         title: `让${teller}强制下班？`,
-        text: `结束${teller}这笔业务时的那次上班，柜台马上不能再办理业务，要重新上班才能继续。这次上班没有柜员实点，由财务点数复核。`,
+        text: `结束${teller}这笔业务时的那次上班，柜台马上不能再办理业务，要重新上班才能继续。这次上班没有柜员实点，复核时重新点数。`,
       };
     }
     case 'setting_change': {

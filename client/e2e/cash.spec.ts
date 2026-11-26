@@ -4,7 +4,8 @@ import { confirmIn, endDuty, resetData, signIn, sql, startDuty } from './helpers
 // 备用金 and 轧账 (PHASE-2.md §4, §7) on the seed data, in order: teller01 ends the seeded duty, begins again from
 // the count set below with one more 10 元 note, serves 张小明 and 李思远 in cash, reverses the withdrawal, and counts a box
 // that does not balance at 下班; the next duty starts from that count and balances. The accountant then reviews both,
-// the president ends an open duty (强制下班) and the accountant counts that box; the bank admin reviews the rest.
+// the president ends an open duty (强制下班) and the accountant counts that box; the bank admin reviews the rest, and
+// the president reviews one more duty and one more 强制下班.
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(resetData);
 test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
@@ -152,7 +153,7 @@ test('the next 上班 starts from that count, and a box that balances ends at on
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
   await page.getByRole('button', { name: '上班', exact: true }).click();
   const card = page.locator('.dc-card', { hasText: '登记备用金' });
-  await expect(card).toContainText('默认是上次下班时点出的张数，财务复核改过的按财务的数；按实际张数修改，没有就填 0。');
+  await expect(card).toContainText('默认是上次下班时点出的张数，复核改过的按复核的数；按实际张数修改，没有就填 0。');
   for (const [face, n] of [[1, 22], [2, 0], [5, 5], [10, 5]]) await expect(card.getByLabel(`${face} 元张数`)).toHaveValue(String(n));
   await page.getByRole('button', { name: '确认上班' }).click();
   await expect(page.locator('.dc-duty')).toContainText('已上班');
@@ -230,22 +231,22 @@ test('财务: 待复核 on 总览 (a day late in red), 复核 as the teller coun
   await check.locator('.dc-seg label', { hasText: '不一致' }).click();
   await expect(check.locator('.dc-qty-sum')).toHaveText(['柜员22', '柜员0', '柜员5', '柜员5']);
   await check.getByLabel('减少一张 1 元').click();
-  await expect(check.locator('.is-total')).toHaveText('财务实点合计96HTB');
-  await expect(check.locator('.dc-caption.is-danger')).toHaveText('按财务的数，多 1 HTB，会记一条风险提醒。');
-  await expect(actions.locator('.dc-actions-total')).toContainText('财务实点');
+  await expect(check.locator('.is-total')).toHaveText('复核实点合计96HTB');
+  await expect(check.locator('.dc-caption.is-danger')).toHaveText('按复核的数，多 1 HTB，会记一条风险提醒。');
+  await expect(actions.locator('.dc-actions-total')).toContainText('复核实点');
   await expect(actions.getByRole('button', { name: '复核通过' })).toBeDisabled();
   await check.getByLabel('原因').fill('盒底少了 1 张 1 元');
   await actions.getByRole('button', { name: '复核通过' }).click();
   await expect(page.locator('.dc-toast')).toHaveText('已复核，多 1 HTB');
   await expect(page).toHaveURL(/\/admin\/cash\?user=/);
   await page.getByRole('tab', { name: /^已轧账/ }).click();
-  await expect(byDiff(page, '多 1 HTB').locator('td.is-wrap small')).toHaveText('复核：财务点为 96 HTB，盒底少了 1 张 1 元');
+  await expect(byDiff(page, '多 1 HTB').locator('td.is-wrap small')).toHaveText('复核：复核点为 96 HTB，盒底少了 1 张 1 元');
   expect(sql(`select c.review_count::text || ' ' || c.status from public.cash_counts c join public.duty d on d.id = c.duty_id
     where c.review_note is not null`)).toBe('{"1": 21, "2": 0, "5": 5, "10": 5} done');
 
   // A review already made is read-only.
   await byDiff(page, '多 1 HTB').getByRole('link', { name: '柜员小林' }).click();
-  await expect(shift.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '财务实点', '差额']);
+  await expect(shift.getByRole('table', { name: '本次上班现金' }).locator('tbody tr td:first-child')).toHaveText(['应有', '柜员实点', '复核实点', '差额']);
   await expect(shift).toContainText('由财务小郑复核');
   await expect(check).toHaveCount(0);
   await expect(actions).toHaveCount(0);
@@ -297,9 +298,9 @@ test('强制下班: the counter stops at once, and the accountant counts the box
   await expect(page.locator('section[aria-label="这次上班"]')).toContainText('同一学生 10 分钟内办理 6 笔');
   await expect(review.locator('.dc-seg')).toHaveCount(0);
   await expect(review.locator('.dc-qty-sum')).toHaveText(['应有22', '应有0', '应有5', '应有5']);
-  await review.getByLabel('1 元财务实点张数').fill('22');
-  await review.getByLabel('5 元财务实点张数').fill('5');
-  await review.getByLabel('10 元财务实点张数').fill('4');
+  await review.getByLabel('1 元复核实点张数').fill('22');
+  await review.getByLabel('5 元复核实点张数').fill('5');
+  await review.getByLabel('10 元复核实点张数').fill('4');
   const pass = page.locator('.dc-actions').getByRole('button', { name: '复核通过' });
   await expect(pass).toBeDisabled();
   await review.getByLabel('增加一张 10 元').click();
@@ -343,7 +344,7 @@ test('银行管理员: 复核 as the teller counted and with a count of its own,
     .getByRole('link', { name: '柜员小林' }).click();
   await check.locator('.dc-seg label', { hasText: '不一致' }).click();
   await check.getByLabel('增加一张 1 元').click();
-  await expect(check.locator('.dc-caption.is-danger')).toHaveText('按财务的数，多 1 HTB，会记一条风险提醒。');
+  await expect(check.locator('.dc-caption.is-danger')).toHaveText('按复核的数，多 1 HTB，会记一条风险提醒。');
   await expect(pass).toBeDisabled();
   await check.getByLabel('原因').fill('盒底多找到 1 张 1 元');
   await pass.click();
@@ -357,4 +358,58 @@ test('银行管理员: 复核 as the teller counted and with a count of its own,
   await expect(page.locator('section[aria-label="这次上班"]')).toContainText('由银行管理员复核');
   await expect(page.locator('section[aria-label="这次上班"]')).toContainText('盒底多找到 1 张 1 元');
   await expect(check).toHaveCount(0);
+});
+
+test('行长: 待复核 on 总览, 复核 a duty and a 强制下班, as the reviewer', async ({ page, browser, baseURL, ignoreHTTPSErrors, locale, timezoneId }) => {
+  // One duty that ends as counted, and one the president ends.
+  await signIn(page, '工作人员', 'teller01');
+  await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
+  await startDuty(page);
+  await expect(page.locator('.dc-duty')).toContainText('已上班');
+  await endDuty(page, true);
+  await startDuty(page);
+  await expect(page.locator('.dc-duty')).toContainText('已上班');
+
+  const president = await (await browser.newContext({ baseURL, ignoreHTTPSErrors, locale, timezoneId })).newPage();
+  await signIn(president, '工作人员', 'president01');
+  await expect(president).toHaveURL(/\/admin$/);
+  await president.goto('/admin/cash');
+  await president.getByRole('tab', { name: /^待下班/ }).click();
+  await row(president, '柜员小林').getByRole('button', { name: '柜员小林' }).click();
+  await confirmIn(president, '强制下班');
+  await president.locator('.dc-sheet').getByLabel('原因').fill('放学后忘记下班');
+  await confirmIn(president, '强制下班');
+  await expect(president.locator('.dc-toast')).toHaveText('已强制下班');
+
+  // 总览 lists both; the president takes the teller's count of the first.
+  await president.goto('/admin');
+  const waiting = president.locator('section[aria-label="待复核的轧账"]');
+  await expect(waiting.getByRole('heading')).toHaveText('待复核的轧账 · 2 次');
+  await waiting.locator('.dc-list-link').filter({ hasNotText: '强制下班' }).click();
+  await expect(president).toHaveURL(/\/admin\/cash\/[0-9a-f-]{36}$/);
+  const check = president.locator('section[aria-label="核对"]');
+  const pass = president.locator('.dc-actions').getByRole('button', { name: '复核通过' });
+  await expect(check.getByRole('radio', { name: '和柜员点的一致' })).toBeChecked();
+  await pass.click();
+  await expect(president.locator('.dc-toast')).toHaveText(/^已复核，/);
+
+  // The 强制下班: the president counts the box as it should hold.
+  await president.getByRole('tab', { name: /^强制下班/ }).click();
+  await row(president, '放学后忘记下班').getByRole('link', { name: '柜员小林' }).click();
+  await expect(check.locator('.dc-list-title')).toHaveText('复核实点');
+  for (const qty of await check.locator('.dc-qty').all()) {
+    await qty.locator('.dc-qty-input').fill((await qty.locator('.dc-qty-sum b').textContent())!);
+  }
+  await expect(check.locator('.is-total')).toContainText('复核实点合计');
+  await pass.click();
+  await expect(president.locator('.dc-toast')).toHaveText('已复核，平账');
+  expect(sql(`select count(*) from public.cash_counts c join public.profiles p on p.id = c.reviewed_by
+    where c.reviewed_at > now() - interval '5 minutes' and p.login_id = 'president01'`)).toBe('2');
+
+  // The reviewer reads as the president.
+  await president.getByRole('tab', { name: /^已轧账/ }).click();
+  await row(president, '放学后忘记下班').getByRole('link', { name: '柜员小林' }).click();
+  await expect(president.locator('section[aria-label="这次上班"]')).toContainText('由王行长复核');
+  await expect(check).toHaveCount(0);
+  await president.close();
 });
