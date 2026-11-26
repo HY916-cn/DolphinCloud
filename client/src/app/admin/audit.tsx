@@ -25,7 +25,7 @@ const ACTIONS: Record<string, string> = {
   'login.ok': '登录成功', 'login.failed': '密码错误', 'login.locked': '登录被锁定', 'user.reissue_passwords': '重新生成初始密码',
   'backup.create': '创建备份', 'backup.restore': '恢复备份', 'salary.pay': '发放工资', 'payroll.wrong_password': '绑定工资账户密码错误',
   'user.close': '注销账号', 'salary.bind': '绑定工资账户', 'staff.import': '工作人员导入', 'credit.adjust': '调整信用分',
-  'wealth.record': '登记理财指数涨跌', 'wealth.fetch_failed': '理财取数失败', 'txn.manual': '补录流水', 'txn.correct': '编辑流水',
+  'wealth.record': '登记理财行情', 'wealth.fetch_failed': '理财取数失败', 'txn.manual': '补录流水', 'txn.correct': '编辑流水',
   'transfer.delete': '提前删除文件传输', 'transfer.cleanup': '清理文件传输',
 };
 const TABLES: Record<string, string> = {

@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useState, type ReactNode } from 'react';
 import { cashTotal, describeCash, makeChange, nonEmpty, type Counts } from '@/lib/cash';
 import {
-  buyWealth, classOf, deposit, loanPreview, loanQuote, newId, openLoan, openTermDeposit, purchase, redeemWealth, repayLoan, termQuote, useSettings, wealthQuote,
+  buyWealth, classOf, deposit, loanPreview, loanQuote, newId, openLoan, openTermDeposit, purchase, repayLoan, sellWealth, termQuote, useSettings, wealthQuote,
   withdraw, withdrawTermEarly,
   type Student, type TxnResult,
 } from '@/lib/counter';
@@ -22,7 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { monthDay } from '@/lib/term';
 import { amountHint, backCenti, type TermDeposit } from '@/lib/term-deposits';
 import { toTxn, type TxnRow } from '@/lib/txns';
-import { amountHint as wealthHint, bounds, gain, plainPct, plClass, signedPct, tierLabel, type WealthHolding } from '@/lib/wealth';
+import { amountHint as wealthHint, buyText, dayName, gain, holdingName, nav4, productDay, type Holding } from '@/lib/wealth';
 import { CashCounter, QtySum, Summary } from './Counter';
 import { FilterBar, filtered, NO_FILTER, wrongTimes, type Filter } from './Filter';
 import { Stats, Table } from './Report';
@@ -35,7 +35,7 @@ import { today } from './DatePicker';
 import { TermList } from './TermDeposit';
 import { WealthList } from './Invest';
 import { Toast } from './Toast';
-import { KvLoading, TilesLoading } from './Skeleton';
+import { ChoicesLoading, KvLoading, TilesLoading } from './Skeleton';
 import { Icon, Notice } from './ui';
 
 // The counter's businesses for one student (PHASE-1.md §7.5, design system CounterServicePage). Each panel is the
@@ -45,8 +45,8 @@ import { Icon, Notice } from './ui';
 // line in the 办理单. A finished business goes to onDone and the panel starts again empty;
 // onEnd ends the visit. `amount` is the change to the account (null when it is untouched: a cash exchange, an
 // offline deposit's balance); `txnId` is null when the line has no 冲正 here: an offline deposit until it is uploaded,
-// a 提前支取 or a 理财赎回. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either, and
-// `wealthId` a 买理财 to its 赎回 the same way; `loanId`
+// a 提前支取 or a 理财转回. `termId` ties a 开定期 to its 提前支取 in the same visit, after which the 开定期 has no 冲正 either, and
+// `wealthId` a 买理财 to its 卖出 the same way; `loanId`
 // ties a 贷款 to its 还款, and only the latest of them has 冲正. `type` is the transaction's, for the reason a 冲正 is refused.
 export type Served = {
   label: string; detail: string; amount: number | null; txnNo: string | null; txnId: string | null; reversed?: boolean; termId?: string;
@@ -404,197 +404,164 @@ export function TermPanel({ student, served, onDone, onEnd, onReverse }: Props) 
   );
 }
 
-// 理财 (PHASE-2.md §10.10, design system Invest): from wealth_quote, the index's latest trading day with the 10 before
-// it, the risk, the five lengths, then each tier with today's rate and its daily bounds, the amount out of 活期, and the
-// student's 理财 with 赎回. 买理财 and 赎回 are checked once more in a sheet; a refusal stays in the sheet. A frozen or
-// graduated account only lists its 理财.
+// 理财 (PHASE-2.md §10.10, design system Invest 柜台「理财」面板): from wealth_quote, the risk, the six products with
+// their net value and that day's rate, the amount out of 活期, and the student's 理财 with 卖出 from the day after it was
+// bought. 买入 and 卖出 are checked once more in a sheet; a refusal stays in the sheet. A frozen or graduated account keeps
+// its 理财 moving with the net values but buys and sells nothing.
 export function WealthPanel({ student, served, onDone, onEnd, onReverse }: Props) {
   const stale = useStaleRefusal();
   const done = served.length + served.filter((s) => s.reversed).length;
   const quote = useQuery({ queryKey: ['wealth-quote', student.student_no, done], queryFn: () => wealthQuote(student.student_no) });
-  const [weeks, setWeeks] = useState<number | null>(null);
-  const [tierKey, setTierKey] = useState<string | null>(null);
+  const [key, setKey] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [id, setId] = useState(newId);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [redeeming, setRedeeming] = useState<WealthHolding | null>(null);
+  const [selling, setSelling] = useState<Holding | null>(null);
   const [error, setError] = useState<Problem>(null);
   const [toast, setToast] = useState<string | null>(null);
   const q = quote.data;
+  const now = q?.today ?? today();
   const inactive = INACTIVE[student.status];
   const amount = Number(text) || 0;
   const balance = q?.balance ?? student.balance ?? 0;
-  const option = q?.options.find((o) => o.weeks === weeks);
-  const tier = option?.tiers.find((t) => t.key === tierKey);
+  const product = q?.products.find((p) => p.key === key);
   const hint = wealthHint(amount, balance);
-  const open = !!q && !inactive;
-  const ready = !!tier && !!amount && !hint.error;
-  const what = option && tier ? `${option.weeks} 周 · ${tierLabel(tier)}，${monthDay(option.matures_on)} 到期` : '';
-  // LOAN_OUTSTANDING says 买理财 here.
-  const refusal = (e: unknown) => {
+  const open = !inactive && !quote.error;
+  const ready = !!q && !!product && !!amount && !hint.error;
+  const what = product ? `${product.name}，净值 ${nav4(product.nav ?? 1)}` : '';
+  const refusal = (e: unknown, wealth: 'buy' | 'sell') => {
     const err = e instanceof AppError ? e : new AppError('');
-    return explain(err.code, { ...err.detail, wealth: true });
+    return explain(err.code, { ...err.detail, wealth, today: now });
   };
 
   async function submit() {
-    if (busy || !option || !tier) return; // the same id is idempotent on the server too
+    if (busy || !product) return; // the same id is idempotent on the server too
     setBusy(true);
     setError(null);
     try {
-      const result = await buyWealth(id, student.student_no, amount, option.weeks, tier.key);
-      onDone({ label: '买理财', detail: what, amount: -amount, txnNo: result.txn_no, txnId: result.id, wealthId: result.holding.id, type: 'wealth_buy' });
+      const result = await buyWealth(id, student.student_no, product.key, amount);
+      const nav = nav4(result.holding.buy_nav ?? product.nav ?? 1);
+      onDone({ label: '买理财', detail: `${product.name}，净值 ${nav}`, amount: -amount, txnNo: result.txn_no, txnId: result.id, wealthId: result.holding.id, type: 'wealth_buy' });
+      setToast(`已买入${product.name} ${formatAmount(amount)} HTB，净值 ${nav}`);
       setConfirming(false);
-      setWeeks(null);
-      setTierKey(null);
+      setKey(null);
       setText('');
       setId(newId());
     } catch (e) {
       stale(e);
-      setError(refusal(e));
+      setError(refusal(e, 'buy'));
       quote.refetch();
     } finally {
       setBusy(false);
     }
   }
 
-  async function redeem() {
-    if (busy || !redeeming) return; // sent again, the server returns the same 赎回
+  async function sell() {
+    if (busy || !selling) return; // sent again, the server returns the same 卖出
     setBusy(true);
     setError(null);
     try {
-      const result = await redeemWealth(redeeming.id);
-      const g = gain(result.holding.value_centi - 100 * result.holding.principal);
-      onDone({ label: '理财赎回', detail: `${redeeming.weeks} 周，${g.text}`, amount: result.amount, txnNo: result.txn_no, txnId: null, wealthId: redeeming.id });
-      setRedeeming(null);
-      setToast(`已赎回，转回活期 ${formatAmount(result.amount)} HTB`);
+      const result = await sellWealth(selling.id);
+      const g = gain(result.holding.gain_centi);
+      onDone({ label: '理财转回', detail: `${selling.name}，${g.text}`, amount: result.amount, txnNo: result.txn_no, txnId: null, wealthId: selling.id });
+      setSelling(null);
+      setToast(`已卖出，转回活期 ${formatAmount(result.amount)} HTB`);
     } catch (e) {
       stale(e);
-      setError(refusal(e));
+      setError(refusal(e, 'sell'));
       quote.refetch();
     } finally {
       setBusy(false);
     }
   }
 
-  const latest = q?.latest;
-  const index = q && (
-    <section className="dc-card dc-stack" aria-label="指数涨跌">
-      {!latest ? <p className="dc-caption">还没有指数数据。每个交易日收盘后更新。</p> : (
-        <>
-          <dl className="dc-kv">
-            <div><dt>{latest.day === q.today.day ? '今天' : `${monthDay(latest.day)} `}指数涨跌</dt>
-              <dd><span className={`dc-pl ${plClass(latest.change)}`}>{signedPct(latest.change)}</span></dd></div>
-          </dl>
-          <p className="dc-caption">参考 {q.index.name} 指数 · {monthDay(latest.day)} 收盘 · {latest.source_name}</p>
-          {q.today.closed === true && <p className="dc-caption">今天休市，只算基础收益。</p>}
-          <div className="dc-table-scroll">
-            <table className="dc-table" aria-label="最近 10 个交易日">
-              <thead><tr><th scope="col">日期</th><th scope="col" className="n">指数涨跌</th></tr></thead>
-              <tbody>
-                {q.recent.map((d) => (
-                  <tr key={d.day}><td>{monthDay(d.day)}</td><td className="n"><span className={`dc-pl ${plClass(d.change)}`}>{signedPct(d.change)}</span></td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </section>
-  );
   const list = q && (
-    <>
+    <div>
       <p className="dc-list-title">理财</p>
-      {q.holdings.some((h) => h.status !== 'reversed')
-        ? <WealthList holdings={q.holdings} onRedeem={inactive ? undefined : (h) => { setError(null); setRedeeming(h); }} />
-        : <section className="dc-card"><p className="dc-caption">还没有理财。</p></section>}
-    </>
+      <div className="dc-stack">
+        {inactive && (
+          <p className="dc-caption">{student.status === 'graduated' ? '账户已毕业，理财照常涨跌，不能在柜台卖出。' : '账户已冻结，理财照常涨跌，解冻后才能卖出。'}</p>
+        )}
+        {q.holdings.length
+          ? <WealthList holdings={q.holdings} today={now} blocked={inactive && (student.status === 'graduated' ? '已毕业' : '账户冻结')}
+            onSell={(h) => { setError(null); setSelling(h); }} />
+          : <section className="dc-card"><p className="dc-caption">还没有理财。</p></section>}
+      </div>
+    </div>
   );
-  // 平衡 ×2 against the first tier, the plainest: "跟着指数的涨跌是稳健的 2 倍".
-  const first = q?.tiers[0];
-  const times = tier && first && tier.key !== first.key ? `跟着指数的涨跌是${first.name}的 ${Number((tier.multiplier / first.multiplier).toFixed(2))} 倍，` : '';
-  const redeemGain = redeeming && gain(redeeming.value_centi - 100 * redeeming.principal);
+  const sellNav = selling && selling.weeks == null && q?.products.find((p) => p.key === selling.product)?.nav;
+  const sellGain = selling && gain(selling.gain_centi);
   return (
     <>
-      {inactive && <Notice title={`${inactive}，不能买理财或赎回；理财照常计收益，到期转回活期。`} />}
+      {inactive && <Notice title={`${inactive}，不能买理财。`} />}
       <div className="dc-split">
         <section className="dc-stack">
-          {quote.error ? <Notice tone="danger" title="暂时无法读取理财">请检查网络后再试一次。</Notice>
-            : !q ? <KvLoading rows={3} />
-            : <>
-              {index}
-              {open && (
-                <>
-                  <Notice title="理财可能亏损" icon="warning">
-                    理财的钱跟着中国股市的一个指数每天涨跌，到期或赎回时拿回的钱可能少于本金。可以随时按当时的价值赎回。
-                  </Notice>
-                  <div className="dc-choices" role="radiogroup" aria-label="期限">
-                    {q.options.map((o) => (
-                      <label key={o.weeks} className="dc-choice">
-                        <input type="radio" name="wealth-weeks" checked={weeks === o.weeks} onChange={() => setWeeks(o.weeks)} />
-                        <span><b>{o.weeks} 周</b><small>{monthDay(o.matures_on)} 到期</small></span>
-                      </label>
-                    ))}
-                  </div>
-                  {option && (
-                    <div className="dc-stack">
-                      <div className="dc-choices" role="radiogroup" aria-label="倍率">
-                        {option.tiers.map((t) => (
-                          <label key={t.key} className="dc-choice">
-                            <input type="radio" name="wealth-tier" checked={tierKey === t.key} onChange={() => setTierKey(t.key)} />
-                            <span>
-                              <b>{tierLabel(t)}</b>
-                              <small>{t.rate === null ? '还没有收益率' : <span className={`dc-pl ${plClass(t.rate)}`}>今天 {signedPct(t.rate)}</span>}</small>
-                              {bounds(t).map((b) => <small key={b}>{b}</small>)}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                      <p className="dc-caption">倍率越高，赚得越多，亏得也越多。休市的日子只算基础收益。</p>
-                    </div>
-                  )}
-                  <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
-                    <span className="dc-field-label"><Icon name="invest" />理财金额</span>
-                    <span className="dc-input-wrap">
-                      <input className="dc-input" inputMode="numeric" value={text} placeholder="请输入金额"
-                        onChange={(e) => setText(e.target.value.replace(/\D/g, '').slice(0, 6))} />
-                      <span className="dc-input-unit">HTB</span>
-                    </span>
-                    <span className="dc-field-hint">{hint.error && <Icon name="warning" />}{hint.text}</span>
-                  </label>
-                </>
-              )}
-              {list}
-            </>}
+          {open && (
+            <Notice title="理财可能亏损" icon="warning">每个品种跟着一种行情每天涨跌，卖出时拿回的钱可能少于本金。买入第二天起可以卖出。</Notice>
+          )}
+          {quote.error ? (
+            <Notice tone="danger" title="暂时无法读取净值">
+              请检查网络后重试。
+              <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => quote.refetch()}>重试</button>
+            </Notice>
+          ) : !q ? (open && <ChoicesLoading label="正在加载品种" />) : open && (
+            <>
+              <div className="dc-choices is-products" role="radiogroup" aria-label="品种">
+                {q.products.map((p) => {
+                  const day = productDay(p, now);
+                  return (
+                    <label key={p.key} className="dc-choice">
+                      <input type="radio" name="wealth-product" checked={key === p.key} onChange={() => setKey(p.key)} />
+                      <span>
+                        <b>{p.name}</b>
+                        <small>净值 {nav4(p.nav ?? 1)}</small>
+                        {day && <small><span className={`dc-pl ${day.cls}`}>{day.text}</span></small>}
+                        {p.waiting && <small>行情待登记</small>}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <label className={`dc-field ${hint.error ? 'is-error' : ''}`}>
+                <span className="dc-field-label"><Icon name="invest" />理财金额</span>
+                <span className="dc-input-wrap">
+                  <input className="dc-input" inputMode="numeric" value={text} placeholder="请输入金额"
+                    onChange={(e) => setText(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                  <span className="dc-input-unit">HTB</span>
+                </span>
+                <span className="dc-field-hint">{hint.error && <Icon name="warning" />}{hint.text}</span>
+              </label>
+              {product && amount > 0 && !hint.error && <p className="dc-caption">{buyText(product, amount)}</p>}
+            </>
+          )}
+          {list}
         </section>
         <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={Math.max(balance - amount, 0)}
-          current={open && tier && amount ? { label: '买理财', detail: what, amount: formatSigned(-amount) } : null} />
+          current={open && product && amount ? { label: '买理财', detail: what, amount: formatSigned(-amount) } : null} />
       </div>
-      {error && !confirming && !redeeming && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
+      {error && !confirming && !selling && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
       {open && (
         <Bar busy={busy} ready={ready} onClick={() => { setError(null); setConfirming(true); }}
-          label={busy ? '正在买入' : '买入理财'} totalLabel="买入理财" total={amount}
+          label={busy ? '正在买入' : q && !product ? '先选品种' : '买入理财'} totalLabel="买入理财" total={amount}
           note={`办理后余额 ${formatAmount(Math.max(balance - amount, 0))} HTB`} />
       )}
-      {confirming && option && tier && (
-        <ConfirmSheet title={`给${student.name}买理财 ${formatAmount(amount)} HTB？`} confirm="确认买入" busy={busy}
+      {confirming && product && (
+        <ConfirmSheet title={`给${student.name}买${product.name} ${formatAmount(amount)} HTB？`} confirm="确认买入" busy={busy}
           onConfirm={submit} onClose={() => { setConfirming(false); setError(null); }}>
           <Summary rows={[
-            ['期限', `${option.weeks} 周`], ['倍率', tierLabel(tier)], ['到期日', monthDay(option.matures_on)], ['开始计收益', '明天'],
-            ['这一档今天的收益率', tier.rate === null ? '还没有收益率' : <span className={`dc-pl ${plClass(tier.rate)}`}>{signedPct(tier.rate)}</span>],
-            ['每天范围', `最多赚 ${plainPct(tier.max)}，最多亏 ${plainPct(tier.min)}`],
-            ['活期余额', `${formatAmount(balance)} → ${formatAmount(balance - amount)} HTB`],
+            ['品种', product.name], ['买入净值', `${nav4(product.nav ?? 1)}（${dayName(product.nav_day ?? now, now)}）`], ['可以卖出', '明天起'],
+            ['期限', '没有期限，卖出前一直随净值涨跌'], ['活期余额', `${formatAmount(balance)} → ${formatAmount(balance - amount)} HTB`],
           ]} />
-          <p className="dc-caption is-danger">
-            <Icon name="warning" />理财可能亏损，到期拿回的钱可能少于 {formatAmount(amount)} HTB，最多亏光本金。{tierLabel(tier)} {times}一天最多可能亏 {plainPct(tier.min)}。
-          </p>
+          <p className="dc-caption is-danger"><Icon name="warning" />理财可能亏损，卖出时拿回的钱可能少于 {formatAmount(amount)} HTB，最多亏光本金。</p>
+          <p className="dc-caption">按办理时的净值成交。</p>
           {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
         </ConfirmSheet>
       )}
-      {redeeming && redeemGain && (
-        <ConfirmSheet title={`赎回这笔理财 ${formatAmount(redeeming.principal)} HTB？`} confirm="赎回" busy={busy}
-          text={`按现在的价值 ${formatCenti(redeeming.value_centi)} HTB 转回活期，${redeemGain.text}。赎回后不再随指数涨跌。`}
-          onConfirm={redeem} onClose={() => { setRedeeming(null); setError(null); }}>
+      {selling && sellGain && (
+        <ConfirmSheet title={`卖出这笔${holdingName(selling)}？`} confirm="卖出" busy={busy}
+          text={`${sellNav ? `按当前净值 ${nav4(sellNav)}，` : ''}现值 ${formatCenti(selling.value_centi)} HTB 转回活期，${sellGain.text}。卖出后不再随净值涨跌。`}
+          onConfirm={sell} onClose={() => { setSelling(null); setError(null); }}>
           {error && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
         </ConfirmSheet>
       )}

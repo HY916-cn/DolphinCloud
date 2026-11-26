@@ -1,84 +1,108 @@
-// node src/lib/wealth.test.mjs — 理财 as the counter, 我的理财, the 首页 and the back office write it.
+// node src/lib/wealth.test.mjs — 理财 as the counter, 我的理财, the 首页, the back office and 参数 write it.
 import assert from 'node:assert/strict';
 const {
-  amountHint, bounds, clipped, dayName, gain, heldValue, holdingLine, parseChange, plClass, plainPct, shownHoldings, signedPct, tierLabel,
-  wealthDraft, wealthProblems, wealthValues,
+  amountHint, buyText, cnDay, dayName, fixedPct, gain, heldValue, holdingLine, holdingName, lockedText, missingText, nav4, parseChange,
+  plClass, productDay, sellableTag, shownHoldings, signedPct, wealthDraft, wealthProblems, wealthValues, weekBase,
 } = await import('./wealth.ts');
 
 // Percentages to 2 decimals with the minus sign −, half away from zero.
 assert.equal(signedPct(0.4237), '+0.42%');
 assert.equal(signedPct(-0.6835), '−0.68%');
 assert.equal(signedPct(1.005), '+1.01%');
-assert.equal(signedPct(-4.9168), '−4.92%');
 assert.equal(signedPct(0.004), '0.00%');
-assert.equal(signedPct(12), '+12.00%');
-assert.equal(plainPct(-10), '10%');
-assert.equal(plainPct(0.5153), '0.52%');
+assert.equal(fixedPct(4), '4.00%');
+assert.equal(fixedPct(-8), '−8.00%');
 assert.equal(plClass(0.42), 'is-up');
 assert.equal(plClass(-0.8), 'is-down');
 assert.equal(plClass(0.001), '');
+assert.equal(nav4(1.056_549), '1.0565');
+assert.equal(nav4(1), '1.0000');
+assert.equal(nav4(0.999_95), '1.0000');
 
-assert.deepEqual(gain(320), { text: '盈 +3.20 HTB', cls: 'is-up' });
-assert.deepEqual(gain(-350), { text: '亏 −3.50 HTB', cls: 'is-down' });
+assert.deepEqual(gain(324), { text: '盈 +3.24 HTB', cls: 'is-up' });
+assert.deepEqual(gain(-192), { text: '亏 −1.92 HTB', cls: 'is-down' });
 assert.deepEqual(gain(0), { text: '持平', cls: '' });
-assert.equal(tierLabel({ name: '平衡', multiplier: 2 }), '平衡 ×2');
-assert.equal(tierLabel({ tier_name: '稳健', multiplier: 0.5 }), '稳健 ×0.5');
-assert.deepEqual(bounds({ min: -10, max: 10 }), ['每天最多赚 10%', '每天最多亏 10%']);
-assert.equal(dayName('2026-11-14', '2026-11-14'), '今天');
-assert.equal(dayName('2026-11-13', '2026-11-14'), '11月13日');
+assert.equal(dayName('2026-11-26', '2026-11-26'), '今天');
+assert.equal(dayName('2026-11-24', '2026-11-26'), '11月24日');
+assert.equal(cnDay('2026-11-25T16:30:00Z'), '2026-11-26'); // 00:30 in Shanghai
+assert.equal(cnDay('2026-11-26T15:59:00+00:00'), '2026-11-26');
+
+// A product's day and rate.
+const today = '2026-11-26';
+assert.deepEqual(productDay({ nav_day: today, change: 0.8412 }, today), { text: '今天 +0.84%', cls: 'is-up' });
+assert.deepEqual(productDay({ nav_day: '2026-11-24', change: -1.15 }, today), { text: '11月24日 −1.15%', cls: 'is-down' });
+assert.deepEqual(productDay({ nav_day: '2026-11-24', change: 0 }, today), { text: '11月24日 0.00%', cls: '' });
+assert.equal(productDay({ nav_day: '2026-11-25', change: null }, today), null);
+
+// T+1.
+const open = { status: 'open', sellable_on: '2026-11-27' };
+assert.equal(sellableTag(open, today), '明天可卖');
+assert.equal(sellableTag({ ...open, sellable_on: '2026-11-30' }, today), '11月30日可卖');
+assert.equal(sellableTag({ ...open, sellable_on: today }, today), null);
+assert.equal(sellableTag({ ...open, weeks: 12 }, today), null);
+assert.equal(sellableTag({ ...open, status: 'redeemed' }, today), null);
+assert.equal(lockedText('2026-11-27', today), '这笔理财明天起可以卖出。');
+assert.equal(lockedText('2026-11-30', today), '这笔理财11月30日起可以卖出。');
 
 assert.deepEqual(amountHint(0, 415), { text: '1 HTB 起，最多 415 HTB（活期余额）', error: false });
 assert.deepEqual(amountHint(500, 415), { text: '余额不足：活期余额 415 HTB，还差 85 HTB', error: true });
+assert.equal(buyText({ name: '黄金', nav: 1.056_5 }, 100), '按黄金当前净值 1.0565 买入 100 HTB。净值涨 1%，这笔理财也涨 1%；明天起可以卖出。');
 
-const h = { id: 'a', student_no: '1', principal: 100, weeks: 12, opened_on: '2026-11-12', starts_on: '2026-11-13', matures_on: '2027-02-04',
-  value_centi: 10320, valued_to: '2026-11-15', status: 'open', open_txn: 't', close_txn: null, closed_on: null, tier: 'balanced', tier_name: '平衡', multiplier: 2,
-  factor: 2, base: 3.6637, min_rate: -10, max_rate: 10 };
-let l = holdingLine(h);
-assert.equal(l.lead, '理财 12 周 · 平衡 ×2 · 本金 100 HTB，现在值 ');
-assert.equal(l.amount, '103.20 HTB');
-assert.equal(l.gain.text, '盈 +3.20 HTB');
-assert.equal(l.day, '2月4日 到期');
-assert.equal(l.tag, 'open');
-assert.equal(l.canRedeem, true);
-l = holdingLine({ ...h, status: 'redeemed', value_centi: 9650, closed_on: '2027-01-06' });
-assert.equal(l.lead, '理财 12 周 · 平衡 ×2 · 本金 100 HTB，拿回 ');
-assert.equal(l.amount, '96.50 HTB');
-assert.equal(l.gain.text, '亏 −3.50 HTB');
-assert.equal(l.day, '1月6日 赎回');
-assert.equal(l.canRedeem, false);
-assert.equal(holdingLine({ ...h, status: 'redeemed' }).day, null);
-assert.equal(holdingLine({ ...h, status: 'matured', value_centi: 95 }).amount, '0.95 HTB');
-// A matured one is dated by its maturity day, not closed_on (the day after it, when the money came back).
-assert.equal(holdingLine({ ...h, status: 'matured', closed_on: '2027-02-05' }).day, '2月4日 到期');
+// The lines of a list, at the counter and the student's.
+const gold = {
+  id: 'a', product: 'gold', name: '黄金', principal: 100, buy_nav: 1.0234, bought_at: '2026-11-24T02:00:00Z', value_centi: 10324, gain_centi: 324,
+  sellable_on: '2026-11-25', status: 'open', closed_on: null, returned_centi: null,
+};
+let l = holdingLine(gold, today);
+assert.equal(`${l.lead}${l.amount}`, '黄金 · 本金 100 HTB，现在值 103.24 HTB');
+assert.deepEqual([l.gain.text, l.day, l.tag, l.wait], ['盈 +3.24 HTB', '11月24日 按净值 1.0234 买入', 'open', null]);
+assert.equal(holdingLine(gold, today, true).day, '11月24日 买入');
+const ndx = { ...gold, id: 'b', product: 'ndx', name: '纳斯达克 100', principal: 50, buy_nav: 1.0688, bought_at: '2026-11-26T01:00:00Z', value_centi: 5000, gain_centi: 0, sellable_on: '2026-11-27' };
+l = holdingLine(ndx, today);
+assert.deepEqual([`${l.lead}${l.amount}`, l.gain.text, l.day, l.tag, l.wait], ['纳斯达克 100 · 本金 50 HTB，现在值 50.00 HTB', '持平', '今天 按净值 1.0688 买入', 'wait', '明天可卖']);
+const term = { ...gold, id: 'c', product: 'csi300', name: '沪深 300', buy_nav: null, value_centi: 10320, weeks: 12, tier_name: '平衡', multiplier: 2, matures_on: '2027-02-04', sellable_on: '2026-11-02', bought_at: '2026-11-01T02:00:00Z' };
+l = holdingLine(term, today);
+assert.equal(holdingName(term), '沪深 300 · 12 周 · 平衡 ×2');
+assert.deepEqual([`${l.lead}${l.amount}`, l.gain.text, l.day, l.tag], ['沪深 300 · 12 周 · 平衡 ×2 · 本金 100 HTB，现在值 103.20 HTB', '盈 +3.20 HTB', '2月4日 到期', 'open']);
+const sold = { ...gold, id: 'd', product: 'bond', name: '国债', principal: 30, value_centi: 3066, returned_centi: 3066, status: 'redeemed', closed_on: '2026-11-20', bought_at: '2026-11-10T02:00:00Z' };
+l = holdingLine(sold, today);
+assert.deepEqual([`${l.lead}${l.amount}`, l.gain.text, l.day, l.tag], ['国债 · 本金 30 HTB，拿回 30.66 HTB', '盈 +0.66 HTB', '11月20日 卖出', 'redeemed']);
+const matured = { ...term, id: 'e', principal: 50, value_centi: 5106, returned_centi: 5106, status: 'matured', weeks: 4, tier_name: '稳健', multiplier: 1, matures_on: '2026-11-12', closed_on: '2026-11-13' };
+l = holdingLine(matured, today);
+assert.deepEqual([`${l.lead}${l.amount}`, l.day, l.tag], ['沪深 300 · 4 周 · 稳健 ×1 · 本金 50 HTB，拿回 51.06 HTB', '11月12日 到期', 'matured']);
 
-assert.deepEqual(shownHoldings([{ status: 'open', opened_on: '2026-11-01' }, { status: 'reversed', opened_on: '2026-11-20' }, { status: 'matured', opened_on: '2026-11-10' }]),
-  [{ status: 'matured', opened_on: '2026-11-10' }, { status: 'open', opened_on: '2026-11-01' }]);
-assert.equal(heldValue([{ ...h, status: 'matured' }]), null);
-assert.deepEqual(heldValue([h, { ...h, principal: 50, value_centi: 4825 }, { ...h, status: 'redeemed' }]),
-  { text: '151.45 HTB', gain: { text: '盈 +1.45 HTB', cls: 'is-up' } });
+// Open ones first, latest bought first; then the closed ones, latest closed first.
+assert.deepEqual(shownHoldings([sold, gold, matured, ndx, term]).map((h) => h.id), ['b', 'a', 'c', 'd', 'e']);
+assert.deepEqual(heldValue([gold, ndx, sold]), { text: '153.24 HTB', gain: { text: '盈 +3.24 HTB', cls: 'is-up' } });
+assert.equal(heldValue([sold]), null);
 
-assert.equal(clipped(10, { min: -10, max: 10 }), true);
-assert.equal(clipped(-10, { min: -10, max: 10 }), true);
-assert.equal(clipped(2.2, { min: -10, max: 10 }), false);
+assert.deepEqual(missingText([{ name: '黄金', missing: ['2026-11-21'] }, { name: '国债', missing: [] }, { name: '恒生指数', missing: ['2026-11-21', '2026-11-24'] }]),
+  { count: 3, text: '黄金 11月21日；恒生指数 11月21日、11月24日' });
 
 assert.equal(parseChange('−0.8'), -0.8);
-assert.equal(parseChange('-0.8'), -0.8);
 assert.equal(parseChange('1.2345'), 1.2345);
-assert.equal(parseChange('50'), 50);
-assert.equal(parseChange('50.1'), null);
 assert.equal(parseChange('1.23456'), null);
+assert.equal(parseChange('60'), null);
 assert.equal(parseChange(''), null);
-assert.equal(parseChange('abc'), null);
 
-const params = { symbol: 'sh000300', name: '沪深 300', factor: 2, base: { 2: 3.923, 4: 4.0031, 12: 3.6637, 24: 3.2208, 48: 2.5823 },
-  tiers: [{ key: 'steady', name: '稳健', multiplier: 1, min: -5, max: 5 }, { key: 'balanced', name: '平衡', multiplier: 2, min: -10, max: 10 }] };
+// 参数: each product's multiplier and premium; the rest kept as read.
+const params = {
+  cap: 20, products: [
+    { key: 'bond', name: '国债', symbol: 'sh000012', multiplier: 10, premium: 0.25 },
+    { key: 'gold', name: '黄金', symbol: 'sh518880', multiplier: 1, premium: -1.5 },
+  ],
+};
 const draft = wealthDraft(params);
-assert.equal(draft.tiers[1].loss, '10');
+assert.deepEqual(draft, [{ key: 'bond', name: '国债', multiplier: '10', premium: '0.25' }, { key: 'gold', name: '黄金', multiplier: '1', premium: '−1.5' }]);
 assert.deepEqual(wealthProblems(draft), {});
-assert.deepEqual(wealthValues(draft), { ...params, base: { 2: 3.923, 4: 4.0031, 12: 3.6637, 24: 3.2208, 48: 2.5823 } });
-assert.deepEqual(wealthValues({ ...draft, tiers: [{ ...draft.tiers[0], loss: '0' }] }).tiers[0].min, 0);
-assert.deepEqual(Object.keys(wealthProblems({ ...draft, symbol: 'sh00030', name: '', factor: '11', base: { ...draft.base, 12: '1.23456' },
-  tiers: [{ ...draft.tiers[0], name: '一二三四五六七八九十一', multiplier: '0.05', loss: '101', profit: 'x' }] })),
-  ['symbol', 'name', 'factor', 'base.12', 'tiers.0.name', 'tiers.0.multiplier', 'tiers.0.loss', 'tiers.0.profit']);
+assert.deepEqual(wealthValues(draft, params), params);
+const edited = [{ ...draft[0], multiplier: '20.5', premium: '10.00001' }, { ...draft[1], multiplier: '0.1', premium: '-10' }];
+assert.deepEqual(wealthProblems(edited), { '0.multiplier': '倍率在 0.1～20 之间，最多 4 位小数。', '0.premium': '基准加成在 −10～10 之间，最多 4 位小数。' });
+assert.deepEqual(wealthValues([draft[0], { ...draft[1], multiplier: '2.5', premium: '−0' }], params).products[1], { key: 'gold', name: '黄金', symbol: 'sh518880', multiplier: 2.5, premium: 0 });
+assert.deepEqual(wealthProblems([{ ...draft[0], multiplier: '' }]), { '0.multiplier': '倍率在 0.1～20 之间，最多 4 位小数。' });
+assert.equal(weekBase(2, '2'), '4.00%');
+assert.equal(weekBase(2, '1.75'), '3.75%');
+assert.equal(weekBase(2, '−10'), '−8.00%');
+assert.equal(weekBase(2, ''), null);
 
-console.log('wealth ok');
+console.log('wealth: ok');

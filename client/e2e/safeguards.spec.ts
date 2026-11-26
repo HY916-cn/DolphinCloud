@@ -259,8 +259,7 @@ test('a 时段 left empty takes the time in the band only when confirmed', async
   await expect(from).toHaveText('00:00');
 });
 
-// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
-test.skip('参数 says what a number may be and will not save one it cannot take', async ({ page }) => {
+test('参数 says what a number may be and will not save one it cannot take', async ({ page }) => {
   let saves = 0;
   page.on('request', (r) => { if (r.url().includes('/rpc/set_settings')) saves++; });
   await signIn(page, '工作人员', 'admin');

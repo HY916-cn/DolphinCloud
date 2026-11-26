@@ -24,8 +24,7 @@ test('工资账户 first: the teller binds a student account with its password',
   await expect(teller.locator('section[aria-label="工资账户"]')).toContainText('李思远');
 });
 
-// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
-test.skip('参与考勤: the bank admin counts the bound teller and sets the pay', async ({ page }) => {
+test('参与考勤: the bank admin counts the bound teller and sets the pay', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
   await expect(page.locator('.dc-notice', { hasText: '还没有参与考勤的人员' })).toContainText('在「人员」里打开「参与考勤」。');
@@ -48,8 +47,7 @@ test.skip('参与考勤: the bank admin counts the bound teller and sets the pay
   await expect(page.getByText('参数已保存')).toBeVisible();
 });
 
-// Skipped with the 参数 case above it depends on (M24).
-test.skip('下班 and 上班 record the shift of now once, and the counter waits for 上班', async ({ page: teller }) => {
+test('下班 and 上班 record the shift of now once, and the counter waits for 上班', async ({ page: teller }) => {
   await signIn(teller, '工作人员', 'teller01');
   await teller.locator('.dc-nav-item', { hasText: '考勤' }).click();
   await expect(teller.locator('.dc-duty')).toContainText('已上班');
@@ -63,8 +61,7 @@ test.skip('下班 and 上班 record the shift of now once, and the counter waits
   await expect(teller.locator('section[aria-label="上下班记录"] li')).toHaveCount(2);
 });
 
-// Skipped with the 参数 case above it depends on (M24).
-test.skip('审查 once, 签到 from the table, then 发放工资 by the week once nothing waits', async ({ page }) => {
+test('审查 once, 签到 from the table, then 发放工资 by the week once nothing waits', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await page.locator('.dc-nav-item', { hasText: '考勤' }).click();
   const week = page.getByRole('table', { name: '本周考勤' });
@@ -100,16 +97,14 @@ test.skip('审查 once, 签到 from the table, then 发放工资 by the week onc
   await expect(week.locator('tfoot td')).toHaveText(['合计', '', '1', `${nowPay}`]);
 });
 
-// Skipped with the 参数 case above it depends on (M24).
-test.skip('the teller sees what each shift paid', async ({ page: teller }) => {
+test('the teller sees what each shift paid', async ({ page: teller }) => {
   await signIn(teller, '工作人员', 'teller01');
   await teller.locator('.dc-nav-item', { hasText: '考勤' }).click();
   await expect(teller.locator('.dc-stat', { hasText: '已发' })).toContainText(`${nowPay}HTB`);
   await expect(teller.getByRole('table', { name: '本周班次' })).toContainText(`已发 ${nowPay} HTB`);
 });
 
-// Skipped with the 参数 case above it depends on (M24).
-test.skip('the student sees the pay in 明细', async ({ page: student }) => {
+test('the student sees the pay in 明细', async ({ page: student }) => {
   await signIn(student, '学生', '20260002');
   await student.locator('.dc-nav-item, .dc-tab', { hasText: '明细' }).first().click();
   await student.getByRole('tab', { name: '工资' }).click();

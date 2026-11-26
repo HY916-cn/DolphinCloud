@@ -41,7 +41,7 @@ const FIELDS: Record<string, string> = {
   account: '工资账户', attendance: '班次', shift: '班次', day: '日期', note: '说明', status: '审核结果', week: '发放的周',
   name: '名称', starts_on: '开始日', ends_on: '结束日', credit_curve: '信用分的计算参数', credit_rules: '加减分规则',
   anchor_params: '锚点参数', term_rates: '定期周利率', loan_multiplier: '贷款倍数', penalty_multiplier: '罚息倍数', weeks: '存期', term_id: '这笔定期',
-  holding_id: '这笔理财', tier: '档位', change: '指数涨跌', wealth_params: '理财参数',
+  holding_id: '这笔理财', change: '行情涨跌', wealth_params: '理财参数',
   occurred_at: '原始发生时间', type: '类型', new: '改好的内容',
   plan: '还款方式', periods: '期数', via: '放款方式', purpose: '用途', loan_id: '这笔贷款', terminate_reason: '终止原因',
 };
@@ -51,6 +51,7 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'STUDENT_NOT_FOUND': return { title: '未找到该学号', text: '请核对学号后重新输入。' };
     // With `at` (补录, 编辑): the moment from which 活期 would fall short.
     case 'INSUFFICIENT_BALANCE':
+      if (d.wealth === 'buy') return { title: '余额不足', text: `余额不足：活期余额 ${d.balance} HTB，还差 ${d.short} HTB。` };
       return d.at ? { title: '活期会不够', text: `补录后，${shanghaiTime(String(d.at))} 起活期会不够，差 ${d.short} HTB。` }
         : { title: '余额不足', text: `可用余额 ${d.balance} HTB，还差 ${d.short} HTB，请减少金额。` };
     case 'OCCURRED_OUT_OF_RANGE': return { title: '时间不在补录范围内', text: `只能补录 ${shanghaiTime(String(d.from))} 开户以后到现在之间发生的业务。` };
@@ -64,13 +65,14 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       if (d.edit) return { title: '不能编辑这笔流水', text: '这笔流水已经冲正或编辑过，不能再编辑。' };
       return { title: '不能冲正这笔业务', text: d.type === 'term_open' ? '这笔定期已经到期或提前支取，不能再冲正。'
         : d.type === 'term_close' ? '已过到期日，不能再冲正这笔提前支取。'
-        : d.type === 'wealth_buy' ? '这笔理财已经开始计收益或已转回，不能再冲正。'
-        : d.type === 'wealth_close' ? '已过到期日，不能再冲正这笔赎回。'
+        : d.type === 'wealth_buy' ? '这笔理财已经卖出或到期，不能再冲正。'
+        : d.type === 'wealth_close' ? '已过到期日，不能再冲正这笔卖出。'
         : d.type === 'loan' ? '这笔贷款已经开始还款，不能再冲正。'
         : d.type === 'repay' ? '只能冲正这笔贷款最近的一笔还款。' : '只能冲正本人今天办理的业务，其他情况请联系银行管理员。' };
     case 'REVERSAL_INSUFFICIENT_BALANCE':
       return { title: '暂不能冲正', text: `当前余额 ${d.balance} HTB，少于原存款金额，请联系银行管理员。` };
     case 'STUDENT_INACTIVE':
+      if (d.wealth === 'sell') return { title: '不能卖出', text: '账户已冻结或已毕业，理财不能卖出。' };
       return { title: '账户不可办理', text: d.status === 'closed' ? '该账户已注销。' : '该账户已冻结或已毕业，请联系银行管理员。' };
     // `cash` (end: 下班, review: 复核, force: 强制下班) is the 轧账 pages' own: the server sends no such detail.
     // `currency` (the kind being recorded: baseline, issue, recover, destroy, correction) is 登记货币's own.
@@ -81,7 +83,14 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
           : '每种面额 0～100000 张，合计不超过 10,000,000 HTB，不能为 0。' };
       }
       if (d.cash) return { title: '张数有误', text: '实点张数不对，请检查各面额。' };
+      if (d.wealth) return { title: '金额有误', text: '金额要是 1 HTB 起的整数。' };
       return { title: '金额有误', text: d.payoff != null ? `还清本金要连利息零头一起付，全部结清是 ${d.payoff} HTB。` : '请输入正整数金额，并使用柜台列出的面额。' };
+    // `today` is the page's: the server sends only the day the 理财 may be sold.
+    case 'WEALTH_LOCKED': {
+      const day = String(d.sellable_on);
+      const tomorrow = d.today && new Date(Date.parse(`${d.today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10) === day;
+      return { title: '还不能卖出', text: `这笔理财${tomorrow ? '明天' : monthDay(day)}起可以卖出。` };
+    }
     case 'TXN_NOT_FOUND': return { title: '未找到该业务', text: '请核对交易号。' };
     // `type` is the business a 冲正 was tried on (client's own); the server's detail is the roles that may.
     case 'FORBIDDEN':
@@ -114,10 +123,10 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
       if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '银行管理员和运维员不参与考勤。' };
       if (d.field === 'id' && d.payroll) return { title: '不能作废', text: '待审的班次请审查。' };
-      if (d.field === 'tier') return { title: '还没有选档位', text: '请选择档位。' };
-      if (d.field === 'holding_id') return { title: '不能赎回', text: '这笔理财已经到期或冲正，不能赎回。' };
-      if (d.field === 'change') return { title: '指数涨跌有误', text: '指数涨跌要在 −50% 到 50% 之间，最多 4 位小数。' };
-      // `wealth` (登记指数涨跌) is the 理财 page's own: the server sends no detail.
+      // `wealth` (buy, sell: the counter's 理财; record: 登记行情 on the 理财 page) is the pages' own: the server sends no such detail.
+      if (d.wealth && d.field === 'product') return { title: '还没有选品种', text: '请选择品种。' };
+      if (d.field === 'holding_id') return { title: '不能卖出', text: '这笔理财已经卖出或到期，不能再卖出。' };
+      if (d.field === 'change') return { title: '行情涨跌有误', text: '行情涨跌要在 −50% 到 50% 之间，最多 4 位小数。' };
       if (d.wealth && d.field === 'day') return { title: '日期有误', text: '只能登记已经过去的工作日。' };
       if (d.wealth && d.field === 'note') return { title: '说明有误', text: '请写明数据从哪里来，最多 200 字。' };
       if (d.field === 'loan_id' && d.status) return { title: '这笔贷款不能还款', text: d.status === 'closed' ? '这笔贷款已经结清。' : '这笔贷款已经作废。' };

@@ -174,8 +174,7 @@ test('in the holidays interest goes on, and both pages say when the anchor was p
   await expect(page.getByRole('region', { name: '本周锚点' }).locator('> p.dc-caption')).toHaveText(`${md(MONDAY)}公布，下次 ${md(`${MONDAY} + 7`)}。`);
 });
 
-// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
-test.skip('参数「利率」: 定期周利率 and the anchor’s start and bounds, checked as the server checks them, the rest kept as read', async ({ page }) => {
+test('参数「利率」: 定期周利率 and the anchor’s start and bounds, checked as the server checks them, the rest kept as read', async ({ page }) => {
   const fixed = `select jsonb_build_object('loan', (select value from public.settings where key = 'loan_multiplier'),
     'penalty', (select value from public.settings where key = 'penalty_multiplier'))`;
   const multipliers = sql(fixed);

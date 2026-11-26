@@ -12,7 +12,7 @@ import {
 import { call } from '@/lib/rpc';
 import { PAID_ROLES, rateWrong, ratesDraft, ratesValue, type Rates, type RatesDraft } from '@/lib/salary';
 import { ROLES } from '@/lib/session';
-import { wealthDraft, wealthProblems, wealthValues, type WealthDraft, type WealthParams } from '@/lib/wealth';
+import { wealthDraft, wealthProblems, wealthValues, weekBase, type WealthDraft, type WealthParams } from '@/lib/wealth';
 import { supabase } from '@/lib/supabase';
 
 type Values = Record<string, unknown>;
@@ -219,57 +219,50 @@ function RateGroup({ term, termWrong, onTerm, draft, problems, onChange }: {
   );
 }
 
-// 理财 (design system Invest 后台「理财」页): the index, its factor, the weekly base of each length, and each tier's name,
-// multiplier and daily bounds (每天最多亏 without its sign). Checked here as set_setting checks wealth_params.
+// 理财 (design system Invest 参数页「理财」一组): each product's multiplier and weekly premium, with this week's base from
+// the week's anchor and the premium as typed. Products, their names and the ±20% are the system's. A table on a computer;
+// a card per product on phones and tablets.
 function WealthGroup({ draft, problems, onChange }: { draft: WealthDraft; problems: Record<string, string>; onChange: (d: WealthDraft) => void }) {
-  const text = (label: string, value: string, error: string | undefined, max: number, set: (v: string) => void) => (
-    <label className={`dc-field ${error ? 'is-error' : ''}`}>
-      <span className="dc-field-label"><Icon name="invest" />{label}</span>
-      <span className="dc-input-wrap"><input className="dc-input" aria-label={label} value={value} maxLength={max} onChange={(e) => set(e.target.value)} /></span>
-      {error && <span className="dc-field-hint"><Icon name="warning" />{error}</span>}
-    </label>
-  );
-  const times = (label: string, value: string, error: string | undefined, set: (v: string) => void) => (
-    <label className={`dc-field ${error ? 'is-error' : ''}`}>
-      <span className="dc-field-label"><Icon name="invest" />{label}</span>
-      <span className="dc-input-wrap">
-        <span className="dc-input-unit">×</span>
-        <input className="dc-input" inputMode="decimal" aria-label={label} value={value} onChange={(e) => set(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))} />
-      </span>
-      {error && <span className="dc-field-hint"><Icon name="warning" />{error}</span>}
-    </label>
-  );
-  const tier = (i: number, k: keyof WealthDraft['tiers'][number], v: string) =>
-    onChange({ ...draft, tiers: draft.tiers.map((t, j) => (j === i ? { ...t, [k]: v } : t)) });
+  const wide = useWide();
+  const anchor = useQuery({ queryKey: ['rate-overview'], queryFn: () => call<{ anchor: number }>('rate_overview', {}) }).data?.anchor;
+  const set = (i: number, k: 'multiplier' | 'premium', v: string) => onChange(draft.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const cell = (i: number, k: 'multiplier' | 'premium', label?: string, hint?: string) => {
+    const p = draft[i];
+    const error = problems[`${i}.${k}`];
+    return (
+      <label className={`dc-field ${error ? 'is-error' : ''}`}>
+        {label && <span className="dc-field-label"><Icon name="invest" />{label}</span>}
+        <span className="dc-input-wrap">
+          <input className="dc-input" inputMode="decimal" size={label ? undefined : 5} aria-label={`${p.name}${k === 'multiplier' ? '倍率' : '基准加成'}`} value={p[k]}
+            onChange={(e) => set(i, k, e.target.value.replace(k === 'multiplier' ? /[^\d.]/g : /[^\d.\-−]/g, '').slice(0, 8))} />
+          <span className="dc-input-unit">{k === 'multiplier' ? '×' : '%'}</span>
+        </span>
+        {(error || hint) && <span className="dc-field-hint">{error ? <><Icon name="warning" />{error}</> : hint}</span>}
+      </label>
+    );
+  };
+  const base = (i: number) => (anchor == null ? '—' : weekBase(anchor, draft[i].premium) ?? '—');
   return (
     <section className="dc-stack">
       <h2 className="heading is-section">理财</h2>
-      <div className="dc-card dc-stack">
-        <p className="dc-list-title">参考指数</p>
-        <div className="dc-denoms">
-          {text('指数代码', draft.symbol, problems.symbol, 8, (v) => onChange({ ...draft, symbol: v }))}
-          {text('指数名称', draft.name, problems.name, 20, (v) => onChange({ ...draft, name: v }))}
-          {times('系数', draft.factor, problems.factor, (v) => onChange({ ...draft, factor: v }))}
+      <p className="dc-caption">倍率让每天的涨跌看得出来，基准加成加在当周锚点上，是这个品种每周的基准收益。保存后从下一个计入的日子起生效，已经计入的日子不变。每天收益率最多 ±20%。</p>
+      {wide ? (
+        <div className="dc-card"><div className="dc-table-scroll">
+          <table className="dc-table" aria-label="理财参数">
+            <thead><tr><th scope="col">品种</th><th scope="col">倍率</th><th scope="col">基准加成（周）</th><th scope="col" className="n">本周基准收益</th></tr></thead>
+            <tbody>
+              {draft.map((p, i) => (
+                <tr key={p.key}><th scope="row">{p.name}</th><td>{cell(i, 'multiplier')}</td><td>{cell(i, 'premium')}</td><td className="n">{base(i)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div></div>
+      ) : draft.map((p, i) => (
+        <div key={p.key} className="dc-card dc-stack" role="group" aria-label={`${p.name}的参数`}>
+          <p className="dc-list-title">{p.name}</p>
+          <div className="dc-denoms">{cell(i, 'multiplier', '倍率')}{cell(i, 'premium', '基准加成（周）', `本周 ${base(i)}`)}</div>
         </div>
-        <p className="dc-list-title">周基础收益</p>
-        <div className="dc-denoms">
-          {byWeeks(draft.base).map(([w, v]) => (
-            <Percent key={w} label={`${w} 周`} name={`理财 ${w} 周`} value={v} onChange={(x) => onChange({ ...draft, base: { ...draft.base, [w]: x } })} error={problems[`base.${w}`]} />
-          ))}
-        </div>
-        {draft.tiers.map((t, i) => (
-          <div key={t.key} className="dc-stack" role="group" aria-label={`档位 ${i + 1}`}>
-            <p className="dc-list-title">档位 {i + 1}</p>
-            <div className="dc-denoms">
-              {text('名称', t.name, problems[`tiers.${i}.name`], 10, (v) => tier(i, 'name', v))}
-              {times('倍率', t.multiplier, problems[`tiers.${i}.multiplier`], (v) => tier(i, 'multiplier', v))}
-              <Percent label="每天最多赚" value={t.profit} onChange={(v) => tier(i, 'profit', v)} error={problems[`tiers.${i}.profit`]} />
-              <Percent label="每天最多亏" value={t.loss} onChange={(v) => tier(i, 'loss', v)} error={problems[`tiers.${i}.loss`]} />
-            </div>
-          </div>
-        ))}
-        <p className="dc-caption">保存后新买的理财按这里的参数计算；已经买的理财按买入时的参数不变。</p>
-      </div>
+      ))}
     </section>
   );
 }
@@ -386,7 +379,7 @@ function SettingsForm({ saved, savedRates }: { saved: Values; savedRates: Rates 
     credit_rules: rulesValue(rules),
     anchor_params: rateValues(rates, saved.anchor_params as AnchorParams),
     term_rates: termValues(term),
-    wealth_params: wealthValues(wealth),
+    wealth_params: wealthValues(wealth, saved.wealth_params as WealthParams),
     risk_rules: Object.fromEntries(RISK.map(([k]) => [k, Number(risk[k])])),
     payout_ratio_min: Number(payout),
   };

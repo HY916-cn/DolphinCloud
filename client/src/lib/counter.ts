@@ -7,7 +7,7 @@ import { call, withTimeout } from './rpc';
 import { indexRoster } from './search';
 import type { LoanDetail, LoanPlan, LoanPreview, LoanQuote } from './loans';
 import type { TermDeposit, TermQuote } from './term-deposits';
-import type { WealthHolding, WealthQuote } from './wealth';
+import type { Holding, WealthQuote } from './wealth';
 import { readAll, supabase } from './supabase';
 
 export type Student = {
@@ -34,12 +34,12 @@ export type TermResult = TxnResult & { term: TermDeposit };
 export const openTermDeposit = (id: string, no: string, amount: number, weeks: number) =>
   call<TermResult>('open_term_deposit', { p_id: id, p_student_no: no, p_amount: amount, p_weeks: weeks });
 export const withdrawTermEarly = (termId: string) => call<TermResult>('withdraw_term_early', { p_term_id: termId });
-// 理财 at the counter (PHASE-2.md §10.10): the panel's facts, 买理财 (p_id is the holding's id, the idempotency key) and 赎回.
+// 理财 at the counter (PHASE-2.md §10.10): the panel's facts, 买理财 (p_id is the holding's id, the idempotency key) and 卖出.
 export const wealthQuote = (no: string) => call<WealthQuote>('wealth_quote', { p_student_no: no });
-export type WealthResult = TxnResult & { holding: WealthHolding };
-export const buyWealth = (id: string, no: string, amount: number, weeks: number, tier: string) =>
-  call<WealthResult>('buy_wealth', { p_id: id, p_student_no: no, p_amount: amount, p_weeks: weeks, p_tier: tier });
-export const redeemWealth = (holdingId: string) => call<WealthResult>('redeem_wealth', { p_holding_id: holdingId });
+export type WealthResult = TxnResult & { holding: Holding };
+export const buyWealth = (id: string, no: string, product: string, amount: number) =>
+  call<WealthResult>('buy_wealth', { p_id: id, p_student_no: no, p_product: product, p_amount: amount });
+export const sellWealth = (holdingId: string) => call<WealthResult>('sell_wealth', { p_holding_id: holdingId });
 // 贷款 at the counter (PHASE-2.md §10.3–10.9): the panel's facts, the plan with its estimated interest, 放款 (p_id is the
 // loan's id, the idempotency key) and 还款 (p_id is the transaction's; cash is the notes, amount null).
 export const loanQuote = (no: string) => call<LoanQuote>('loan_quote', { p_student_no: no });

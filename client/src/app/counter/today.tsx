@@ -71,7 +71,7 @@ export default function Today() {
                       </div>
                     </div>
                     <div className={`dc-txn-amount ${signClass(t.balance_delta)}`}>
-                      {t.balance_delta ? formatSigned(t.balance_delta) : '现金'}<small>{t.balance_delta ? 'HTB' : `${t.amount} HTB`}</small>
+                      {t.balance_delta || t.type === 'wealth_close' ? formatSigned(t.balance_delta) : '现金'}<small>{t.balance_delta || t.type === 'wealth_close' ? 'HTB' : `${t.amount} HTB`}</small>
                     </div>
                   </li>
                 ))}

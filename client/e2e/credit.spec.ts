@@ -123,8 +123,7 @@ test('库管 has no 信用分 or 学期: the addresses go back to 总览 and rea
   expect(read).toEqual([]);
 });
 
-// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
-test.skip('参数 → 信用分: a wrong value or order is marked and never sent; a right one is saved', async ({ page }) => {
+test('参数 → 信用分: a wrong value or order is marked and never sent; a right one is saved', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/settings');

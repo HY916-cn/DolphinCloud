@@ -272,9 +272,10 @@ function TxnLine({ row, page, first, isNew, open, teacher, admin, onReverse }: {
     && (admin || !ADMIN_REVERSES.includes(row.type))
     && (row.type !== 'term_open' || row.term?.status === 'open')
     && (row.type !== 'term_close' || (row.term?.status === 'early' && row.term.matures_on >= today()))
-    // 买理财 until its first day is counted; a 赎回 up to its maturity day (an end at maturity is the system's).
-    && (row.type !== 'wealth_buy' || (row.wealth?.status === 'open' && row.wealth.valued_to === row.wealth.starts_on))
-    && (row.type !== 'wealth_close' || (row.wealth?.status === 'redeemed' && row.wealth.matures_on >= today()))
+    // 买理财 while it is held, by the bank admin; a 卖出 of one bought for a term up to its maturity day (an end at maturity
+    // is the system's).
+    && (row.type !== 'wealth_buy' || (admin && row.wealth?.status === 'open'))
+    && (row.type !== 'wealth_close' || (row.wealth?.status === 'redeemed' && (row.wealth.matures_on == null || row.wealth.matures_on >= today())))
     && (row.type !== 'loan' || (row.loan?.status === 'active' && !repays(row).length))
     && (row.type !== 'repay' || (row.loan?.status !== 'reversed' && !repays(row).some((t) => t.created_at > row.created_at)));
   const system = row.type === 'interest' || (row.type === 'term_close' && row.term?.status === 'matured') || (row.type === 'wealth_close' && row.wealth?.status === 'matured') || (row.type === 'repay' && !!row.reason?.startsWith('自动扣款'));

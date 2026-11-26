@@ -210,8 +210,7 @@ test('a president signs in neither their own shifts nor another president\'s; th
   await expect(week.getByRole('button', { name: /^(王|李)行长 / })).toHaveCount(28);
 });
 
-// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
-test.skip('the bank admin sets the accountant\'s pay and pays it at the accountant\'s rate', async ({ page }) => {
+test('the bank admin sets the accountant\'s pay and pays it at the accountant\'s rate', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/settings');

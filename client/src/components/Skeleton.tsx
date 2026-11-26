@@ -119,6 +119,18 @@ export function DenomsLoading({ count = 4, label }: { count?: number; label: str
   );
 }
 
+// ChoiceCard rows (理财's six products): a name and two quiet lines a card.
+export function ChoicesLoading({ count = 6, label }: { count?: number; label: string }) {
+  if (useSlow()) return <SlowNotice />;
+  return (
+    <div className="dc-choices is-products" aria-busy="true" aria-label={label}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="dc-choice" aria-hidden="true">{lines('50%', '70%')}</div>
+      ))}
+    </div>
+  );
+}
+
 // The app shell while the session and profile load: navigation column, title row and content blocks.
 export function ShellLoading() {
   const slow = useSlow();

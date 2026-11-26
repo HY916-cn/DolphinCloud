@@ -13,8 +13,7 @@ async function findStudent(page: Page, query: string, name: string) {
 }
 const pick = (page: Page, name: string) => page.locator('.dc-seg label', { hasText: name }).click();
 
-// Skipped until 参数 reads wealth_params of six products (PHASE-2.md §14.3, M24).
-test.skip('取款 over the single or the daily limit cannot be confirmed and says the limit or what is left today', async ({ page }) => {
+test('取款 over the single or the daily limit cannot be confirmed and says the limit or what is left today', async ({ page }) => {
   // The bank admin lowers the primary limits to 30 a time and 50 a day.
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
@@ -67,8 +66,7 @@ test('财务, 库管 and 运维员 first see their 总览', async ({ page }) => 
   }
 });
 
-// Skipped with the 参数 case above it depends on (M24).
-test.skip('日志 names who did it, when, and on which device', async ({ page }) => {
+test('日志 names who did it, when, and on which device', async ({ page }) => {
   await signIn(page, '工作人员', 'admin');
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/audit');
