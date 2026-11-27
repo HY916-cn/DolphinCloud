@@ -27,10 +27,10 @@ backup() {
   pg_dump -h /var/run/postgresql -U postgres -d postgres -Fc -f "$tmp/db.dump" \
     --exclude-table-data='public.transfer*' --exclude-table-data=app_private.jwt_secret
   if [ -n "${BACKUP_RECIPIENT:-}" ]; then
-    tar -cz --exclude=storage/files/dolphin/transfers -C "$tmp" db.dump -C /data storage | age -r "$BACKUP_RECIPIENT" -o "$BACKUPS/$name.part"
+    tar -cz --exclude=storage/files/dolphin/transfers --exclude='storage/.restore.*' -C "$tmp" db.dump -C /data storage | age -r "$BACKUP_RECIPIENT" -o "$BACKUPS/$name.part"
   else
     echo "BACKUP_RECIPIENT is not set: $name is not encrypted" >&2
-    tar -czf "$BACKUPS/$name.part" --exclude=storage/files/dolphin/transfers -C "$tmp" db.dump -C /data storage
+    tar -czf "$BACKUPS/$name.part" --exclude=storage/files/dolphin/transfers --exclude='storage/.restore.*' -C "$tmp" db.dump -C /data storage
   fi
   mv "$BACKUPS/$name.part" "$BACKUPS/$name"
   rm -rf "$tmp"
@@ -39,37 +39,113 @@ backup() {
   echo "$BACKUPS/$name"
 }
 
+# restore <file>: a failure at any step, or the run being killed, leaves a working site with either the current data or
+# the backup's, never a mix of the two or neither:
+# - the archive is unpacked and checked, and the current data backed up, before anything is stopped or replaced;
+# - the backup goes into a new database, dolphin_restore, that replaces postgres in one transaction (two renames); the
+#   old one, dolphin_old, is dropped after that. Whatever came after the backup (a later version's tables, functions,
+#   foreign keys to the backed-up tables, default privileges) neither blocks the restore nor stays behind;
+# - Storage's files are unpacked next to the current ones (on the same file system: /data/storage may be a mount point
+#   of its own) and swapped in by renames before the database; while dolphin_restore has not replaced postgres, the
+#   current files can be put back from the work directory, by the trap or by the next restore after a kill;
+# - the trap, set before the services are stopped, starts them all again however the run ends.
+SERVICES="auth rest storage caddy backup-schedule dolphin-jobs" # no dolphin-jobs before M7, where a rollback runs this
 restore() {
-  local file="$BACKUPS/$(basename "${1:?usage: dolphin restore <file>}")" tmp
+  local file="$BACKUPS/$(basename "${1:?usage: dolphin restore <file>}")" safety p try
   [ -f "$file" ] || { echo "No such backup: $file" >&2; exit 1; }
-  tmp=$(mktemp -d)
+  restore_leftovers
+  WORK=$(mktemp -d /data/storage/.restore.XXXXXX) STOPPED=
+  trap restore_end EXIT
+  trap 'exit 1' INT TERM HUP
   case "$file" in
-    *.age) age -d -i - "$file" | tar -xz -C "$tmp" ;;
-    *) tar -xzf "$file" -C "$tmp" ;;
+    *.age) age -d -i - "$file" | tar -xz -C "$WORK" ;;
+    *) tar -xzf "$file" -C "$WORK" ;;
   esac
-  [ -f "$tmp/db.dump" ] || { echo "Not a dolphin backup: $file" >&2; exit 1; }
-  echo "Backing up current data first: $(backup)"
-  supervisorctl stop caddy auth rest storage backup-schedule >/dev/null
-  # dolphin-jobs is not in images before M7, where a rollback runs this script. Started again, it catches up at once.
-  supervisorctl stop dolphin-jobs >/dev/null 2>&1 || true
-  trap 'supervisorctl start auth rest storage caddy backup-schedule >/dev/null; supervisorctl start dolphin-jobs >/dev/null 2>&1 || true' EXIT
-  # The backup goes into a new database that then replaces postgres, so whatever came after the backup (a later version's
-  # tables, functions, foreign keys to the backed-up tables, default privileges) neither blocks the restore nor stays
-  # behind. A backup that does not restore leaves postgres as it was; a database left by such a run is dropped next time.
-  PGOPTIONS='-c client_min_messages=warning' psql_ -qc 'drop database if exists dolphin_restore' \
-    -c 'create database dolphin_restore template template0'
-  pg_restore -h /var/run/postgresql -U postgres -d dolphin_restore --single-transaction --exit-on-error "$tmp/db.dump"
-  psql -h /var/run/postgresql -U postgres -d template1 -v ON_ERROR_STOP=1 -qc 'drop database postgres with (force)' \
-    -c 'alter database dolphin_restore rename to postgres'
-  # /data/storage may be a mount point of its own: replace its contents, not the directory.
-  find /data/storage -mindepth 1 -delete
-  cp -a "$tmp/storage/." /data/storage/
-  chown -R dolphin: /data/storage
-  rm -rf "$tmp"
+  [ -f "$WORK/db.dump" ] && [ -d "$WORK/storage" ] \
+    || { echo "Not a dolphin backup (it needs db.dump and storage/): $file. Nothing was changed." >&2; exit 1; }
+  # backup in a run of its own: in `x=$(f) || ...` bash ignores set -e inside f, so a failed pg_dump would not stop it.
+  if ! safety=$(bash "${BASH_SOURCE[0]}" backup | tail -1) || [ ! -s "$safety" ]; then
+    echo "Backing up the current data failed (see above), so nothing was restored. Nothing was changed." >&2
+    exit 1
+  fi
+  echo "Backing up current data first: $safety"
+  STOPPED=1
+  for p in $SERVICES; do supervisorctl stop "$p" >/dev/null 2>&1 || true; done # one already FATAL or EXITED is fine
+  PGOPTIONS='-c client_min_messages=warning' psql_ -qc 'drop database if exists dolphin_restore with (force)' \
+    -c 'drop database if exists dolphin_old with (force)' -c 'create database dolphin_restore template template0'
+  pg_restore -h /var/run/postgresql -U postgres -d dolphin_restore --single-transaction --exit-on-error "$WORK/db.dump"
+  [ "$(psql -h /var/run/postgresql -U postgres -d dolphin_restore -qAt -c "select to_regclass('public.app_migrations') is not null")" = t ] \
+    || { echo "The backup's database has no public.app_migrations; nothing was changed." >&2; exit 1; }
+  chown -R dolphin: "$WORK/storage"
+  mkdir "$WORK/old"
+  echo out > "$WORK/phase"; restore_swap /data/storage "$WORK/old"
+  echo in > "$WORK/phase"; restore_swap "$WORK/storage" /data/storage
+  # A client connecting in between makes the renames fail and roll back; they are tried again.
+  for try in 1 2 3 4 5; do
+    psql -h /var/run/postgresql -U postgres -d template1 -v ON_ERROR_STOP=1 -q >/dev/null <<'SQL' && break
+begin;
+select pg_terminate_backend(pid) from pg_stat_activity where datname in ('postgres', 'dolphin_restore') and pid <> pg_backend_pid();
+alter database postgres rename to dolphin_old;
+alter database dolphin_restore rename to postgres;
+commit;
+SQL
+    [ "$try" = 5 ] && { echo "Could not replace the database postgres; nothing was changed." >&2; exit 1; }
+    sleep 1
+  done
+  psql -h /var/run/postgresql -U postgres -d template1 -qc 'drop database dolphin_old with (force)' \
+    || echo "dolphin_old was not dropped; the next restore drops it." >&2
   storage_key
   psql_ -qc "notify pgrst, 'reload schema'"
   audit backup.restore "$(basename "$file")"
   echo "Restored $file"
+}
+
+# restore_swap <from> <to>: moves the entries of <from> into <to>, leaving out restore's work directories.
+restore_swap() {
+  local e
+  for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+    [ -e "$e" ] || [ -L "$e" ] || continue
+    case "$(basename "$e")" in .restore.*) continue ;; esac
+    mv "$e" "$2/"
+  done
+}
+
+# restore_unswap <work directory>: while dolphin_restore has not replaced postgres, puts Storage's files back as they
+# were. Fails, leaving the work directory, when that cannot be told.
+restore_unswap() {
+  local d=$1 pending
+  [ -f "$d/phase" ] || return 0
+  pending=$(psql -h /var/run/postgresql -U postgres -d template1 -qAt \
+    -c "select count(*) from pg_database where datname = 'dolphin_restore'") || return 1
+  [ "$pending" = 1 ] || return 0
+  if [ "$(cat "$d/phase")" = in ]; then mkdir -p "$d/new" && restore_swap /data/storage "$d/new"; fi
+  restore_swap "$d/old" /data/storage
+  rm "$d/phase"
+  echo "Storage's files are back as they were." >&2
+}
+
+restore_end() {
+  local status=$? p
+  if restore_unswap "$WORK"; then rm -rf "$WORK"
+  else echo "dolphin: Storage's files could not be checked; the next restore puts them right ($WORK)." >&2; fi
+  if [ -n "$STOPPED" ]; then
+    for p in $SERVICES; do supervisorctl start "$p" >/dev/null 2>&1 || true; done
+    for p in auth rest storage caddy backup-schedule; do
+      supervisorctl status "$p" 2>/dev/null | grep -q RUNNING || echo "dolphin: $p is not running; see supervisorctl status" >&2
+    done
+  fi
+  exit "$status"
+}
+
+# A restore killed midway (kill -9, the container stopped) may have left a work directory under /data/storage: the
+# files it moved aside go back unless the database was replaced. Databases it left are dropped further on.
+restore_leftovers() {
+  local d
+  for d in /data/storage/.restore.*; do
+    [ -d "$d" ] || continue
+    restore_unswap "$d" || { echo "Cannot tell whether $d holds Storage's current files; is Postgres running?" >&2; exit 1; }
+    rm -rf "$d"
+  done
 }
 
 # Storage's JWT secret into app_private.jwt_secret, with which the database signs 文件传输's Storage URLs; dolphin-migrate

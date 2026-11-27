@@ -97,6 +97,7 @@ npm --prefix client run lint
 | --- | --- |
 | `docker/db-test.sh` | 在镜像上逐个运行 `supabase/tests/*.sql`（pgTAP） |
 | `docker/smoke-test.sh` | 80 端口跳转 HTTPS、安全头、健康检查、登录与锁定、`create-admin`、图片上传、公开页面（大屏时间、利率看板、文件传输经 Storage 上传 100 MB 与下载、来源 IP、PROXY 协议、后台删除与清理）、加密备份与恢复、容器重启（Postgres 正常关闭） |
+| `docker/restore-test.sh` | `dolphin restore` 的失败与中断：备份目录不可写或 `BACKUP_RECIPIENT` 错误时停止且数据不变；归档缺 `storage/` 时拒绝、上传文件还在；`db.dump` 损坏时库和文件不变、服务全部重新启动；某个服务已 FATAL 时照常恢复；恢复中途被杀后库仍可用，下次恢复放回换到一半的文件 |
 | `docker/e2e-test.sh` | 运行 `client/e2e` 的 Playwright 测试（Chromium 全部，WebKit 跑柜台和学生端，iPhone 尺寸跑学生端）。每个 spec 开始前重新导入种子数据，柜员的上班和种子业务都是当天的；上海时间零点前 3 分钟内开始的 spec 先等过零点，避免跨天；`E2E_SHARDS=3` 时分 3 份同时跑，各用一个容器；首次运行前执行 `npx --prefix client playwright install chromium webkit` |
 | `docker/upgrade-test.sh <旧提交>` | 从旧提交的镜像升级到新镜像：旧容器正常关闭、迁移、升级前备份、余额与库存不变、自检 |
 | `docker/perf-test.sh` | 2000 名学生、10 万笔流水下的计时，以及各身份直接修改余额、库存和流水全部被拒 |
@@ -149,7 +150,7 @@ docker exec -it dolphin-cloud dolphin create-admin admin
 | --- | --- |
 | `dolphin backup` | 立即备份 |
 | `dolphin backups` | 列出备份文件 |
-| `dolphin restore <文件名>` | 恢复指定备份，恢复前自动再备份一次当前数据；加密备份从标准输入读私钥 |
+| `dolphin restore <文件名>` | 恢复指定备份：先检查归档、再备份一次当前数据，任一失败即停止且不动数据；库先恢复到新库再整体替换，失败时库和图片保持原样、服务重新启动；中途被强行终止后重新执行即可。加密备份从标准输入读私钥 |
 | `dolphin check` | 核对余额与流水，有不一致时退出码为 1 |
 | `dolphin jobs` | 定时任务处理到哪天、最后成功时间、有没有失败，以及当前学期 |
 | `dolphin jobs run` | 立即补跑定时任务；有任务失败时退出码为 1 |

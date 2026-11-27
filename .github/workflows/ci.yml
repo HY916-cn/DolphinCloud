@@ -69,6 +69,8 @@ jobs:
         run: docker/db-test.sh dolphin-cloud:dev
       - name: Smoke test
         run: docker/smoke-test.sh dolphin-cloud:dev
+      - name: Restore test
+        run: docker/restore-test.sh dolphin-cloud:dev
       - name: Push the tested image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
