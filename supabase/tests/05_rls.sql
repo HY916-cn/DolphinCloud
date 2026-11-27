@@ -35,6 +35,29 @@ select is(tests.counts(:'keeper'), '[1, 0, 0, 0, 2, 0, false, true]', 'storekeep
 select is(tests.counts(:'teacher'), '[9, 2, 2, 5, 2, 1, true, true]', 'teacher: everything');
 select is(tests.counts(:'ops'), '[9, 2, 0, 0, 1, 0, true, true]', 'sysadmin: logins, students (no balances) and the audit log');
 select is(tests.call(:'s1', $$select count(*) from user_roles$$), '0', 'a student without roles sees no role rows');
+
+-- 横向读取: a student reads no one else's records, even asking for them by name; anon reads no table at all.
+insert into attendance (user_id, day, shift, status, signed_by) values (:'t1', current_date, 'am', 'confirmed', :'t1');
+select is(tests.call(:'s1', $$select jsonb_build_array((select count(*) from txns where student_no = 's2'),
+    (select count(*) from accounts where student_no = 's2'), (select count(*) from students where student_no = 's2'),
+    (select count(*) from attendance), (select count(*) from credit_scores where student_no = 's2'),
+    (select count(*) from txns where student_no <> 's1'), (select count(*) from accounts where student_no <> 's1'))$$),
+  '[0, 0, 0, 0, 0, 0, 0]', 'a student reads none of another student''s transactions, account, profile, attendance or score');
+select is(array(select c.relname::text from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'v', 'm', 'p')
+    and (has_table_privilege('anon', c.oid, 'SELECT') or has_any_column_privilege('anon', c.oid, 'SELECT')) order by 1), '{}',
+  'anon holds no read grant on any table');
+create function tests.anon(p_sql text) returns text language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+  perform set_config('role', 'anon', true);
+  execute p_sql;
+  perform set_config('role', 'none', true);
+  return 'read';
+exception when others then
+  return sqlerrm;
+end $$;
+select matches(tests.anon(format('select count(*) from public.%I', c.relname)), '^permission denied for (table|view) ', format('anon: read %s', c.relname))
+from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'v', 'm', 'p') order by c.relname;
 select is(tests.call(:'ops', $$select count(*) from user_roles$$), '6', 'sysadmin sees all roles');
 select is(tests.call(:'acc', $$select count(*) from user_roles$$), '6', 'accountant sees the staff roles (who is a teller)');
 

@@ -239,8 +239,8 @@ select is(array[:'r1'::jsonb #>> '{loan,remaining}', :'r1'::jsonb #>> '{loan,pay
   array['70', '70', '23'], 'remaining 70; 本期应还 now the second period''s 23');
 select is((select concat_ws(' ', reason, loan_id) from txns where id = '00000000-0000-4000-8000-0000000000c1'),
   '利息 0 HTB，本金 30 HTB 00000000-0000-4000-8000-0000000000f1', 'the repay transaction says the interest and the principal');
-select is((select concat_ws(' ', rule, delta, ref) from credit_events where student_no = 's1'),
-  'repay_on_time 5 loans:00000000-0000-4000-8000-0000000000f1:1', '+5 for the period paid by its day');
+select is((select count(*)::int from credit_events where student_no = 's1' and rule = 'repay_on_time'), 0,
+  'paid on the day of the loan: no 按时还款 (§8.2)');
 select is(tests.call(:'teller', format($$select repay_loan(gen_random_uuid(), %L, 71, 'account', null)$$, '00000000-0000-4000-8000-0000000000f1')),
   '{"error":"REPAY_TOO_MUCH","detail":"{\"max\": 70}"}', 'not more than all it takes to pay it off');
 update loans set interest_centi = 150 where id = '00000000-0000-4000-8000-0000000000f1';

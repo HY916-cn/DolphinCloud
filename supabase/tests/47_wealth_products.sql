@@ -312,7 +312,7 @@ from unnest(array[:'teller', :'ops']::uuid[]) w;
 select is(tests.call(w, 'select to_jsonb(count(*) = (select count(*) from wealth_navs)) from wealth_navs'), 'true', 'everyone reads the net values')
 from unnest(array[:'s1', :'teller', :'ops']::uuid[]) w;
 select is(tests.err(w, 'select wealth_overview()'), 'FORBIDDEN', 'the 理财 page is the back office''s') from unnest(array[:'teller', :'s1', :'ops']::uuid[]) w;
-select is((tests.call(:'teacher', 'select wealth_overview()') -> 'products' -> 0) - 'days' - 'missing' - 'nav' - 'nav_day' - 'change' - 'waiting',
+select is((tests.call(:'teacher', 'select wealth_overview()') -> 'products' -> 0) - 'days' - 'missing' - 'inferred' - 'nav' - 'nav_day' - 'change' - 'waiting',
   '{"key": "bond", "name": "国债", "count": 1, "principal": 10, "value_centi": 1000}',
   'the 理财 page: each product''s holdings open');
 select is(tests.call(:'teacher', 'select wealth_overview()') -> 'open', '{"count": 1, "principal": 10, "value_centi": 1000}', 'and all');

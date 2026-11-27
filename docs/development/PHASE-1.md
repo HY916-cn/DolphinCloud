@@ -440,7 +440,7 @@ create table salary_rates (                    -- 工资标准：参与考勤的
 | `set_student_status(p_student_no, p_status)` | teacher | 账户状态改为 `normal`（在读）、`frozen`（冻结）或 `graduated`（毕业）；非在读账户不能办理业务（`STUDENT_INACTIVE`）；已注销的账户不能再改（`ACCOUNT_CLOSED`） |
 | `set_user_disabled(p_user_id, p_disabled)` | teacher / sysadmin | 停用后无法登录（同时设置 `auth.users.banned_until`），登录时提示「账号已停用」；停用柜员同时退出考勤，不发工资，也不再出现在各处名单里，只留在记录中；已注销的账号不能再启用（`ACCOUNT_CLOSED`） |
 | `close_accounts(p_user_ids)` | teacher / sysadmin | 注销账号，不能撤销：学生账户的余额由一笔 `closing`（注销清零）流水清零，状态为 `closed`；账号永久停用（`profiles.closed_at`）、结束会话，从所有名单里消失，交易、考勤与日志保留；用作工资账户的学生账户解除绑定并让该柜员退出考勤。不能注销自己和银行管理员。返回注销人数和清零金额。至少保留一个在用的运维员：最后一个不能停用、注销或改为其他身份（`LAST_SYSADMIN`，数据库触发器检查） |
-| `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 新增或编辑商品（`p_listed` 必填；`p_safety_stock` 新商品默认 5，编辑时不传则保持原值）；单件商品入库 |
+| `upsert_product(...)`、`stock_in(p_product_id, p_qty, p_note)` | storekeeper / teacher | 新增或编辑商品（`p_listed` 必填；价格 1～1,000,000 HTB，超出时 `INVALID_INPUT`（`{"field":"price","min":1,"max":1000000}`）；`p_safety_stock` 新商品默认 5，编辑时不传则保持原值）；单件商品入库。兑换的合计按 `bigint` 累加，再大也只会是 `INSUFFICIENT_BALANCE` 或 `CASH_NOT_ENOUGH` |
 | `stock_move(p_kind, p_items [{product_id, qty}], p_note)` | storekeeper / teacher | 出入库页使用：`stock_in` 入库或 `stock_out` 出库，多件商品一次完成，任一件失败则都不变；出库须写原因（`p_note`），数量不能超过库存（`OUT_OF_STOCK`）。库存其余的减少来自兑换 |
 | `set_setting(p_key, p_value)` | teacher | 按 key 校验取值范围（第二阶段的参数见 PHASE-2.md §14.3） |
 | `set_settings(p_values)` | teacher | 一次保存多项参数（`{key: value}`），逐项按 `set_setting` 校验，全部成功或全部不保存；「参数」页保存用它 |
