@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet, DatePicker, Desk, Icon, ListLoading, Notice, today, Toast } from '@/components';
 import { AppError, explain } from '@/lib/errors';
@@ -14,6 +14,7 @@ import {
 
 const enter = (i: number) => ({ '--i': i }) as React.CSSProperties;
 const PAGE = 30;
+const HELD = 50; // open holdings a page
 // The last weekday before today, for 登记 with nothing waiting.
 function lastWeekday(now: string) {
   let d = shiftDay(now, -1);
@@ -47,16 +48,25 @@ export default function Wealth() {
     },
     queryFn: ({ pageParam }) => call<WealthOverview>('wealth_overview', { p_before: pageParam, p_limit: PAGE }),
   });
-  const holdings = useQuery({
+  // The open holdings, latest bought first, 50 at a time, with how many there are in all.
+  const holdings = useInfiniteQuery({
     queryKey: ['wealth-open'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('wealth_holdings')
-        .select('id,student_no,product,principal,buy_nav,value_centi,opened_on,weeks,tier_name,multiplier,students(name)')
-        .eq('status', 'open').order('opened_on', { ascending: false }).order('student_no');
+    initialPageParam: 0,
+    getNextPageParam: (last: { rows: Open[]; count: number }, pages) => {
+      const read = pages.reduce((n, p) => n + p.rows.length, 0);
+      return last.rows.length === HELD && read < last.count ? read : undefined;
+    },
+    queryFn: async ({ pageParam }) => {
+      const { data, error, count } = await supabase.from('wealth_holdings')
+        .select('id,student_no,product,principal,buy_nav,value_centi,opened_on,weeks,tier_name,multiplier,students(name)', { count: 'exact' })
+        .eq('status', 'open').order('opened_on', { ascending: false }).order('student_no').order('id')
+        .range(pageParam, pageParam + HELD - 1);
       if (error) throw error;
-      return data as unknown as Open[];
+      return { rows: data as unknown as Open[], count: count ?? 0 };
     },
   });
+  const held = holdings.data?.pages.flatMap((p) => p.rows);
+  const heldCount = holdings.data?.pages.at(-1)?.count ?? 0;
   const o = overview.data?.pages[0];
   const now = today();
   const products = o?.products ?? [];
@@ -125,6 +135,11 @@ export default function Wealth() {
                 aria-controls="wealth-days" onClick={() => setTab(p.key)}>{p.name}</button>
             ))}
           </div>
+          {current.inferred.length > 0 && (
+            <p className="dc-caption">
+              最近 30 天有 {current.inferred.length} 个工作日按休市计入：{current.inferred.map(monthDay).join('、')}。真正的节假日也在其中，其余的请核对行情。
+            </p>
+          )}
           <div id="wealth-days" role="tabpanel" aria-labelledby={`wealth-tab-${current.key}`} className="dc-table-scroll">
             <table className="dc-table" aria-label={`每日行情 · ${current.name}`}>
               <thead><tr>
@@ -133,7 +148,7 @@ export default function Wealth() {
               </tr></thead>
               <tbody>
                 {days.map((d) => (
-                  <DayRow key={d.day} d={d} cap={o.params.cap} onEnter={admin && d.status === 'pending' ? () => setEntering({ product: current.key, day: d.day }) : undefined} />
+                  <DayRow key={d.day} d={d} cap={o.params.cap} inferred={d.status === 'closed' && current.inferred.includes(d.day)} onEnter={admin && d.status === 'pending' ? () => setEntering({ product: current.key, day: d.day }) : undefined} />
                 ))}
               </tbody>
             </table>
@@ -146,10 +161,10 @@ export default function Wealth() {
       )}
 
       <section className="dc-card dc-stack dc-enter" aria-label="持有中的理财" style={enter(2)}>
-        <h2 className="heading">持有中的理财</h2>
+        <h2 className="heading">持有中的理财{held && heldCount > 0 && ` · ${formatAmount(heldCount)} 笔`}</h2>
         {holdings.isError ? <Notice tone="danger" title="暂时无法读取持有中的理财">请检查网络后刷新页面。</Notice>
-          : !holdings.data || !o ? <ListLoading rows={3} label="正在加载持有中的理财" />
-          : !holdings.data.length ? <p className="dc-caption">没有持有中的理财。</p> : (
+          : !held || !o ? <ListLoading rows={3} label="正在加载持有中的理财" />
+          : !held.length ? <p className="dc-caption">没有持有中的理财。</p> : (
             <div className="dc-table-scroll">
               <table className="dc-table" aria-label="持有中的理财">
                 <thead><tr>
@@ -157,7 +172,7 @@ export default function Wealth() {
                   <th scope="col" className="n">现值</th><th scope="col" className="n">盈亏</th><th scope="col">买入日</th>
                 </tr></thead>
                 <tbody>
-                  {holdings.data.map((h) => {
+                  {held.map((h) => {
                     const g = gain(h.value_centi - 100 * h.principal);
                     return (
                       <tr key={h.id}>
@@ -172,6 +187,12 @@ export default function Wealth() {
               </table>
             </div>
           )}
+        {holdings.isFetchingNextPage && <ListLoading rows={2} label="正在加载持有中的理财" />}
+        {holdings.hasNextPage && !holdings.isFetchingNextPage && (
+          <div className="dc-load-more">
+            <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" onClick={() => holdings.fetchNextPage()}>加载更多</button>
+          </div>
+        )}
       </section>
 
       {admin && current && (
@@ -189,9 +210,10 @@ export default function Wealth() {
 
 // One calendar day of a product: its close and change, the day's rate (in bold where ±cap cut it) and net value, and where
 // the close came from; a day still waiting offers 登记 to the bank admin.
-function DayRow({ d, cap, onEnter }: { d: OverviewDay; cap: number; onEnter?: () => void }) {
+// A weekday taken as closed for want of a close (`inferred`) says so.
+function DayRow({ d, cap, inferred, onEnter }: { d: OverviewDay; cap: number; inferred: boolean; onEnter?: () => void }) {
   const source = d.status === 'open' ? (d.source === 'manual' && d.created_by_name ? `${d.source_name} · ${d.created_by_name}` : d.source_name)
-    : d.status === 'closed' ? <span className="dc-tag">休市</span>
+    : d.status === 'closed' ? <span className="dc-tag">{inferred ? '按休市计入' : '休市'}</span>
     : d.status === 'pending' ? <span className="dc-tag dc-tag-pending">待登记</span> : '—';
   return (
     <tr>
@@ -237,7 +259,7 @@ function EnterSheets({ start, products, now, onClose, onDone }: {
       onDone(key, day);
     } catch (e) {
       const err = e instanceof AppError ? e : new AppError('');
-      setRefusal(explain(err.code, { ...err.detail, wealth: 'record' }));
+      setRefusal(explain(err.code, { ...err.detail, wealth: 'record', name: products.find((p) => p.key === err.detail.product)?.name ?? product.name }));
       setBusy(false);
     }
   }

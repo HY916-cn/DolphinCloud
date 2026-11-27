@@ -300,3 +300,32 @@ test('财务 reads 理财 but enters nothing; 参数「理财」 saves each prod
   await expect(card.getByRole('textbox', { name: '黄金倍率' })).toHaveValue('2.5');
   await expect(card.locator('.dc-field-hint')).toHaveText(`本周 ${(anchor - 1).toFixed(2)}%`);
 });
+
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
+  test('后台「理财」: weekdays taken as closed for want of a close are tagged and listed above the days', async ({ page }) => {
+    // The server's inferred, on two weekdays of 国债 made closed in the answer (pgTAP 50_wealth_late_day checks how they come).
+    const picked: string[] = [];
+    await page.route('**/rest/v1/rpc/wealth_overview', async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const bond = body.products.find((p: { key: string }) => p.key === 'bond');
+      const weekdays = bond.days.filter((d: { day: string }) => weekday(d.day)).slice(2, 4);
+      for (const d of weekdays) Object.assign(d, { status: 'closed', source: 'closed', source_name: '休市', close: null, change: null });
+      picked.splice(0, picked.length, ...weekdays.map((d: { day: string }) => d.day).sort());
+      bond.inferred = picked;
+      await route.fulfill({ response, json: body });
+    });
+    await signIn(page, '工作人员', 'admin');
+    await expect(page).toHaveURL(/\/admin$/);
+    await page.goto('/admin/wealth');
+    await page.getByRole('tab', { name: '国债' }).click();
+    const section = page.getByRole('region', { name: '每日行情' });
+    await expect(section.locator('.dc-caption').first()).toHaveText(
+      `最近 30 天有 2 个工作日按休市计入：${picked.map((d) => md(d)).join('、')}。真正的节假日也在其中，其余的请核对行情。`);
+    const days = page.getByRole('table', { name: '每日行情 · 国债' });
+    await expect(days.locator('.dc-tag', { hasText: '按休市计入' })).toHaveCount(2);
+    await page.getByRole('tab', { name: '黄金' }).click();
+    await expect(section.locator('.dc-caption', { hasText: '按休市计入' })).toHaveCount(0);
+  });
+});

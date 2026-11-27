@@ -173,6 +173,26 @@ test('the president signs in a teller\'s shift from the table and voids it', asy
   sql(`update public.staff_payroll set account = null, attendance = false where user_id = (select id from public.profiles where login_id = 'teller01')`);
 });
 
+test('signing in for someone no longer counted says to count them first, in the sheet', async ({ page }) => {
+  test.skip(!process.env.E2E_CONTAINER, 'needs the test container');
+  const teller = `(select id from public.profiles where login_id = 'teller01')`;
+  sql(`update public.staff_payroll set account = '20260003', attendance = true where user_id = ${teller}`);
+  await signIn(page, '工作人员', 'president01');
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goto('/admin/attendance');
+  await page.getByRole('button', { name: '上一周' }).click();
+  const week = page.getByRole('table', { name: '本周考勤' });
+  const sheet = page.locator('.dc-sheet');
+  await week.getByRole('button', { name: /^柜员小林 .* 下午班，可签到$/ }).first().click();
+  await sheet.getByLabel('说明').fill('补记柜台班次');
+  // Taken out of attendance while the sheet is open.
+  sql(`update public.staff_payroll set attendance = false where user_id = ${teller}`);
+  await sheet.getByRole('button', { name: '签到', exact: true }).click();
+  await expect(sheet.locator('.dc-notice-danger')).toHaveText('还没有参与考勤请先为柜员小林开启参与考勤，再签到。');
+  await expect(sheet.locator('.dc-sheet-title')).toHaveText('给柜员小林签到？');
+  sql(`update public.staff_payroll set account = null where user_id = ${teller}`);
+});
+
 test('财务 sees their own week on 我的: the shift voided reads 已作废', async ({ page }) => {
   await signIn(page, '工作人员', 'accountant01');
   await expect(page).toHaveURL(/\/admin$/);

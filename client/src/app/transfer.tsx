@@ -72,6 +72,9 @@ function Bar({ name, value, max, text, label, over }: { name: string; value: num
 // A sent or taken pickup's files: each with its size, and what they come to under the list.
 const filesTotal = (files: { size: number }[]) => `${files.length} 个文件，合计 ${formatSize(files.reduce((s, f) => s + f.size, 0))}`;
 
+// Whether the moment `ms` has come.
+const past = (ms: number) => Date.now() >= ms;
+
 // Runs `then` at the moment `iso` (RATE_LIMITED's retry_at).
 const at = (iso: unknown, then: () => void) => setTimeout(then, Math.max(0, Date.parse(String(iso)) - Date.now()));
 
@@ -124,8 +127,10 @@ function Send() {
   const [blocked, setBlocked] = useState(false);
   const [pickup, setPickup] = useState<Pickup | null>(null);
   const [toast, setToast] = useState(false);
-  // The send create_transfer opened: its id and each file's upload address, by the item's key.
-  const [sending, setSending] = useState<{ id: string; urls: Map<number, string> } | null>(null);
+  // The send create_transfer opened: its id, until when it takes uploads (its upload addresses last as long), and each
+  // file's number and upload address, by the item's key.
+  type Sending = { id: string; until: number; files: Map<number, { seq: number; url: string }> };
+  const [sending, setSending] = useState<Sending | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const nextKey = useRef(0);
   const touch = matchMedia('(pointer: coarse)').matches;
@@ -145,6 +150,20 @@ function Send() {
   const failed = items.some((i) => i.status === 'failed');
   const locked = busy || !!sending;
   const set = (key: number, patch: Partial<Item>) => setItems((list) => list.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  // The send is gone (past 2 hours, or the server no longer has it), or no longer holds these files: the list stays, all
+  // of it waiting again, and 上传 starts a new send.
+  const restart = () => {
+    setSending(null);
+    setItems((list) => list.map((i) => ({ ...i, status: 'ready', progress: 0 })));
+  };
+  // A file not sent yet comes off the list; one that failed in a send under way takes the send with it.
+  function remove(item: Item) {
+    setItems((list) => list.filter((x) => x.key !== item.key));
+    if (item.status === 'failed') {
+      setProblem(null);
+      restart();
+    }
+  }
 
   function add(list: FileList | null) {
     if (!list || locked) return;
@@ -159,38 +178,40 @@ function Send() {
     setProblem(null);
     const todo = items.filter((i) => i.status !== 'done');
     setItems((list) => list.map((i) => (i.status === 'done' ? i : { ...i, status: 'waiting', progress: 0 })));
+    let s = sending;
+    let ok = true;
     try {
-      let s = sending;
+      // A send past its 2 hours takes no more uploads: its addresses have expired with it.
+      if (s && past(s.until)) throw new AppError('TRANSFER_NOT_FOUND');
       if (!s) {
-        const t = await call<{ id: string; files: { seq: number; url: string }[] }>('create_transfer', { p_files: files });
-        setSending(s = { id: t.id, urls: new Map(items.map((i, n) => [i.key, t.files.find((f) => f.seq === n + 1)!.url])) });
+        const t = await call<{ id: string; upload_until: string; files: { seq: number; url: string }[] }>('create_transfer', { p_files: files });
+        setSending(s = { id: t.id, until: Date.parse(t.upload_until), files: new Map(items.map((i, n) => [i.key, t.files.find((f) => f.seq === n + 1)!])) });
       }
-      let ok = true;
       for (const i of todo) {
         set(i.key, { status: 'uploading', progress: 0 });
-        const stored = await put(i, s.urls.get(i.key)!, (p) => set(i.key, { progress: p }));
+        const stored = await put(i, s.files.get(i.key)!.url, (p) => set(i.key, { progress: p }));
         set(i.key, stored ? { status: 'done', progress: 100 } : { status: 'failed' });
         ok &&= stored;
       }
-      if (!ok) return setProblem(explain('TRANSFER_INCOMPLETE'));
+      // Asked even when a file failed: the server says which are missing, or that the send is gone.
       setPickup(await call<Pickup>('finish_transfer', { p_id: s.id }));
     } catch (e) {
       // Files that never started go back to waiting for the next try.
-      setItems((list) => list.map((i) => (i.status === 'waiting' || i.status === 'uploading' ? { ...i, status: sending ? 'failed' : 'ready', progress: 0 } : i)));
-      if (e instanceof AppError && e.code === 'TRANSFER_INCOMPLETE') {
-        const missing = (e.detail.missing ?? []) as number[];
-        setItems((list) => list.map((i, n) => (missing.includes(n + 1) ? { ...i, status: 'failed' } : i)));
+      setItems((list) => list.map((i) => (i.status === 'waiting' || i.status === 'uploading' ? { ...i, status: s ? 'failed' : 'ready', progress: 0 } : i)));
+      if (e instanceof AppError && e.code === 'TRANSFER_INCOMPLETE' && s) {
+        const missing = new Set((e.detail.missing ?? []) as number[]);
+        const seqs = s.files;
+        setItems((list) => list.map((i) => (missing.has(seqs.get(i.key)?.seq ?? 0) ? { ...i, status: 'failed' } : i)));
       }
-      // The send expired (2 hours): start a new one with the same files.
-      if (e instanceof AppError && e.code === 'TRANSFER_NOT_FOUND') {
-        setSending(null);
-        setItems((list) => list.map((i) => ({ ...i, status: 'ready', progress: 0 })));
-      }
+      // The send expired (2 hours) or the server no longer has it: start a new one with the same files.
+      if (e instanceof AppError && e.code === 'TRANSFER_NOT_FOUND') restart();
       if (e instanceof AppError && e.code === 'RATE_LIMITED') {
         setBlocked(true);
         at(e.detail.retry_at, () => setBlocked(false));
       }
-      setProblem(failure(e, 'send'));
+      // A file that failed is 没有传完 whatever the check after it ran into.
+      const code = e instanceof AppError ? e.code : '';
+      setProblem(!ok && code !== 'TRANSFER_NOT_FOUND' && code !== 'RATE_LIMITED' ? explain('TRANSFER_INCOMPLETE') : failure(e, 'send'));
     } finally {
       setBusy(false);
     }
@@ -290,9 +311,8 @@ function Send() {
                       {i.status === 'failed' && !busy && (
                         <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={upload}><Icon name="retry" />重试</button>
                       )}
-                      {i.status === 'ready' && !locked && (
-                        <button className="dc-icon-btn" type="button" aria-label={`移除 ${i.file.name}`}
-                          onClick={() => setItems((list) => list.filter((x) => x.key !== i.key))}><Icon name="close" /></button>
+                      {(i.status === 'ready' && !locked || i.status === 'failed' && !busy) && (
+                        <button className="dc-icon-btn" type="button" aria-label={`移除 ${i.file.name}`} onClick={() => remove(i)}><Icon name="close" /></button>
                       )}
                     </div>
                   </li>

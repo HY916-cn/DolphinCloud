@@ -23,13 +23,16 @@ function size(bytes: number) {
 // Error codes from the database functions (app_private.fail) as the counter shows them (PHASE-1.md §7.6).
 export type Detail = Record<string, unknown>;
 
+// `status` is the HTTP status the server answered with (lib/rpc.ts call); none for errors the client makes itself.
 export class AppError extends Error {
   code: string;
   detail: Detail;
-  constructor(code: string, detail: Detail = {}) {
+  status?: number;
+  constructor(code: string, detail: Detail = {}, status?: number) {
     super(code);
     this.code = code;
     this.detail = detail;
+    this.status = status;
   }
 }
 
@@ -120,6 +123,7 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
       }
       if (d.transfer && d.field === 'reason') return { title: '请写明原因', text: '请写明删除的原因，最多 200 字。' };
       if (d.transfer && d.field === 'files') return { title: '文件不对', text: '文件名要在 255 字以内，请改名后重新选择。' };
+      if (d.field === 'price') return { title: '价格有误', text: '价格要是 1～1,000,000 HTB 的整数' };
       if (d.field === 'rates') return { title: '工资标准有误', text: '工资标准每格 1～10000 HTB。' };
       if (d.field === 'user_id' && d.payroll) return { title: '不参与考勤', text: '银行管理员和运维员不参与考勤。' };
       if (d.field === 'id' && d.payroll) return { title: '不能作废', text: '待审的班次请审查。' };
@@ -151,7 +155,8 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
     case 'ATTENDANCE_ON': return { title: '正在参与考勤', text: '先关闭参与考勤，才能解除工资账户；更换账户可以直接绑定新的。' };
     // `sign` (签到 on 我的 or in the 考勤 table) is the attendance pages' own; otherwise it is 参与考勤 that was refused.
     case 'SALARY_UNBOUND': return { title: '还没有绑定工资账户', text: d.sign ? '先绑定工资账户，再签到。' : '先绑定工资账户，再开启参与考勤。' };
-    case 'ATTENDANCE_OFF': return { title: '还没有参与考勤', text: '请银行管理员开启参与考勤后再签到。' };
+    // `person` is who the 考勤 table signs for (makeup_attendance), the page's own.
+    case 'ATTENDANCE_OFF': return { title: '还没有参与考勤', text: d.person ? `请先为${d.person}开启参与考勤，再签到。` : '请银行管理员开启参与考勤后再签到。' };
     case 'STALE_DUTY':
       return { title: '上次上班还没下班', text: `这次上班从 ${shanghaiTime(String(d.started_at))} 开始，已经跨天。请先下班，再重新上班办理业务。` };
     case 'NOTE_REQUIRED':
@@ -172,6 +177,9 @@ export function explain(code: string, d: Detail = {}): { title: string; text: st
         : d.wealth ? '先还清这笔贷款，才能买理财。' : '先还清这笔贷款，才能办新贷款或新定期。' };
     case 'TERM_OPEN_ITEMS': return { title: '还不能结转', text: '下面这些处理完后，再结转学期。' };
     case 'TERM_OVERLAP': return { title: '学期日期重叠', text: `和「${d.term}」的日期重叠，请调整开始日或结束日。` };
+    // `name` is the product's name, the 理财 page's own: the server sends its key.
+    case 'WEALTH_DAY_SETTLED':
+      return { title: '这一天已计入净值', text: `${d.name ?? d.product}的净值已算到 ${monthDay(String(d.nav_day))}，${monthDay(String(d.day))}已按休市计入，不能再登记。` };
     case 'TERM_NOT_ENDED': return { title: '学期还没结束', text: `${monthDay(String(d.ends_on))} 之后才能结转。` };
     case 'TERM_CLOSED': return { title: '学期已结转', text: '结转后的学期不能再修改。' };
     case 'ALERT_HANDLED':

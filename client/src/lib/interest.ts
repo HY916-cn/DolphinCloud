@@ -32,7 +32,9 @@ export const pageRange = (thisWeek: string, page: number) => ({
 export type InterestRow =
   | { kind: 'day'; key: string; title: string; balance: number; rate: number; centi: number }
   | { kind: 'adjust'; key: string; day: string; balance: number; centi: number };
-export type InterestWeek = { monday: string; title: string; total: number; paid: number | null; rows: InterestRow[] };
+// `paid`: the 利息 business that settled the week, on its (Shanghai) day; its amount only on the latest week it settled,
+// null on the earlier ones it settled with it, so one business is not read as several.
+export type InterestWeek = { monday: string; title: string; total: number; paid: { amount: number | null; day: string } | null; rows: InterestRow[] };
 
 // The week a correction is listed in: unsettled ones in this week; settled ones in the week before the Monday that
 // paid them in, as that Monday's 利息 settled that week.
@@ -43,7 +45,8 @@ function adjustmentWeek(a: Adjustment, paid: Map<string, Settlement>, thisWeek: 
 
 // The days and corrections in weeks, newest first, from `oldest` (a Monday) on: each day its own row, newest first,
 // the week's corrections after them. A week's total is the sum of its rows; `paid` the 利息 business that settled it
-// (whole HTB, the earlier odd cents included), null while it is still saved up.
+// (whole HTB, the earlier odd cents included), null while it is still saved up. A 利息 business often settles several
+// weeks (those under 1 HTB before it): its amount goes with the latest of them only.
 export function interestWeeks(days: Accrual[], adjustments: Adjustment[], settlements: Settlement[], thisWeek: string, oldest: string) {
   const paid = new Map(settlements.map((s) => [s.id, s]));
   const weeks = new Map<string, { days: Accrual[]; adjustments: Adjustment[] }>();
@@ -56,6 +59,7 @@ export function interestWeeks(days: Accrual[], adjustments: Adjustment[], settle
     const monday = adjustmentWeek(a, paid, thisWeek);
     if (monday >= oldest) at(monday).adjustments.push(a);
   }
+  const shown = new Set<string>(); // the 利息 businesses whose amount a newer week already shows
   return [...weeks.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([monday, w]): InterestWeek => {
     const rows: InterestRow[] = [
       ...[...w.days].sort((a, b) => (a.day < b.day ? 1 : -1))
@@ -64,10 +68,13 @@ export function interestWeeks(days: Accrual[], adjustments: Adjustment[], settle
         .map((a) => ({ kind: 'adjust' as const, key: `${a.day}/${a.txn_id}`, day: md(a.day), balance: a.balance, centi: a.centi })),
     ];
     const settled = [...w.days, ...w.adjustments].find((r) => r.settled_txn && paid.has(r.settled_txn));
+    const s = settled && paid.get(settled.settled_txn!)!;
+    const first = s && !shown.has(s.id);
+    if (s) shown.add(s.id);
     return {
       monday, title: weekTitle(monday, thisWeek), rows,
-      total: rows.reduce((s, r) => s + r.centi, 0),
-      paid: settled ? paid.get(settled.settled_txn!)!.amount : null,
+      total: rows.reduce((sum, r) => sum + r.centi, 0),
+      paid: s ? { amount: first ? s.amount : null, day: cnDay(s.created_at) } : null,
     };
   });
 }

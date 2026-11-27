@@ -65,6 +65,9 @@ assert.equal(explain('INVALID_INPUT', { field: 'loan_id', status: 'reversed' }).
 assert.equal(explain('SELF_SERVICE_FORBIDDEN', { payroll: true }).title, '不能给自己签到');
 assert.equal(explain('SELF_SERVICE_FORBIDDEN', { payroll: true }).text, '行长的班次由银行管理员签到。');
 assert.equal(explain('ATTENDANCE_OFF').text, '请银行管理员开启参与考勤后再签到。');
+assert.deepEqual(explain('ATTENDANCE_OFF', { person: '王小林' }), { title: '还没有参与考勤', text: '请先为王小林开启参与考勤，再签到。' });
+assert.deepEqual(explain('WEALTH_DAY_SETTLED', { product: 'hsi', name: '恒生指数', day: '2026-11-24', nav_day: '2026-11-26' }),
+  { title: '这一天已计入净值', text: '恒生指数的净值已算到 11月26日，11月24日已按休市计入，不能再登记。' });
 assert.equal(explain('SALARY_UNBOUND', { sign: true }).text, '先绑定工资账户，再签到。');
 assert.equal(explain('SALARY_UNBOUND').text, '先绑定工资账户，再开启参与考勤。');
 assert.equal(explain('INVALID_INPUT', { field: 'id', payroll: true }).text, '待审的班次请审查。');

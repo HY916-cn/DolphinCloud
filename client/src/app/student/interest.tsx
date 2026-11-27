@@ -5,6 +5,7 @@ import { formatAmount, formatCenti, formatRate, formatSignedCenti } from '@/lib/
 import { interestWeeks, pageRange, pendingParts, weekOf, type Accrual, type Adjustment, type InterestRow, type Settlement } from '@/lib/interest';
 import { pendingNote } from '@/lib/rates';
 import { useMe } from '@/lib/session';
+import { monthDay } from '@/lib/term';
 import { supabase } from '@/lib/supabase';
 
 const DAYS = 'day,balance,rate,centi,settled_txn';
@@ -89,7 +90,7 @@ export default function StudentInterest() {
                       <section key={w.monday}>
                         <div className="dc-list-head">
                           <h2 className="dc-list-title">{w.title}</h2>
-                          <p className="dc-caption">{formatSignedCenti(w.total)} HTB · {w.paid === null ? '还攒着' : `已存进余额 ${formatAmount(w.paid)} HTB`}</p>
+                          <p className="dc-caption">{formatSignedCenti(w.total)} HTB · {w.paid === null ? '还攒着' : w.paid.amount === null ? `${monthDay(w.paid.day)}存进余额` : `已存进余额 ${formatAmount(w.paid.amount)} HTB`}</p>
                         </div>
                         <ul className="dc-list">{w.rows.map((r) => <li key={r.key}><Row r={r} /></li>)}</ul>
                       </section>
@@ -126,7 +127,7 @@ export default function StudentInterest() {
                       <div><dt>本周活期利率</dt><dd>{paused ? <span className="dc-tag">暂停计息</span> : `${formatRate(p.rates.current)}/周`}</dd></div>
                       <div><dt>本周已计</dt><dd>{formatSignedCenti(s.week)} HTB</dd></div>
                       {s.corrections !== null && <div><dt>利息更正</dt><dd>{formatSignedCenti(s.corrections)} HTB</dd></div>}
-                      <div><dt>上周留下的零头</dt><dd>{formatCenti(s.carry)} HTB</dd></div>
+                      <div><dt>之前留下的零头</dt><dd>{formatCenti(s.carry)} HTB</dd></div>
                     </dl>
                   </section>
                 );

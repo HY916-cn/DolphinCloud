@@ -32,7 +32,8 @@ export type OverviewDay = {
   rate: number | null; nav: number | null;
 };
 export type Totals = { count: number; principal: number; value_centi: number };
-export type OverviewProduct = Product & Totals & { missing: string[]; days: OverviewDay[] };
+// `inferred`: the weekdays among its last 30 days of net values taken as closed with no close (oldest first), not to be entered.
+export type OverviewProduct = Product & Totals & { missing: string[]; inferred: string[]; days: OverviewDay[] };
 export type WealthOverview = { params: WealthParams; products: OverviewProduct[]; term: Totals; open: Totals };
 
 // A percentage to 2 decimals, half away from zero, with its sign: +1.23%, −0.80%, 0.00%.

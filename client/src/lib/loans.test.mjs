@@ -43,10 +43,19 @@ assert.deepEqual(repaySplit(open, 1), { interest: 1, principal: 0 });
 assert.deepEqual(repaySplit({ ...open, interest_centi: 37 }, 10), { interest: 0, principal: 10 });
 assert.deepEqual(repaySplit(open, 100), { interest: 2, principal: 98 });
 
-assert.equal(repayProblem(101, 100, 'cash', 0), '这笔贷款现在一共只需还 100 HTB。');
-assert.equal(repayProblem(33, 100, 'account', 20), '余额不足：活期余额 20 HTB，还差 13 HTB');
-assert.equal(repayProblem(33, 100, 'cash', 20), null);
-assert.equal(repayProblem(33, 100, 'account', 33), null);
+assert.equal(repayProblem(open, 101, 'cash', 0), '这笔贷款现在一共只需还 100 HTB。');
+assert.equal(repayProblem(open, 33, 'account', 20), '余额不足：活期余额 20 HTB，还差 13 HTB');
+assert.equal(repayProblem(open, 33, 'cash', 20), null);
+assert.equal(repayProblem(open, 33, 'account', 33), null);
+// The principal and the interest's whole HTB (98 + 1) but not its 零头: the server takes 98, so it asks for 100 or at most 98.
+assert.equal(repayProblem(open, 99, 'cash', 0), '还清需要 100 HTB；不还清时最多还 98 HTB。');
+assert.equal(repayProblem(open, 99, 'account', 500), '还清需要 100 HTB；不还清时最多还 98 HTB。');
+assert.equal(repayProblem(open, 98, 'account', 500), null);
+assert.equal(repayProblem(open, 100, 'account', 500), null);
+assert.deepEqual(repaySplit(open, 98), { interest: 1, principal: 97 });
+// Interest with no 零头: 98 + 2 is the payoff itself.
+assert.equal(repayProblem({ remaining: 98, interest_centi: 200, payoff: 100 }, 100, 'cash', 0), null);
+assert.equal(repayProblem({ remaining: 98, interest_centi: 200, payoff: 100 }, 99, 'cash', 0), null);
 
 const loan = {
   id: 'l', loan_no: 'DK2611030001', student_no: '20260001', principal: 130, remaining: 86, rate: 5.89, score: 680, plan: 'installment', periods: 4,

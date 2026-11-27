@@ -217,6 +217,31 @@ test('编辑 to another student: both students’ 活期 in the confirmation', a
   await expect(made.locator('.dc-txn-title')).toHaveText('调账 · 更正：学号录错');
 });
 
+test('编辑 a cash 兑换 with none left in stock: its own goods count, so it may be taken again', async ({ page }) => {
+  // The 补录 above: 李思远 took 1 海豚书签 in cash. None are left now.
+  sql(`update public.products set stock = 0 where name = '海豚书签'`);
+  await admin(page);
+  await page.goto('/admin/txns?student=20260002&type=purchase');
+  const line = list(page).locator('details', { hasText: '补录：系统故障，当天未记' });
+  await line.locator('summary').click();
+  await line.getByRole('link', { name: '编辑' }).click();
+  await expect(page).toHaveURL(/\/admin\/txns\/new\?edit=/);
+  const tile = page.getByRole('button', { name: /^海豚书签，10 HTB/ });
+  await expect(tile).toHaveAccessibleName('海豚书签，10 HTB，可兑 1 件');
+  await expect(tile.locator('small')).toHaveText('10 HTB · 可兑 1 件');
+  await expect(page.getByRole('button', { name: '增加一件海豚书签' })).toBeDisabled(); // 1 is all there is
+  // The goods stay as they were; only who took them changes.
+  await page.getByRole('button', { name: '换一位' }).click();
+  await page.getByRole('searchbox', { name: '搜索学生' }).fill('张小明');
+  await page.locator('.dc-filter-found a', { hasText: '张小明' }).click();
+  await page.locator('.dc-check', { hasText: '学号录错' }).click();
+  await page.getByRole('button', { name: '编辑', exact: true }).click();
+  await confirmIn(page, '确认编辑');
+  await expect(page.locator('.dc-toast')).toHaveText('已编辑');
+  await expect(list(page).locator('details[open] .dc-txn-title')).toHaveText(/^兑换 · 更正：学号录错/);
+  expect(sql(`select stock from public.products where name = '海豚书签'`)).toBe('0');
+});
+
 test('the 利息 that pays the corrections says so and has no 编辑; the president and the accountant have neither', async ({ page }) => {
   sql(`select app_private.settle_interest(now())`);
   await admin(page);

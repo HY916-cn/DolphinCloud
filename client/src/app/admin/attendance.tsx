@@ -238,7 +238,7 @@ function SignSheet({ cell, onClose, onDone }: { cell: Cell; onClose: () => void;
       await call('makeup_attendance', { p_user_id: cell.user, p_day: cell.day, p_shift: cell.shift, p_note: note.trim() });
       onDone();
     } catch (err) {
-      setError(failure(err, true));
+      setError(err instanceof AppError && err.code === 'ATTENDANCE_OFF' ? explain(err.code, { person: cell.name }) : failure(err, true));
     } finally {
       setBusy(false);
     }

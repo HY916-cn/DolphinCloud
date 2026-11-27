@@ -804,7 +804,7 @@ function LoanRepay({ loan, balance, top, student, served, onDone, onEnd, onRever
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<Problem>(null);
   const amount = payment === 'cash' ? cashTotal(counts) : Number(text) || 0;
-  const problem = amount ? repayProblem(amount, payoff, payment, balance) : null;
+  const problem = amount ? repayProblem({ ...loan, payoff }, amount, payment, balance) : null;
   const split = repaySplit(loan, amount);
   const after = payment === 'account' ? balance - amount : balance;
   const what = `利息 ${formatAmount(split.interest)}，本金 ${formatAmount(split.principal)}`;
@@ -854,7 +854,7 @@ function LoanRepay({ loan, balance, top, student, served, onDone, onEnd, onRever
             : <CashCounter faces={denominations} counts={counts} onChange={setCounts} kind="dc-kind-withdraw" />}
         </section>
         <Receipt served={served} onEnd={onEnd} onReverse={onReverse} after={after}
-          current={amount ? { label: '还款', detail: what, amount: payment === 'account' ? formatSigned(-amount) : `现金 ${formatAmount(amount)}` } : null} />
+          current={amount && !problem ? { label: '还款', detail: what, amount: payment === 'account' ? formatSigned(-amount) : `现金 ${formatAmount(amount)}` } : null} />
       </div>
       {error && !confirming && <Notice tone="danger" title={error.title}>{error.text}</Notice>}
       <Bar busy={busy} ready={!!amount && !problem} onClick={() => { setError(null); setConfirming(true); }} label={busy ? '正在还款' : '确认还款'}
@@ -878,8 +878,12 @@ export type Product = { id: string; name: string; price: number; stock: number; 
 const imageUrl = (path: string) => supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 
 // The products to pick (one more with each tap, none past its stock) and the picked ones with their QtyStepper, as
-// 兑换 at the counter and in 补录 has them. `cart` is the quantity by product id.
-export function ProductPicker({ products, cart, onChange }: { products: Product[]; cart: Record<string, number>; onChange: (c: Record<string, number>) => void }) {
+// 兑换 at the counter and in 补录 has them. `cart` is the quantity by product id. `edit`: correcting a 兑换, whose own goods
+// come back to stock first, so `stock` is what may be taken (可兑), not what is on the shelf.
+export function ProductPicker({ products, cart, onChange, edit = false }: {
+  products: Product[]; cart: Record<string, number>; onChange: (c: Record<string, number>) => void; edit?: boolean;
+}) {
+  const left = (n: number) => (edit ? `可兑 ${n} 件` : n ? `库存 ${n}` : '已售罄');
   const lines = products.filter((p) => cart[p.id]).map((p) => ({ ...p, qty: cart[p.id] }));
   const setQty = (p: Product, n: number) => onChange({ ...cart, [p.id]: Math.max(0, Math.min(p.stock, n)) });
   return (
@@ -888,13 +892,13 @@ export function ProductPicker({ products, cart, onChange }: { products: Product[
         {products.map((p) => (
           <button key={p.id} type="button" className="dc-tile dc-kind-exchange" disabled={!p.stock} onClick={() => setQty(p, (cart[p.id] ?? 0) + 1)}
             style={p.stock ? undefined : { opacity: 0.5, cursor: 'not-allowed' }}
-            aria-label={`${p.name}，${p.price} HTB，${p.stock ? `库存 ${p.stock}` : '已售罄'}`}>
+            aria-label={`${p.name}，${p.price} HTB，${left(p.stock)}`}>
             <span className="dc-tile-icon">
               {p.image_path ? <img src={imageUrl(p.image_path)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
                 : <Icon name="exchange" />}
             </span>
             {p.name}
-            <small>{p.price} HTB · {p.stock ? `库存 ${p.stock}` : '已售罄'}</small>
+            <small>{p.price} HTB · {left(p.stock)}</small>
           </button>
         ))}
       </div>

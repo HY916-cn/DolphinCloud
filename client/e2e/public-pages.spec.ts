@@ -255,3 +255,46 @@ test('the nav has 文件 after 日志 for the bank admin', async ({ page }) => {
   const nav = page.getByRole('navigation', { name: '主导航' }).getByRole('link');
   await expect(nav.filter({ hasText: /^(参数|日志|文件|我的)$/ })).toHaveText(['参数', '日志', '文件', '我的']);
 });
+
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
+  const second = (url: URL) => url.pathname.includes('/upload/sign/') && url.pathname.endsWith('/2');
+  const list = (page: Page) => page.getByRole('list', { name: '要发送的文件' }).locator('.dc-list-item');
+
+  test('发送: a file that failed can be removed, and the rest go as a new send', async ({ page }) => {
+    await page.route(second, (route) => route.abort());
+    await page.goto('/transfer');
+    await page.locator('input[type="file"]').setInputFiles([
+      { name: 'a.txt', mimeType: 'text/plain', buffer: Buffer.from('a') },
+      { name: 'b.txt', mimeType: 'text/plain', buffer: Buffer.from('b') },
+    ]);
+    await page.getByRole('button', { name: '上传 2 个文件' }).click();
+    await expect(page.locator('.dc-notice-danger')).toContainText('没有传完');
+    await expect(list(page)).toHaveText(['a.txt1 KB已上传', 'b.txt1 KB · 没有传完重试']);
+    await expect(page.getByRole('button', { name: '重试未传完的' })).toBeEnabled();
+    await page.getByRole('button', { name: '移除 b.txt' }).click();
+    // The send no longer holds these files: the rest wait for a new one, and files can be added again.
+    await expect(list(page)).toHaveText(['a.txt1 KB']);
+    await expect(page.getByRole('button', { name: '选择文件' })).toBeEnabled();
+    await page.getByRole('button', { name: '上传 1 个文件' }).click();
+    await expect(pickup(page)).toHaveText(/^\d{4}$/);
+    await expect(page.getByRole('list', { name: '这次发出的文件' }).locator('.dc-file-name')).toHaveText(['a.txt']);
+  });
+
+  test('发送: a send past its 2 hours starts over with the same files', async ({ page }) => {
+    let fail = true;
+    await page.route((url) => url.pathname.includes('/upload/sign/'), (route) => (fail ? route.abort() : route.continue()));
+    await page.goto('/transfer');
+    await page.locator('input[type="file"]').setInputFiles([{ name: 'c.txt', mimeType: 'text/plain', buffer: Buffer.from('c') }]);
+    await page.getByRole('button', { name: '上传 1 个文件' }).click();
+    await expect(list(page)).toHaveText(['c.txt1 KB · 没有传完重试']);
+    sql(`update public.transfers set created_at = now() - interval '3 hours' where code is null`);
+    fail = false;
+    await page.getByRole('button', { name: '重试未传完的' }).click();
+    await expect(page.locator('.dc-notice-danger')).toContainText('这次发送已失效，请重新选择文件。');
+    await expect(list(page)).toHaveText(['c.txt1 KB']);
+    await expect(page.getByRole('button', { name: '选择文件' })).toBeEnabled();
+    await page.getByRole('button', { name: '上传 1 个文件' }).click();
+    await expect(pickup(page)).toHaveText(/^\d{4}$/);
+  });
+});

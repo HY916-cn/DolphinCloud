@@ -27,6 +27,6 @@ export async function call<T>(fn: string, args: Record<string, unknown>, timeout
   } catch {
     // details is plain text for errors that are not ours.
   }
-  throw new AppError(error.message, detail);
+  throw new AppError(error.message, detail, status);
 }
 

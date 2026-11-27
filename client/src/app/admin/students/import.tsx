@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 type Failure = { title: string; text: string };
 type Stage =
   | { kind: 'pick'; error?: Failure }
-  | { kind: 'checked'; file: string; rows: RosterRow[]; problems: RosterProblem[] }
+  | { kind: 'checked'; file: string; rows: RosterRow[]; problems: RosterProblem[]; hints: RosterProblem[] }
   | { kind: 'importing'; done: number; total: number }
   | { kind: 'done'; created: NoticeAccount[]; updated: number; error?: Failure };
 type Imported = { created: number; updated: number; accounts: NoticeAccount[] };
@@ -45,10 +45,12 @@ export default function ImportRoster() {
   async function read(file: File) {
     try {
       const X = await xlsx();
-      const sheet = X.read(await file.arrayBuffer()).Sheets;
+      // Dates as dates, so a 学号 Excel took for one is found; CSV text as it is written (raw), no number made of it.
+      const sheet = X.read(await file.arrayBuffer(), { cellDates: true, raw: /\.csv$/i.test(file.name) }).Sheets;
       const first = Object.values(sheet)[0];
       const table = first ? X.utils.sheet_to_json<unknown[]>(first, { header: 1, defval: '' }) : [];
-      setStage({ kind: 'checked', file: file.name, ...checkRoster(table, promotion.data ?? '09-01') });
+      const shown = first ? X.utils.sheet_to_json<unknown[]>(first, { header: 1, defval: '', raw: false }) : [];
+      setStage({ kind: 'checked', file: file.name, ...checkRoster(table, promotion.data ?? '09-01', undefined, shown) });
     } catch {
       setStage({ kind: 'pick', error: { title: '读不出这个文件', text: '请选择 Excel（.xlsx、.xls）或 CSV 文件，并使用导入模板的格式。' } });
     }
@@ -118,6 +120,7 @@ export default function ImportRoster() {
         </section>
       ) : (
         <section className="dc-stack dc-enter">
+          {stage.hints.map((h) => <Notice key={h.row} icon="warning" title={`第 ${h.row} 行：${h.text}`} />)}
           <div className="dc-card">
             <h2 className="heading">核对名册</h2>
             <Summary rows={[

@@ -74,9 +74,14 @@ export function repaySplit(loan: Pick<LoanDetail, 'remaining' | 'interest_centi'
   return { interest, principal: amount - interest };
 }
 
-// The repayment field's problem, if any: more than settles it all, or more than 活期 when paid from the account.
-export function repayProblem(amount: number, payoff: number, payment: 'account' | 'cash', balance: number) {
+// The repayment field's problem, if any: more than settles it all; the principal and the interest's whole HTB but not its
+// 零头, which the server refuses (loan_take: paying the principal off takes the interest rounded up), with the most a
+// partial payment can be; or more than 活期 when paid from the account.
+export function repayProblem(loan: Pick<LoanDetail, 'remaining' | 'interest_centi'> & { payoff: number }, amount: number, payment: 'account' | 'cash', balance: number) {
+  const { payoff } = loan;
   if (amount > payoff) return `这笔贷款现在一共只需还 ${formatAmount(payoff)} HTB。`;
+  const gap = loan.remaining + Math.floor(loan.interest_centi / 100);
+  if (amount === gap && loan.interest_centi % 100 > 0) return `还清需要 ${formatAmount(payoff)} HTB；不还清时最多还 ${formatAmount(gap - 1)} HTB。`;
   if (payment === 'account' && amount > balance) return `余额不足：活期余额 ${formatAmount(balance)} HTB，还差 ${formatAmount(amount - balance)} HTB`;
   return null;
 }

@@ -35,7 +35,7 @@ test('首页「攒着的利息」opens 利息: the card adds up, each day by wee
 
   await expect(card(page).locator('.amount')).toHaveText('2.00HTB');
   await expect(card(page).locator('> .dc-caption')).toHaveText('下周一存进余额');
-  await expect(card(page).locator('.dc-kv > div')).toHaveText(['本周活期利率2%/周', '本周已计+1.40 HTB', '利息更正+0.12 HTB', '上周留下的零头0.48 HTB']);
+  await expect(card(page).locator('.dc-kv > div')).toHaveText(['本周活期利率2%/周', '本周已计+1.40 HTB', '利息更正+0.12 HTB', '之前留下的零头0.48 HTB']);
   await expect(page.getByRole('heading', { name: '怎么计息' })).toBeVisible();
   await expect(page.getByText('活期暂停计息')).toHaveCount(0);
 
@@ -81,7 +81,24 @@ test('no interest yet: the card reads 0.00 HTB and the list says when the first 
   await expect(page).toHaveURL(/\/student$/);
   await page.goto('/student/interest');
   await expect(card(page).locator('.amount')).toHaveText('0.00HTB');
-  await expect(card(page).locator('.dc-kv > div')).toHaveText(['本周活期利率2%/周', '本周已计+0.00 HTB', '上周留下的零头0.00 HTB']);
+  await expect(card(page).locator('.dc-kv > div')).toHaveText(['本周活期利率2%/周', '本周已计+0.00 HTB', '之前留下的零头0.00 HTB']);
   await expect(page.locator('.dc-empty')).toHaveText('还没有计息记录每天结束时按活期余额计一次利息，明天就能在这里看到。');
   await expect(page.getByRole('button', { name: '加载更多' })).toHaveCount(0);
+});
+
+test('one 利息 that settles three weeks shows its amount on the latest week only', async ({ page }) => {
+  // 李思远 (20260002) had 0.60, 0.30 and 0.20 HTB in the three weeks before this one, each under 1 HTB: this Monday's
+  // 利息 pays in 1 HTB for all three.
+  sql(`insert into public.interest_accruals (student_no, day, balance, rate, centi) values
+         ('20260002', ${MONDAY} - 21, 30, 2, 60), ('20260002', ${MONDAY} - 14, 15, 2, 30), ('20260002', ${MONDAY} - 7, 10, 2, 20);
+       select app_private.settle_interest(${MONDAY}::timestamp at time zone 'Asia/Shanghai');`);
+  await signIn(page, '学生', '20260002');
+  await expect(page).toHaveURL(/\/student$/);
+  await page.goto('/student/interest');
+  const week = (n: number) => group(page, `${md(`${MONDAY} - ${7 * n}`)}至${md(`${MONDAY} - ${7 * n - 6}`)}`).locator('.dc-list-head .dc-caption');
+  await expect(week(1)).toHaveText('+0.20 HTB · 已存进余额 1 HTB');
+  await expect(week(2)).toHaveText(`+0.30 HTB · ${md(MONDAY)}存进余额`);
+  await expect(week(3)).toHaveText(`+0.60 HTB · ${md(MONDAY)}存进余额`);
+  await expect(page.getByText('已存进余额', { exact: false })).toHaveCount(1);
+  await expect(card(page).locator('.dc-kv > div').last()).toHaveText('之前留下的零头0.10 HTB');
 });

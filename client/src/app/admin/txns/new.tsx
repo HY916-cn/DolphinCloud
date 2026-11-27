@@ -232,7 +232,7 @@ function EntryForm({ original }: { original?: LedgerRow }) {
       {type === 'purchase' && (
         <>
           {products.error ? <Notice tone="danger" title="暂时无法读取商品">请检查网络后重试。</Notice>
-            : products.isPending ? <TilesLoading /> : <ProductPicker products={goods} cart={cart} onChange={setCart} />}
+            : products.isPending ? <TilesLoading /> : <ProductPicker products={goods} cart={cart} onChange={setCart} edit={!!original} />}
           <fieldset className="dc-seg" aria-label="付款方式">
             {([['account', '账户'], ['cash', '现金']] as const).map(([key, label]) => (
               <label key={key}><input type="radio" name="entry-payment" checked={payment === key} onChange={() => setPayment(key)} /><span>{label}</span></label>

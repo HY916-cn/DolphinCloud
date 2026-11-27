@@ -17,6 +17,11 @@ test('add a product, stock it in and out, then unlist it', async ({ page }) => {
   await page.getByRole('button', { name: '保存商品' }).click();
   await expect(page.locator('.dc-field.is-error')).toHaveCount(2);
   await page.getByLabel('商品名称').fill(name);
+  await expect(page.locator('.dc-field', { has: page.getByPlaceholder('请输入价格') }).locator('.dc-field-hint')).toHaveText('价格要是 1～1,000,000 HTB 的整数');
+  await page.getByPlaceholder('请输入价格').fill('1000001');
+  await expect(page.locator('.dc-field.is-error', { has: page.getByPlaceholder('请输入价格') })).toContainText('价格要是 1～1,000,000 HTB 的整数');
+  await page.getByPlaceholder('请输入价格').fill('1000000');
+  await expect(page.locator('.dc-field', { has: page.getByPlaceholder('请输入价格') }).locator('.dc-field-hint')).toHaveText('1～1,000,000 HTB');
   await page.getByPlaceholder('请输入价格').fill('3');
   await page.getByPlaceholder('例如 文具').fill('贴纸');
   await page.locator('input[type=file]').setInputFiles('public/logo.png');

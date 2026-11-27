@@ -19,7 +19,7 @@ const imageUrl = (path: string) => supabase.storage.from('product-images').getPu
 // first) stays in the bucket; clean the bucket by hand if that ever adds up.
 const dropImage = (path: string | null) => { if (path) supabase.storage.from('product-images').remove([path]); };
 const failure = (e: unknown) => (e instanceof AppError ? explain(e.code, e.detail) : explain(''));
-const digits = (v: string) => v.replace(/\D/g, '').slice(0, 6);
+const digits = (v: string, n = 6) => v.replace(/\D/g, '').slice(0, n);
 // The picture types the product-images bucket accepts.
 const IMAGE_TYPES = 'image/jpeg,image/png,image/webp';
 
@@ -101,9 +101,10 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   const [saved, setSaved] = useState(savedBefore);
   const [error, setError] = useState<Problem>(null);
 
-  // The same rules as upsert_product: a name, a whole price above 0, a cost of 0 or more (the inputs take digits only).
+  // The same rules as upsert_product: a name, a whole price of 1 to 1,000,000, a cost of 0 or more (the inputs take digits only).
   const nameProblem = tried && !name.trim() ? '请输入商品名称' : null;
-  const priceProblem = tried && !(Number(price) > 0) ? '请输入大于 0 的整数价格' : null;
+  const priceOk = Number(price) >= 1 && Number(price) <= 1_000_000;
+  const priceProblem = tried && !priceOk ? '价格要是 1～1,000,000 HTB 的整数' : null;
 
   async function pick(file: File | undefined) {
     if (!file) return;
@@ -134,7 +135,7 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
   async function save(e: FormEvent) {
     e.preventDefault();
     setTried(true);
-    if (busy || uploading || !name.trim() || !(Number(price) > 0)) return;
+    if (busy || uploading || !name.trim() || !priceOk) return;
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -162,8 +163,8 @@ function ProductForm({ product, savedBefore = false }: { product: Product | null
       <Field icon="exchange" label="商品名称" error={nameProblem}>
         <input className="dc-input" value={name} maxLength={40} placeholder="例如 海豚书签" onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field icon="coin" label="价格" error={priceProblem} hint="兑换一件所需的海豚币，整数">
-        <input className="dc-input" inputMode="numeric" value={price} placeholder="请输入价格" onChange={(e) => setPrice(digits(e.target.value))} />
+      <Field icon="coin" label="价格" error={priceProblem} hint="1～1,000,000 HTB">
+        <input className="dc-input" inputMode="numeric" value={price} placeholder="请输入价格" onChange={(e) => setPrice(digits(e.target.value, 7))} />
         <span className="dc-input-unit">HTB</span>
       </Field>
       <Field icon="savings" label="成本" hint="选填">

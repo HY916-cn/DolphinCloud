@@ -266,12 +266,12 @@ test('逾期: the counter tags the student, says what is late with the 罚息, r
   await expect(amount).toHaveValue(String(late + 1));
   await expect(page.locator('.dc-field-hint')).toHaveText(`本期应还 ${late + 1} HTB · 全部结清 27 HTB`);
 
-  // 剩余本金 + the interest's whole HTB leaves its cents: the server refuses, and the sheet stays open with why.
+  // 剩余本金 + the interest's whole HTB leaves its cents, which the server refuses: the field says what pays it off and
+  // the most short of that, and 确认还款 waits.
   await amount.fill('26');
-  await bar(page, '确认还款').click();
-  await confirmIn(page, '确认还款');
-  await expect(sheet(page).locator('.dc-notice-danger')).toContainText('还清本金要连利息零头一起付，全部结清是 27 HTB。');
-  await sheet(page).getByRole('button', { name: '取消' }).click();
+  await expect(page.locator('.dc-field.is-error .dc-field-hint')).toHaveText('还清需要 27 HTB；不还清时最多还 25 HTB。');
+  await expect(bar(page, '确认还款')).toBeDisabled();
+  await expect(receipt(page)).not.toContainText('正在办理');
   await amount.fill('27');
   await bar(page, '确认还款').click();
   await expect(sheet(page).locator('.dc-kv > div').first()).toHaveText('先付利息2 HTB');

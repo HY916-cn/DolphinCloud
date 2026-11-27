@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { Filter } from '@/components/Filter';
+import { inBatches, mergePage } from './batches';
 import { readAll, supabase } from './supabase';
 import { flows } from './term-deposits';
 import { toTxn, type TxnRow } from './txns';
@@ -42,25 +43,39 @@ export function useLedger(studentNo: string, tab: TxnTab, filter: Filter, enable
     initialPageParam: 0,
     getNextPageParam: (last: TxnRow[], pages) => (last.length === PAGE ? pages.length : undefined),
     queryFn: async ({ pageParam }) => {
-      let q = supabase.from('txns').select(COLUMNS).eq('student_no', studentNo);
-      if (tab === 'loan') q = q.in('type', ['loan', 'repay']);
-      else if (tab !== 'all') q = q.eq('type', tab);
-      if (filter.from) q = q.gte('created_at', `${filter.from}T00:00:00+08:00`);
-      if (filter.to) q = q.lte('created_at', `${filter.to}T23:59:59.999+08:00`);
-      if (filter.timeFrom) q = q.gte('cn_time', filter.timeFrom);
-      if (filter.timeTo) q = q.lt('cn_time', filter.timeTo);
+      const from = pageParam * PAGE;
+      const to = from + PAGE - 1;
+      const query = () => {
+        let q = supabase.from('txns').select(`${COLUMNS},seq`).eq('student_no', studentNo);
+        if (tab === 'loan') q = q.in('type', ['loan', 'repay']);
+        else if (tab !== 'all') q = q.eq('type', tab);
+        if (filter.from) q = q.gte('created_at', `${filter.from}T00:00:00+08:00`);
+        if (filter.to) q = q.lte('created_at', `${filter.to}T23:59:59.999+08:00`);
+        if (filter.timeFrom) q = q.gte('cn_time', filter.timeFrom);
+        if (filter.timeTo) q = q.lt('cn_time', filter.timeTo);
+        return q.order('created_at', { ascending: false }).order('seq', { ascending: false });
+      };
       const words = filter.text.trim().replace(/[%_\\,()*]/g, '');
-      if (words) {
-        // A product's name is in txn_items; the transactions holding it join the ones whose 交易号 matches.
-        // Only this student's items, so the cap holds every match but a student's 500th purchase of the same product.
-        const { data, error } = await supabase.from('txn_items').select('txn_id,txns!inner(student_no)')
-          .eq('txns.student_no', studentNo).ilike('name', `%${words}%`).limit(500);
+      if (!words) {
+        const { data, error } = await query().range(from, to);
         if (error) throw error;
-        q = q.or([`txn_no.ilike.*${words}*`, ...(data.length ? [`id.in.(${data.map((i) => i.txn_id).join(',')})`] : [])].join(','));
+        return data as TxnRow[];
       }
-      const { data, error } = await q.order('created_at', { ascending: false }).order('seq', { ascending: false }).range(pageParam * PAGE, pageParam * PAGE + PAGE - 1);
+      // A product's name is in txn_items; the transactions holding it join the ones whose 交易号 matches.
+      // Only this student's items, so the cap holds every match but a student's 500th purchase of the same product.
+      const { data: items, error } = await supabase.from('txn_items').select('txn_id,txns!inner(student_no)')
+        .eq('txns.student_no', studentNo).ilike('name', `%${words}%`).limit(500);
       if (error) throw error;
-      return data as TxnRow[];
+      // Their ids go 100 to a request (500 would make an address of 18 KB, past what a gateway takes); each request
+      // reads its first rows up to this page, and together they give the page one request would.
+      const ids = [...new Set(items.map((i) => i.txn_id))];
+      const answers = await Promise.all((ids.length ? inBatches(ids) : [[]]).map(async (batch) => {
+        const { data, error: e } = await query().or([`txn_no.ilike.*${words}*`, ...(batch.length ? [`id.in.(${batch.join(',')})`] : [])].join(','))
+          .range(ids.length > 100 ? 0 : from, to);
+        if (e) throw e;
+        return data as (TxnRow & { seq: number })[];
+      }));
+      return ids.length > 100 ? mergePage(answers, from, to) : answers[0];
     },
   });
 }

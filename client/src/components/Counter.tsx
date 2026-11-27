@@ -1,10 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { describeCash, diffNotes, type Counts } from '@/lib/cash';
 import { classOf, deposit, lookupStudent, useRoster, type Student } from '@/lib/counter';
 import { AppError, explain } from '@/lib/errors';
-import { formatAmount, formatNet } from '@/lib/format';
-import { offlineQueue, type OfflineDeposit, type RosterEntry } from '@/lib/offline-queue';
+import { formatAmount, formatNet, formatTime } from '@/lib/format';
+import { offlineQueue, retryDelay, type OfflineDeposit, type RosterEntry } from '@/lib/offline-queue';
 import { useOnline } from '@/lib/online';
 import { searchRoster } from '@/lib/search';
 import { useBump } from '@/lib/motion';
@@ -168,22 +168,38 @@ export function CounterPage({ title, onBack, children }: { title: string; onBack
   );
 }
 
+// Uploads in a row that came to nothing (no answer, a server error): the next automatic try waits longer each time.
+// Kept across the bar going away while the counter is offline.
+let failedUploads = 0;
+
 function PendingUploads({ operatorId }: { operatorId: string }) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<OfflineDeposit | null>(null);
+  const [tries, setTries] = useState(failedUploads);
+  const running = useRef(false);
   const queue = useQuery({ queryKey: ['offline-deposits'], queryFn: offlineQueue.list });
   const all = queue.data ?? [];
-  if (!all.length) return null;
   const mine = all.filter((e) => e.operator_id === operatorId);
   const waiting = mine.filter((e) => !e.error);
   const others = all.filter((e) => e.operator_id !== operatorId);
 
   async function upload() {
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
-    await offlineQueue.upload(operatorId, (e) => deposit(e.id, e.student_no, e.cash, true, e.created_at));
-    setBusy(false);
-    queryClient.invalidateQueries({ queryKey: ['offline-deposits'] });
+    try {
+      const { retry } = await offlineQueue.upload(operatorId, (e) => deposit(e.id, e.student_no, e.cash, true, e.created_at));
+      setTries(failedUploads = retry ? failedUploads + 1 : 0);
+    } finally {
+      running.current = false;
+      setBusy(false);
+      queryClient.invalidateQueries({ queryKey: ['offline-deposits'] });
+    }
+  }
+  async function retry(e: OfflineDeposit) {
+    await offlineQueue.retry(e.id);
+    await upload();
   }
   async function remove(e: OfflineDeposit) {
     await offlineQueue.remove(e.id);
@@ -191,26 +207,36 @@ function PendingUploads({ operatorId }: { operatorId: string }) {
     queryClient.invalidateQueries({ queryKey: ['offline-deposits'] });
   }
 
+  // After an upload that came to nothing, try again by itself: 5 s, 15 s, 1 min, then every 5 min.
+  const due = tries > 0 && waiting.length > 0 && !busy;
+  useEffect(() => {
+    if (!due) return;
+    const timer = setTimeout(upload, retryDelay(tries));
+    return () => clearTimeout(timer);
+  }, [due, tries]); // eslint-disable-line react-hooks/exhaustive-deps -- upload reads the queue afresh
+
+  if (!all.length) return null;
   return (
     <>
       {waiting.length > 0 && (
-        <div className="dc-notice dc-notice-coin" role="status">
-          <Icon name="inbox" />
-          <div style={{ flex: 1 }}>
-            <p className="dc-notice-title">有 {waiting.length} 笔离线存款待上传</p>
-            <p className="dc-notice-text">共 {formatAmount(waiting.reduce((s, e) => s + e.amount, 0))} HTB，按登记时间顺序入账。</p>
-          </div>
-          <button className={`dc-btn dc-btn-primary dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy} onClick={upload}>
-            {busy ? '正在上传' : '上传'}
-          </button>
-        </div>
+        <Notice tone="coin" icon="inbox" title={`有 ${waiting.length} 笔离线存款待上传`}
+          actions={(
+            <button className={`dc-btn dc-btn-primary dc-btn-sm ${busy ? 'is-loading' : ''}`} type="button" disabled={busy} onClick={upload}>
+              {busy ? '正在上传' : '上传'}
+            </button>
+          )}>
+          共 {formatAmount(waiting.reduce((s, e) => s + e.amount, 0))} HTB，按登记时间顺序入账。
+        </Notice>
       )}
       {mine.filter((e) => e.error).map((e) => (
-        <Notice key={e.id} tone="danger" title={`离线存款未能入账：${e.name} ${formatAmount(e.amount)} HTB`}>
-          {explain(e.error!).title}。{describeCash(e.cash)}，{new Date(e.created_at).toLocaleString('zh-CN', { hour12: false })} 登记，请交银行管理员核对纸质凭条。
-          <br />
-          <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" style={{ marginTop: 'var(--space-2)' }}
-            onClick={() => setRemoving(e)}>已核对，移除</button>
+        <Notice key={e.id} tone="danger" title={`离线存款未能入账：${e.name} ${formatAmount(e.amount)} HTB`}
+          actions={(
+            <>
+              <button className="dc-btn dc-btn-secondary dc-btn-sm" type="button" disabled={busy} onClick={() => retry(e)}>重试</button>
+              <button className="dc-btn dc-btn-ghost dc-btn-sm" type="button" onClick={() => setRemoving(e)}>已核对，移除</button>
+            </>
+          )}>
+          {explain(e.error!).title}。{describeCash(e.cash)}，{formatTime(e.created_at)} 登记，请交银行管理员核对纸质凭条。
         </Notice>
       ))}
       {removing && (

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { confirmIn, endDuty, resetData, signIn, startDuty } from './helpers';
+import { confirmIn, endDuty, resetData, signIn, startDuty, sql } from './helpers';
 
 // The counter (M3, PHASE-1.md §7.5–7.7) on the seed data (supabase/seed.sql): teller01 serves 张小明 (20260001,
 // balance 108) and 李思远 (20260002, balance 70). Tests run in order and each one builds on the balances before it.
@@ -279,4 +279,36 @@ test('下班 may skip printing the summary, and 办理 waits for 上班 again', 
   await expect(page.locator('.dc-empty', { hasText: '未上班' })).toBeVisible();
   await startDuty(page);
   await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeVisible();
+});
+
+test.describe(() => {
+  test.use({ serviceWorkers: 'block' }); // page.route sees the app's own requests only
+  test('an offline deposit the server cannot take for now (5xx) stays waiting and goes up by itself', async ({ page, context }) => {
+    const balance = () => Number(sql(`select balance from public.accounts where student_no = '20260002'`));
+    const before = balance();
+    await signIn(page, '工作人员', 'teller01');
+    await expect(page).toHaveURL(/\/counter$/);
+    await expect(page.getByRole('searchbox', { name: '搜索学生' })).toBeVisible(); // on duty
+    await page.waitForLoadState('networkidle');
+    await context.setOffline(true);
+    await findStudent(page, '20260002', '李思远');
+    await page.getByLabel('增加一张 5 元').click();
+    await page.getByRole('button', { name: '确认存款 5 HTB' }).click();
+    await expect(receipt(page)).toContainText('存款（离线登记）');
+    await context.setOffline(false);
+    await receipt(page).getByRole('button', { name: '结束办理 1 笔' }).click();
+
+    let calls = 0;
+    await page.route('**/rest/v1/rpc/deposit', (route) => (++calls === 1
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"no connection to the server"}' }) : route.continue()));
+    const waiting = page.locator('.dc-notice', { hasText: '有 1 笔离线存款待上传' });
+    await waiting.getByRole('button', { name: '上传' }).click();
+    await expect.poll(() => calls).toBe(1);
+    await expect(waiting.getByRole('button', { name: '上传' })).toBeEnabled();
+    await expect(page.locator('.dc-notice-danger')).toHaveCount(0); // not 未能入账
+    // The next try comes by itself about 5 s later.
+    await expect(page.locator('.dc-notice', { hasText: '待上传' })).toHaveCount(0, { timeout: 15_000 });
+    expect(calls).toBe(2);
+    expect(balance()).toBe(before + 5);
+  });
 });
