@@ -2,6 +2,19 @@
 
 对照 [PHASE-1.md](PHASE-1.md) §12.2 的验收标准，逐条写明证据。PHASE-1.md 里只勾选完全验证过的条目。
 
+## 2026-11-28 · 正式服务器升级到 7f3b6db
+
+带上 11-26 审查的全部修复（下一节）：恢复脚本、7 个迁移（`20261220000000`～`20261220000600`）和对应的前端。步骤同 PHASE-1.md §9.5；11月28日（周六）17:19 开始，不营业。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 升级前 | `dolphin health`、`dolphin check` 通过；账户 64 个、余额合计 1949 HTB、流水 61 笔、账号 88 个、库存 91 件、考勤 13 条、迁移 91 个；持有中的理财 0 笔，未到期的定期 1 笔 |
+| 备份 | `dolphin-20261128-171939.tar.gz.age`（加密）；旧镜像另存为 `dolphin-cloud:prod-85d3847` |
+| 升级 | `git -C src pull`（`85d3847` → `7f3b6db`）、`docker compose build`、`docker compose up -d`；约 6 秒内 `dolphin health` 通过，迁移从 91 个到 98 个，与仓库一致；启动日志没有 `not properly shut down` |
+| 升级后 | `dolphin check` 通过；上述数字与升级前相同；`app_private.txn_at`、`app_private.wealth_settled` 已存在；`https://dc.90016.top` 的 `/`、`/board`、`/clock`、`/transfer` 返回 200，`public_rates` 正常返回 |
+
+回滚：`docker tag dolphin-cloud:prod-85d3847 dolphin-cloud:local`，再按 §9.5 用新镜像里的 `dolphin` 恢复上面的备份。
+
 ## 2026-11-28 · 11-26 审查的处理
 
 处理 [11-26 全量审查](../audit/audit-2026-11-26.md)（基线 `9654729`）的全部 20 条：后端与文档的第 3、4、6、7、8、14、15、16、17、20 条（`80c3ede`），恢复脚本的第 1、2、5 条（`80bdb48`），前端的第 8～13、18、19 条（设计系统 `bf5f712`、`ddce003`、`be97539`，client `f2eabc8`）。每条先在最新的 `origin/main`（`37041c2`）上确认问题仍在，都仍成立（第 20 条：已有「学生只读到本人流水」的断言，缺他人账户、考勤和 anon 读取的断言）。下面的本次运行和逐条结果是后端部分；恢复脚本和前端见「恢复脚本与前端」。
